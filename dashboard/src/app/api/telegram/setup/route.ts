@@ -6,11 +6,11 @@ import {
   safeH1CloudConfigStatus,
   saveH1CloudConfig,
 } from "@/lib/h1-cloud-config";
+import { TELEGRAM_CLOUD_WEBHOOK_URL } from "@/lib/telegram-cloud-config";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const WEBHOOK_URL = "https://www.oakgatekeeper.uk/api/telegram/webhook";
 const TICKET_HEADER = "x-telegram-bootstrap-ticket";
 const TICKET_PREFIX = "oak:telegram:webhook-bootstrap-ticket:";
 
@@ -28,7 +28,7 @@ async function installWebhook(token: string, secret: string): Promise<void> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      url: WEBHOOK_URL,
+      url: TELEGRAM_CLOUD_WEBHOOK_URL,
       secret_token: secret,
       allowed_updates: ["message", "callback_query"],
       drop_pending_updates: false,
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     await installWebhook(current.telegramToken, secret);
     return NextResponse.json({
       ok: true,
-      webhookUrl: WEBHOOK_URL,
+      webhookUrl: TELEGRAM_CLOUD_WEBHOOK_URL,
       ...safeH1CloudConfigStatus(saved),
     }, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error) {

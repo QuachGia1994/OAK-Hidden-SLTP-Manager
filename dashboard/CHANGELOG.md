@@ -2,6 +2,16 @@
 
 All notable changes to the dashboard are recorded here.
 
+## [0.5.0] - 2026-08-25
+
+### Added
+
+- Added a PC-local MT5 Telegram failover path for verified Upstash write-capacity/outage events. Healthy operation keeps the production webhook in cloud ownership; activation requires fresh matching EA cloud-failure evidence plus repeated independent Redis `SET ... EX` write-canary failures. MT5 mutation intents carry canonical per-line/per-account origins through cloud execution and the bridge into the EA, where cloud/local `entry`, `close`, `modify`, and `partial` share a retained FILE_COMMON per-origin claim/result fence; claim-without-result is fail-closed `UNCERTAIN`, while `positions` remains read-only. Local IDs use `L-<epoch>-<seq>`, recovery fences handled Telegram updates before restoring/verifying the production webhook, and offline verification does not install the Scheduled Task or perform a live handoff/outage simulation.
+
+### Fixed
+
+- Scheduled MT5 Telegram intents now persist bridge task envelopes as schema v2 with canonical origin, ledger, digest and broker identity. Legacy/stale v1 tasks fail closed before broker execution and are never replayed automatically, preventing the intent #16 task-version rejection from recurring for future intents.
+
 ## [0.4.0] - 2026-08-24
 
 ### Added

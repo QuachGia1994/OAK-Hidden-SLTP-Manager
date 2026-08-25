@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const webhook = readFileSync(new URL("../app/api/telegram/webhook/route.ts", import.meta.url), "utf8");
 const setup = readFileSync(new URL("../app/api/telegram/setup/route.ts", import.meta.url), "utf8");
+const localFailoverBootstrap = readFileSync(new URL("../app/api/telegram/local-failover-bootstrap/route.ts", import.meta.url), "utf8");
 const tick = readFileSync(new URL("../app/api/telegram/tick/route.ts", import.meta.url), "utf8");
 const store = readFileSync(new URL("./telegram-cloud-store.ts", import.meta.url), "utf8");
 const oidc = readFileSync(new URL("./telegram-cloud-oidc.ts", import.meta.url), "utf8");
@@ -36,8 +37,21 @@ test("Telegram webhook bootstrap is one-time authorized and never returns the se
   assert.match(setup, /secret_token: secret/);
   assert.match(setup, /drop_pending_updates: false/);
   assert.ok(setup.indexOf("saveH1CloudConfig(saved)") < setup.indexOf("installWebhook(current.telegramToken, secret)"));
-  assert.match(setup, /webhookUrl: WEBHOOK_URL,[\s\S]*\.\.\.safeH1CloudConfigStatus\(saved\)/);
-  assert.doesNotMatch(setup, /webhookUrl: WEBHOOK_URL,[\s\S]*telegramWebhookSecret:/);
+  assert.match(setup, /TELEGRAM_CLOUD_WEBHOOK_URL/);
+  assert.match(setup, /webhookUrl: TELEGRAM_CLOUD_WEBHOOK_URL,[\s\S]*\.\.\.safeH1CloudConfigStatus\(saved\)/);
+  assert.doesNotMatch(setup, /webhookUrl: TELEGRAM_CLOUD_WEBHOOK_URL,[\s\S]*telegramWebhookSecret:/);
+});
+
+test("local failover secret export is POST-only and one-time ticket fenced", () => {
+  assert.match(localFailoverBootstrap, /x-local-failover-bootstrap-ticket/);
+  assert.match(localFailoverBootstrap, /TELEGRAM_LOCAL_FAILOVER_BOOTSTRAP_TICKET_PREFIX/);
+  assert.match(localFailoverBootstrap, /getdel<string>\(`\$\{TELEGRAM_LOCAL_FAILOVER_BOOTSTRAP_TICKET_PREFIX\}\$\{ticket\}`\)/);
+  assert.match(localFailoverBootstrap, /consumed === TELEGRAM_LOCAL_FAILOVER_BOOTSTRAP_PURPOSE/);
+  assert.match(localFailoverBootstrap, /body\.purpose !== TELEGRAM_LOCAL_FAILOVER_BOOTSTRAP_PURPOSE/);
+  assert.match(localFailoverBootstrap, /telegramToken: config\.telegramToken/);
+  assert.match(localFailoverBootstrap, /telegramWebhookSecret: config\.telegramWebhookSecret/);
+  assert.match(localFailoverBootstrap, /Cache-Control/);
+  assert.doesNotMatch(localFailoverBootstrap, /export async function GET/);
 });
 
 test("cloud receiver requires explicit approve before broker mutation", () => {

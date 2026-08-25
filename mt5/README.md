@@ -28,9 +28,11 @@ If the terminal/PC is offline at the due time, the bridge heartbeat expires and 
   - `/partial XAUUSD price 3456.70 0.01 @Vantage` arms the only matching XAUUSD position to close `0.01` lots when the directional target price is reached. If multiple positions match the symbol, use a ticket.
 - Per-position management state persists in MT5 terminal Global Variables using `POSITION_IDENTIFIER`, so initial risk/R state survives EA reloads and netting ticket replacement.
 - Account identity binding: if `InpExpectedLogin` does not match the live MT5 login, EA initialization fails.
-- Cloud task arbitration uses the same Redis claim key as the web control plane so a cloud task has one durable execution owner.
+- Cloud queue arbitration still fences task ownership in Redis, but broker mutations also pass through the EA's shared FILE_COMMON per-origin ledger. Cloud and PC-local `entry`, `close`, `modify`, and `partial` use the same canonical Telegram origin/digest and must win the same atomic claim before the broker-facing call.
+- A retained result for the same origin/digest is reconciled without re-execution. A retained claim without a result is `UNCERTAIN` and is never replayed automatically. `positions` is read-only and bypasses the mutation claim. This is a durable fail-closed fence, not an absolute exactly-once guarantee at the broker.
 - Upstash traffic is bounded: local position management stays tick-driven, while the cloud mailbox is checked every 10 seconds by default (runtime-clamped to 10–15 seconds). Heartbeat refresh and queue peek share one atomic Redis command, avoiding the previous 1-second idle polling load.
 - Cloud market entry waits up to 2.5 seconds for the selected symbol to synchronize and expose a positive bid/ask tick before building the broker request. This handles Market Watch warm-up races without retrying any broker mutation.
+- EA v1.03 enables `InpLocalFailoverEnabled=true` by default. The EA writes cloud-health/status and accepts PC-local tasks through MetaTrader `FILE_COMMON`; the companion `local-failover/` controller may take Telegram ownership only after fresh matching EA failure evidence plus repeated independent Redis `SET ... EX` write-canary failures. Normal cloud ownership remains primary.
 
 ## Install
 
@@ -43,6 +45,7 @@ If the terminal/PC is offline at the due time, the bridge heartbeat expires and 
    - `InpExpectedLogin` = exact MT5 login number.
    - `InpUpstashRestUrl` and `InpUpstashRestToken` = the same bridge Redis REST credentials as the cloud control plane.
    - `InpCloudPollSeconds` = keep `10` for the normal balance of command usage and cloud execution latency. The runtime clamps this value to 10–15 seconds; `InpPollSeconds` remains the local manager timer and does not control Redis queue frequency.
+   - `InpLocalFailoverEnabled` = keep `true` on the PC/VPS terminal if the `local-failover/` watchdog is installed. This adds no Redis traffic; it only exposes a local FILE_COMMON mailbox and health file.
    - SL/TP, netting, BE/R and exposure guards as required.
 6. Keep **Algo Trading** enabled. `/accounts` and `/status` should show the bridge online after the EA heartbeat appears.
 7. Verify with `/positions @ACCOUNT` before approving any live broker mutation.
@@ -64,6 +67,8 @@ For one configured partial percentage, each R trigger closes that percentage of 
 ## Operational boundary
 
 The PC may be shut down on weekends if no MT5 cloud work is expected. While the terminal is closed, MT5 bridge status is offline and no EA-side BE/partial/protection logic can run. Broker-native SL/TP already attached to positions remains active at the broker even when the PC is off.
+
+Offline verification of the local failover code does not install the Windows Scheduled Task or perform a live Telegram handoff/Upstash outage simulation. Those are separate operator-authorized production steps; no broker mutation is required merely to validate failover ownership.
 
 ## NeoTech compliance EA — independent, read-only
 

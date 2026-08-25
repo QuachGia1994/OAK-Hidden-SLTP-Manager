@@ -3,9 +3,11 @@ import { NextResponse } from "next/server";
 import { getFreshCTraderTokens } from "@/lib/ctrader-vault";
 import { fetchCTraderAccountReadSnapshot, type CTraderScannerSession } from "@/lib/ctrader-json";
 import { loadH1CloudConfig } from "@/lib/h1-cloud-config";
+import { TELEGRAM_CLOUD_WEBHOOK_URL } from "@/lib/telegram-cloud-config";
 import { parseNeoTechCheckCallback, parseNeoTechCheckCommand } from "@/lib/neotech-compliance-domain";
 import { getNeoTechTelegramPage } from "@/lib/neotech-compliance-telegram";
 import { listManagedCTraderAccounts, type CTraderManagedAccount } from "@/lib/ctrader-accounts";
+import { mt5TelegramOriginKey } from "@/lib/mt5-origin-domain";
 import { executeMt5BridgeAction, getMt5BridgeHeartbeat } from "@/lib/mt5-bridge";
 import { listProviderAccounts } from "@/lib/provider-accounts";
 import { parseCTraderProviderAccountId, providerProtectionPoints, resolveEnabledProviderTargets } from "@/lib/provider-account-domain";
@@ -35,7 +37,6 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const SECRET_HEADER = "x-telegram-bot-api-secret-token";
-const WEBHOOK_URL = "https://www.oakgatekeeper.uk/api/telegram/webhook";
 
 function safeEqual(left: string, right: string): boolean {
   const a = Buffer.from(left);
@@ -80,7 +81,7 @@ async function telegramWebhookActive(token: string): Promise<boolean> {
     const response = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`, { cache: "no-store" });
     if (!response.ok) return false;
     const payload = await response.json() as { ok?: boolean; result?: { url?: string } };
-    return payload.ok === true && String(payload.result?.url || "") === WEBHOOK_URL;
+    return payload.ok === true && String(payload.result?.url || "") === TELEGRAM_CLOUD_WEBHOOK_URL;
   } catch {
     return false;
   }
@@ -289,6 +290,9 @@ async function handleCommand(text: string, chatId: string, updateId: number, sou
         protectionPlan[account.id] = { label: account.label, slPoints, tpPoints };
       }
     }
+    const originKeys = Object.fromEntries(targets
+      .filter((account) => account.provider === "mt5")
+      .map((account) => [account.id, mt5TelegramOriginKey(updateId, sourceCommandIndex, account.id)]));
     const task = await createCloudIntent({
       kind: command.kind,
       chatId,
@@ -298,6 +302,7 @@ async function handleCommand(text: string, chatId: string, updateId: number, sou
       payload: command.payload,
       targetAccountIds: targets.map((item) => item.id),
       protectionPlan,
+      originKeys,
       sourceUpdateId: updateId,
       sourceCommandIndex,
     });

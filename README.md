@@ -54,10 +54,8 @@ See `mobile/README.md`. The native shell uses pnpm and Expo prebuild; generated 
 
 ## MT5 EA
 
-See `mt5/README.md` for installation, WebRequest permission, account binding and Upstash bridge configuration. The EA source of truth is:
+See `mt5/README.md` for MT5 setup documentation. The independent NeoTech compliance source is `mt5/OAK_NeoTech_Compliance_EA.mq5` plus `mt5/neotech/`.
 
-`mt5/OAK_Cloud_Manager_EA.mq5`
-
-The independent NeoTech compliance source is `mt5/OAK_NeoTech_Compliance_EA.mq5` plus `mt5/neotech/`. Its backend validates transport/schema and renders stored MQL5 conclusions; it does not implement a second TypeScript compliance engine.
+The NeoTech surface is unofficial/advisory and does not grant or claim NeoTech approval. Its backend validates transport/schema and renders stored MQL5 conclusions; it does not implement a second TypeScript compliance engine.
 
 Never commit populated MT5 `.set` files, Upstash tokens, compliance ingest keys, broker credentials or Vercel secrets.

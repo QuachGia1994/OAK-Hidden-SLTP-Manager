@@ -26,6 +26,7 @@ export type CloudIntent = {
   executionError?: string;
   targetAccountIds: string[];
   protectionPlan?: Record<string, { label: string; slPoints: number; tpPoints: number }>;
+  originKeys?: Record<string, string>;
   payload: Record<string, string | number | boolean | null>;
 };
 

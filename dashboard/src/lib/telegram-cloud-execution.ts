@@ -11,6 +11,7 @@ import {
 } from "@/lib/ctrader-json";
 import { listManagedCTraderAccounts, type CTraderManagedAccount } from "@/lib/ctrader-accounts";
 import { executeMt5BridgeAction } from "@/lib/mt5-bridge";
+import { mt5TelegramOriginKey } from "@/lib/mt5-origin-domain";
 import { listProviderAccounts } from "@/lib/provider-accounts";
 import { parseCTraderProviderAccountId, type ProviderAccountSummary } from "@/lib/provider-account-domain";
 import type { CloudExecutionResult, CloudIntent } from "@/lib/telegram-cloud-domain";
@@ -150,8 +151,20 @@ export async function executeClaimedCloudIntent(task: CloudIntent): Promise<Clou
 
   for (const provider of targets) {
     if (provider.provider === "mt5") {
+      if (!Number.isSafeInteger(task.sourceUpdateId) || Number(task.sourceUpdateId) <= 0 || !Number.isSafeInteger(task.sourceCommandIndex) || Number(task.sourceCommandIndex) < 0) {
+        results.push(failed(provider, task.kind, "MT5 intent is missing complete Telegram origin metadata; execution refused"));
+        continue;
+      }
+      const originKey = task.originKeys
+        ? task.originKeys[provider.id]
+        : mt5TelegramOriginKey(Number(task.sourceUpdateId), Number(task.sourceCommandIndex), provider.id);
+      if (!originKey) {
+        results.push(failed(provider, task.kind, "MT5 intent origin map is incomplete; execution refused"));
+        continue;
+      }
       results.push(await executeMt5BridgeAction({
         intentId: task.id,
+        originKey,
         account: provider,
         action: task.kind,
         payload: task.payload,

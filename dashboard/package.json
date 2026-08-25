@@ -1,16 +1,18 @@
 {
   "name": "dashboard",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node --test src/lib/mt5-bridge-contract.test.mjs && next build",
     "test:tarot": "node --test src/lib/tarot/tarot.test.ts",
     "test:factcheck": "node --test src/lib/server-rate-limit.test.ts src/lib/factcheck/share.test.ts src/lib/factcheck/url-ingestion.test.ts src/lib/factcheck/media-authenticity.test.ts src/lib/factcheck/media-render.test.mjs",
-    "test": "node --test src/lib/h1-signals.test.ts src/lib/h1-cloud-scanner.test.ts src/lib/h1-cloud-route.test.ts src/lib/h1-history-navigation.test.ts src/lib/h1-history-backfill.test.ts src/lib/h1-history-render.test.mjs src/lib/telegram-cloud-domain.test.ts src/lib/telegram-cloud-route.test.ts src/lib/provider-account-domain.test.ts src/lib/mt5-bridge.test.ts src/lib/ctrader-manager-domain.test.ts src/lib/ctrader-execution.test.ts src/lib/ctrader-vault.test.ts src/lib/server-rate-limit.test.ts src/lib/neotech-compliance.test.ts src/lib/tarot/tarot.test.ts src/lib/factcheck/share.test.ts src/lib/factcheck/url-ingestion.test.ts src/lib/factcheck/media-authenticity.test.ts src/lib/factcheck/media-render.test.mjs",
-    "start": "next start",
-    "test:neotech": "node --test src/lib/neotech-compliance.test.ts"
+    "test:neotech": "node --test src/lib/neotech-compliance.test.ts",
+    "test:local-failover": "node --test ../local-failover/failover-v2.behavior.test.mjs",
+    "test:mt5-contract": "node --test src/lib/mt5-bridge-contract.test.mjs",
+    "test": "node --test src/lib/h1-signals.test.ts src/lib/h1-cloud-scanner.test.ts src/lib/h1-cloud-route.test.ts src/lib/h1-history-navigation.test.ts src/lib/h1-history-backfill.test.ts src/lib/h1-history-render.test.mjs src/lib/telegram-cloud-domain.test.ts src/lib/telegram-cloud-route.test.ts src/lib/provider-account-domain.test.ts src/lib/mt5-bridge.test.ts src/lib/mt5-bridge-contract.test.mjs src/lib/ctrader-manager-domain.test.ts src/lib/ctrader-execution.test.ts src/lib/ctrader-vault.test.ts src/lib/server-rate-limit.test.ts src/lib/neotech-compliance.test.ts src/lib/tarot/tarot.test.ts src/lib/factcheck/share.test.ts src/lib/factcheck/url-ingestion.test.ts src/lib/factcheck/media-authenticity.test.ts src/lib/factcheck/media-render.test.mjs ../local-failover/failover-v2.behavior.test.mjs",
+    "start": "next start"
   },
   "dependencies": {
     "@upstash/redis": "^1.38.0",

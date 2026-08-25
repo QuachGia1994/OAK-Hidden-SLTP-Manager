@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.02"
+#property version   "1.03"
 #property description "OAK cloud bridge + standalone MT5 account manager"
 
 // OAK Cloud Manager EA
@@ -20,6 +20,10 @@ input string InpUpstashRestToken           = "";       // Upstash REST token
 input int    InpHttpTimeoutMs              = 1200;
 input int    InpPollSeconds                = 1;         // Local manager timer; OnTick remains primary
 input int    InpCloudPollSeconds           = 10;        // Upstash queue poll; runtime clamps to 10..15s
+
+input group "Local PC Failover"
+input bool   InpLocalFailoverEnabled       = true;      // PC-local backup mailbox; controller owns failover activation
+input int    InpLocalFailoverPollSeconds   = 1;         // Local disk mailbox poll; no Redis traffic
 
 input group "Execution"
 input long   InpTradeMagic                 = 0;
@@ -53,7 +57,8 @@ input string InpPartialPercents            = "50";      // 1 pct = current-volum
 #define OAK_HEARTBEAT_PREFIX  "oak:mt5:bridge:heartbeat:v1:"
 #define OAK_TASK_TTL          604800
 #define OAK_HEARTBEAT_TTL     45
-#define OAK_EA_VERSION        "1.02"
+#define OAK_EA_VERSION        "1.03"
+#define OAK_LOCAL_DIR         "OAKLocalFailover\\"
 
 string g_profile = "";
 long   g_login = 0;
@@ -61,6 +66,10 @@ string g_server = "";
 bool   g_bridge_ready = false;
 datetime g_last_heartbeat = 0;
 datetime g_last_cloud_poll = 0;
+datetime g_last_cloud_ok = 0;
+datetime g_last_local_poll = 0;
+int g_cloud_failure_streak = 0;
+int g_cloud_success_streak = 0;
 double g_partial_r[];
 double g_partial_pct[];
 string g_pending_final_id = "";
@@ -381,6 +390,213 @@ bool RedisHeartbeatAndPeekQueue(const string heartbeat, string &task_id)
    if(!RedisCommand(args,raw)) return false;
    task_id=(raw=="null" ? "" : RedisResultString(raw));
    return true;
+}
+
+// -----------------------------------------------------------------------------
+// Local PC failover mailbox (MetaTrader FILE_COMMON, no Redis dependency)
+// -----------------------------------------------------------------------------
+string LocalProfileKey()
+{
+   string value=Lower(Trim(g_profile));
+   string out="";
+   for(int i=0;i<StringLen(value);i++)
+   {
+      ushort c=StringGetCharacter(value,i);
+      bool safe=(c>='a' && c<='z') || (c>='0' && c<='9') || c=='-' || c=='_';
+      out+=safe ? ShortToString(c) : "_";
+   }
+   return out;
+}
+
+string LocalStatusPath() { return OAK_LOCAL_DIR+"status_"+LocalProfileKey()+".json"; }
+string LocalAccountKey() { return IntegerToString(g_login); }
+string LocalTaskPath(const string ledger) { return OAK_LOCAL_DIR+"task_"+LocalProfileKey()+"_"+LocalAccountKey()+"_"+ledger+".json"; }
+string LocalClaimPath(const string ledger) { return OAK_LOCAL_DIR+"claim_"+LocalProfileKey()+"_"+LocalAccountKey()+"_"+ledger+".json"; }
+string LocalResultPath(const string ledger) { return OAK_LOCAL_DIR+"result_"+LocalProfileKey()+"_"+LocalAccountKey()+"_"+ledger+".json"; }
+string LocalTaskFilter() { return OAK_LOCAL_DIR+"task_"+LocalProfileKey()+"_"+LocalAccountKey()+"_*.json"; }
+
+bool WriteCommonText(const string path,const string text)
+{
+   int handle=FileOpen(path,FILE_WRITE|FILE_TXT|FILE_ANSI|FILE_COMMON);
+   if(handle==INVALID_HANDLE)
+   {
+      PrintFormat("[OAK-EA] local file write open failed path=%s err=%d",path,GetLastError());
+      return false;
+   }
+   FileWriteString(handle,text);
+   FileFlush(handle);
+   FileClose(handle);
+   return true;
+}
+
+bool ReadCommonText(const string path,string &text)
+{
+   text="";
+   int handle=FileOpen(path,FILE_READ|FILE_TXT|FILE_ANSI|FILE_COMMON);
+   if(handle==INVALID_HANDLE) return false;
+   while(!FileIsEnding(handle)) text+=FileReadString(handle);
+   FileClose(handle);
+   return true;
+}
+
+void DeleteCommonText(const string path)
+{
+   if(FileIsExist(path,FILE_COMMON)) FileDelete(path,FILE_COMMON);
+}
+
+bool IsLowerHex(const string value,const int expected_len)
+{
+   if(StringLen(value)!=expected_len) return false;
+   for(int i=0;i<expected_len;i++)
+   {
+      ushort c=StringGetCharacter(value,i);
+      if(!((c>='0' && c<='9') || (c>='a' && c<='f'))) return false;
+   }
+   return true;
+}
+
+bool IsDigits(const string value)
+{
+   if(StringLen(value)==0) return false;
+   for(int i=0;i<StringLen(value);i++)
+   {
+      ushort c=StringGetCharacter(value,i);
+      if(c<'0' || c>'9') return false;
+   }
+   return true;
+}
+
+bool IsSafeAccountSuffix(const string value)
+{
+   int n=StringLen(value);
+   if(n<8 || n>80) return false;
+   for(int i=0;i<n;i++)
+   {
+      ushort c=StringGetCharacter(value,i);
+      if(!((c>='a' && c<='z') || (c>='A' && c<='Z') || (c>='0' && c<='9') || c=='_' || c=='-')) return false;
+   }
+   return true;
+}
+
+string Sha256HexUtf8(const string text)
+{
+   uchar source[],key[],digest[];
+   int copied=StringToCharArray(text,source,0,WHOLE_ARRAY,CP_UTF8);
+   if(copied<=0) return "";
+   ArrayResize(source,copied-1); // exclude terminal zero from the hashed bytes
+   ResetLastError();
+   int count=CryptEncode(CRYPT_HASH_SHA256,source,key,digest);
+   if(count<=0) return "";
+   string out="";
+   for(int i=0;i<count;i++) out+=StringFormat("%02x",(int)digest[i]);
+   return out;
+}
+
+bool CanonicalOriginMatchesAccount(const string origin,const string provider_account_id)
+{
+   string parts[];
+   if(StringSplit(origin,':',parts)!=5) return false;
+   if(parts[0]!="tg" || !IsDigits(parts[1]) || !IsDigits(parts[2]) || parts[3]!="mt5" || !IsSafeAccountSuffix(parts[4])) return false;
+   long update_id=(long)StringToInteger(parts[1]);
+   long command_index=(long)StringToInteger(parts[2]);
+   if(update_id<=0 || command_index<0) return false;
+   if(IntegerToString(update_id)!=parts[1] || IntegerToString(command_index)!=parts[2]) return false;
+   return provider_account_id=="mt5:"+parts[4];
+}
+
+bool ValidOriginLedger(const string origin,const string ledger)
+{
+   if(!IsLowerHex(ledger,40)) return false;
+   string hash=Sha256HexUtf8(origin);
+   return StringLen(hash)==64 && StringSubstr(hash,0,40)==ledger;
+}
+
+bool AtomicCreateCommonText(const string final_path,const string text)
+{
+   string temp_path=final_path+".tmp."+IntegerToString((long)GetTickCount64())+"."+IntegerToString((long)MathRand());
+   if(!WriteCommonText(temp_path,text)) return false;
+   ResetLastError();
+   bool moved=FileMove(temp_path,FILE_COMMON,final_path,FILE_COMMON); // no FILE_REWRITE: existing destination wins
+   if(!moved) DeleteCommonText(temp_path);
+   return moved;
+}
+
+string TaskIdString(const string task)
+{
+   string id=JsonString(task,"id");
+   if(id=="") id=JsonString(task,"taskId");
+   return id;
+}
+
+bool ValidateBridgeTaskEnvelope(const string task,string &detail)
+{
+   detail="";
+   if(StringLen(task)<=0 || StringLen(task)>16384) { detail="task payload size is invalid"; return false; }
+   if(JsonLong(task,"version",0)!=2) { detail="task version must be 2"; return false; }
+   string action=Lower(JsonString(task,"action"));
+   if(action!="positions" && action!="entry" && action!="close" && action!="modify" && action!="partial") { detail="unsupported MT5 task action"; return false; }
+   string source=Lower(JsonString(task,"source"));
+   if(action=="positions")
+   {
+      if(source!="cloud-read" && source!="local-failover") { detail="invalid read-only task source"; return false; }
+   }
+   else if(source!="telegram-cloud" && source!="local-failover") { detail="invalid mutation task source"; return false; }
+   if(Lower(JsonString(task,"bridgeProfile"))!=ProfileKey()) { detail="bridge profile mismatch"; return false; }
+   if(JsonLong(task,"login",0)!=g_login) { detail="login mismatch"; return false; }
+   if(JsonString(task,"server")!=g_server) { detail="server mismatch"; return false; }
+   string provider=JsonString(task,"providerAccountId");
+   if(StringFind(provider,"mt5:")!=0 || !IsSafeAccountSuffix(StringSubstr(provider,4))) { detail="invalid provider account id"; return false; }
+   string payload=JsonRaw(task,"payload");
+   if(payload=="" || StringLen(payload)>8192) { detail="task payload is missing/too large"; return false; }
+   if(action=="positions") return true;
+
+   string origin=JsonString(task,"originKey");
+   string ledger=JsonString(task,"ledgerKey");
+   string digest=JsonString(task,"taskDigest");
+   if(!CanonicalOriginMatchesAccount(origin,provider)) { detail="origin/account identity mismatch"; return false; }
+   if(!ValidOriginLedger(origin,ledger)) { detail="origin ledger hash mismatch"; return false; }
+   if(!IsLowerHex(digest,64)) { detail="task digest is invalid"; return false; }
+   if(action=="entry")
+   {
+      string protection=JsonRaw(task,"protection");
+      if(JsonDouble(protection,"slPoints",0)<=0 || JsonDouble(protection,"tpPoints",0)<=0) { detail="entry protection must contain positive SL/TP points"; return false; }
+      string side=Upper(JsonString(payload,"side"));
+      if((side!="BUY" && side!="SELL") || JsonString(payload,"symbol")=="" || JsonDouble(payload,"lot",0)<=0) { detail="entry payload is invalid"; return false; }
+   }
+   return true;
+}
+
+string ClaimEnvelope(const string task)
+{
+   return "{\"version\":2"
+      +",\"taskId\":"+JsonQuote(TaskIdString(task))
+      +",\"originKey\":"+JsonQuote(JsonString(task,"originKey"))
+      +",\"ledgerKey\":"+JsonQuote(JsonString(task,"ledgerKey"))
+      +",\"taskDigest\":"+JsonQuote(JsonString(task,"taskDigest"))
+      +",\"providerAccountId\":"+JsonQuote(JsonString(task,"providerAccountId"))
+      +",\"bridgeProfile\":"+JsonQuote(g_profile)
+      +",\"login\":"+IntegerToString(g_login)
+      +",\"server\":"+JsonQuote(g_server)
+      +",\"action\":"+JsonQuote(Lower(JsonString(task,"action")))
+      +",\"source\":"+JsonQuote(Lower(JsonString(task,"source")))
+      +",\"at\":"+IntegerToString(NowMs())+"}";
+}
+
+void WriteLocalStatus(const bool cloud_ok)
+{
+   if(!InpLocalFailoverEnabled || g_profile=="") return;
+   string json="{\"profile\":"+JsonQuote(g_profile)
+      +",\"login\":"+IntegerToString(g_login)
+      +",\"server\":"+JsonQuote(g_server)
+      +",\"eaVersion\":"+JsonQuote(OAK_EA_VERSION)
+      +",\"at\":"+IntegerToString(NowMs())
+      +",\"bridgeReady\":"+(g_bridge_ready?"true":"false")
+      +",\"cloudOk\":"+(cloud_ok?"true":"false")
+      +",\"cloudFailureStreak\":"+IntegerToString(g_cloud_failure_streak)
+      +",\"cloudSuccessStreak\":"+IntegerToString(g_cloud_success_streak)
+      +",\"lastCloudOk\":"+IntegerToString((long)g_last_cloud_ok*1000)
+      +"}";
+   WriteCommonText(LocalStatusPath(),json);
 }
 
 // -----------------------------------------------------------------------------
@@ -1030,8 +1246,8 @@ string ExecuteEntryTask(const string task)
    double slp=JsonDouble(protection,"slPoints",0);
    double tpp=JsonDouble(protection,"tpPoints",0);
    if(symbol=="" || (side!="BUY" && side!="SELL")) return ResultJson(false,"entry","invalid symbol/side");
-   long intent=JsonLong(task,"intentId",0);
-   string comment=(intent>0?"OAK#"+IntegerToString(intent):"OAK Cloud");
+   string ledger=JsonString(task,"ledgerKey");
+   string comment=(IsLowerHex(ledger,40)?"OAK:"+StringSubstr(ledger,0,16):"OAK Cloud");
    ulong ref=0; string detail="";
    bool ok=SendMarketEntry(symbol,side=="BUY",lots,slp,tpp,comment,ref,detail);
    return ResultJson(ok,"entry",ok?(side+" "+symbol+" "+DoubleToString(lots,2)+" lot"):detail,false,ok?IntegerToString((long)ref):"");
@@ -1132,6 +1348,144 @@ string ExecuteTask(const string task)
    return ResultJson(false,action==""?"unknown":action,"unsupported MT5 EA action");
 }
 
+bool IsSafeReadLedger(const string ledger)
+{
+   if(StringFind(ledger,"read_")!=0 || StringLen(ledger)<8 || StringLen(ledger)>96) return false;
+   for(int i=5;i<StringLen(ledger);i++)
+   {
+      ushort c=StringGetCharacter(ledger,i);
+      if(!((c>='a' && c<='z') || (c>='A' && c<='Z') || (c>='0' && c<='9') || c=='_' || c=='-')) return false;
+   }
+   return true;
+}
+
+string TaskResultEnvelope(const string task,const string result)
+{
+   bool ok=(JsonRaw(result,"ok")=="true");
+   bool uncertain=(JsonRaw(result,"uncertain")=="true");
+   string status=uncertain?"uncertain":(ok?"done":"failed");
+   return "{\"version\":2"
+      +",\"taskId\":"+JsonQuote(TaskIdString(task))
+      +",\"originKey\":"+JsonQuote(JsonString(task,"originKey"))
+      +",\"ledgerKey\":"+JsonQuote(JsonString(task,"ledgerKey"))
+      +",\"taskDigest\":"+JsonQuote(JsonString(task,"taskDigest"))
+      +",\"providerAccountId\":"+JsonQuote(JsonString(task,"providerAccountId"))
+      +",\"bridgeProfile\":"+JsonQuote(g_profile)
+      +",\"login\":"+IntegerToString(g_login)
+      +",\"server\":"+JsonQuote(g_server)
+      +",\"action\":"+JsonQuote(Lower(JsonString(task,"action")))
+      +",\"status\":"+JsonQuote(status)
+      +",\"result\":"+result
+      +",\"at\":"+IntegerToString(NowMs())+"}";
+}
+
+bool LedgerEvidenceMatchesTask(const string envelope,const string task)
+{
+   return JsonString(envelope,"originKey")==JsonString(task,"originKey")
+      && JsonString(envelope,"taskDigest")==JsonString(task,"taskDigest")
+      && JsonString(envelope,"providerAccountId")==JsonString(task,"providerAccountId")
+      && Lower(JsonString(envelope,"bridgeProfile"))==ProfileKey()
+      && JsonLong(envelope,"login",0)==g_login
+      && JsonString(envelope,"server")==g_server
+      && Lower(JsonString(envelope,"action"))==Lower(JsonString(task,"action"));
+}
+
+string ExecuteMutationWithOriginFence(const string task)
+{
+   string action=Lower(JsonString(task,"action"));
+   string ledger=JsonString(task,"ledgerKey");
+   string result_path=LocalResultPath(ledger);
+   string claim_path=LocalClaimPath(ledger);
+   string persisted="";
+   if(ReadCommonText(result_path,persisted) && persisted!="")
+   {
+      if(!LedgerEvidenceMatchesTask(persisted,task))
+         return ResultJson(false,action,"origin result ledger conflict; broker replay refused",true);
+      string existing_result=JsonRaw(persisted,"result");
+      return existing_result!="" ? existing_result : ResultJson(false,action,"origin result ledger is malformed; broker replay refused",true);
+   }
+
+   string claim=ClaimEnvelope(task);
+   if(!AtomicCreateCommonText(claim_path,claim))
+   {
+      string existing_claim="";
+      if(!ReadCommonText(claim_path,existing_claim) || existing_claim=="")
+         return ResultJson(false,action,"atomic origin claim failed without readable owner evidence; broker replay refused",true);
+      if(!LedgerEvidenceMatchesTask(existing_claim,task))
+         return ResultJson(false,action,"origin claim ledger conflict; broker replay refused",true);
+      return ResultJson(false,action,"origin already claimed without final result; automatic replay is disabled",true);
+   }
+
+   // The durable claim exists before the only broker-facing ExecuteTask call.
+   string result=ExecuteTask(task);
+   string envelope=TaskResultEnvelope(task,result);
+   if(!AtomicCreateCommonText(result_path,envelope))
+   {
+      string existing="";
+      if(ReadCommonText(result_path,existing) && existing!="" && LedgerEvidenceMatchesTask(existing,task))
+      {
+         string existing_result=JsonRaw(existing,"result");
+         if(existing_result!="") return existing_result;
+      }
+      return ResultJson(false,action,"broker attempt completed but durable result persistence failed; outcome is uncertain",true);
+   }
+   return result;
+}
+
+bool FindLocalTaskPath(string &task_path)
+{
+   task_path="";
+   string found="";
+   long handle=FileFindFirst(LocalTaskFilter(),found,FILE_COMMON);
+   if(handle==INVALID_HANDLE) return false;
+   FileFindClose(handle);
+   task_path=OAK_LOCAL_DIR+found;
+   return true;
+}
+
+void PollLocalFailoverOnce()
+{
+   if(!InpLocalFailoverEnabled || g_profile=="") return;
+   datetime now=TimeCurrent();
+   int interval=(InpLocalFailoverPollSeconds>0?InpLocalFailoverPollSeconds:1);
+   if(g_last_local_poll!=0 && now-g_last_local_poll<interval) return;
+   g_last_local_poll=now;
+
+   string task_path="";
+   if(!FindLocalTaskPath(task_path)) return;
+   string task="";
+   if(!ReadCommonText(task_path,task) || task=="") return;
+   string action=Lower(JsonString(task,"action"));
+   string ledger=JsonString(task,"ledgerKey");
+   bool ledger_safe=IsLowerHex(ledger,40) || (action=="positions" && IsSafeReadLedger(ledger));
+   if(!ledger_safe || task_path!=LocalTaskPath(ledger))
+   {
+      Print("[OAK-EA] malformed local task path/ledger rejected before broker execution");
+      DeleteCommonText(task_path);
+      return;
+   }
+
+   string validation="";
+   if(!ValidateBridgeTaskEnvelope(task,validation))
+   {
+      string failed=ResultJson(false,action==""?"unknown":action,"invalid local task envelope: "+validation);
+      AtomicCreateCommonText(LocalResultPath(ledger),TaskResultEnvelope(task,failed));
+      DeleteCommonText(task_path);
+      return;
+   }
+
+   if(action=="positions")
+   {
+      string read_result=ExecuteTask(task);
+      AtomicCreateCommonText(LocalResultPath(ledger),TaskResultEnvelope(task,read_result));
+      DeleteCommonText(task_path);
+      return;
+   }
+
+   ExecuteMutationWithOriginFence(task);
+   DeleteCommonText(task_path);
+}
+
 bool StoreTaskJson(const string id, const string task_json)
 {
    string server="";
@@ -1179,7 +1533,11 @@ void PublishHeartbeat()
 
 void PollCloudOnce()
 {
-   if(!g_bridge_ready) return;
+   if(!g_bridge_ready)
+   {
+      if(InpLocalFailoverEnabled) WriteLocalStatus(false);
+      return;
+   }
    datetime now=TimeCurrent();
    int requested=(InpCloudPollSeconds>0 ? InpCloudPollSeconds : 10);
    int interval=(requested<10 ? 10 : (requested>15 ? 15 : requested));
@@ -1189,8 +1547,18 @@ void PollCloudOnce()
    g_last_cloud_poll=now;
 
    string task_id="";
-   if(!RedisHeartbeatAndPeekQueue(HeartbeatJson(),task_id)) return;
+   if(!RedisHeartbeatAndPeekQueue(HeartbeatJson(),task_id))
+   {
+      g_cloud_failure_streak++;
+      g_cloud_success_streak=0;
+      WriteLocalStatus(false);
+      return;
+   }
+   g_cloud_failure_streak=0;
+   g_cloud_success_streak++;
+   g_last_cloud_ok=now;
    g_last_heartbeat=now;
+   WriteLocalStatus(true);
    FlushPendingFinalTask();
    if(g_pending_final_id!="" || task_id=="") return;
    string claim_token="ea:"+ProfileKey()+":"+IntegerToString((long)GetTickCount64());
@@ -1201,12 +1569,13 @@ void PollCloudOnce()
 
    string task="";
    if(!RedisGet(TaskKey(task_id),task) || task=="") return;
-   if(JsonLong(task,"version",0)!=1 || JsonString(task,"status")!="pending") return;
-   if(Lower(JsonString(task,"bridgeProfile"))!=ProfileKey() || JsonLong(task,"login",0)!=g_login)
+   string action=Lower(JsonString(task,"action"));
+   string validation="";
+   if(JsonString(task,"status")!="pending" || !ValidateBridgeTaskEnvelope(task,validation))
    {
-      string result=ResultJson(false,JsonString(task,"action"),"MT5 EA task identity does not match this terminal");
+      string rejected=ResultJson(false,action==""?"unknown":action,"MT5 EA rejected task before broker execution: "+(validation==""?"invalid task status":validation));
       task=JsonUpsertRaw(task,"status",JsonQuote("failed"));
-      task=JsonUpsertRaw(task,"result",result);
+      task=JsonUpsertRaw(task,"result",rejected);
       task=JsonUpsertRaw(task,"updatedAt",IntegerToString(NowMs()));
       PersistFinalTask(task_id,task);
       return;
@@ -1214,11 +1583,11 @@ void PollCloudOnce()
 
    task=JsonUpsertRaw(task,"status",JsonQuote("running"));
    task=JsonUpsertRaw(task,"updatedAt",IntegerToString(NowMs()));
-   if(!StoreTaskJson(task_id,task)) return; // claimed but not marked running => fail closed
+   if(!StoreTaskJson(task_id,task)) return; // Redis arbiter is owned; no broker call until running state is durable
 
-   // One broker-facing execution only. No automatic retry if the result is
-   // ambiguous; the cloud arbiter prevents the same task from being replayed.
-   string result=ExecuteTask(task);
+   // Both cloud and local mutations converge on the same FILE_COMMON origin
+   // claim before ExecuteTask. Positions remain read-only and do not consume it.
+   string result=(action=="positions" ? ExecuteTask(task) : ExecuteMutationWithOriginFence(task));
    bool ok=(JsonRaw(result,"ok")=="true");
    bool uncertain=(JsonRaw(result,"uncertain")=="true");
    task=JsonUpsertRaw(task,"status",JsonQuote(uncertain?"uncertain":(ok?"done":"failed")));
@@ -1250,6 +1619,13 @@ int OnInit()
    else if(g_bridge_ready)
       PrintFormat("[OAK-EA] Cloud bridge ready profile=%s login=%I64d server=%s",g_profile,g_login,g_server);
 
+   if(InpLocalFailoverEnabled)
+   {
+      FolderCreate(OAK_LOCAL_DIR,FILE_COMMON);
+      WriteLocalStatus(false);
+      PrintFormat("[OAK-EA] Local PC failover mailbox enabled profile=%s",g_profile);
+   }
+
    int timer=(InpPollSeconds>0 ? InpPollSeconds : 1);
    if(!EventSetTimer(timer))
    {
@@ -1264,12 +1640,14 @@ int OnInit()
 void OnDeinit(const int reason)
 {
    EventKillTimer();
+   if(InpLocalFailoverEnabled) DeleteCommonText(LocalStatusPath());
 }
 
 void OnTimer()
 {
    ManageAccount();
    PollCloudOnce();
+   PollLocalFailoverOnce();
 }
 
 void OnTick()

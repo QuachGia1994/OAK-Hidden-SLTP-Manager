@@ -36,7 +36,11 @@ function parseIntent(raw: unknown): CloudIntent | null {
     const protectionPlan = sourcePlan
       ? Object.fromEntries(Object.entries(sourcePlan).map(([key, plan]) => [normalizeProviderAccountId(key), plan]).filter(([key]) => Boolean(key)))
       : undefined;
-    return { ...task, profile: TELEGRAM_CLOUD_PROFILE, targetAccountIds, protectionPlan } as CloudIntent;
+    const sourceOrigins = source.originKeys && typeof source.originKeys === "object" ? source.originKeys as Record<string, string> : undefined;
+    const originKeys = sourceOrigins
+      ? Object.fromEntries(Object.entries(sourceOrigins).map(([key, value]) => [normalizeProviderAccountId(key), String(value || "")]).filter(([key, value]) => Boolean(key && value)))
+      : undefined;
+    return { ...task, profile: TELEGRAM_CLOUD_PROFILE, targetAccountIds, protectionPlan, originKeys } as CloudIntent;
   } catch {
     return null;
   }
@@ -73,6 +77,7 @@ export async function createCloudIntent(args: {
   payload: CloudIntent["payload"];
   targetAccountIds: string[];
   protectionPlan?: CloudIntent["protectionPlan"];
+  originKeys?: CloudIntent["originKeys"];
   sourceUpdateId?: number;
   sourceCommandIndex?: number;
 }): Promise<CloudIntent> {
@@ -103,6 +108,7 @@ export async function createCloudIntent(args: {
     dueText: args.dueText,
     targetAccountIds: [...new Set(args.targetAccountIds.map(normalizeProviderAccountId).filter(Boolean))],
     protectionPlan: args.protectionPlan,
+    originKeys: args.originKeys,
     payload: args.payload,
   };
   await redis.hset(TASKS_KEY, { [String(id)]: JSON.stringify(task) });
