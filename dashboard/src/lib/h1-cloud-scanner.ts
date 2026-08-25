@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 20;
+export const H1_CLOUD_STATE_VERSION = 21;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 14;
+export const H1_SIGNAL_RULE_VERSION = 15;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v20";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v21";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -70,7 +70,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 20;
+  version: 21;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -79,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 14;
+  signalRuleVersion: 15;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -130,7 +130,7 @@ export function scannerBaseForTarget(base: H1TargetBase): H1ScannerBase {
 export function baseSymbolForTarget(base: H1TargetBase): H1Base {
   if (base === "XAUUSD") return "GBPUSD";
   if (base === "AUDUSD") return "NZDUSD";
-  if (base === "USDCAD") return "USDJPY";
+  if (base === "USDCAD") return "XAUUSD";
   if (base === "GBPUSD") return "GBPUSD";
   return "XAUUSD";
 }
@@ -194,7 +194,7 @@ export function signalFromPatternBase(baseSignal: H1Signal, _patternKind: H1Patt
 }
 
 export function signalFromTargetBase(base: H1TargetBase, baseSignal: H1Signal): H1Signal {
-  if (base === "GBPUSD" || base === "AUDUSD" || base === "USDCAD" || base === "USDJPY") {
+  if (base === "GBPUSD" || base === "AUDUSD" || base === "USDJPY") {
     return baseSignal === "BUY" ? "SELL" : "BUY";
   }
   return baseSignal;
@@ -431,7 +431,7 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
     `• Pattern nguồn: ${alert.pattern}`,
     `• Nhóm nguồn: ${pureLabel}`,
     `• Base H1: ${alert.baseSymbol} H${String(alert.baseHour).padStart(2, "0")}=${alert.baseDirection} → ${alert.baseH1Signal}`,
-    `• Logic base: ${base === "GBPUSD" || base === "AUDUSD" || base === "USDCAD" || base === "USDJPY" ? `đảo ngược ${alert.baseSymbol} H1` : `giữ nguyên ${alert.baseSymbol} H1`}`,
+    `• Logic base: ${base === "GBPUSD" || base === "AUDUSD" || base === "USDJPY" ? `đảo ngược ${alert.baseSymbol} H1` : `giữ nguyên ${alert.baseSymbol} H1`}`,
     `• AllowTrade lookback: ${lookbackLabel}`,
     `• Hậu signal: ${postSignalLabels[alert.postSignalRule]}`,
   ];
