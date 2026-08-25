@@ -80,7 +80,7 @@ The compliance surface is broker-read-only. It reads account/order/deal/position
 5. Set `InpTelegramBotToken`, `InpTelegramAllowedChatIds` and `InpTelegramAllowedUserIds`. Both ACL lists are required and each incoming command must match both its chat ID and sender user ID. Values accept comma, space or semicolon separators.
 6. Keep `InpTelegramDeleteWebhookOnInit=false` unless this bot is deliberately being moved from webhook delivery to this EA's `getUpdates` polling. If Telegram reports an active webhook, the EA blocks polling and never deletes it without this explicit opt-in.
 7. `InpTelegramPollSeconds` controls the timer (1–300 seconds), `InpTelegramPageSize` controls rows per page (1–20), and `InpTelegramSendOnChange` optionally sends a changed summary to every allowed chat.
-8. For Gold C6 distance, set `InpGoldPipSizeOverride` only after verifying the broker's Gold pip convention. Optional manual pauses use server-local `YYYY-MM-DD/YYYY-MM-DD;...` in `InpManualPausePeriods`.
+8. For XAUUSD C6 distance, set `InpGoldPipSizeOverride` only after verifying the broker's XAUUSD pip convention. Optional manual pauses use server-local `YYYY-MM-DD/YYYY-MM-DD;...` in `InpManualPausePeriods`.
 
 The bot token is a runtime secret. Never commit it, log it, include it in screenshots or share a populated `.set` file. The account fingerprint is SHA-256 over `login|broker-company|server`; Telegram/report output uses the fingerprint and masked account identity, not the raw login, broker, server or token.
 
@@ -88,11 +88,13 @@ The bot token is a runtime secret. Never commit it, log it, include it in screen
 
 - `/check @profile` — summary page 1.
 - `/check @profile 2` — summary page 2.
-- `/check @profile C5` — one criterion; any valid C1–C9 or E1–E5 token is accepted.
+- `/check @profile C5` — one criterion; valid tokens are E1–E3, E5, C1–C2 and C4–C9.
 - `/check @profile violations 2` — violations page 2.
 - In groups, Telegram's addressed form is accepted, for example `/check@NeoTechAuditBot @profile C5`.
 
-Reply buttons use the same deterministic callback paging contract. Telegram output includes criterion totals and, where evidence exists, the date/time, symbol, ticket identifiers, measured value, threshold and reason. Oversized detail is split below the message budget rather than silently truncated.
+Reply buttons use the same deterministic callback paging contract. Telegram output is concise Vietnamese and includes criterion totals plus, where evidence exists, the date/time, symbol, ticket identifiers, measured value, threshold and reason. Oversized detail is split below the message budget rather than silently truncated.
+
+The displayed rules omit E4 and C3. E5 accepts only Forex symbols and XAUUSD. C2 requires every completed 30-day month to return at least 1%, with no annual averaging. C5 allows only one open order per symbol. C6 flags a close under 15 minutes unless an observed SL or TP exceeded 30 pips. C7 forbids simultaneous BUY/SELL on one symbol. C8 forbids copied signals but remains unverified without an authoritative external source. C9 flags balance deposits or withdrawals.
 
 ### PASS, FAIL and incomplete evidence
 
@@ -120,6 +122,6 @@ To remove the auditor, detach `OAK_NeoTech_Compliance_EA`, remove its source/com
 
 ### Synthetic verification and troubleshooting
 
-Compile `tests/NeoTechComplianceSyntheticTests.mq5` with the same `neotech/` includes, then execute it as an MT5 script in an isolated demo/non-trading terminal. It never calls the real Telegram API. A successful run ends with the exact line `[NEOTECH SYNTHETIC] TOTAL=49 PASS=49 FAIL=0 RESULT=PASS`; failures print fixture name plus expected/actual. Compilation alone is not a runtime PASS.
+Compile `tests/NeoTechComplianceSyntheticTests.mq5` with the same `neotech/` includes, then execute it as an MT5 script in an isolated demo/non-trading terminal. It never calls the real Telegram API. A successful run ends with the exact line `[NEOTECH SYNTHETIC] TOTAL=52 PASS=52 FAIL=0 RESULT=PASS`; failures print fixture name plus expected/actual. Compilation alone is not a runtime PASS.
 
 If initialization fails, verify the login binding, slug, token, both ACL lists and input ranges. If polling is blocked, inspect `getWebhookInfo`: either keep the existing webhook owner or deliberately opt in once to `deleteWebhook`. For HTTP failures, verify the Telegram WebRequest allowlist and network access. `DATA_GAP` in FDD means required price/conversion evidence is missing; `NOT_VERIFIABLE` on historical C6 usually means the EA did not continuously observe that trade's SL/TP lifecycle. Never convert either status manually into PASS.

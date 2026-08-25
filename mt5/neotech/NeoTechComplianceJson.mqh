@@ -206,6 +206,33 @@ string NTStringTrimmed(const string value)
    return out;
   }
 
+string NTTelegramStatusVi(const string status)
+  {
+   if(status=="PASS") return "ĐẠT";
+   if(status=="FAIL") return "VI PHẠM";
+   if(status=="IN_PROGRESS") return "ĐANG THEO DÕI";
+   if(status=="NOT_VERIFIABLE") return "CHƯA XÁC MINH";
+   if(status=="DATA_GAP") return "THIẾU DỮ LIỆU";
+   if(status=="RECONSTRUCTED") return "DỮ LIỆU PHỤC DỰNG";
+   return status;
+  }
+
+string NTTelegramRiskVi(const string risk)
+  {
+   if(risk=="YES") return "CÓ";
+   if(risk=="NO") return "KHÔNG";
+   return "CHƯA RÕ";
+  }
+
+string NTTelegramFddMethodVi(const string method)
+  {
+   if(method=="EXACT") return "Dữ liệu trực tiếp";
+   if(method=="RECONSTRUCTED") return "Phục dựng từ tick";
+   if(method=="M1") return "Phục dựng từ nến M1";
+   if(method=="DATA_GAP") return "Thiếu dữ liệu giá";
+   return method;
+  }
+
 bool NTIsWhitespace(const ushort c)
   {
    return c==32 || c==9 || c==10 || c==13;
@@ -273,6 +300,7 @@ bool NTIsSignedIntegerText(const string value)
 bool NTTelegramCriterionToken(const string value)
   {
    const string upper=NTStringUpper(value);
+   if(upper=="E4" || upper=="C3") return false;
    if(StringLen(upper)!=2) return false;
    const ushort family=StringGetCharacter(upper,0);
    const ushort number=StringGetCharacter(upper,1);

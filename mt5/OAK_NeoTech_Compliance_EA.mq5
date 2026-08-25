@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.01"
+#property version   "1.02"
 #property description "OAK read-only NeoTech compliance auditor with direct Telegram reporting. Never sends, modifies or closes trades."
 
 #include "neotech\\NeoTechComplianceCore.mqh"
@@ -21,7 +21,7 @@ input bool   InpTelegramSendOnChange        = false; // Tu gui khi bao cao thay 
 input int    InpTelegramPageSize            = 6;     // So muc moi trang
 
 input group "4. KIEM TRA - GIU MAC DINH NEU KHONG RO"
-input double InpGoldPipSizeOverride         = 0.0; // Gold pip size (0 = tu dong)
+input double InpGoldPipSizeOverride         = 0.0; // XAUUSD pip size (0 = tu dong)
 input string InpManualPausePeriods          = "";  // Khoang tam dung: YYYY-MM-DD/YYYY-MM-DD;...
 input int    InpHistoryLookbackDays         = 370; // So ngay lich su can kiem tra
 input int    InpReconstructionChunkMinutes  = 60;  // Khoang tai du lieu (phut)
@@ -562,12 +562,13 @@ bool NTResolveProduct(const string broker_symbol,string &canonical,bool &is_fore
    classification_reliable=SymbolInfoInteger(broker_symbol,SYMBOL_TRADE_CALC_MODE,calc);
    const double point=SymbolInfoDouble(broker_symbol,SYMBOL_POINT);
    const int digits=(int)SymbolInfoInteger(broker_symbol,SYMBOL_DIGITS);
-   is_forex=(calc==SYMBOL_CALC_MODE_FOREX || calc==SYMBOL_CALC_MODE_FOREX_NO_LEVERAGE) && StringLen(base)==3 && StringLen(profit)==3;
-   is_gold=(base=="XAU");
-   if(is_forex || is_gold) canonical=base+profit;
+   const bool forex_calc=(calc==SYMBOL_CALC_MODE_FOREX || calc==SYMBOL_CALC_MODE_FOREX_NO_LEVERAGE);
+   is_forex=NTIsForexProduct(base,profit,forex_calc);
+   is_gold=(base=="XAU" && profit=="USD");
+   if(NTIsEligibleProduct(base,profit,forex_calc)) canonical=base+profit;
    else canonical=(classification_reliable?"EXCLUDED:":"UNKNOWN:")+broker_symbol;
    pip_size=NTPipSize(point,digits,is_forex,is_gold ? InpGoldPipSizeOverride : 0.0);
-   return is_forex || is_gold;
+   return NTIsEligibleProduct(base,profit,forex_calc);
   }
 
 int NTClassifyCashFlow(const int deal_type,const double amount,const string comment)
@@ -1402,32 +1403,6 @@ int NTCountAwards(const NTCriterionState &criteria[],const NTStatus target,const
    return count;
   }
 
-void NTC5EvidenceDetails(const NTSessionViolation &group,const NTSignalEpisode &episodes[],long &event_time,string &broker_symbol,string &order_tickets,string &deal_tickets)
-  {
-   event_time=0;
-   broker_symbol="";
-   order_tickets="[";
-   deal_tickets="[";
-   long first=0,second=0;
-   for(int i=0;i<ArraySize(episodes);i++)
-     {
-      const long t=NTSeconds(episodes[i].first_entry_msc);
-      if(episodes[i].canonical_symbol!=group.canonical_symbol || episodes[i].session!=group.session || NTDayStart(t)!=group.session_date) continue;
-      if(broker_symbol=="") broker_symbol=episodes[i].broker_symbol;
-      NTAppendJsonItem(order_tickets,NTJsonQuote(StringFormat("%I64u",episodes[i].opening_order_ticket)));
-      NTAppendJsonItem(deal_tickets,NTJsonQuote(StringFormat("%I64u",episodes[i].opening_deal_ticket)));
-      if(first==0 || t<first)
-        {
-         second=first;
-         first=t;
-        }
-      else if(second==0 || t<second) second=t;
-     }
-   order_tickets+="]";
-   deal_tickets+="]";
-   event_time=(second>0 ? second : first);
-  }
-
 bool NTHedgingEvidenceDetails(const NTSignalEpisode &episodes[],const long now_msc,long &event_time,string &broker_symbol,string &canonical_symbol,string &position_ids,string &order_tickets,string &deal_tickets)
   {
    for(int i=0;i<ArraySize(episodes);i++)
@@ -1480,27 +1455,25 @@ string NTBuildReport(string &report_hash)
    NTReconstructFdd(episodes,program_start,now_server,MathMax(0.01,opening_balance),fdd);
 
    NTCriterionState criteria[];
-   ArrayResize(criteria,14);
-   NTSetCriterion(criteria[0],"E1",NTEvaluateE1(all_episodes,history_complete),"OPEN_REASON","Lệnh mở phải được thao tác thủ công; EA đóng/SL/TP không làm hỏng E1. PASS do absence chỉ được phép khi order/deal coverage đầy đủ.");
+   ArrayResize(criteria,12);
+   NTSetCriterion(criteria[0],"E1",NTEvaluateE1(all_episodes,history_complete),"MANUAL_OPEN","Lệnh phải được mở thủ công; EA chỉ được quản lý đóng lệnh và SL/TP.");
    const int trade_mode=(int)AccountInfoInteger(ACCOUNT_TRADE_MODE);
-   NTSetCriterion(criteria[1],"E2",(trade_mode==ACCOUNT_TRADE_MODE_REAL || trade_mode==ACCOUNT_TRADE_MODE_DEMO)?NT_PASS:NT_FAIL,"ACCOUNT_TRADE_MODE","MT5 xác nhận chế độ tài khoản Real/Demo; Cent không thể phân biệt riêng bằng trade mode.");
-   NTSetCriterion(criteria[2],"E3",NT_PASS,"ANY_INITIAL_CAPITAL","NeoTech cho phép vốn ban đầu bất kỳ; số dư chỉ được ghi làm bằng chứng, không đặt ngưỡng.");
-   NTSetCriterion(criteria[3],"E4",NT_NOT_VERIFIABLE,"NO_AUTHORITATIVE_ENROLLMENT_INTEGRATION","MT5 không chứng minh KYC/Public/tài khoản mới/một tài khoản mỗi người hay Direct/Demo Direct.");
-   NTSetCriterion(criteria[4],"E5",NTEvaluateE5(all_episodes,program_start,history_complete),"PRODUCT_METADATA","Program start mặc định là trade episode đầu tiên, kể cả sản phẩm bị loại; symbol ngoài Forex/Gold không thể tự ẩn bằng eligible-only start.");
-   NTSetCriterion(criteria[5],"C1",NTEvaluateC1(program_start,now_server,history_complete),"DURATION_POLICY","Policy nghiêm ngặt: cần cả 365 ngày lịch và 12 cửa sổ 30 ngày hoàn tất.");
-   NTSetCriterion(criteria[6],"C2",NTEvaluateC2(months,history_complete),"MONTHLY_RETURN","Mỗi cửa sổ 30 ngày hoàn tất phải đạt cash-flow-adjusted return >= 1%; không dùng trung bình năm.");
-   NTSetCriterion(criteria[7],"C3",fdd.status,"FDD_EVIDENCE","MT5 history không chứa equity lịch sử chính xác; historical result giữ nhãn RECONSTRUCTED/M1/DATA_GAP và không được nâng thành PASS.");
+   NTSetCriterion(criteria[1],"E2",(trade_mode==ACCOUNT_TRADE_MODE_REAL || trade_mode==ACCOUNT_TRADE_MODE_DEMO)?NT_PASS:NT_FAIL,"REAL_OR_DEMO","Tài khoản phải ở chế độ Real hoặc Demo.");
+   NTSetCriterion(criteria[2],"E3",NT_PASS,"ANY_INITIAL_CAPITAL","Không giới hạn vốn ban đầu.");
+   NTSetCriterion(criteria[3],"E5",NTEvaluateE5(all_episodes,program_start,history_complete),"FOREX_XAUUSD_ONLY","Chỉ chấp nhận symbol Forex và XAUUSD; mọi mã khác bị loại.");
+   NTSetCriterion(criteria[4],"C1",NTEvaluateC1(program_start,now_server,history_complete),"DURATION_POLICY","Cần đủ 365 ngày và 12 tháng giao dịch.");
+   NTSetCriterion(criteria[5],"C2",NTEvaluateC2(months,history_complete),"MONTHLY_RETURN","Mỗi tháng phải đạt return từ 1% trở lên; không dùng trung bình năm.");
    const NTStatus c4=NTEvaluateC4(weeks,history_complete,qualification_complete);
-   NTSetCriterion(criteria[8],"C4",c4,"WEEKLY_SIGNALS","Đếm signal start theo tuần 7 ngày từ thứ Hai kế tiếp (hoặc cùng ngày nếu signal đầu mở thứ Hai); deficient manual-pause week là NOT_VERIFIABLE; PASS chỉ khi horizon và coverage hoàn tất.");
+   NTSetCriterion(criteria[6],"C4",c4,"WEEKLY_SIGNALS","Mỗi tuần cần ít nhất 3 tín hiệu.");
    NTC5Occurrence c5_occurrences[];
    const int current_month=(program_start>0 ? NTTradingMonthIndex(now_server,program_start) : -1);
    NTBuildC5Occurrences(episodes,-1,c5_occurrences);
-   NTSetCriterion(criteria[9],"C5",NTEvaluateC5(episodes,history_complete,qualification_complete),"PRODUCT_SESSION_LIMIT","Tối đa một signal cho mỗi canonical symbol trong một session occurrence; mỗi extra signal là một violation occurrence độc lập.");
+   NTSetCriterion(criteria[7],"C5",NTEvaluateC5(episodes,history_complete,qualification_complete),"ONE_OPEN_ORDER_PER_SYMBOL","Mỗi symbol chỉ được 1 lệnh đang mở; mở thêm lệnh cùng symbol là vi phạm.");
    const bool c6_evidence_coverage=history_complete && NTC6EvidenceCoverageComplete(episodes);
-   NTSetCriterion(criteria[10],"C6",NTEvaluateC6(episodes,c6_evidence_coverage,qualification_complete),"HOLD_OR_SLTP","C6 chỉ FAIL khi đóng dưới 15 phút VÀ complete observed timeline chứng minh không có SL/TP >30 pip; historical timeline thiếu => NOT_VERIFIABLE.");
-   NTSetCriterion(criteria[11],"C7",NTEvaluateC7(episodes,now_server*1000L,history_complete,qualification_complete),"HEDGE_DCA","Opposite exposure đồng thời là CONFIRMED_HEDGING; mỗi additional entry khác opening order có evidence timestamp/ticket riêng.");
-   NTSetCriterion(criteria[12],"C8",NT_NOT_VERIFIABLE,"COPY_NOT_PROVABLE","MT5 history không chứng minh tín hiệu có bị copy từ nguồn khác; magic/comment chỉ có thể tạo candidate.");
-   NTSetCriterion(criteria[13],"C9",NTEvaluateC9(cashflows,history_complete,qualification_complete),"ACCOUNT_CASH_FLOW","Chỉ balance operation có evidence rõ deposit/withdrawal mới là vi phạm; absence chỉ PASS khi coverage và qualification horizon hoàn tất.");
+   NTSetCriterion(criteria[8],"C6",NTEvaluateC6(episodes,c6_evidence_coverage,qualification_complete),"HOLD_OR_SLTP","Lệnh đóng dưới 15 phút phải từng có SL hoặc TP cách giá vào hơn 30 pip.");
+   NTSetCriterion(criteria[9],"C7",NTEvaluateC7(episodes,now_server*1000L,history_complete,qualification_complete),"NO_HEDGING","Không được mở BUY và SELL cùng lúc trên cùng symbol.");
+   NTSetCriterion(criteria[10],"C8",NT_NOT_VERIFIABLE,"COPY_NOT_PROVABLE","Không được copy tín hiệu từ nguồn khác.");
+   NTSetCriterion(criteria[11],"C9",NTEvaluateC9(cashflows,history_complete,qualification_complete),"BALANCE_CASH_FLOW","Có nạp hoặc rút tiền qua balance là vi phạm.");
 
    NTJsonEvent hard_events[],candidate_events[];
    for(int i=0;i<ArraySize(all_episodes);i++)
@@ -1513,26 +1486,17 @@ string NTBuildReport(string &report_hash)
       const NTStatus c6s=NTEvaluateC6Episode(episodes[i]);
       if(c6s==NT_FAIL)
         {
-         NTAddEvent(hard_events,NTSeconds(episodes[i].final_close_msc),NTEvidenceJson("C6","HARD",NT_FAIL,"SHORT_NO_QUALIFYING_SLTP","Signal đóng dưới 15 phút và complete observed timeline không có SL/TP vượt 30 pip.",NTSeconds(episodes[i].final_close_msc),episodes[i].broker_symbol,episodes[i].canonical_symbol,"["+NTJsonQuote(StringFormat("%I64u",episodes[i].position_id))+"]","["+NTJsonQuote(StringFormat("%I64u",episodes[i].opening_order_ticket))+"]",NTEpisodeDealTicketsJson(episodes[i]),DoubleToString(episodes[i].holding_seconds,0)+"s; maxSLTP="+DoubleToString(episodes[i].max_sltp_distance_pips,2)+"pip; pipSize="+DoubleToString(episodes[i].pip_size,8)+"; pipSource="+episodes[i].pip_size_source,"900s OR >30pip","PROSPECTIVE_SLTP_JOURNAL","EXACT"));
+         const string measured="Giữ "+DoubleToString(episodes[i].holding_seconds,0)+" giây; SL/TP xa nhất "+DoubleToString(episodes[i].max_sltp_distance_pips,2)+" pip";
+         NTAddEvent(hard_events,NTSeconds(episodes[i].final_close_msc),NTEvidenceJson("C6","HARD",NT_FAIL,"SHORT_NO_QUALIFYING_SLTP","Lệnh đóng dưới 15 phút nhưng không có SL/TP xa hơn 30 pip.",NTSeconds(episodes[i].final_close_msc),episodes[i].broker_symbol,episodes[i].canonical_symbol,"["+NTJsonQuote(StringFormat("%I64u",episodes[i].position_id))+"]","["+NTJsonQuote(StringFormat("%I64u",episodes[i].opening_order_ticket))+"]",NTEpisodeDealTicketsJson(episodes[i]),measured,"Giữ >= 15 phút hoặc SL/TP > 30 pip","PROSPECTIVE_SLTP_JOURNAL","EXACT"));
         }
       else if(c6s==NT_NOT_VERIFIABLE)
         {
-         NTAddEvent(candidate_events,NTSeconds(episodes[i].final_close_msc),NTEvidenceJson("C6","RISK",NT_NOT_VERIFIABLE,"SLTP_TIMELINE_MISSING","Signal ngắn nhưng MT5 history không chứng minh toàn bộ lịch sử sửa SL/TP; không được kết luận FAIL.",NTSeconds(episodes[i].final_close_msc),episodes[i].broker_symbol,episodes[i].canonical_symbol,"["+NTJsonQuote(StringFormat("%I64u",episodes[i].position_id))+"]","["+NTJsonQuote(StringFormat("%I64u",episodes[i].opening_order_ticket))+"]",NTEpisodeDealTicketsJson(episodes[i]),DoubleToString(episodes[i].holding_seconds,0)+"s; maxObserved="+DoubleToString(episodes[i].max_sltp_distance_pips,2)+"pip","900s OR >30pip","MT5_HISTORY","PARTIAL_SLTP_EVIDENCE"));
-        }
-      for(int a=0;a<ArraySize(episodes[i].additional_entries);a++)
-        {
-         const NTAdditionalEntryEvidence added=episodes[i].additional_entries[a];
-         const string reason=added.adverse?"DCA_CANDIDATE":"SCALE_IN_CANDIDATE";
-         const string measured="addedVolume="+DoubleToString(added.volume,2)+"; price="+DoubleToString(added.price,8)+"; previousWeighted="+DoubleToString(added.previous_weighted_price,8)+"; newWeighted="+DoubleToString(added.new_weighted_price,8)+"; adverse="+(added.adverse?"true":"false");
-         NTAddEvent(candidate_events,NTSeconds(added.time_msc),NTEvidenceJson("C7","RISK",NT_NOT_VERIFIABLE,reason,added.adverse?"Entry cùng chiều mới trước khi flat tại mức giá bất lợi; đây là DCA candidate, không phải kết luận intent.":"Entry cùng chiều mới trước khi flat; đây là scale-in candidate và không phải partial fill cùng opening order.",NTSeconds(added.time_msc),episodes[i].broker_symbol,episodes[i].canonical_symbol,"["+NTJsonQuote(StringFormat("%I64u",episodes[i].position_id))+"]","["+NTJsonQuote(StringFormat("%I64u",added.order_ticket))+"]","["+NTJsonQuote(StringFormat("%I64u",added.deal_ticket))+"]",measured,"no DCA/hedging","MT5_POSITION_LIFECYCLE","CANDIDATE"));
-        }
-      if(episodes[i].session==NT_OUTSIDE_SESSION)
-        {
-         NTAddEvent(candidate_events,NTSeconds(episodes[i].first_entry_msc),NTEvidenceJson("C5","RISK",NT_NOT_VERIFIABLE,"OUTSIDE_SESSION","Signal mở ngoài mọi session NeoTech đã định nghĩa; hệ thống không gán vào session khác.",NTSeconds(episodes[i].first_entry_msc),episodes[i].broker_symbol,episodes[i].canonical_symbol,"["+NTJsonQuote(StringFormat("%I64u",episodes[i].position_id))+"]","["+NTJsonQuote(StringFormat("%I64u",episodes[i].opening_order_ticket))+"]",NTEpisodeDealTicketsJson(episodes[i]),"OUTSIDE_SESSION","Asia/Europe/US","RULESET_SESSION_MAP","EXACT"));
+         const string measured="Giữ "+DoubleToString(episodes[i].holding_seconds,0)+" giây; SL/TP thấy được "+DoubleToString(episodes[i].max_sltp_distance_pips,2)+" pip";
+         NTAddEvent(candidate_events,NTSeconds(episodes[i].final_close_msc),NTEvidenceJson("C6","RISK",NT_NOT_VERIFIABLE,"SLTP_TIMELINE_MISSING","Lệnh đóng dưới 15 phút nhưng thiếu lịch sử thay đổi SL/TP.",NTSeconds(episodes[i].final_close_msc),episodes[i].broker_symbol,episodes[i].canonical_symbol,"["+NTJsonQuote(StringFormat("%I64u",episodes[i].position_id))+"]","["+NTJsonQuote(StringFormat("%I64u",episodes[i].opening_order_ticket))+"]",NTEpisodeDealTicketsJson(episodes[i]),measured,"Giữ >= 15 phút hoặc SL/TP > 30 pip","MT5_HISTORY","PARTIAL_SLTP_EVIDENCE"));
         }
       if(episodes[i].opening_magic!=0 || StringFind(NTLower(episodes[i].opening_comment),"copy")>=0)
         {
-         NTAddEvent(candidate_events,NTSeconds(episodes[i].first_entry_msc),NTEvidenceJson("C8","RISK",NT_NOT_VERIFIABLE,"COPY_CANDIDATE","Magic/comment có dấu hiệu tự động hóa hoặc copy nhưng MT5 không chứng minh nguồn tín hiệu; C8 vẫn NOT_VERIFIABLE.",NTSeconds(episodes[i].first_entry_msc),episodes[i].broker_symbol,episodes[i].canonical_symbol,"["+NTJsonQuote(StringFormat("%I64u",episodes[i].position_id))+"]","["+NTJsonQuote(StringFormat("%I64u",episodes[i].opening_order_ticket))+"]",NTEpisodeDealTicketsJson(episodes[i]),StringFormat("magic=%I64d comment=%s",episodes[i].opening_magic,episodes[i].opening_comment),"external source proof","MT5_MAGIC_COMMENT","CANDIDATE"));
+         NTAddEvent(candidate_events,NTSeconds(episodes[i].first_entry_msc),NTEvidenceJson("C8","RISK",NT_NOT_VERIFIABLE,"COPY_CANDIDATE","Magic hoặc comment có dấu hiệu lệnh tự động/copy; MT5 không xác định được nguồn tín hiệu.",NTSeconds(episodes[i].first_entry_msc),episodes[i].broker_symbol,episodes[i].canonical_symbol,"["+NTJsonQuote(StringFormat("%I64u",episodes[i].position_id))+"]","["+NTJsonQuote(StringFormat("%I64u",episodes[i].opening_order_ticket))+"]",NTEpisodeDealTicketsJson(episodes[i]),StringFormat("magic=%I64d; comment=%s",episodes[i].opening_magic,episodes[i].opening_comment),"Không copy tín hiệu","MT5_MAGIC_COMMENT","CANDIDATE"));
         }
      }
 
@@ -1542,18 +1506,18 @@ string NTBuildReport(string &report_hash)
       const long t=NTSeconds(all_episodes[i].first_entry_msc);
       if(!all_episodes[i].product_classification_reliable)
         {
-         NTAddEvent(candidate_events,t,NTEvidenceJson("E5","RISK",NT_DATA_GAP,"PRODUCT_METADATA_MISSING","Không đủ symbol metadata để xác minh sản phẩm là Forex/Gold hay ngoài phạm vi.",t,all_episodes[i].broker_symbol,all_episodes[i].canonical_symbol,"["+NTJsonQuote(StringFormat("%I64u",all_episodes[i].position_id))+"]","["+NTJsonQuote(StringFormat("%I64u",all_episodes[i].opening_order_ticket))+"]",NTEpisodeDealTicketsJson(all_episodes[i]),all_episodes[i].broker_symbol,"Forex or Gold","SYMBOL_METADATA","DATA_GAP"));
+         NTAddEvent(candidate_events,t,NTEvidenceJson("E5","RISK",NT_DATA_GAP,"PRODUCT_METADATA_MISSING","Không đủ dữ liệu để xác định symbol có phải Forex hoặc XAUUSD.",t,all_episodes[i].broker_symbol,all_episodes[i].canonical_symbol,"["+NTJsonQuote(StringFormat("%I64u",all_episodes[i].position_id))+"]","["+NTJsonQuote(StringFormat("%I64u",all_episodes[i].opening_order_ticket))+"]",NTEpisodeDealTicketsJson(all_episodes[i]),all_episodes[i].broker_symbol,"Forex hoặc XAUUSD","SYMBOL_METADATA","DATA_GAP"));
          continue;
         }
-      NTAddEvent(hard_events,t,NTEvidenceJson("E5","HARD",NT_FAIL,"EXCLUDED_PRODUCT","Phát hiện giao dịch ngoài Forex/Gold trong thời gian tham gia; trade đầu tiên cũng có thể thiết lập program start.",t,all_episodes[i].broker_symbol,all_episodes[i].canonical_symbol,"["+NTJsonQuote(StringFormat("%I64u",all_episodes[i].position_id))+"]","["+NTJsonQuote(StringFormat("%I64u",all_episodes[i].opening_order_ticket))+"]",NTEpisodeDealTicketsJson(all_episodes[i]),all_episodes[i].broker_symbol,"Forex or Gold","SYMBOL_METADATA","EXACT"));
+      NTAddEvent(hard_events,t,NTEvidenceJson("E5","HARD",NT_FAIL,"EXCLUDED_PRODUCT","Phát hiện giao dịch ngoài Forex và XAUUSD.",t,all_episodes[i].broker_symbol,all_episodes[i].canonical_symbol,"["+NTJsonQuote(StringFormat("%I64u",all_episodes[i].position_id))+"]","["+NTJsonQuote(StringFormat("%I64u",all_episodes[i].opening_order_ticket))+"]",NTEpisodeDealTicketsJson(all_episodes[i]),all_episodes[i].broker_symbol,"Forex hoặc XAUUSD","SYMBOL_METADATA","EXACT"));
      }
 
    for(int i=0;i<ArraySize(c5_occurrences);i++)
      {
       const NTC5Occurrence occurrence=c5_occurrences[i];
       const long event_time=NTSeconds(occurrence.time_msc);
-      const string measured="occurrence="+IntegerToString(occurrence.occurrence_number)+"; session="+NTSessionName(occurrence.session);
-      NTAddEvent(hard_events,event_time,NTEvidenceJson("C5","HARD",NT_FAIL,"MULTIPLE_SIGNALS_PRODUCT_SESSION","Mở thêm tín hiệu cho cùng sản phẩm trong cùng phiên; mỗi tín hiệu vượt quá tín hiệu đầu tiên là một occurrence riêng.",event_time,occurrence.broker_symbol,occurrence.canonical_symbol,"["+NTJsonQuote(StringFormat("%I64u",occurrence.position_id))+"]","["+NTJsonQuote(StringFormat("%I64u",occurrence.order_ticket))+"]","["+NTJsonQuote(StringFormat("%I64u",occurrence.deal_ticket))+"]",measured,"max 1 signal/product/session","RULESET_SESSION_MAP","EXACT"));
+      const string measured="Lệnh thứ "+IntegerToString(occurrence.occurrence_number)+" trên symbol";
+      NTAddEvent(hard_events,event_time,NTEvidenceJson("C5","HARD",NT_FAIL,"MULTIPLE_ORDERS_SYMBOL","Mở thêm lệnh khi symbol này vẫn còn lệnh đang mở.",event_time,occurrence.broker_symbol,occurrence.canonical_symbol,"["+NTJsonQuote(StringFormat("%I64u",occurrence.position_id))+"]","["+NTJsonQuote(StringFormat("%I64u",occurrence.order_ticket))+"]","["+NTJsonQuote(StringFormat("%I64u",occurrence.deal_ticket))+"]",measured,"Tối đa 1 lệnh đang mở/symbol","MT5_POSITION_LIFECYCLE","EXACT"));
      }
 
    NTHedgingEvidence hedge_events[];
@@ -1565,14 +1529,14 @@ string NTBuildReport(string &report_hash)
       const string positions="["+NTJsonQuote(StringFormat("%I64u",hedge.first_position_id))+","+NTJsonQuote(StringFormat("%I64u",hedge.second_position_id))+"]";
       const string orders="["+NTJsonQuote(StringFormat("%I64u",hedge.first_order_ticket))+","+NTJsonQuote(StringFormat("%I64u",hedge.second_order_ticket))+"]";
       const string deals_json="["+NTJsonQuote(StringFormat("%I64u",hedge.first_deal_ticket))+","+NTJsonQuote(StringFormat("%I64u",hedge.second_deal_ticket))+"]";
-      const string measured="directions="+(hedge.first_direction>0?"BUY":"SELL")+"/"+(hedge.second_direction>0?"BUY":"SELL")+"; overlap="+NTDateTimeText(NTSeconds(hedge.overlap_start_msc))+" -> "+NTDateTimeText(NTSeconds(hedge.overlap_end_msc));
-      NTAddEvent(hard_events,event_time,NTEvidenceJson("C7","HARD",NT_FAIL,"CONFIRMED_HEDGING","Có exposure BUY và SELL đồng thời trên cùng canonical symbol với position ID khác nhau.",event_time,hedge.broker_symbol,hedge.canonical_symbol,positions,orders,deals_json,measured,"no simultaneous opposite exposure","MT5_POSITION_LIFECYCLE","EXACT"));
+      const string measured="Hai chiều "+(hedge.first_direction>0?"BUY":"SELL")+"/"+(hedge.second_direction>0?"BUY":"SELL")+" cùng mở từ "+NTDateTimeText(NTSeconds(hedge.overlap_start_msc))+" đến "+NTDateTimeText(NTSeconds(hedge.overlap_end_msc));
+      NTAddEvent(hard_events,event_time,NTEvidenceJson("C7","HARD",NT_FAIL,"CONFIRMED_HEDGING","Có lệnh BUY và SELL mở đồng thời trên cùng symbol.",event_time,hedge.broker_symbol,hedge.canonical_symbol,positions,orders,deals_json,measured,"Không BUY/SELL đồng thời","MT5_POSITION_LIFECYCLE","EXACT"));
      }
 
    for(int i=0;i<ArraySize(cashflows);i++)
      {
       if(cashflows[i].kind!=1 && cashflows[i].kind!=-1) continue;
-      NTAddEvent(hard_events,NTSeconds(cashflows[i].time_msc),NTEvidenceJson("C9","HARD",NT_FAIL,cashflows[i].kind==1?"DEPOSIT":"WITHDRAWAL",cashflows[i].kind==1?"Phát hiện khoản nạp tiền có evidence rõ trong balance operation.":"Phát hiện khoản rút tiền có evidence rõ trong balance operation.",NTSeconds(cashflows[i].time_msc),"","","[]","[]","["+NTJsonQuote(StringFormat("%I64u",cashflows[i].ticket))+"]",DoubleToString(cashflows[i].amount,2),"0",cashflows[i].comment,"EXACT"));
+      NTAddEvent(hard_events,NTSeconds(cashflows[i].time_msc),NTEvidenceJson("C9","HARD",NT_FAIL,cashflows[i].kind==1?"DEPOSIT":"WITHDRAWAL",cashflows[i].kind==1?"Phát hiện nạp tiền qua balance.":"Phát hiện rút tiền qua balance.",NTSeconds(cashflows[i].time_msc),"","","[]","[]","["+NTJsonQuote(StringFormat("%I64u",cashflows[i].ticket))+"]",DoubleToString(cashflows[i].amount,2),"Không nạp/rút","MT5_BALANCE","EXACT"));
      }
    const int hard_count=ArraySize(hard_events);
    const int candidate_count=ArraySize(candidate_events);
@@ -1582,7 +1546,7 @@ string NTBuildReport(string &report_hash)
    const int c5_current=(current_month>=0 ? NTCountC5ConfirmedViolations(episodes,current_month) : 0);
    const int c6_current=(current_month>=0 ? NTCountC6ConfirmedViolations(episodes,current_month) : 0);
    const int combined=c5_current+c6_current;
-   const bool counters_complete=criteria[9].status!=NT_NOT_VERIFIABLE && criteria[10].status!=NT_NOT_VERIFIABLE && criteria[9].status!=NT_DATA_GAP && criteria[10].status!=NT_DATA_GAP;
+   const bool counters_complete=criteria[7].status!=NT_NOT_VERIFIABLE && criteria[8].status!=NT_NOT_VERIFIABLE && criteria[7].status!=NT_DATA_GAP && criteria[8].status!=NT_DATA_GAP;
    const int risk_code=NTDisqualificationRisk(c5_current,c6_current,counters_complete);
    const string risk=(risk_code>0?"YES":(risk_code==0?"NO":"UNKNOWN"));
 
@@ -1595,15 +1559,14 @@ string NTBuildReport(string &report_hash)
    criteria_json+="]";
 
    string assumptions[];
-   ArrayResize(assumptions,8);
-   assumptions[0]="C1 strict policy="+string(NT_C1_STRICT_POLICY)+": both 365 calendar days and 12 completed 30-day windows are required.";
-   assumptions[1]="NeoTech server session season is April-October summer, November-March winter; overlaps use half-open ranges with Asia->Europe->US priority.";
-   assumptions[2]="Configured C3 compliance interpretation is floating loss=(balance-equity)/balance; peak-to-trough equity drawdown is also reported separately.";
-   assumptions[3]="Historical C3 is reconstructed from broker ticks in bounded chunks, with M1 fallback; it never becomes unconditional PASS.";
-   assumptions[4]="Historical SL/TP modifications are not fully reconstructable from MT5 history; short signals without qualifying observed snapshots remain NOT_VERIFIABLE unless complete timeline evidence exists.";
-   assumptions[5]="Gold pip size is not assumed. C6 distance for Gold requires InpGoldPipSizeOverride > 0.";
-   assumptions[6]="E4 and C8 have no authoritative external integration in this repository and therefore default to NOT_VERIFIABLE.";
-   assumptions[7]="Manual pause periods are MANUAL_DECLARATION; affected deficient weeks are shown and become NOT_VERIFIABLE rather than silently removed.";
+   ArrayResize(assumptions,7);
+   assumptions[0]="C1 requires both 365 calendar days and 12 completed 30-day windows.";
+   assumptions[1]="C2 evaluates every completed 30-day month independently at >=1%; annual averaging is not used.";
+   assumptions[2]="C5 allows only one open order per canonical symbol; a different add-entry order is an additional violation.";
+   assumptions[3]="Historical SL/TP changes may be incomplete; C6 remains NOT_VERIFIABLE unless the full observed timeline is available.";
+   assumptions[4]="Only Forex and XAUUSD are eligible. XAUUSD C6 pip distance requires a verified InpGoldPipSizeOverride when broker metadata is insufficient.";
+   assumptions[5]="C8 has no authoritative external signal-source integration and remains NOT_VERIFIABLE; magic/comment only create a candidate.";
+   assumptions[6]="Manual pause periods are declarations; affected deficient weeks become NOT_VERIFIABLE rather than being hidden.";
 
    const string fdd_gaps=NTStringArrayJson(fdd.missing_intervals);
    const string margin_mode=(AccountInfoInteger(ACCOUNT_MARGIN_MODE)==ACCOUNT_MARGIN_MODE_RETAIL_HEDGING?"HEDGING":"NETTING");
@@ -1818,7 +1781,7 @@ string NTTelegramSafeText(const string text)
 
 string NTTelegramSummaryHeader(const string report)
   {
-   string account="",masked="unknown";
+   string account="",masked="không rõ";
    if(NTJsonGetObject(report,"account",account)) NTJsonGetString(account,"maskedId",masked);
 
    string coverage="";
@@ -1860,18 +1823,20 @@ string NTTelegramSummaryHeader(const string report)
         }
      }
 
-   string history_text="n/a";
-   if(requested_start>0 && requested_end>0) history_text=NTDateTimeText(requested_start)+" -> "+NTDateTimeText(requested_end)+" (server time)";
-   string text="NeoTech compliance @"+NTProfileKey();
-   text+="\nAccount: "+masked;
-   text+="\nHistory: "+history_text;
-   text+="\nCoverage: "+DoubleToString(coverage_pct,1)+"%";
-   text+="\nCriteria: PASS="+IntegerToString(pass_count)+" FAIL="+IntegerToString(fail_count)+" IN_PROGRESS="+IntegerToString(in_progress_count)+" NOT_VERIFIABLE="+IntegerToString(not_verifiable_count)+" DATA_GAP="+IntegerToString(data_gap_count);
-   if(reconstructed_count>0) text+=" RECONSTRUCTED="+IntegerToString(reconstructed_count);
-   text+="\nViolations: confirmed="+IntegerToString(hard_count)+" candidates="+IntegerToString(candidate_count);
-   text+="\nCurrent month: C5="+IntegerToString(c5)+" C6="+IntegerToString(c6)+" eliminationRisk="+risk;
-   text+="\nFDD: floating="+DoubleToString(fdd_floating,3)+"% peakToTrough="+DoubleToString(fdd_peak,3)+"% status="+fdd_status;
-   text+="\nFDD method/coverage: "+fdd_method+"; ticks="+DoubleToString(fdd_tick,1)+"% M1="+DoubleToString(fdd_bar,1)+"%";
+   string history_text="Chưa có dữ liệu";
+   if(requested_start>0 && requested_end>0) history_text=NTDateTimeText(requested_start)+" -> "+NTDateTimeText(requested_end)+" (giờ máy chủ)";
+   string text="BÁO CÁO NEOTECH @"+NTProfileKey();
+   text+="\nTài khoản: "+masked;
+   text+="\nLịch sử: "+history_text;
+   text+="\nĐộ phủ dữ liệu: "+DoubleToString(coverage_pct,1)+"%";
+   text+="\nTiêu chí: Đạt "+IntegerToString(pass_count)+" | Vi phạm "+IntegerToString(fail_count);
+   text+="\nĐang theo dõi "+IntegerToString(in_progress_count)+" | Chưa xác minh "+IntegerToString(not_verifiable_count)+" | Thiếu dữ liệu "+IntegerToString(data_gap_count);
+   if(reconstructed_count>0) text+=" | Phục dựng "+IntegerToString(reconstructed_count);
+   text+="\nChi tiết: "+IntegerToString(hard_count)+" vi phạm | "+IntegerToString(candidate_count)+" cần kiểm tra";
+   text+="\nTháng này: C5 "+IntegerToString(c5)+" | C6 "+IntegerToString(c6)+" | Nguy cơ bị loại: "+NTTelegramRiskVi(risk);
+   text+="\nFDD (lỗ thả nổi): cao nhất "+DoubleToString(fdd_floating,3)+"% | giảm từ đỉnh "+DoubleToString(fdd_peak,3)+"%";
+   text+="\nDữ liệu FDD: "+NTTelegramStatusVi(fdd_status);
+   text+="\nNguồn tính FDD: "+NTTelegramFddMethodVi(fdd_method)+" | tick "+DoubleToString(fdd_tick,1)+"% | nến M1 "+DoubleToString(fdd_bar,1)+"%";
    return NTTelegramSafeText(text);
   }
 
@@ -1881,15 +1846,14 @@ string NTTelegramCriterionItem(const string criterion)
    NTJsonGetString(criterion,"id",id);
    NTJsonGetString(criterion,"status",status);
    NTJsonGetString(criterion,"summaryVi",summary);
-   return NTTelegramSafeText(id+" · "+status+(summary!=""?"\n"+summary:""));
+   return NTTelegramSafeText(id+" · "+NTTelegramStatusVi(status)+(summary!=""?"\n"+summary:""));
   }
 
 string NTTelegramEvidenceItem(const string event_json,const bool candidate)
   {
-   string criterion="?",status="?",reason="?",explanation="",server_time="n/a",utc_time="n/a",symbol="n/a",measured="n/a",threshold="n/a";
+   string criterion="?",status="?",explanation="",server_time="không rõ",utc_time="không rõ",symbol="",measured="",threshold="";
    NTJsonGetString(event_json,"criterionId",criterion);
    NTJsonGetString(event_json,"status",status);
-   NTJsonGetString(event_json,"reasonCode",reason);
    NTJsonGetString(event_json,"explanationVi",explanation);
    NTJsonGetString(event_json,"serverTime",server_time);
    NTJsonGetString(event_json,"utcTime",utc_time);
@@ -1899,12 +1863,13 @@ string NTTelegramEvidenceItem(const string event_json,const bool candidate)
    const string positions=NTTelegramJsonRaw(event_json,"positionIds");
    const string orders=NTTelegramJsonRaw(event_json,"orderTickets");
    const string deals=NTTelegramJsonRaw(event_json,"dealTickets");
-   string text=(candidate?"CANDIDATE ":"VIOLATION ")+criterion+" · "+status+" · "+reason;
-   text+="\nServer: "+server_time+" | UTC: "+utc_time;
-   text+="\nSymbol: "+symbol;
-   if(explanation!="") text+="\nReason: "+explanation;
-   text+="\nMeasured: "+measured+" | Threshold: "+threshold;
-   text+="\nPosition: "+(positions!=""?positions:"[]")+" | Order: "+(orders!=""?orders:"[]")+" | Deal: "+(deals!=""?deals:"[]");
+   string text=(candidate?"CẦN KIỂM TRA ":"VI PHẠM ")+criterion+" · "+NTTelegramStatusVi(status);
+   text+="\nThời gian: "+server_time+" (máy chủ) | "+utc_time+" UTC";
+   if(symbol!="") text+="\nMã: "+symbol;
+   if(explanation!="") text+="\nLý do: "+explanation;
+   if(measured!="") text+="\nGhi nhận: "+measured;
+   if(threshold!="") text+="\nYêu cầu: "+threshold;
+   text+="\nVị thế: "+(positions!=""?positions:"[]")+" | Lệnh: "+(orders!=""?orders:"[]")+" | Giao dịch: "+(deals!=""?deals:"[]");
    return NTTelegramSafeText(text);
   }
 
@@ -1941,7 +1906,7 @@ int NTTelegramBuildReportPages(const string report,const NTTelegramCheckCommand 
      {
       NTTelegramAppendEvidenceItems(report,"hardViolations","",false,items);
       NTTelegramAppendEvidenceItems(report,"candidates","",true,items);
-      if(ArraySize(items)==0) NTTelegramAppendItem(items,"No confirmed violations or candidates in the current report.");
+      if(ArraySize(items)==0) NTTelegramAppendItem(items,"Không có vi phạm hoặc mục cần kiểm tra trong báo cáo hiện tại.");
      }
    else
      {
@@ -1959,14 +1924,14 @@ int NTTelegramBuildReportPages(const string report,const NTTelegramCheckCommand 
         {
          NTTelegramAppendEvidenceItems(report,"hardViolations",command.criterion,false,items);
          NTTelegramAppendEvidenceItems(report,"candidates",command.criterion,true,items);
-         if(ArraySize(items)==0) NTTelegramAppendItem(items,"Criterion not found in the current report.");
+         if(ArraySize(items)==0) NTTelegramAppendItem(items,"Không tìm thấy tiêu chí này trong báo cáo.");
         }
      }
 
    const string header=NTTelegramSummaryHeader(report);
    NTTelegramPaginateItems(header,items,MathMax(1,InpTelegramPageSize),NT_TELEGRAM_MESSAGE_BUDGET,pages);
    const int total=ArraySize(pages);
-   for(int i=0;i<total;i++) pages[i]+="\n\nPage "+IntegerToString(i+1)+"/"+IntegerToString(total);
+   for(int i=0;i<total;i++) pages[i]+="\n\nTrang "+IntegerToString(i+1)+"/"+IntegerToString(total);
    return total;
   }
 
@@ -1977,13 +1942,13 @@ string NTTelegramInlineKeyboard(const NTTelegramCheckCommand &command,const int 
    if(current_page>1)
      {
       const string data=NTTelegramCallbackData(NTProfileKey(),command.view,command.criterion,current_page-1);
-      buttons+="{\"text\":\"Prev\",\"callback_data\":"+NTJsonQuote(data)+"}";
+      buttons+="{\"text\":\"Trước\",\"callback_data\":"+NTJsonQuote(data)+"}";
      }
    if(current_page<total_pages)
      {
       if(buttons!="") buttons+=",";
       const string data=NTTelegramCallbackData(NTProfileKey(),command.view,command.criterion,current_page+1);
-      buttons+="{\"text\":\"Next\",\"callback_data\":"+NTJsonQuote(data)+"}";
+      buttons+="{\"text\":\"Sau\",\"callback_data\":"+NTJsonQuote(data)+"}";
      }
    if(buttons=="") return "";
    return "{\"inline_keyboard\":[["+buttons+"]]}";
@@ -2059,12 +2024,12 @@ bool NTTelegramHandleCallback(const string update_json)
    if(!NTJsonGetObject(callback,"message",message) || !NTJsonGetObject(message,"chat",chat) || !NTJsonGetLong(chat,"id",chat_id)) return true;
    if(!NTTelegramAclAllowed(InpTelegramAllowedChatIds,InpTelegramAllowedUserIds,chat_id,user_id))
      {
-      NTTelegramAnswerCallback(callback_id,"Unauthorized");
+      NTTelegramAnswerCallback(callback_id,"Không có quyền");
       return true;
      }
 
    if(!NTTelegramSendReport(chat_id,command)) return false;
-   if(!NTTelegramAnswerCallback(callback_id,"Page updated"))
+   if(!NTTelegramAnswerCallback(callback_id,"Đã mở trang"))
       Print("[NEOTECH] Telegram callback page was delivered but answerCallbackQuery failed; update will not be replayed to avoid duplicate account reports.");
    return true;
   }
