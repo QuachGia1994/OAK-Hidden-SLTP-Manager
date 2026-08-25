@@ -304,13 +304,14 @@ test("Pattern 2 accepts exactly three same-direction candles and skips runs of f
   }
 });
 
-test("later scanner Pattern 2 blocks after the first daily Pattern 2 while Pattern 1 remains active", () => {
+test("only the first daily Pattern 2 is scanned while later Pattern 2 matches are omitted", () => {
   const matches = findH1PatternMatchesForTarget("GBPUSD", bars("GGTTTTGGG", 1), 10);
   const first = matches.find((item) => item.slotHour === 6)!;
-  const later = matches.find((item) => item.slotHour === 10)!;
+  const later = matches.find((item) => item.slotHour === 10);
 
   assert.deepEqual([first.pattern.join(""), first.patternKind, first.lookbackPattern, first.lookbackAction, first.tradeAllowed], ["TTT", "sw3Normal", "TGG", "block-pattern1", false]);
-  assert.deepEqual([later.pattern.join(""), later.patternKind, later.lookbackPattern, later.lookbackAction, later.tradeAllowed], ["GGG", "sw3Normal", "GGG", "block-repeat-pattern2", false]);
+  assert.equal(later, undefined);
+  assert.equal(matches.some((item) => item.patternKind === "sw3Normal" && item.slotHour > first.slotHour), false);
 
   const pattern1AfterPattern2 = findH1PatternMatchesForTarget("GBPUSD", bars("GGTTTG", 1), 7).find((item) => item.slotHour === 7)!;
   assert.deepEqual([pattern1AfterPattern2.pattern.join(""), pattern1AfterPattern2.patternKind, pattern1AfterPattern2.lookbackAction, pattern1AfterPattern2.tradeAllowed], ["GTT", "sw3Pure", "block-pattern2", false]);
@@ -336,8 +337,8 @@ test("GBPUSD AUDUSD and USDJPY invert configured base while XAUUSD and USDCAD ke
 });
 
 test("target scanner/base mapping follows the five-symbol signal loop", () => {
-  assert.equal(H1_CLOUD_STATE_VERSION, 28);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 22);
+  assert.equal(H1_CLOUD_STATE_VERSION, 29);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 23);
   assert.deepEqual(H1_TARGET_BASES, ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"]);
   assert.deepEqual(H1_ALL_BASES, ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY", "EURUSD"]);
 
@@ -616,7 +617,7 @@ test("suppressed migration slots backfill v7 history without replay state loss",
   assert.equal(backfillSuppressedHistory(state, "2026-08-21", market), 0);
 });
 
-test("older signal-rule feeds start a fresh v28 state instead of carrying stale H4/base semantics", () => {
+test("older signal-rule feeds start a fresh v29 state instead of carrying stale H4/base semantics", () => {
   const legacyV2 = {
     schemaVersion: 7,
     signalRuleVersion: 2,
@@ -651,7 +652,7 @@ test("older signal-rule feeds start a fresh v28 state instead of carrying stale 
     },
   };
   const state = seedCloudStateFromPublic(legacyV2, "2026-08-21", 7);
-  assert.equal(state.version, 28);
+  assert.equal(state.version, 29);
   assert.equal(state.days["2026-08-21"].suppressedThroughHour, 7);
   assert.deepEqual(state.days["2026-08-21"].symbols.XAUUSD?.alerts, []);
 });
@@ -666,11 +667,11 @@ test("older public schemas start a fresh suppressed v7 state instead of replayin
     days: {},
   };
   const state = seedCloudStateFromPublic(legacy, "2026-08-21", 5);
-  assert.equal(state.version, 28);
+  assert.equal(state.version, 29);
   assert.equal(state.days["2026-08-21"].suppressedThroughHour, 5);
 });
 
-test("public feed v7 excludes H5 under signal rule v22", () => {
+test("public feed v7 excludes H5 under signal rule v23", () => {
   const state = emptyCloudState();
   const match = findH1PatternMatches(bars("GGT", 3), 6).find((item) => item.slotHour === 6)!;
   const alert = buildStoredAlert({
@@ -685,7 +686,7 @@ test("public feed v7 excludes H5 under signal rule v22", () => {
   state.days["2026-08-21"] = { symbols: { XAUUSD: { alerts: [alert], blockedSlots: [] } } };
   const feed = buildPublicFeed(state, "2026-08-21T00:00:00Z");
   assert.equal(feed.schemaVersion, 7);
-  assert.equal(feed.signalRuleVersion, 22);
+  assert.equal(feed.signalRuleVersion, 23);
   assert.deepEqual(feed.hours, [3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
   const row = feed.days["2026-08-21"].symbols.XAUUSD?.alerts[0];
   assert.equal(row?.patternKind, "sw3Pure");

@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 28;
+export const H1_CLOUD_STATE_VERSION = 29;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 22;
+export const H1_SIGNAL_RULE_VERSION = 23;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v28";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v29";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -70,7 +70,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 28;
+  version: 29;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -79,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 22;
+  signalRuleVersion: 23;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -332,18 +332,11 @@ export function findH1PatternMatchesForTarget(base: H1TargetBase, bars: H1Direct
   let pattern2Seen = false;
   return matches
     .sort((left, right) => left.slotHour - right.slotHour)
-    .map((match) => {
-      if (match.patternKind !== "sw3Normal") return match;
-      if (!pattern2Seen) {
-        pattern2Seen = true;
-        return match;
-      }
-      return {
-        ...match,
-        lookbackPattern: match.pattern.join(""),
-        lookbackAction: "block-repeat-pattern2" as const,
-        tradeAllowed: false,
-      };
+    .filter((match) => {
+      if (match.patternKind !== "sw3Normal") return true;
+      if (pattern2Seen) return false;
+      pattern2Seen = true;
+      return true;
     });
 }
 
