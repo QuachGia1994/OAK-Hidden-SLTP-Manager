@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminOrApiAuth } from "@/lib/admin-auth";
 import { brokerWallParts, fetchHistoricalBrokerH1 } from "@/lib/ctrader-json";
+import { verifyH1ScannerGitHubOidc } from "@/lib/github-oidc";
 import { addBrokerCalendarDays, brokerDateWeekdayIndex } from "@/lib/h1-broker-date";
 import { H1_HISTORY_RETENTION_CALENDAR_DAYS } from "@/lib/h1-cloud-scanner";
 import { acquireH1CloudLock, loadH1CloudHistoryState, publishH1CloudState, releaseH1CloudLock, saveH1CloudState } from "@/lib/h1-cloud-store";
@@ -24,8 +25,17 @@ function requestedWeekdays(fromDate: string, throughDate: string): string[] {
   return dates;
 }
 
-export async function POST(request: Request) {
+async function authorize(request: Request): Promise<NextResponse | null> {
   const denied = requireAdminOrApiAuth(request);
+  if (!denied) return null;
+  const header = request.headers.get("authorization") || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  if (token && await verifyH1ScannerGitHubOidc(token)) return null;
+  return denied;
+}
+
+export async function POST(request: Request) {
+  const denied = await authorize(request);
   if (denied) return denied;
 
   const url = new URL(request.url);

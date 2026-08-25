@@ -76,8 +76,10 @@ test("live route scans H3, XAU-only H4 and H06-H16 while H5 is inactive", () => 
   assert.match(route, /brokerUtcOffsetHours/);
 });
 
-test("manual H1 history backfill is admin/API-only, singleton locked and has no Telegram or trading mutation path", () => {
+test("H1 history backfill accepts admin/API or repo-fenced GitHub OIDC, stays singleton locked and has no Telegram or trading mutation path", () => {
   assert.match(backfillRoute, /requireAdminOrApiAuth/);
+  assert.match(backfillRoute, /verifyH1ScannerGitHubOidc/);
+  assert.match(backfillRoute, /Authorization|authorization/);
   assert.match(backfillRoute, /H1_HISTORY_RETENTION_CALENDAR_DAYS/);
   assert.match(backfillRoute, /acquireH1CloudLock/);
   assert.match(backfillRoute, /releaseH1CloudLock/);
@@ -85,7 +87,7 @@ test("manual H1 history backfill is admin/API-only, singleton locked and has no 
   assert.match(backfillRoute, /reconstructHistoricalDays/);
   assert.match(backfillRoute, /mergeHistoricalBackfill/);
   assert.match(backfillRoute, /addedAlerts > 0 \|\| merged\.addedDays > 0/);
-  assert.doesNotMatch(backfillRoute, /verifyH1ScannerGitHubOidc|x-h1-timekeeper-key|x-h1-run-ticket|sendTelegram|buildTelegramMessage/);
+  assert.doesNotMatch(backfillRoute, /x-h1-timekeeper-key|x-h1-run-ticket|sendTelegram|buildTelegramMessage/);
   assert.doesNotMatch(backfillRoute, /placeCTraderMarketOrder|closeCTraderPositions|amendCTraderPositionProtection|NEW_ORDER_REQ|CLOSE_POSITION_REQ/);
 });
 
@@ -153,5 +155,8 @@ test("GitHub scheduler is tertiary fallback and warms feed after scanner-related
   assert.ok(workflow.indexOf("Wait for H:00 boundary") < workflow.indexOf("Request GitHub OIDC token"));
   assert.match(workflow, /Authorization: Bearer \$OIDC_TOKEN/);
   assert.match(workflow, /https:\/\/www\.oakgatekeeper\.uk\/api\/h1-scanner\/run/);
+  assert.match(workflow, /Rebuild H1 history after scanner deploy/);
+  assert.match(workflow, /if: github\.event_name == 'push'/);
+  assert.match(workflow, /https:\/\/www\.oakgatekeeper\.uk\/api\/h1-scanner\/backfill/);
   assert.doesNotMatch(workflow, /secrets\.|CTRADER_CLIENT_SECRET|ACCESS_TOKEN|UPSTASH|TELEGRAM_TOKEN/);
 });
