@@ -5,26 +5,28 @@
 #include "neotech\\NeoTechComplianceCore.mqh"
 #include "neotech\\NeoTechComplianceJson.mqh"
 
-input group "Compliance identity"
-input string InpProfileSlug                 = ""; // Opaque profile slug, never an MT5 login
-input long   InpExpectedLogin               = 0;  // Required hard binding; EA init fails if current MT5 login differs
+input group "1. BAT BUOC - TAI KHOAN"
+input string InpProfileSlug                 = ""; // 1. Profile slug tu dat (VD: neotech_main)
+input long   InpExpectedLogin               = 0;  // 2. So tai khoan MT5 (Login)
 
-input group "Telegram transport"
-input string InpTelegramBotToken            = ""; // Secret entered in terminal; never commit or log it
-input string InpTelegramAllowedChatIds      = ""; // Comma/space/semicolon separated Telegram chat IDs
-input string InpTelegramAllowedUserIds      = ""; // Comma/space/semicolon separated Telegram user IDs
-input int    InpTelegramPollSeconds         = 15;
-input bool   InpTelegramDeleteWebhookOnInit = false;
-input bool   InpTelegramSendOnChange        = false;
-input int    InpTelegramPageSize            = 6;
+input group "2. BAT BUOC - TELEGRAM"
+input string InpTelegramBotToken            = ""; // 3. Bot token tu @BotFather
+input string InpTelegramAllowedChatIds      = ""; // 4. Chat ID duoc phep (group: -100...)
+input string InpTelegramAllowedUserIds      = ""; // 5. User ID Telegram duoc phep
 
-input group "Audit policy"
-input double InpGoldPipSizeOverride         = 0.0; // Required for Gold C6 when broker convention is not externally verified
-input string InpManualPausePeriods          = "";  // server dates: YYYY-MM-DD/YYYY-MM-DD;...
-input int    InpHistoryLookbackDays         = 370; // required compliance coverage horizon; account history selection itself is unbounded
-input int    InpReconstructionChunkMinutes  = 60;
-input int    InpReconstructionSliceSeconds  = 30;
-input int    InpReconstructionBudgetMs      = 250;
+input group "3. TUY CHON TELEGRAM"
+input int    InpTelegramPollSeconds         = 15;    // Chu ky doc lenh (giay)
+input bool   InpTelegramDeleteWebhookOnInit = false; // Xoa webhook cu khi khoi dong (chi bat 1 lan)
+input bool   InpTelegramSendOnChange        = false; // Tu gui khi bao cao thay doi
+input int    InpTelegramPageSize            = 6;     // So muc moi trang
+
+input group "4. KIEM TRA - GIU MAC DINH NEU KHONG RO"
+input double InpGoldPipSizeOverride         = 0.0; // Gold pip size (0 = tu dong)
+input string InpManualPausePeriods          = "";  // Khoang tam dung: YYYY-MM-DD/YYYY-MM-DD;...
+input int    InpHistoryLookbackDays         = 370; // So ngay lich su can kiem tra
+input int    InpReconstructionChunkMinutes  = 60;  // Khoang tai du lieu (phut)
+input int    InpReconstructionSliceSeconds  = 30;  // Moi lan xu ly toi da (giay)
+input int    InpReconstructionBudgetMs      = 250; // Ngan sach moi lan xu ly (ms)
 
 #define NT_LOCAL_DIR "OAKNeoTechCompliance\\"
 #define NT_TELEGRAM_API_BASE "https://api.telegram.org"
