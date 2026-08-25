@@ -101,17 +101,12 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
           <button type="button" onClick={onClose} aria-label="Close">×</button>
         </header>
         <div className="oak-h1-detail-grid">
-          <div><small>SYMBOL</small><b>{alert.symbol || base}</b></div>
-          <div><small>PROFILE</small><b>{alert.profile}</b></div>
           <div><small>{locale === "EN" ? "BROKER DAY" : "NGÀY BROKER"}</small><b>{date}</b></div>
-          <div><small>SCAN</small><b>H{String(alert.slotHour).padStart(2, "0")}</b></div>
           <div><small>{locale === "EN" ? "CANDLES NEW→OLD" : "NẾN MỚI→CŨ"}</small><b>{barsLabel(alert.bars) || "—"}</b></div>
-          <div><small>{locale === "EN" ? "PATTERN SCANNER" : "SCANNER PATTERN"}</small><b>{alert.scannerBase}</b></div>
           <div><small>PATTERN</small><b>{alert.pattern || "—"}</b></div>
         </div>
         <div className="oak-h1-explain">
           <p><span>{locale === "EN" ? "Pattern group" : "Nhóm pattern"}</span><b>{patternLabel(alert.patternKind, locale)}</b></p>
-          <p><span>{locale === "EN" ? "Pattern source" : "Nguồn scanner"}</span><b>{alert.scannerBase}</b></p>
           <p><span>Base H1 · {alert.baseSymbol}</span><b>{baseDetail}</b></p>
           <p><span>{locale === "EN" ? "Base logic" : "Logic base"}</span><b>{locale === "EN" ? `${baseInverted ? "reverse" : "follow"} ${alert.baseSymbol} H1` : `${baseInverted ? "đảo ngược" : "giữ nguyên"} ${alert.baseSymbol} H1`}</b></p>
           <p><span>AllowTrade lookback</span><b>{allowTradeLookbackLabel(alert, locale)}</b></p>
