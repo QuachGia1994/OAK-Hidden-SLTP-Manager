@@ -166,8 +166,16 @@ test("confirmation state machine arms future intents and executes due ones only"
   assert.equal(canCancelCloudIntentStatus("executed"), false);
 });
 
-test("help explains approve-once then scheduled auto execution", () => {
+test("help/start expose cloud and NeoTech command guidance", () => {
+  assert.deepEqual(parseCloudTelegramCommand("/start"), { type: "help" });
+  assert.deepEqual(parseCloudTelegramCommand("/help@OakBot"), { type: "help" });
   const help = renderHelp();
+  assert.match(help, /\/help \| \/start/);
+  assert.match(help, /Báo cáo tổng: \/check @neotech/);
+  assert.match(help, /Xem tiêu chí C5: \/check @neotech C5/);
+  assert.match(help, /Xem toàn bộ vi phạm: \/check @neotech violations/);
+  assert.match(help, /Xem trang 2: \/check @neotech 2/);
+  assert.match(help, /Trong group: \/check@TênBot @neotech/);
   assert.match(help, /\/approve ID/);
   assert.match(help, /approve trước/);
   assert.match(help, /SL\/TP mặc định/);

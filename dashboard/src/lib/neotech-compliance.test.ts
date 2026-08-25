@@ -205,6 +205,8 @@ test("31 /check summary, detail and pagination work through mocked stored-report
 
   const summaryCommand = parseNeoTechCheckCommand("/check @oakdemo");
   assert.ok(summaryCommand);
+  assert.deepEqual(parseNeoTechCheckCommand("/check @oakdemo 2"), { slug: "oakdemo", view: "summary", page: 2 });
+  assert.deepEqual(parseNeoTechCheckCommand("/check@OakBot @oakdemo"), { slug: "oakdemo", view: "summary", page: 1 });
   const summary = await resolveNeoTechTelegramPage(summaryCommand!, "100", "999", loadLatest, rawProfiles, 1787580000, 3600);
   assert.match(summary.text, /NEOTECH CHECK — @oakdemo/);
   assert.match(summary.text, /C5\+C6: 3\/3/);

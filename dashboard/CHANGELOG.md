@@ -2,6 +2,12 @@
 
 All notable changes to the dashboard are recorded here.
 
+## [Unreleased]
+
+### Changed
+
+- Telegram `/help` and `/start` now show NeoTech `/check` examples for summary, C5, violations, pagination and group use. `/check @profile 2` now selects summary page 2 directly.
+
 ## [0.5.0] - 2026-08-25
 
 ### Added

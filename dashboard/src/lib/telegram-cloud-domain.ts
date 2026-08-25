@@ -325,6 +325,7 @@ export function parseCloudTelegramCommand(text: string, nowMs = Date.now()): Par
 export function renderHelp(): string {
   return [
     "☁️ OAK Multi-Provider Cloud Control",
+    "• /help | /start — hướng dẫn cú pháp",
     "• /status — trạng thái cloud/provider",
     "• /profiles — các account cTrader/MT5 đã đăng ký",
     "• /positions — vị thế trên các account đang bật",
@@ -339,6 +340,13 @@ export function renderHelp(): string {
     "• /partial TICKET|SYMBOL profit|price TARGET CLOSE_VOLUME [@ACCOUNT] — cTrader Auto Manager / MT5 OAK EA",
     "• /del ID [ID ...] | /del all",
     "• Có thể gửi nhiều lệnh trong cùng một tin nhắn, mỗi dòng một lệnh (tối đa 10 dòng).",
+    "",
+    "🧾 NeoTech compliance",
+    "• Báo cáo tổng: /check @neotech",
+    "• Xem tiêu chí C5: /check @neotech C5",
+    "• Xem toàn bộ vi phạm: /check @neotech violations",
+    "• Xem trang 2: /check @neotech 2",
+    "• Trong group: /check@TênBot @neotech",
     "",
     "Lệnh tác động broker cần /approve ID một lần. Có thể approve nhiều ID cùng lúc và approve trước lệnh hẹn giờ; tới mốc cloud tự chạy, không hỏi lại. Nếu bỏ SL/TP, cloud snapshot SL/TP mặc định theo từng account trước khi xác nhận.",
   ].join("\n");

@@ -235,9 +235,12 @@ export function parseNeoTechCheckCommand(text: string): NeoTechCheckCommand | nu
   if (!slugToken.startsWith("@")) return null;
   const slug = slugToken.slice(1).toLowerCase();
   if (!isOpaqueNeoTechProfileSlug(slug)) return null;
-  const view = String(tokens[2] || "summary").toLowerCase() as NeoTechCheckView;
+  const viewToken = String(tokens[2] || "summary").toLowerCase();
+  const summaryPageShorthand = /^\d+$/.test(viewToken);
+  const view = (summaryPageShorthand ? "summary" : viewToken) as NeoTechCheckView;
   if (!CHECK_VIEWS.has(view)) return null;
-  const page = tokens[3] === undefined ? 1 : Number(tokens[3]);
+  const pageToken = summaryPageShorthand ? tokens[2] : tokens[3];
+  const page = pageToken === undefined ? 1 : Number(pageToken);
   if (!Number.isSafeInteger(page) || page < 1 || page > 999) return null;
   return { slug, view, page };
 }
