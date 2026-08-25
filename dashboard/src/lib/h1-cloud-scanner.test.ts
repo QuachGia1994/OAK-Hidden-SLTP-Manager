@@ -93,7 +93,9 @@ test("two-candle patterns are exclusive to H3 FX and H4 XAUUSD", () => {
   }
 
   for (const base of ["GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const) {
-    assert.deepEqual(findH1PatternMatchesForTarget(base, bars("GTG", 1), 4), []);
+    const cumulativeAtH4 = findH1PatternMatchesForTarget(base, bars("GT", 1), 4);
+    assert.deepEqual(cumulativeAtH4.map((item) => [item.slotHour, item.pattern.join(""), item.patternKind]), [[3, "TG", "sw2"]]);
+    assert.equal(cumulativeAtH4.some((item) => item.slotHour === 4), false);
   }
 });
 
@@ -422,6 +424,29 @@ test("normal SW3 applies target base polarity before active Friday post-signal i
   assert.equal(alert.symbolH1Signal, "SELL");
   assert.match(buildTelegramMessage("GBPUSD", "2026-08-21", alert), /Logic base: đảo ngược GBPUSD H1/);
   assert.equal("previousPureSlot" in alert, false);
+});
+
+test("fresh H4 state backfills FX H3 while keeping H4 exclusive to XAUUSD", () => {
+  const state = emptyCloudState();
+  state.days["2026-08-25"] = {
+    suppressedThroughHour: 4,
+    symbols: Object.fromEntries(["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"].map((base) => [base, { alerts: [], blockedSlots: [] }])),
+  };
+  const market = {
+    GBPUSD: { displayName: "GBPUSD", bars: bars("GTG", 1, "2026-08-25") },
+    XAUUSD: { displayName: "XAUUSD", bars: bars("TGT", 1, "2026-08-25") },
+    AUDUSD: { displayName: "AUDUSD", bars: bars("GGT", 1, "2026-08-25") },
+    USDCAD: { displayName: "USDCAD", bars: bars("TGG", 1, "2026-08-25") },
+    USDJPY: { displayName: "USDJPY", bars: bars("GTG", 1, "2026-08-25") },
+    NZDUSD: { displayName: "NZDUSD", bars: bars("TGT", 1, "2026-08-25") },
+  } as const;
+
+  assert.equal(backfillSuppressedHistory(state, "2026-08-25", market), 5);
+  for (const base of ["GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const) {
+    assert.ok(state.days["2026-08-25"].symbols[base]?.alerts.some((alert) => alert.slotHour === 3));
+    assert.equal(state.days["2026-08-25"].symbols[base]?.alerts.some((alert) => alert.slotHour === 4), false);
+  }
+  assert.ok(state.days["2026-08-25"].symbols.XAUUSD?.alerts.some((alert) => alert.slotHour === 4));
 });
 
 test("suppressed migration slots backfill v7 history without replay state loss", () => {

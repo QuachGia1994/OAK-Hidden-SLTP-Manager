@@ -285,7 +285,6 @@ function mainPatternMatch(byHour: Map<number, H1DirectionBar>, slotHour: number)
 }
 
 export function findH1PatternMatchesForTarget(base: H1TargetBase, bars: H1DirectionBar[], brokerHour: number): H1PatternMatch[] {
-  if (brokerHour === 4 && base !== "XAUUSD") return [];
   const matches: H1PatternMatch[] = [];
   const earlySlot: 3 | 4 = base === "XAUUSD" ? 4 : 3;
   if (brokerHour >= earlySlot) {
