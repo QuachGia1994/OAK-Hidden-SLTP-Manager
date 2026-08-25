@@ -21,6 +21,7 @@ test("Telegram webhook is secret-fenced, chat-fenced and retry-idempotent", () =
   assert.match(webhook, /sourceCommandIndex/);
   assert.match(webhook, /splitCloudTelegramCommands/);
   assert.match(webhook, /TELEGRAM_MULTI_COMMAND_LIMIT/);
+  assert.match(webhook, /task\.kind === "entry"[\s\S]*task\.payload\.side[\s\S]*task\.payload\.symbol[\s\S]*\.\.\.entryRows/);
   assert.match(store, /INTENT_BY_UPDATE_PREFIX/);
   assert.match(store, /sourceCommandIndex > 0/);
   assert.match(store, /pushTrimmedRedisList\(AUDIT_KEY, row, 200\)/);

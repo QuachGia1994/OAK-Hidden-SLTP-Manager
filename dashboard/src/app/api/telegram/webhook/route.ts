@@ -309,9 +309,13 @@ async function handleCommand(text: string, chatId: string, updateId: number, sou
     const intentRows = task.kind === "partial"
       ? [`• Rule: ${task.payload.ticket ? `ticket #${task.payload.ticket}` : task.payload.symbol} · ${partialTrigger} · close ${task.payload.volume} lot`]
       : [];
+    const entryRows = task.kind === "entry"
+      ? [`• Lệnh: ${String(task.payload.side || "?").toUpperCase()} ${String(task.payload.symbol || "?")}`]
+      : [];
     return [
       `✅ Đã lưu intent #${task.id} · ${TELEGRAM_CLOUD_PROFILE}`,
       `• Loại: ${task.kind}`,
+      ...entryRows,
       `• Thời điểm: ${task.dueText}`,
       `• Accounts: ${targets.map((item) => `@${item.label}`).join(", ")}`,
       ...protectionRows,
