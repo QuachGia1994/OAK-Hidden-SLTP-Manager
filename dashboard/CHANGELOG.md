@@ -8,6 +8,10 @@ All notable changes to the dashboard are recorded here.
 
 - Telegram `/help` and `/start` now show NeoTech `/check` examples for summary, C5, violations, pagination and group use. `/check @profile 2` now selects summary page 2 directly.
 
+### Fixed
+
+- Telegram `/help` and `/start` now respond even when the chat is not the configured cloud-control chat. The bypass is limited to read-only help; trading/control commands remain chat-fenced.
+
 ## [0.5.0] - 2026-08-25
 
 ### Added

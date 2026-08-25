@@ -376,6 +376,15 @@ export async function POST(request: Request) {
       await completeTelegramUpdate(updateId);
       return NextResponse.json({ ok: true, ignored: "unknown-callback" });
     }
+
+    const publicCommand = parseCloudTelegramCommand(text);
+    if (publicCommand.type === "help") {
+      await sendTelegram(config.telegramToken, chatId, renderHelp());
+      await appendTelegramAudit({ action: "command_processed", updateId, chatId, rawText: text });
+      await completeTelegramUpdate(updateId);
+      return NextResponse.json({ ok: true });
+    }
+
     if (chatId !== config.telegramChatId) {
       await appendTelegramAudit({ action: "unauthorized_chat", updateId, chatId });
       await completeTelegramUpdate(updateId);

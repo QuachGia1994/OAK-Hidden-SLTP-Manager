@@ -29,6 +29,16 @@ test("Telegram webhook is secret-fenced, chat-fenced and retry-idempotent", () =
   assert.doesNotMatch(store, /redis\.ltrim\(AUDIT_KEY/);
 });
 
+test("Telegram help/start are handled before the cloud-only chat fence", () => {
+  const helpParseIndex = webhook.indexOf("const publicCommand = parseCloudTelegramCommand(text);");
+  const helpBranchIndex = webhook.indexOf('if (publicCommand.type === "help")');
+  const chatFenceIndex = webhook.indexOf("if (chatId !== config.telegramChatId)");
+  assert.ok(helpParseIndex >= 0);
+  assert.ok(helpBranchIndex > helpParseIndex);
+  assert.ok(chatFenceIndex > helpBranchIndex);
+  assert.match(webhook, /if \(publicCommand\.type === "help"\)[\s\S]*sendTelegram\(config\.telegramToken, chatId, renderHelp\(\)\)/);
+});
+
 test("Telegram webhook bootstrap is one-time authorized and never returns the secret", () => {
   assert.match(setup, /x-telegram-bootstrap-ticket/);
   assert.match(setup, /getdel/);
