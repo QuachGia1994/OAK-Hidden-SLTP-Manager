@@ -100,7 +100,7 @@ function delay(ms: number) {
 }
 
 function requiredBasesForBrokerHour(hour: number): readonly H1Base[] {
-  if (hour === 3) return ["GBPUSD", "USDJPY", "XAUUSD", "AUDUSD", "USDCAD", "NZDUSD", "EURUSD"];
+  if (hour === 3) return ["GBPUSD", "USDJPY", "XAUUSD", "AUDUSD", "USDCAD", "EURUSD"];
   if (hour === 4) return ["XAUUSD", "GBPUSD"];
   return H1_ALL_BASES;
 }

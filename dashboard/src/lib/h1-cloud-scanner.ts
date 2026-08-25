@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 26;
+export const H1_CLOUD_STATE_VERSION = 27;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 20;
+export const H1_SIGNAL_RULE_VERSION = 21;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v26";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v27";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -20,7 +20,7 @@ export const H1_SCAN_HOURS = [3, 4, ...Array.from(
 export const H1_POST_SIGNAL_ACTIVE_WEEKDAYS = [4, 5] as const;
 
 export const H1_TARGET_BASES = ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const;
-export const H1_ALL_BASES = [...H1_TARGET_BASES, "NZDUSD", "EURUSD"] as const;
+export const H1_ALL_BASES = [...H1_TARGET_BASES, "EURUSD"] as const;
 export const H1_SCANNER_BASES = ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const;
 export type H1TargetBase = typeof H1_TARGET_BASES[number];
 export type H1Base = typeof H1_ALL_BASES[number];
@@ -70,7 +70,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 26;
+  version: 27;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -79,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 20;
+  signalRuleVersion: 21;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -129,7 +129,7 @@ export function scannerBaseForTarget(base: H1TargetBase): H1ScannerBase {
 
 export function baseSymbolForTarget(base: H1TargetBase): H1Base {
   if (base === "XAUUSD") return "GBPUSD";
-  if (base === "AUDUSD") return "NZDUSD";
+  if (base === "AUDUSD") return "XAUUSD";
   if (base === "USDCAD") return "XAUUSD";
   if (base === "GBPUSD") return "EURUSD";
   return "USDCAD";

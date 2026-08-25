@@ -17,7 +17,6 @@ function marketForDates(...dates: string[]) {
     AUDUSD: "GGTGGT",
     USDCAD: "TTTGGG",
     USDJPY: "GGGTTT",
-    NZDUSD: "TGGTTG",
     EURUSD: "GTGTTG",
   };
   return Object.fromEntries((Object.keys(sequences) as H1Base[]).map((base) => [base, {
@@ -77,8 +76,8 @@ test("historical reconstruction reuses live pattern/base/calendar rules and skip
     scannerBase: "AUDUSD",
     scannerSymbol: "AUDUSD",
     match: audH3Match,
-    baseSymbol: "NZDUSD",
-    baseBar: market.NZDUSD.bars.find((bar) => bar.hour === 2)!,
+    baseSymbol: "XAUUSD",
+    baseBar: market.XAUUSD.bars.find((bar) => bar.hour === 2)!,
   });
   assert.deepEqual(history["2026-08-21"].symbols.AUDUSD?.alerts.find((alert) => alert.slotHour === 3), audH3Expected);
 

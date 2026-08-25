@@ -335,10 +335,10 @@ test("GBPUSD AUDUSD and USDJPY invert configured base while XAUUSD and USDCAD ke
 });
 
 test("target scanner/base mapping follows the five-symbol signal loop", () => {
-  assert.equal(H1_CLOUD_STATE_VERSION, 26);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 20);
+  assert.equal(H1_CLOUD_STATE_VERSION, 27);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 21);
   assert.deepEqual(H1_TARGET_BASES, ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"]);
-  assert.deepEqual(H1_ALL_BASES, ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY", "NZDUSD", "EURUSD"]);
+  assert.deepEqual(H1_ALL_BASES, ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY", "EURUSD"]);
 
   assert.equal(scannerBaseForTarget("XAUUSD"), "XAUUSD");
   assert.equal(baseSymbolForTarget("XAUUSD"), "GBPUSD");
@@ -347,7 +347,7 @@ test("target scanner/base mapping follows the five-symbol signal loop", () => {
   assert.equal(baseSymbolForTarget("GBPUSD"), "EURUSD");
 
   assert.equal(scannerBaseForTarget("AUDUSD"), "AUDUSD");
-  assert.equal(baseSymbolForTarget("AUDUSD"), "NZDUSD");
+  assert.equal(baseSymbolForTarget("AUDUSD"), "XAUUSD");
 
   assert.equal(scannerBaseForTarget("USDCAD"), "USDCAD");
   assert.equal(baseSymbolForTarget("USDCAD"), "XAUUSD");
@@ -534,7 +534,6 @@ test("fresh H4 state backfills FX H3 while keeping H4 exclusive to XAUUSD", () =
     AUDUSD: { displayName: "AUDUSD", bars: bars("GGT", 1, "2026-08-25") },
     USDCAD: { displayName: "USDCAD", bars: bars("TGG", 1, "2026-08-25") },
     USDJPY: { displayName: "USDJPY", bars: bars("GTG", 1, "2026-08-25") },
-    NZDUSD: { displayName: "NZDUSD", bars: bars("TGT", 1, "2026-08-25") },
     EURUSD: { displayName: "EURUSD", bars: bars("TGG", 1, "2026-08-25") },
   } as const;
 
@@ -558,7 +557,6 @@ test("fresh H5 recovery restores prior H3 H4 slots without creating an H5 signal
     AUDUSD: { displayName: "AUDUSD", bars: bars("GGTG", 1, "2026-08-25") },
     USDCAD: { displayName: "USDCAD", bars: bars("TGGT", 1, "2026-08-25") },
     USDJPY: { displayName: "USDJPY", bars: bars("GTGT", 1, "2026-08-25") },
-    NZDUSD: { displayName: "NZDUSD", bars: bars("TGTG", 1, "2026-08-25") },
     EURUSD: { displayName: "EURUSD", bars: bars("TGGT", 1, "2026-08-25") },
   } as const;
 
@@ -584,7 +582,6 @@ test("suppressed migration slots backfill v7 history without replay state loss",
     AUDUSD: { displayName: "AUDUSD", bars: bars("GGTTG", 1) },
     USDCAD: { displayName: "USDCAD", bars: bars("TTTGG", 1) },
     USDJPY: { displayName: "USDJPY", bars: bars("GGGTT", 1) },
-    NZDUSD: { displayName: "NZDUSD", bars: bars("TGGTT", 1) },
     EURUSD: { displayName: "EURUSD", bars: bars("GTTGG", 1) },
   } as const;
   const added = backfillSuppressedHistory(state, "2026-08-21", market);
@@ -593,7 +590,7 @@ test("suppressed migration slots backfill v7 history without replay state loss",
   assert.equal(backfillSuppressedHistory(state, "2026-08-21", market), 0);
 });
 
-test("older signal-rule feeds start a fresh v26 state instead of carrying stale H4/base semantics", () => {
+test("older signal-rule feeds start a fresh v27 state instead of carrying stale H4/base semantics", () => {
   const legacyV2 = {
     schemaVersion: 7,
     signalRuleVersion: 2,
@@ -628,7 +625,7 @@ test("older signal-rule feeds start a fresh v26 state instead of carrying stale 
     },
   };
   const state = seedCloudStateFromPublic(legacyV2, "2026-08-21", 7);
-  assert.equal(state.version, 26);
+  assert.equal(state.version, 27);
   assert.equal(state.days["2026-08-21"].suppressedThroughHour, 7);
   assert.deepEqual(state.days["2026-08-21"].symbols.XAUUSD?.alerts, []);
 });
@@ -643,11 +640,11 @@ test("older public schemas start a fresh suppressed v7 state instead of replayin
     days: {},
   };
   const state = seedCloudStateFromPublic(legacy, "2026-08-21", 5);
-  assert.equal(state.version, 26);
+  assert.equal(state.version, 27);
   assert.equal(state.days["2026-08-21"].suppressedThroughHour, 5);
 });
 
-test("public feed v7 excludes H5 under signal rule v20", () => {
+test("public feed v7 excludes H5 under signal rule v21", () => {
   const state = emptyCloudState();
   const match = findH1PatternMatches(bars("GGT", 3), 6).find((item) => item.slotHour === 6)!;
   const alert = buildStoredAlert({
@@ -662,7 +659,7 @@ test("public feed v7 excludes H5 under signal rule v20", () => {
   state.days["2026-08-21"] = { symbols: { XAUUSD: { alerts: [alert], blockedSlots: [] } } };
   const feed = buildPublicFeed(state, "2026-08-21T00:00:00Z");
   assert.equal(feed.schemaVersion, 7);
-  assert.equal(feed.signalRuleVersion, 20);
+  assert.equal(feed.signalRuleVersion, 21);
   assert.deepEqual(feed.hours, [3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
   const row = feed.days["2026-08-21"].symbols.XAUUSD?.alerts[0];
   assert.equal(row?.patternKind, "sw3Pure");

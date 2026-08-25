@@ -72,7 +72,8 @@ test("live route scans H3, XAU-only H4 and H06-H16 while H5 remains recovery-onl
   assert.match(route, /backfillSuppressedHistory[\s\S]*if \(recoveryOnly\)/);
   assert.match(route, /recoveredCurrentDay: changed/);
   assert.match(route, /"inactive-slot"/);
-  assert.match(route, /hour === 3[\s\S]*GBPUSD[\s\S]*USDJPY[\s\S]*XAUUSD[\s\S]*AUDUSD[\s\S]*USDCAD[\s\S]*NZDUSD[\s\S]*EURUSD/);
+  assert.match(route, /hour === 3[\s\S]*GBPUSD[\s\S]*USDJPY[\s\S]*XAUUSD[\s\S]*AUDUSD[\s\S]*USDCAD[\s\S]*EURUSD/);
+  assert.doesNotMatch(route, /hour === 3[^\n]*NZDUSD/);
   assert.match(route, /hour === 4[\s\S]*XAUUSD[\s\S]*GBPUSD/);
   assert.match(route, /market\.brokerHour === 4 && base !== "XAUUSD"/);
   assert.match(route, /return H1_ALL_BASES/);
