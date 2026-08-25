@@ -18,6 +18,7 @@ function marketForDates(...dates: string[]) {
     USDCAD: "TTTGGG",
     USDJPY: "GGGTTT",
     NZDUSD: "TGGTTG",
+    EURUSD: "GTGTTG",
   };
   return Object.fromEntries((Object.keys(sequences) as H1Base[]).map((base) => [base, {
     displayName: base,
@@ -64,8 +65,8 @@ test("historical reconstruction reuses live pattern/base/calendar rules and skip
     scannerBase: "GBPUSD",
     scannerSymbol: "GBPUSD",
     match: gbpH3Match,
-    baseSymbol: "GBPUSD",
-    baseBar: market.GBPUSD.bars.find((bar) => bar.hour === 2)!,
+    baseSymbol: "EURUSD",
+    baseBar: market.EURUSD.bars.find((bar) => bar.hour === 2)!,
   });
   assert.deepEqual(history["2026-08-21"].symbols.GBPUSD?.alerts.find((alert) => alert.slotHour === 3), gbpH3Expected);
 
