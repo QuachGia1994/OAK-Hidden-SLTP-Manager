@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 24;
+export const H1_CLOUD_STATE_VERSION = 25;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 18;
+export const H1_SIGNAL_RULE_VERSION = 19;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v24";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v25";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -70,7 +70,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 24;
+  version: 25;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -79,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 18;
+  signalRuleVersion: 19;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -221,7 +221,7 @@ function lookbackActionForPattern(pattern: string): H1LookbackAction {
 }
 
 function allowTradeLookback(byHour: Map<number, H1DirectionBar>, slotHour: number, patternKind: H1PatternKind): { pattern: string | null; action: H1LookbackAction } {
-  if (slotHour < 8 || patternKind !== "sw3Pure") return { pattern: null, action: "none" };
+  if (slotHour < 7 || patternKind !== "sw3Pure") return { pattern: null, action: "none" };
 
   const primaryRows = rowsForHours(byHour, [slotHour - 4, slotHour - 5, slotHour - 6]);
   if (!primaryRows) return { pattern: null, action: "none" };
