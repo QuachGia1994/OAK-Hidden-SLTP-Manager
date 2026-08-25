@@ -88,8 +88,8 @@ test("historical reconstruction reuses live pattern/base/calendar rules and skip
     scannerBase: "USDJPY",
     scannerSymbol: "USDJPY",
     match: jpyH3Match,
-    baseSymbol: "XAUUSD",
-    baseBar: market.XAUUSD.bars.find((bar) => bar.hour === 2)!,
+    baseSymbol: "USDCAD",
+    baseBar: market.USDCAD.bars.find((bar) => bar.hour === 2)!,
   });
   assert.deepEqual(history["2026-08-21"].symbols.USDJPY?.alerts.find((alert) => alert.slotHour === 3), jpyH3Expected);
 
