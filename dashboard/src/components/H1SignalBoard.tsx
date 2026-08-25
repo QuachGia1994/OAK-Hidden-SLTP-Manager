@@ -6,6 +6,148 @@ import type { H1PatternKind, H1SignalAlert, H1SignalPayload } from "@/lib/h1-sig
 
 type Locale = "EN" | "VN";
 type Selection = { base: string; date: string; alert: H1SignalAlert };
+type ShareArtifact = { date: string; blob: Blob };
+
+const H1_SHARE_SCALE = 2;
+const H1_SHARE_SYMBOL_WIDTH = 172;
+const H1_SHARE_HOUR_WIDTH = 88;
+const H1_SHARE_ROW_HEIGHT = 82;
+const H1_SHARE_FONT = '"Cascadia Mono", "SFMono-Regular", Consolas, monospace';
+
+function canvasPngBlob(canvas: HTMLCanvasElement) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("PNG export failed")), "image/png", 1);
+  });
+}
+
+function downloadPng(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function renderScannerPng(data: H1SignalPayload, date: string, locale: Locale) {
+  const day = data.days[date];
+  if (!day) throw new Error("Broker day unavailable");
+
+  const padding = 40;
+  const titleHeight = 128;
+  const headerHeight = 54;
+  const footerHeight = 46;
+  const tableWidth = H1_SHARE_SYMBOL_WIDTH + data.hours.length * H1_SHARE_HOUR_WIDTH;
+  const logicalWidth = padding * 2 + tableWidth;
+  const logicalHeight = padding + titleHeight + headerHeight + data.symbols.length * H1_SHARE_ROW_HEIGHT + footerHeight + padding;
+  const canvas = document.createElement("canvas");
+  canvas.width = logicalWidth * H1_SHARE_SCALE;
+  canvas.height = logicalHeight * H1_SHARE_SCALE;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas unavailable");
+  ctx.scale(H1_SHARE_SCALE, H1_SHARE_SCALE);
+
+  const colors = {
+    bg: "#08111c",
+    panel: "#0e1926",
+    raised: "#142232",
+    border: "#26384a",
+    text: "#f4f7fb",
+    muted: "#8fa2b8",
+    accent: "#4b8cff",
+    buy: "#15c98b",
+    sell: "#ff626e",
+    block: "#f4b942",
+  };
+
+  ctx.fillStyle = colors.bg;
+  ctx.fillRect(0, 0, logicalWidth, logicalHeight);
+  ctx.fillStyle = colors.panel;
+  ctx.fillRect(padding, padding, tableWidth, logicalHeight - padding * 2);
+
+  ctx.fillStyle = colors.accent;
+  ctx.font = `800 15px ${H1_SHARE_FONT}`;
+  ctx.fillText("OAK GATEKEEPER · H1 SCANNER", padding + 22, padding + 30);
+  ctx.fillStyle = colors.text;
+  ctx.font = `900 28px ${H1_SHARE_FONT}`;
+  ctx.fillText(locale === "EN" ? "H1 Intraday Signals" : "Tín hiệu H1 trong ngày", padding + 22, padding + 66);
+  ctx.fillStyle = colors.muted;
+  ctx.font = `700 15px ${H1_SHARE_FONT}`;
+  ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  ${locale === "EN" ? "BUY/SELL = trade · BLOCK = not trade" : "BUY/SELL = trade · BLOCK = không trade"}`, padding + 22, padding + 96);
+
+  const tableX = padding;
+  const tableY = padding + titleHeight;
+  ctx.fillStyle = colors.raised;
+  ctx.fillRect(tableX, tableY, tableWidth, headerHeight);
+  ctx.strokeStyle = colors.border;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(tableX, tableY, tableWidth, headerHeight + data.symbols.length * H1_SHARE_ROW_HEIGHT);
+
+  const drawCentered = (text: string, x: number, y: number, width: number, height: number, color: string, font: string) => {
+    ctx.fillStyle = color;
+    ctx.font = font;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, x + width / 2, y + height / 2);
+  };
+
+  drawCentered("SYMBOL", tableX, tableY, H1_SHARE_SYMBOL_WIDTH, headerHeight, colors.muted, `850 14px ${H1_SHARE_FONT}`);
+  data.hours.forEach((hour, index) => {
+    drawCentered(`H${String(hour).padStart(2, "0")}`, tableX + H1_SHARE_SYMBOL_WIDTH + index * H1_SHARE_HOUR_WIDTH, tableY, H1_SHARE_HOUR_WIDTH, headerHeight, colors.muted, `850 14px ${H1_SHARE_FONT}`);
+  });
+
+  for (let col = 0; col <= data.hours.length; col += 1) {
+    const x = tableX + H1_SHARE_SYMBOL_WIDTH + col * H1_SHARE_HOUR_WIDTH;
+    if (col === data.hours.length) continue;
+    ctx.beginPath();
+    ctx.moveTo(x, tableY);
+    ctx.lineTo(x, tableY + headerHeight + data.symbols.length * H1_SHARE_ROW_HEIGHT);
+    ctx.stroke();
+  }
+
+  data.symbols.forEach((base, rowIndex) => {
+    const y = tableY + headerHeight + rowIndex * H1_SHARE_ROW_HEIGHT;
+    ctx.fillStyle = rowIndex % 2 === 0 ? colors.panel : colors.bg;
+    ctx.fillRect(tableX, y, tableWidth, H1_SHARE_ROW_HEIGHT);
+    ctx.beginPath();
+    ctx.moveTo(tableX, y);
+    ctx.lineTo(tableX + tableWidth, y);
+    ctx.stroke();
+    drawCentered(base, tableX, y, H1_SHARE_SYMBOL_WIDTH, H1_SHARE_ROW_HEIGHT, colors.text, `900 17px ${H1_SHARE_FONT}`);
+
+    const symbolState = day.symbols?.[base];
+    const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
+    const blockedSlots = new Set(symbolState?.blockedSlots ?? []);
+    data.hours.forEach((hour, hourIndex) => {
+      const x = tableX + H1_SHARE_SYMBOL_WIDTH + hourIndex * H1_SHARE_HOUR_WIDTH;
+      const alert = byHour.get(hour);
+      const blocked = blockedSlots.has(hour) || alert?.tradeAllowed === false;
+      if (blocked) {
+        ctx.fillStyle = "rgba(244,185,66,.12)";
+        ctx.fillRect(x + 1, y + 1, H1_SHARE_HOUR_WIDTH - 2, H1_SHARE_ROW_HEIGHT - 2);
+        drawCentered("BLOCK", x, y - 8, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT, colors.block, `900 13px ${H1_SHARE_FONT}`);
+        drawCentered("NOT TRADE", x, y + 13, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT, colors.block, `700 9px ${H1_SHARE_FONT}`);
+      } else if (alert?.signal) {
+        const sideColor = alert.signal === "BUY" ? colors.buy : colors.sell;
+        drawCentered(alert.signal, x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT, sideColor, `950 17px ${H1_SHARE_FONT}`);
+      } else {
+        drawCentered("—", x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT, colors.muted, `700 16px ${H1_SHARE_FONT}`);
+      }
+    });
+  });
+
+  const footerY = tableY + headerHeight + data.symbols.length * H1_SHARE_ROW_HEIGHT;
+  ctx.fillStyle = colors.muted;
+  ctx.font = `700 12px ${H1_SHARE_FONT}`;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillText(`oakgatekeeper.uk · ${formatPublished(data.publishedAt, locale)}`, padding + 6, footerY + footerHeight / 2);
+
+  return canvasPngBlob(canvas);
+}
 
 function formatPublished(value: string, locale: Locale) {
   const parsed = new Date(value);
@@ -125,6 +267,8 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
   const [selection, setSelection] = useState<Selection | null>(null);
   const [weekdayFilter, setWeekdayFilter] = useState<H1HistoryWeekdayFilter>("all");
   const [selectedDate, setSelectedDate] = useState(() => data ? selectHistoryDate(data.days, "all", "") : "");
+  const [shareArtifact, setShareArtifact] = useState<ShareArtifact | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
   const allDates = data ? historyDatesForWeekday(data.days, "all") : [];
   const matchingDates = data ? historyDatesForWeekday(data.days, weekdayFilter) : [];
   const date = data ? selectHistoryDate(data.days, weekdayFilter, selectedDate) : "";
@@ -161,6 +305,20 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
     setSelection(null);
   }, [date, selectedDate]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setShareArtifact(null);
+    if (!data || !date) return () => { cancelled = true; };
+    renderScannerPng(data, date, locale)
+      .then((blob) => {
+        if (!cancelled) setShareArtifact({ date, blob });
+      })
+      .catch(() => {
+        if (!cancelled) setShareArtifact(null);
+      });
+    return () => { cancelled = true; };
+  }, [data, date, locale]);
+
   const chooseWeekday = (filter: H1HistoryWeekdayFilter) => {
     setWeekdayFilter(filter);
     setSelectedDate(data ? selectHistoryDate(data.days, filter, "") : "");
@@ -173,6 +331,28 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
     setSelection(null);
   };
 
+  const shareScannerPng = () => {
+    if (!shareArtifact || shareBusy) return;
+    const filename = `oak-h1-scanner-${shareArtifact.date}.png`;
+    const file = new File([shareArtifact.blob], filename, { type: "image/png", lastModified: Date.now() });
+    const shareData: ShareData = {
+      files: [file],
+      title: locale === "EN" ? "OAK H1 Intraday Signals" : "OAK · Tín hiệu H1 trong ngày",
+      text: `${shareArtifact.date} · oakgatekeeper.uk`,
+    };
+    const canShareFile = typeof navigator.share === "function" && typeof navigator.canShare === "function" && navigator.canShare(shareData);
+    if (!canShareFile) {
+      downloadPng(shareArtifact.blob, filename);
+      return;
+    }
+    setShareBusy(true);
+    navigator.share(shareData)
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) downloadPng(shareArtifact.blob, filename);
+      })
+      .finally(() => setShareBusy(false));
+  };
+
   if (!data) return <section className="oak-h1-board oak-h1-empty"><div><span className="oak-eyebrow">H1 / LIVE</span><h2>{copy.title}</h2></div><p>{copy.awaiting}</p></section>;
 
   return (
@@ -180,7 +360,14 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
       <section className="oak-h1-board">
         <header className="oak-h1-board-head">
           <div><span className="oak-eyebrow">H1 / LIVE</span><h2>{copy.title}</h2><p>{copy.sub}</p></div>
-          <div className="oak-h1-meta"><span><small>BROKER DAY</small><b>{date || "—"}</b></span><span><small>UPDATED</small><b>{formatPublished(data.publishedAt, locale)}</b></span></div>
+          <div className="oak-h1-meta">
+            <span><small>BROKER DAY</small><b>{date || "—"}</b></span>
+            <span><small>UPDATED</small><b>{formatPublished(data.publishedAt, locale)}</b></span>
+            <button type="button" className="oak-h1-share-png" onClick={shareScannerPng} disabled={!shareArtifact || shareBusy} aria-label={locale === "EN" ? "Share H1 scanner as PNG" : "Chia sẻ bảng H1 dạng PNG"} title={locale === "EN" ? "Share / download PNG" : "Chia sẻ / tải PNG"}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M5 11v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /></svg>
+              <b>{shareBusy ? "..." : "PNG"}</b>
+            </button>
+          </div>
         </header>
         {!unlocked && <div className="oak-h1-locked">{copy.locked}</div>}
         <div className="oak-h1-history">

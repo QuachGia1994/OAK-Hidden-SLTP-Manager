@@ -60,6 +60,21 @@ test("engine web surface is H1-only and profiles from cTrader feed", () => {
   assert.match(engineBoardSource, /TRADING \/ H1 CLOUD/);
 });
 
+test("H1 board exports the selected scanner day as a shareable PNG with download fallback", () => {
+  assert.match(boardSource, /oak-h1-share-png/);
+  assert.match(boardSource, /document\.createElement\("canvas"\)/);
+  assert.match(boardSource, /canvas\.toBlob/);
+  assert.match(boardSource, /H1_SHARE_SCALE = 2/);
+  assert.match(boardSource, /oak-h1-scanner-\$\{shareArtifact\.date\}\.png/);
+  assert.match(boardSource, /new File\(\[shareArtifact\.blob\]/);
+  assert.match(boardSource, /navigator\.canShare\(shareData\)/);
+  assert.match(boardSource, /navigator\.share\(shareData\)/);
+  assert.match(boardSource, /anchor\.download = filename/);
+  assert.match(boardSource, /data\.hours\.forEach/);
+  assert.match(boardSource, /data\.symbols\.forEach/);
+  assert.match(redesignCss, /\.oak-h1-share-png \{/);
+});
+
 test("H1 detail stays compact while preserving target base and calendar evidence", () => {
   assert.doesNotMatch(boardSource, /<small>SYMBOL<\/small>|<small>PROFILE<\/small>|<small>SCAN<\/small>|SCANNER PATTERN|PATTERN SCANNER|Nguồn scanner|Pattern source/);
   assert.match(boardSource, /Base H1 · \{alert\.baseSymbol\}/);

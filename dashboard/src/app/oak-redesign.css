@@ -329,6 +329,12 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-h1-meta span { display: grid; gap: .12rem; min-width: 6rem; padding: .35rem .48rem; border-left: 1px solid var(--oak-border-subtle); }
 .oak-h1-meta small { color: var(--oak-fg-muted); font: 800 .44rem "Cascadia Mono", Consolas, monospace; letter-spacing: .1em; }
 .oak-h1-meta b { font: 850 .58rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-share-png { display: inline-flex; min-width: 3.4rem; min-height: 2.4rem; align-items: center; justify-content: center; gap: .28rem; padding: .35rem .5rem; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-subtle)); border-radius: var(--oak-radius-sm); color: var(--oak-accent-command); background: color-mix(in srgb, var(--oak-accent-command) 7%, var(--oak-bg-raised)); transition: border-color var(--oak-motion-fast) ease, background-color var(--oak-motion-fast) ease, opacity var(--oak-motion-fast) ease; }
+.oak-h1-share-png svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.oak-h1-share-png b { font: 900 .5rem "Cascadia Mono", Consolas, monospace; letter-spacing: .05em; }
+.oak-h1-share-png:hover:not(:disabled) { border-color: var(--oak-accent-command); background: color-mix(in srgb, var(--oak-accent-command) 12%, var(--oak-bg-raised)); }
+.oak-h1-share-png:focus-visible { outline: 2px solid var(--oak-accent-command); outline-offset: 2px; }
+.oak-h1-share-png:disabled { opacity: .38; cursor: wait; }
 .oak-h1-locked { padding: .48rem .75rem; border-bottom: 1px solid var(--oak-border-subtle); color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 6%, var(--oak-bg-surface)); font: 800 .58rem "Cascadia Mono", Consolas, monospace; }
 .oak-h1-history { display: grid; gap: .48rem; padding: .6rem .75rem; border-bottom: 1px solid var(--oak-border-subtle); background: var(--oak-bg-surface); }
 .oak-h1-history-row { display: grid; grid-template-columns: 5.8rem minmax(0, 1fr); gap: .55rem; align-items: center; min-width: 0; }
@@ -382,6 +388,7 @@ min-height: 2rem; padding: .35rem .6rem;
 @media (max-width: 720px) {
   .oak-h1-board-head { align-items: flex-start; flex-direction: column; }
   .oak-h1-meta { width: 100%; }
+  .oak-h1-share-png { flex: 0 0 auto; }
   .oak-h1-history-row { grid-template-columns: 1fr; gap: .3rem; }
   .oak-h1-meta span { flex: 1; }
   .oak-h1-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
