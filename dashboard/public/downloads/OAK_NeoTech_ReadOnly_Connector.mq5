@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.01"
+#property version   "1.02"
 #property description "OAK NeoTech telemetry connector. Investor Password recommended; Master requires explicit web risk acceptance."
 
 input string InpPairingCode = "";
@@ -8,7 +8,7 @@ input int    InpHistoryDays = 370;
 input int    InpSyncSeconds = 300;
 input int    InpHttpTimeoutMs = 20000;
 
-#define OAK_CONNECTOR_VERSION "1.0.1"
+#define OAK_CONNECTOR_VERSION "1.0.2"
 #define OAK_PAIR_SCHEMA "oak-neotech-readonly-pair-v1"
 #define OAK_INGEST_SCHEMA "oak-neotech-readonly-ingest-v1"
 #define OAK_MAX_TRADING_DEALS 6000
@@ -17,6 +17,7 @@ input int    InpHttpTimeoutMs = 20000;
 string g_connector_id="";
 string g_connector_token="";
 string g_access_mode="READ_ONLY";
+string g_pair_code_hash="";
 bool   g_sync_busy=false;
 
 string OakJsonEscape(const string value)
@@ -38,6 +39,21 @@ string OakJsonEscape(const string value)
 
 string OakJsonQuote(const string value) { return "\""+OakJsonEscape(value)+"\""; }
 string OakJsonBool(const bool value) { return value ? "true" : "false"; }
+
+string OakNormalizePairingCode(const string raw_value)
+  {
+   string value=raw_value;
+   StringTrimLeft(value);
+   StringTrimRight(value);
+   StringToUpper(value);
+   string out="";
+   for(int i=0;i<StringLen(value);i++)
+     {
+      ushort c=StringGetCharacter(value,i);
+      if((c>='A' && c<='Z') || (c>='0' && c<='9')) out+=ShortToString(c);
+     }
+   return out;
+  }
 
 string OakJsonNumber(const double value,const int digits=8)
   {
@@ -85,7 +101,7 @@ bool OakSaveCredentials()
    FolderCreate("OAKNeoTech");
    int handle=FileOpen(OakCredentialFile(),FILE_WRITE|FILE_TXT|FILE_ANSI);
    if(handle==INVALID_HANDLE) return false;
-   FileWriteString(handle,g_connector_id+"\n"+g_connector_token+"\n"+g_access_mode+"\n");
+   FileWriteString(handle,g_connector_id+"\n"+g_connector_token+"\n"+g_access_mode+"\n"+g_pair_code_hash+"\n");
    FileClose(handle);
    return true;
   }
@@ -97,10 +113,12 @@ bool OakLoadCredentials()
    g_connector_id=FileReadString(handle);
    g_connector_token=FileReadString(handle);
    g_access_mode=FileIsEnding(handle) ? "READ_ONLY" : FileReadString(handle);
+   g_pair_code_hash=FileIsEnding(handle) ? "" : FileReadString(handle);
    FileClose(handle);
    StringTrimLeft(g_connector_id); StringTrimRight(g_connector_id);
    StringTrimLeft(g_connector_token); StringTrimRight(g_connector_token);
    StringTrimLeft(g_access_mode); StringTrimRight(g_access_mode);
+   StringTrimLeft(g_pair_code_hash); StringTrimRight(g_pair_code_hash);
    if(g_access_mode!="TRADING_CAPABLE_ACCEPTED") g_access_mode="READ_ONLY";
    return g_connector_id!="" && g_connector_token!="";
   }
@@ -188,8 +206,7 @@ string OakAccountJson(const bool include_numbers)
 
 bool OakPair()
   {
-   string code=InpPairingCode;
-   StringTrimLeft(code); StringTrimRight(code);
+   string code=OakNormalizePairingCode(InpPairingCode);
    if(code=="")
      {
       Print("[OAK NeoTech] Pairing code is empty. Generate one at /neotech on OAK Gatekeeper.");
@@ -217,6 +234,7 @@ bool OakPair()
    g_connector_id=connector_id;
    g_connector_token=connector_token;
    g_access_mode=(access_mode=="TRADING_CAPABLE_ACCEPTED" ? "TRADING_CAPABLE_ACCEPTED" : "READ_ONLY");
+   g_pair_code_hash=OakSha256(code);
    if(!OakSaveCredentials())
      {
       g_connector_id="";
@@ -467,10 +485,17 @@ bool OakSync()
 int OnInit()
   {
    MathSrand((int)(GetTickCount()^(uint)TimeLocal()));
-   if(!OakLoadCredentials() && !OakPair()) return INIT_PARAMETERS_INCORRECT;
+   bool loaded=OakLoadCredentials();
+   string requested_code=OakNormalizePairingCode(InpPairingCode);
+   string requested_hash=requested_code=="" ? "" : OakSha256(requested_code);
+   bool capability_mismatch=loaded && !OakReadOnlyVerified() && g_access_mode!="TRADING_CAPABLE_ACCEPTED";
+   bool fresh_code=loaded && g_pair_code_hash!="" && requested_hash!="" && requested_hash!=g_pair_code_hash;
+   bool legacy_master_upgrade=loaded && g_pair_code_hash=="" && requested_hash!="" && capability_mismatch;
+   bool must_pair=!loaded || fresh_code || legacy_master_upgrade;
+   if(must_pair && !OakPair()) return INIT_PARAMETERS_INCORRECT;
    if(!OakReadOnlyVerified() && g_access_mode!="TRADING_CAPABLE_ACCEPTED")
      {
-      Alert("This connector is paired READ_ONLY but the MT5 session can trade. Re-login with Investor Password or create a Master-enabled pairing on /neotech.");
+      Alert("This connector is paired READ_ONLY but the MT5 session can trade. Generate a fresh Master pairing code on /neotech, enter it in InpPairingCode, and attach again.");
       return INIT_FAILED;
      }
    EventSetTimer(MathMax(60,InpSyncSeconds));

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { useLocale } from "@/components/LocaleProvider";
 import { useDialogFocusTrap } from "@/hooks/useDialogFocusTrap";
 import type { NeoTechPublicProfile, NeoTechPublicRule, NeoTechPublicStatus } from "@/lib/neotech-public-domain";
@@ -265,6 +266,10 @@ export function NeoTechPublicDashboard() {
     window.setTimeout(() => setToast(null), 2200);
   };
   const secondsLeft = pairing ? Math.max(0, Math.floor((pairing.expiresAt - nowMs) / 1000)) : 0;
+  const toastPortal = toast && typeof document !== "undefined" ? createPortal(
+    <div className={styles.toast} data-kind={toast.kind} role="status" aria-live="polite"><b>{toast.kind === "success" ? "✓" : "!"}</b><span>{toast.message}</span></div>,
+    document.body,
+  ) : null;
 
   return (
     <div className={styles.page}>
@@ -295,7 +300,7 @@ export function NeoTechPublicDashboard() {
       </section>
 
       {error && <div className={styles.error}>{error}</div>}
-      {toast && <div className={styles.toast} data-kind={toast.kind} role="status" aria-live="polite"><b>{toast.kind === "success" ? "✓" : "!"}</b><span>{toast.message}</span></div>}
+      {toastPortal}
 
       {loading ? <div className={styles.loading}><span className={styles.waiting}><span className={styles.spinner} /> {tr("Opening private workspace…", "Đang mở private workspace…")}</span></div> : accounts.length === 0 ? (
         <section className={styles.emptyState}>

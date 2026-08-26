@@ -2,6 +2,13 @@
 
 All notable changes to the dashboard are recorded here.
 
+## [Unreleased]
+
+### Fixed
+
+- NeoTech connector v1.0.2 now uses a fresh Master pairing code to replace legacy stored `READ_ONLY` credentials when the terminal is trading-capable, and stores the consumed pairing-code hash so subsequent restarts reuse the retained connector credential instead of re-submitting a one-time code.
+- NeoTech clipboard toasts now render through `document.body` with a higher overlay layer and footer clearance, preventing the page/footer stacking context from covering Copy feedback.
+
 ## [0.6.1] - 2026-08-26
 
 ### Fixed

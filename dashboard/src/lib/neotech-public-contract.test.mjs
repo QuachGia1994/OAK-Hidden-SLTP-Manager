@@ -45,6 +45,10 @@ test("public MT5 connector remains structurally non-trading even when Master acc
   assert.match(source, /ACCOUNT_TRADE_ALLOWED/);
   assert.match(source, /Investor Password/);
   assert.match(source, /TRADING_CAPABLE_ACCEPTED/);
+  assert.match(source, /g_pair_code_hash/);
+  assert.match(source, /legacy_master_upgrade=loaded && g_pair_code_hash=="" && requested_hash!="" && capability_mismatch/);
+  assert.match(source, /fresh_code=loaded && g_pair_code_hash!="" && requested_hash!="" && requested_hash!=g_pair_code_hash/);
+  assert.match(source, /must_pair=!loaded \|\| fresh_code \|\| legacy_master_upgrade/);
   assert.match(source, /WebRequest\(/);
 });
 
@@ -56,6 +60,8 @@ test("Master pairing is browser-authorized and NeoTech Copy actions expose visib
   assert.match(ui, /MASTER PASSWORD WARNING/);
   assert.match(ui, /Master Password risk accepted/);
   assert.match(ui, /styles\.toast/);
+  assert.match(ui, /createPortal/);
+  assert.match(ui, /document\.body/);
   assert.match(ui, /Pairing code copied/);
   assert.match(ui, /WebRequest URL copied/);
 });
