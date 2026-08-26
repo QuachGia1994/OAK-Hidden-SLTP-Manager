@@ -3,7 +3,7 @@ import { requireAdminOrApiAuth } from "@/lib/admin-auth";
 import { brokerWallParts, fetchHistoricalBrokerH1 } from "@/lib/ctrader-json";
 import { verifyH1ScannerGitHubOidc } from "@/lib/github-oidc";
 import { addBrokerCalendarDays, brokerDateWeekdayIndex } from "@/lib/h1-broker-date";
-import { H1_HISTORY_RETENTION_CALENDAR_DAYS } from "@/lib/h1-cloud-scanner";
+import { H1_HISTORY_RETENTION_CALENDAR_DAYS, H1_SCAN_END_HOUR } from "@/lib/h1-cloud-scanner";
 import { acquireH1CloudLock, loadH1CloudHistoryState, publishH1CloudState, releaseH1CloudLock, saveH1CloudState } from "@/lib/h1-cloud-store";
 import { loadH1CTraderSession } from "@/lib/h1-ctrader-session";
 import { mergeHistoricalBackfill, reconstructHistoricalDays } from "@/lib/h1-history-backfill";
@@ -50,16 +50,19 @@ export async function POST(request: Request) {
     const nowMs = Date.now();
     const current = brokerWallParts(nowMs);
     const requestedFrom = addBrokerCalendarDays(current.dateKey, -(H1_HISTORY_RETENTION_CALENDAR_DAYS - 1));
-    const requestedThrough = addBrokerCalendarDays(current.dateKey, -1);
+    const { state, source } = await loadH1CloudHistoryState();
+    const recoverMissingCurrentDay = current.hour > H1_SCAN_END_HOUR && !state.days[current.dateKey];
+    const requestedThrough = recoverMissingCurrentDay ? current.dateKey : addBrokerCalendarDays(current.dateKey, -1);
     const session = await loadH1CTraderSession();
     const historical = await fetchHistoricalBrokerH1(session, utcHistoryEnvelopeStart(requestedFrom), nowMs);
     const reconstructedAll = reconstructHistoricalDays(historical.symbols);
-    const reconstructed = Object.fromEntries(Object.entries(reconstructedAll).filter(([date]) => date >= requestedFrom && date < current.dateKey));
+    const reconstructed = Object.fromEntries(Object.entries(reconstructedAll).filter(([date]) =>
+      date >= requestedFrom && (date < current.dateKey || (recoverMissingCurrentDay && date === current.dateKey)),
+    ));
     const coverageDates = Object.keys(reconstructed).sort();
     const coverageSet = new Set(coverageDates);
     const unavailableWeekdays = requestedWeekdays(requestedFrom, requestedThrough).filter((date) => !coverageSet.has(date));
-    const { state, source } = await loadH1CloudHistoryState();
-    const merged = mergeHistoricalBackfill(state, reconstructed, current.dateKey);
+    const merged = mergeHistoricalBackfill(state, reconstructed, current.dateKey, { includeMissingCurrentDay: recoverMissingCurrentDay });
 
     if (merged.addedAlerts > 0 || merged.addedDays > 0) {
       await saveH1CloudState(state);
@@ -72,9 +75,12 @@ export async function POST(request: Request) {
       requestedFrom,
       requestedThrough,
       currentBrokerDate: current.dateKey,
+      recoveredMissingCurrentDay: recoverMissingCurrentDay && Boolean(state.days[current.dateKey]),
       stateSource: source,
       providerRequestCount: historical.requestCount,
-      providerBarCounts: Object.fromEntries(Object.entries(historical.symbols).map(([base, item]) => [base, item.bars.filter((bar) => bar.brokerDate >= requestedFrom && bar.brokerDate < current.dateKey).length])),
+      providerBarCounts: Object.fromEntries(Object.entries(historical.symbols).map(([base, item]) => [base, item.bars.filter((bar) =>
+        bar.brokerDate >= requestedFrom && (bar.brokerDate < current.dateKey || (recoverMissingCurrentDay && bar.brokerDate === current.dateKey)),
+      ).length])),
       availableTradingDays: coverageDates.length,
       earliestAvailableDate: coverageDates[0] || null,
       latestAvailableDate: coverageDates.at(-1) || null,

@@ -71,12 +71,18 @@ function cloneSymbolState(source: NonNullable<H1CloudState["days"][string]["symb
   return { alerts: source.alerts.map((alert) => ({ ...alert, bars: [...alert.bars] })), blockedSlots: [...source.blockedSlots] };
 }
 
-export function mergeHistoricalBackfill(state: H1CloudState, reconstructed: H1HistoricalDays, currentBrokerDate: string): { addedDays: number; addedAlerts: number } {
+export function mergeHistoricalBackfill(
+  state: H1CloudState,
+  reconstructed: H1HistoricalDays,
+  currentBrokerDate: string,
+  options: { includeMissingCurrentDay?: boolean } = {},
+): { addedDays: number; addedAlerts: number } {
   let addedDays = 0;
   let addedAlerts = 0;
 
   for (const date of Object.keys(reconstructed).sort()) {
-    if (!isValidBrokerDateKey(date) || date >= currentBrokerDate) continue;
+    if (!isValidBrokerDateKey(date) || date > currentBrokerDate) continue;
+    if (date === currentBrokerDate && (!options.includeMissingCurrentDay || state.days[date])) continue;
     const sourceDay = reconstructed[date];
     let targetDay = state.days[date];
     if (!targetDay) {

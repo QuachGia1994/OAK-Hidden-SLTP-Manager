@@ -117,6 +117,27 @@ test("historical reconstruction reuses live pattern/base/calendar rules and skip
   }
 });
 
+test("backfill merge can restore a missing current day after the scanner window without overwriting an existing live day", () => {
+  const reconstructed = reconstructHistoricalDays(marketForDates("2026-08-20", "2026-08-21"));
+  const missingCurrent = emptyCloudState();
+  const recovered = mergeHistoricalBackfill(missingCurrent, reconstructed, "2026-08-21", { includeMissingCurrentDay: true });
+  assert.ok(recovered.addedDays >= 2);
+  assert.ok(missingCurrent.days["2026-08-21"]);
+  assert.ok(Object.values(missingCurrent.days["2026-08-21"].symbols).some((symbol) => (symbol?.alerts.length || 0) > 0));
+
+  const existingLive = emptyCloudState();
+  existingLive.days["2026-08-21"] = {
+    symbols: {
+      XAUUSD: {
+        alerts: [{ ...structuredClone(reconstructed["2026-08-21"].symbols.XAUUSD!.alerts[0]), symbol: "LIVE-SENTINEL" }],
+        blockedSlots: [],
+      },
+    },
+  };
+  mergeHistoricalBackfill(existingLive, reconstructed, "2026-08-21", { includeMissingCurrentDay: true });
+  assert.equal(existingLive.days["2026-08-21"].symbols.XAUUSD!.alerts[0].symbol, "LIVE-SENTINEL");
+});
+
 test("backfill merge is idempotent, preserves existing rows and never overwrites current live day", () => {
   const reconstructed = reconstructHistoricalDays(marketForDates("2026-08-20", "2026-08-21"));
   const state = emptyCloudState();
