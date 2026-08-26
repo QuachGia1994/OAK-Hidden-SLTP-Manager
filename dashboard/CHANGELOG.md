@@ -2,6 +2,12 @@
 
 All notable changes to the dashboard are recorded here.
 
+## [0.7.1] - 2026-08-27
+
+### Fixed
+
+- NeoTech Connector v1.0.4 now treats server-confirmed `connector unauthorized` / `account unauthorized` as revoked or purged credentials instead of retrying HTTP 401 forever. It clears only matching stale per-account credential files, stops sync in `WAITING_PAIR`, preserves revocation semantics, and prints the server error for other failures. Generate a fresh pairing code once for a revoked account; no EA detach/attach is required.
+
 ## [0.7.0] - 2026-08-26
 
 ### Added

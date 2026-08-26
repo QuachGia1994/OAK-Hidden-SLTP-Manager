@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.03"
+#property version   "1.04"
 #property description "OAK NeoTech telemetry connector. Investor Password recommended; Master requires explicit web risk acceptance."
 
 input string InpPairingCode = "";
@@ -8,7 +8,7 @@ input int    InpHistoryDays = 370;
 input int    InpSyncSeconds = 300;
 input int    InpHttpTimeoutMs = 20000;
 
-#define OAK_CONNECTOR_VERSION "1.0.3"
+#define OAK_CONNECTOR_VERSION "1.0.4"
 #define OAK_PAIR_SCHEMA "oak-neotech-readonly-pair-v1"
 #define OAK_INGEST_SCHEMA "oak-neotech-readonly-ingest-v1"
 #define OAK_MAX_TRADING_DEALS 6000
@@ -155,6 +155,19 @@ bool OakLoadCredentials()
    return g_connector_id!="" && g_connector_token!="";
   }
 
+bool OakDeleteCredentialFileIfMatches(const string file_name,const string connector_id,const string connector_token)
+  {
+   int handle=FileOpen(file_name,FILE_READ|FILE_TXT|FILE_ANSI);
+   if(handle==INVALID_HANDLE) return true;
+   string stored_id=FileReadString(handle);
+   string stored_token=FileReadString(handle);
+   FileClose(handle);
+   StringTrimLeft(stored_id); StringTrimRight(stored_id);
+   StringTrimLeft(stored_token); StringTrimRight(stored_token);
+   if(stored_id!=connector_id || stored_token!=connector_token) return true;
+   return FileDelete(file_name);
+  }
+
 string OakJsonStringValue(const string json,const string key)
   {
    string needle="\""+key+"\":\"";
@@ -180,6 +193,14 @@ string OakJsonStringValue(const string json,const string key)
       out+=ShortToString(c);
      }
    return "";
+  }
+
+bool OakCredentialUnauthorizedResponse(const int http_code,const string response_text)
+  {
+   if(http_code!=401) return false;
+   string error_text=OakJsonStringValue(response_text,"error");
+   StringTrimLeft(error_text); StringTrimRight(error_text); StringToLower(error_text);
+   return error_text=="connector unauthorized" || error_text=="account unauthorized";
   }
 
 bool OakHttpPost(const string path,const string json,const string extra_headers,string &response_text,int &http_code)
@@ -508,7 +529,22 @@ bool OakSync()
    g_sync_busy=false;
    if(!ok)
      {
-      PrintFormat("[OAK NeoTech] Sync failed HTTP=%d",http_code);
+      string server_error=OakJsonStringValue(response,"error");
+      if(OakCredentialUnauthorizedResponse(http_code,response))
+        {
+         string stale_id=g_connector_id;
+         string stale_token=g_connector_token;
+         bool scoped_cleared=OakDeleteCredentialFileIfMatches(OakCredentialFile(),stale_id,stale_token);
+         bool legacy_cleared=OakDeleteCredentialFileIfMatches(OakLegacyCredentialFile(),stale_id,stale_token);
+         OakResetCredentials();
+         g_sync_enabled=false;
+         if(!scoped_cleared || !legacy_cleared)
+            Print("[OAK NeoTech] Revoked credential cleanup was incomplete; do not reuse the old pairing code.");
+         Print("[OAK NeoTech] Connector authorization was revoked or purged. Stale credentials were cleared and sync stopped. EA stays attached in WAITING_PAIR state; generate a fresh pairing code at /neotech and update EA Properties.");
+         return false;
+        }
+      if(server_error!="") PrintFormat("[OAK NeoTech] Sync failed HTTP=%d error=%s",http_code,server_error);
+      else PrintFormat("[OAK NeoTech] Sync failed HTTP=%d",http_code);
       return false;
      }
    if(g_loaded_legacy_credentials)

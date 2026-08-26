@@ -51,6 +51,10 @@ test("public MT5 connector remains structurally non-trading even when Master acc
   assert.match(source, /must_pair=!loaded \|\| fresh_code \|\| legacy_master_upgrade/);
   assert.match(source, /readonly_"\+IntegerToString\(\(long\)AccountInfoInteger\(ACCOUNT_LOGIN\)\)\+"_"\+OakCredentialIdentityHash\(\)/);
   assert.match(source, /g_loaded_legacy_credentials/);
+  assert.match(source, /OakCredentialUnauthorizedResponse/);
+  assert.match(source, /OakDeleteCredentialFileIfMatches/);
+  assert.match(source, /g_sync_enabled=false/);
+  assert.match(source, /revoked or purged/);
   assert.match(source, /WAITING_PAIR state/);
   assert.match(source, /WAITING_AUTHORIZATION state/);
   assert.match(source, /return INIT_SUCCEEDED/);
