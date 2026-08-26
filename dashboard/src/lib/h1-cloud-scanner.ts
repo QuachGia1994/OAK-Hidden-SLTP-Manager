@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 35;
+export const H1_CLOUD_STATE_VERSION = 36;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 29;
+export const H1_SIGNAL_RULE_VERSION = 30;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v35";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v36";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -70,7 +70,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 35;
+  version: 36;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -79,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 29;
+  signalRuleVersion: 30;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -131,7 +131,7 @@ export function baseSymbolForTarget(base: H1TargetBase): H1Base {
   if (base === "XAUUSD") return "GBPUSD";
   if (base === "AUDUSD") return "XAUUSD";
   if (base === "USDCAD") return "GBPUSD";
-  if (base === "GBPUSD") return "EURUSD";
+  if (base === "GBPUSD") return "XAUUSD";
   return "USDCAD";
 }
 

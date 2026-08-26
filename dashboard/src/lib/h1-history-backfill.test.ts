@@ -68,8 +68,8 @@ test("historical reconstruction reuses live pattern/base/calendar rules and skip
     scannerBase: "GBPUSD",
     scannerSymbol: "GBPUSD",
     match: gbpH3Match,
-    baseSymbol: "EURUSD",
-    baseBar: market.EURUSD.bars.find((bar) => bar.hour === 2)!,
+    baseSymbol: "XAUUSD",
+    baseBar: market.XAUUSD.bars.find((bar) => bar.hour === 2)!,
   });
   assert.deepEqual(history["2026-08-21"].symbols.GBPUSD?.alerts.find((alert) => alert.slotHour === 3), gbpH3Expected);
 
