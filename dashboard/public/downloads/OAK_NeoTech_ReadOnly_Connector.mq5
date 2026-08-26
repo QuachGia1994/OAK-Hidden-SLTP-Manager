@@ -1,6 +1,6 @@
 #property strict
-#property version   "1.00"
-#property description "OAK NeoTech read-only telemetry connector. Investor Password is required."
+#property version   "1.01"
+#property description "OAK NeoTech telemetry connector. Investor Password recommended; Master requires explicit web risk acceptance."
 
 input string InpPairingCode = "";
 input string InpApiBaseUrl = "https://www.oakgatekeeper.uk";
@@ -8,7 +8,7 @@ input int    InpHistoryDays = 370;
 input int    InpSyncSeconds = 300;
 input int    InpHttpTimeoutMs = 20000;
 
-#define OAK_CONNECTOR_VERSION "1.0.0"
+#define OAK_CONNECTOR_VERSION "1.0.1"
 #define OAK_PAIR_SCHEMA "oak-neotech-readonly-pair-v1"
 #define OAK_INGEST_SCHEMA "oak-neotech-readonly-ingest-v1"
 #define OAK_MAX_TRADING_DEALS 6000
@@ -16,6 +16,7 @@ input int    InpHttpTimeoutMs = 20000;
 
 string g_connector_id="";
 string g_connector_token="";
+string g_access_mode="READ_ONLY";
 bool   g_sync_busy=false;
 
 string OakJsonEscape(const string value)
@@ -84,7 +85,7 @@ bool OakSaveCredentials()
    FolderCreate("OAKNeoTech");
    int handle=FileOpen(OakCredentialFile(),FILE_WRITE|FILE_TXT|FILE_ANSI);
    if(handle==INVALID_HANDLE) return false;
-   FileWriteString(handle,g_connector_id+"\n"+g_connector_token+"\n");
+   FileWriteString(handle,g_connector_id+"\n"+g_connector_token+"\n"+g_access_mode+"\n");
    FileClose(handle);
    return true;
   }
@@ -95,9 +96,12 @@ bool OakLoadCredentials()
    if(handle==INVALID_HANDLE) return false;
    g_connector_id=FileReadString(handle);
    g_connector_token=FileReadString(handle);
+   g_access_mode=FileIsEnding(handle) ? "READ_ONLY" : FileReadString(handle);
    FileClose(handle);
    StringTrimLeft(g_connector_id); StringTrimRight(g_connector_id);
    StringTrimLeft(g_connector_token); StringTrimRight(g_connector_token);
+   StringTrimLeft(g_access_mode); StringTrimRight(g_access_mode);
+   if(g_access_mode!="TRADING_CAPABLE_ACCEPTED") g_access_mode="READ_ONLY";
    return g_connector_id!="" && g_connector_token!="";
   }
 
@@ -184,11 +188,6 @@ string OakAccountJson(const bool include_numbers)
 
 bool OakPair()
   {
-   if(!OakReadOnlyVerified())
-     {
-      Print("[OAK NeoTech] Pairing refused: log in to this MT5 account using Investor Password first.");
-      return false;
-     }
    string code=InpPairingCode;
    StringTrimLeft(code); StringTrimRight(code);
    if(code=="")
@@ -209,6 +208,7 @@ bool OakPair()
      }
    string connector_id=OakJsonStringValue(response,"connectorId");
    string connector_token=OakJsonStringValue(response,"connectorToken");
+   string access_mode=OakJsonStringValue(response,"accessMode");
    if(connector_id=="" || connector_token=="")
      {
       Print("[OAK NeoTech] Pairing response did not contain connector credentials.");
@@ -216,6 +216,7 @@ bool OakPair()
      }
    g_connector_id=connector_id;
    g_connector_token=connector_token;
+   g_access_mode=(access_mode=="TRADING_CAPABLE_ACCEPTED" ? "TRADING_CAPABLE_ACCEPTED" : "READ_ONLY");
    if(!OakSaveCredentials())
      {
       g_connector_id="";
@@ -223,7 +224,7 @@ bool OakPair()
       Print("[OAK NeoTech] Pairing succeeded but local credential storage failed; access was not retained.");
       return false;
      }
-   Print("[OAK NeoTech] Read-only pairing complete. Connector ",StringSubstr(g_connector_id,MathMax(0,StringLen(g_connector_id)-8))," is active.");
+   Print("[OAK NeoTech] Pairing complete. Mode=",g_access_mode," connector ",StringSubstr(g_connector_id,MathMax(0,StringLen(g_connector_id)-8))," is active.");
    return true;
   }
 
@@ -429,9 +430,9 @@ bool OakBuildIngest(string &body)
 bool OakSync()
   {
    if(g_sync_busy || g_connector_id=="" || g_connector_token=="") return false;
-   if(!OakReadOnlyVerified())
+   if(!OakReadOnlyVerified() && g_access_mode!="TRADING_CAPABLE_ACCEPTED")
      {
-      Print("[OAK NeoTech] Sync blocked: ACCOUNT_TRADE_ALLOWED became true. Re-login with Investor Password.");
+      Print("[OAK NeoTech] Sync blocked: this connector was paired as READ_ONLY but ACCOUNT_TRADE_ALLOWED is true. Create a Master-enabled pairing on /neotech or re-login with Investor Password.");
       return false;
      }
    g_sync_busy=true;
@@ -459,19 +460,19 @@ bool OakSync()
       PrintFormat("[OAK NeoTech] Sync failed HTTP=%d",http_code);
       return false;
      }
-   Print("[OAK NeoTech] Read-only snapshot synced. No trading credential was transmitted.");
+   Print("[OAK NeoTech] Telemetry snapshot synced. No MT5 password was transmitted. Mode=",g_access_mode);
    return true;
   }
 
 int OnInit()
   {
    MathSrand((int)(GetTickCount()^(uint)TimeLocal()));
-   if(!OakReadOnlyVerified())
+   if(!OakLoadCredentials() && !OakPair()) return INIT_PARAMETERS_INCORRECT;
+   if(!OakReadOnlyVerified() && g_access_mode!="TRADING_CAPABLE_ACCEPTED")
      {
-      Alert("OAK NeoTech connector requires Investor Password / read-only MT5 login. Trading-capable sessions are refused.");
+      Alert("This connector is paired READ_ONLY but the MT5 session can trade. Re-login with Investor Password or create a Master-enabled pairing on /neotech.");
       return INIT_FAILED;
      }
-   if(!OakLoadCredentials() && !OakPair()) return INIT_PARAMETERS_INCORRECT;
    EventSetTimer(MathMax(60,InpSyncSeconds));
    OakSync();
    return INIT_SUCCEEDED;

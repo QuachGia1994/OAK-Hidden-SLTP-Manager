@@ -26,6 +26,7 @@ function publicAccount(row: Awaited<ReturnType<typeof listWorkspaceAccounts>>[nu
       currency: row.account.currency,
       mode: row.account.mode,
       readOnlyVerified: row.account.readOnlyVerified,
+      accessMode: row.account.accessMode,
       connectorVersion: row.account.connectorVersion,
       createdAt: row.account.createdAt,
       lastSeenAt: row.account.lastSeenAt,

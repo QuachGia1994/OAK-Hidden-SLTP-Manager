@@ -12,11 +12,16 @@ All notable changes to the dashboard are recorded here.
 
 ### Added
 
-- Added `/neotech` customer Visual Profile with a three-step Investor Password onboarding flow, compiled + auditable-source MT5 read-only connector downloads, server-side NeoTech rule evaluation, radar/rule evidence views, coverage/FDD/month tracking, private browser workspaces, one-time pairing, revoke and immediate data purge.
+- Added `/neotech` customer Visual Profile with Investor Password as the recommended onboarding path, optional Master Password pairing behind an explicit risk warning/acceptance, compiled + auditable-source MT5 telemetry connector downloads, server-side NeoTech rule evaluation, radar/rule evidence views, coverage/FDD/month tracking, private browser workspaces, one-time pairing, revoke and immediate data purge.
+- Copy actions in NeoTech onboarding now show a visible success/error toast so users can confirm that pairing codes and WebRequest URLs actually reached the clipboard.
+
+### Fixed
+
+- NeoTech C9 now evaluates deposit/withdrawal events only from the first trading episode onward. Demo-account opening balance/funding events that occur before the evaluation starts no longer create a false C9 violation; later deposits/withdrawals still fail C9.
 
 ### Security / privacy
 
-- Public NeoTech analytics is isolated from MT5/cTrader/Telegram execution surfaces by build-time contract tests. Pairing/ingest reject `ACCOUNT_TRADE_ALLOWED=true`, connector bearer tokens are retained only as SHA-256 hashes, raw deal/cash-flow bodies are not persisted, retained derived/account/equity/audit data has a 400-day maximum sliding retention, and missing evidence remains fail-closed instead of being inferred PASS.
+- Public NeoTech analytics is isolated from MT5/cTrader/Telegram execution surfaces by build-time contract tests. Investor/read-only remains the default; `ACCOUNT_TRADE_ALLOWED=true` is accepted only when the browser-created one-time pairing explicitly records `TRADING_CAPABLE_ACCEPTED`. MT5 passwords are never sent to OAK, connector bearer tokens are retained only as SHA-256 hashes, raw deal/cash-flow bodies are not persisted, retained derived/account/equity/audit data has a 400-day maximum sliding retention, and missing evidence remains fail-closed instead of being inferred PASS.
 
 ### Changed
 

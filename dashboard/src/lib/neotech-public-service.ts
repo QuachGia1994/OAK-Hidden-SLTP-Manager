@@ -9,6 +9,7 @@ import {
   sha256Hex,
   validateIngestPayload,
   validatePairPayload,
+  type NeoTechConnectorAccessMode,
   type NeoTechConnectorEquityPoint,
   type NeoTechPublicAccountRecord,
   type NeoTechPublicConnectorRecord,
@@ -56,6 +57,7 @@ export type PrivateWorkspaceSession = {
 export type PairingCreated = {
   code: string;
   expiresAt: number;
+  accessMode: NeoTechConnectorAccessMode;
 };
 
 export type ConnectorPairResult = {
@@ -121,16 +123,16 @@ export async function resolvePrivateWorkspaceSession(store: NeoTechPublicStore, 
   return touched;
 }
 
-export async function createPairing(store: NeoTechPublicStore, workspaceId: string, nowMs = Date.now()): Promise<PairingCreated> {
+export async function createPairing(store: NeoTechPublicStore, workspaceId: string, nowMs = Date.now(), accessMode: NeoTechConnectorAccessMode = "READ_ONLY"): Promise<PairingCreated> {
   const workspace = await store.getWorkspace(workspaceId);
   if (!workspace) throw new Error("workspace not found");
   for (let attempt = 0; attempt < 6; attempt += 1) {
     const raw = pairingCodeRaw();
     const expiresAt = nowMs + NEOTECH_PUBLIC_PAIRING_TTL_SECONDS * 1000;
-    const pairing: NeoTechPublicPairingRecord = { workspaceId, createdAt: nowMs, expiresAt };
+    const pairing: NeoTechPublicPairingRecord = { workspaceId, createdAt: nowMs, expiresAt, accessMode, riskAcceptedAt: accessMode === "TRADING_CAPABLE_ACCEPTED" ? nowMs : null };
     if (await store.putPairing(sha256Hex(raw), pairing, NEOTECH_PUBLIC_PAIRING_TTL_SECONDS)) {
-      await store.appendAudit(`workspace:${workspaceId}`, { action: "pairing_created", at: nowMs, expiresAt });
-      return { code: formatPairingCode(raw), expiresAt };
+      await store.appendAudit(`workspace:${workspaceId}`, { action: "pairing_created", at: nowMs, expiresAt, accessMode });
+      return { code: formatPairingCode(raw), expiresAt, accessMode };
     }
   }
   throw new Error("unable to allocate pairing code");
@@ -140,10 +142,10 @@ export async function pairReadOnlyConnector(store: NeoTechPublicStore, input: un
   const validation = validatePairPayload(input);
   if (!validation.ok) return { ok: false, status: 400, error: validation.error };
   const payload = validation.value;
-  if (payload.account.tradeAllowed) return { ok: false, status: 403, error: "Investor/read-only MT5 login is required. Trading-capable sessions are refused." };
   const code = normalizePairingCode(payload.pairingCode);
   const pairing = await store.consumePairing(sha256Hex(code));
   if (!pairing || pairing.expiresAt < nowMs) return { ok: false, status: 401, error: "pairing code is invalid or expired" };
+  if (payload.account.tradeAllowed && pairing.accessMode !== "TRADING_CAPABLE_ACCEPTED") return { ok: false, status: 403, error: "Master/trading-capable MT5 requires explicit risk acceptance before pairing." };
   const workspace = await store.getWorkspace(pairing.workspaceId);
   if (!workspace) return { ok: false, status: 401, error: "pairing workspace no longer exists" };
 
@@ -160,7 +162,8 @@ export async function pairReadOnlyConnector(store: NeoTechPublicStore, input: un
     server: payload.account.server,
     currency: payload.account.currency,
     mode: payload.account.mode,
-    readOnlyVerified: true,
+    readOnlyVerified: payload.account.tradeAllowed === false,
+    accessMode: pairing.accessMode,
     connectorVersion: payload.connectorVersion,
     connectorId,
     createdAt: nowMs,
@@ -173,6 +176,7 @@ export async function pairReadOnlyConnector(store: NeoTechPublicStore, input: un
     accountId,
     accountFingerprint: fingerprint,
     tokenSha256: sha256Hex(connectorToken),
+    accessMode: pairing.accessMode,
     createdAt: nowMs,
     lastSeenAt: nowMs,
     revokedAt: null,
@@ -180,7 +184,7 @@ export async function pairReadOnlyConnector(store: NeoTechPublicStore, input: un
   await store.putAccount(account);
   await store.putConnector(connector);
   await store.addWorkspaceAccount(workspace.id, accountId);
-  await store.appendAudit(`account:${accountId}`, { action: "connector_paired", at: nowMs, connectorId, readOnlyVerified: true });
+  await store.appendAudit(`account:${accountId}`, { action: "connector_paired", at: nowMs, connectorId, readOnlyVerified: account.readOnlyVerified, accessMode: pairing.accessMode, riskAcceptedAt: pairing.riskAcceptedAt });
   return { ok: true, result: { account, connectorId, connectorToken } };
 }
 
@@ -213,7 +217,7 @@ export async function ingestReadOnlyConnector(store: NeoTechPublicStore, input: 
   const validation = validateIngestPayload(parsed, input.nowSeconds);
   if (!validation.ok) return { ok: false, status: 400, error: validation.error };
   const payload = validation.value;
-  if (payload.account.tradeAllowed) return { ok: false, status: 403, error: "read-only capability lost; reconnect MT5 with Investor Password" };
+  if (payload.account.tradeAllowed && connector.accessMode !== "TRADING_CAPABLE_ACCEPTED") return { ok: false, status: 403, error: "read-only capability lost; create a Master-enabled pairing and accept the risk warning first" };
   const fingerprint = profileAccountFingerprint(payload);
   if (!safeSha256Equal(fingerprint, connector.accountFingerprint)) return { ok: false, status: 409, error: "connector account fingerprint mismatch" };
   const account = await store.getAccount(connector.accountId);
@@ -232,6 +236,7 @@ export async function ingestReadOnlyConnector(store: NeoTechPublicStore, input: 
     currency: profile.account.currency,
     mode: profile.account.mode,
     readOnlyVerified: profile.account.readOnlyVerified,
+    accessMode: connector.accessMode,
     connectorVersion: profile.account.connectorVersion,
     lastSeenAt: nowMs,
   };

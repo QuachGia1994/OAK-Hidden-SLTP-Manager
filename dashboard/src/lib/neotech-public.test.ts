@@ -136,7 +136,7 @@ async function paired(store = new FakeStore()) {
   return { store, session, pair: result.result };
 }
 
-test("public pairing refuses any trading-capable MT5 session", async () => {
+test("default pairing refuses trading-capable MT5 without explicit browser risk acceptance", async () => {
   const store = new FakeStore();
   const session = await createPrivateWorkspaceSession(store, NOW * 1000);
   const pairing = await createPairing(store, session.workspace.id, NOW * 1000);
@@ -146,9 +146,42 @@ test("public pairing refuses any trading-capable MT5 session", async () => {
     account: { ...account, tradeAllowed: true },
     connectorVersion: "1.0.0",
   }, NOW * 1000);
-  assert.deepEqual(result, { ok: false, status: 403, error: "Investor/read-only MT5 login is required. Trading-capable sessions are refused." });
+  assert.deepEqual(result, { ok: false, status: 403, error: "Master/trading-capable MT5 requires explicit risk acceptance before pairing." });
   assert.equal(store.accounts.size, 0);
   assert.equal(store.connectors.size, 0);
+});
+
+test("Master/trading-capable pairing succeeds only when the one-time pairing record explicitly accepts risk", async () => {
+  const store = new FakeStore();
+  const session = await createPrivateWorkspaceSession(store, NOW * 1000);
+  const pairing = await createPairing(store, session.workspace.id, NOW * 1000, "TRADING_CAPABLE_ACCEPTED");
+  const result = await pairReadOnlyConnector(store, {
+    schemaVersion: NEOTECH_PUBLIC_PAIR_SCHEMA,
+    pairingCode: pairing.code,
+    account: { ...account, tradeAllowed: true },
+    connectorVersion: "1.0.0",
+  }, NOW * 1000);
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error("Master-enabled pairing unexpectedly failed");
+  assert.equal(result.result.account.readOnlyVerified, false);
+  assert.equal(result.result.account.accessMode, "TRADING_CAPABLE_ACCEPTED");
+  assert.equal(store.connectors.get(result.result.connectorId)?.accessMode, "TRADING_CAPABLE_ACCEPTED");
+});
+
+test("Master-enabled connector may ingest trading-capable telemetry but is never labeled read-only verified", async () => {
+  const store = new FakeStore();
+  const session = await createPrivateWorkspaceSession(store, NOW * 1000);
+  const pairing = await createPairing(store, session.workspace.id, NOW * 1000, "TRADING_CAPABLE_ACCEPTED");
+  const pairedMaster = await pairReadOnlyConnector(store, { schemaVersion: NEOTECH_PUBLIC_PAIR_SCHEMA, pairingCode: pairing.code, account: { ...account, tradeAllowed: true }, connectorVersion: "1.0.1" }, NOW * 1000);
+  assert.equal(pairedMaster.ok, true);
+  if (!pairedMaster.ok) throw new Error("Master-enabled pairing failed");
+  const body = payload({ account: { ...account, tradeAllowed: true, balance: 10_100, equity: 10_090, leverage: 100 }, connectorVersion: "1.0.1" });
+  const rawBody = JSON.stringify(body);
+  const result = await ingestReadOnlyConnector(store, { connectorId: pairedMaster.result.connectorId, token: pairedMaster.result.connectorToken, timestamp: String(NOW), nonce: "nonce-master-ingest-001", idempotencyKey: sha256Hex(rawBody), rawBody, nowSeconds: NOW });
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error("Master-enabled ingest failed");
+  assert.equal(result.profile.account.readOnlyVerified, false);
+  assert.equal(store.accounts.get(pairedMaster.result.account.id)?.accessMode, "TRADING_CAPABLE_ACCEPTED");
 });
 
 test("connector secret is returned once while only SHA-256 is retained", async () => {
@@ -199,7 +232,7 @@ test("ingest fails closed when terminal switches from investor to trading-capabl
     rawBody,
     nowSeconds: NOW,
   });
-  assert.deepEqual(result, { ok: false, status: 403, error: "read-only capability lost; reconnect MT5 with Investor Password" });
+  assert.deepEqual(result, { ok: false, status: 403, error: "read-only capability lost; create a Master-enabled pairing and accept the risk warning first" });
   assert.equal(store.profiles.size, 0);
 });
 
@@ -249,6 +282,29 @@ test("workspace listing and revoke remain tenant-scoped", async () => {
   assert.equal(await revokeWorkspaceAccount(a.store, a.session.workspace.id, a.pair.account.id, NOW * 1000), true);
   assert.equal((await listWorkspaceAccounts(a.store, a.session.workspace.id)).length, 0);
   assert.ok(a.store.connectors.get(a.pair.connectorId)?.revokedAt);
+});
+
+test("Demo initial balance cash-flow before first trade does not violate C9, but later funding does", async () => {
+  const { store, pair } = await paired();
+  const start = NOW - 366 * 86_400;
+  const initialFunding = payload({
+    account: { ...account, mode: "DEMO", balance: 10_100, equity: 10_090, leverage: 100 },
+    cashFlows: [{ ticket: "fund-0", timeMsc: (start - 60) * 1000, amount: 10_000, kind: "DEPOSIT", comment: "demo initial balance" }],
+  });
+  let rawBody = JSON.stringify(initialFunding);
+  let result = await ingestReadOnlyConnector(store, { connectorId: pair.connectorId, token: pair.connectorToken, timestamp: String(NOW), nonce: "nonce-c9-demo-initial-001", idempotencyKey: sha256Hex(rawBody), rawBody, nowSeconds: NOW });
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error("demo initial funding ingest failed");
+  assert.notEqual(result.profile.rules.find((row) => row.code === "C9")?.status, "FAIL");
+  assert.equal(result.profile.rules.find((row) => row.code === "C9")?.measured, "0 cash-flow trong kỳ");
+
+  const laterFunding = { ...initialFunding, cashFlows: [...initialFunding.cashFlows, { ticket: "fund-1", timeMsc: (start + 60) * 1000, amount: 500, kind: "DEPOSIT" as const, comment: "topup" }] };
+  rawBody = JSON.stringify(laterFunding);
+  result = await ingestReadOnlyConnector(store, { connectorId: pair.connectorId, token: pair.connectorToken, timestamp: String(NOW), nonce: "nonce-c9-demo-later-001", idempotencyKey: sha256Hex(rawBody), rawBody, nowSeconds: NOW });
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error("demo later funding ingest failed");
+  assert.equal(result.profile.rules.find((row) => row.code === "C9")?.status, "FAIL");
+  assert.equal(result.profile.rules.find((row) => row.code === "C9")?.measured, "1 cash-flow trong kỳ");
 });
 
 test("profile exposes C8 as explicitly not verifiable instead of fabricated PASS", async () => {

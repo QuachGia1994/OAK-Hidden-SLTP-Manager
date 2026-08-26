@@ -386,8 +386,11 @@ function buildRules(payload: NeoTechPublicIngestPayload, episodes: Episode[], mo
   const hedge = hedgingEvidence(episodes, nowMsc);
   const c7: NeoTechPublicStatus = hedge.length ? "FAIL" : !episodes.length ? "IN_PROGRESS" : !historyComplete ? "INSUFFICIENT_DATA" : horizon ? "PASS" : "IN_PROGRESS";
 
-  const deposits = payload.cashFlows.filter((flow) => flow.kind === "DEPOSIT" || flow.kind === "WITHDRAWAL");
-  const c9: NeoTechPublicStatus = deposits.length ? "FAIL" : !historyComplete ? "INSUFFICIENT_DATA" : horizon ? "PASS" : "IN_PROGRESS";
+  const deposits = programStart > 0 ? payload.cashFlows.filter((flow) => {
+    const at = Math.floor(flow.timeMsc / 1000);
+    return at >= programStart && (flow.kind === "DEPOSIT" || flow.kind === "WITHDRAWAL");
+  }) : [];
+  const c9: NeoTechPublicStatus = deposits.length ? "FAIL" : programStart <= 0 ? "IN_PROGRESS" : !historyComplete ? "INSUFFICIENT_DATA" : horizon ? "PASS" : "IN_PROGRESS";
 
   return [
     rule("E1", "ELIGIBILITY", "Mở lệnh thủ công", "EA chỉ được quản lý sau khi lệnh đã được mở thủ công.", e1, expert.length ? `${expert.length} lệnh expert` : reasonUnknown.length ? `${reasonUnknown.length} lệnh chưa rõ nguồn` : `${episodes.length} episode`, "0 lệnh mở bởi EA", expert.slice(0, 6).map((item) => `${item.canonicalSymbol} · deal ${item.openingDealTicket}`)),
@@ -401,7 +404,7 @@ function buildRules(payload: NeoTechPublicIngestPayload, episodes: Episode[], mo
     rule("C6", "CONSISTENCY", "Giữ lệnh hoặc SL/TP", "Lệnh đóng dưới 15 phút phải từng có SL hoặc TP cách entry hơn 30 pip.", c6, `${c6States.filter((status) => status === "FAIL").length} vi phạm`, "≥15 phút hoặc >30 pip"),
     rule("C7", "CONSISTENCY", "Không hedging", "Không được BUY và SELL đồng thời trên cùng symbol.", c7, hedge.length ? `${hedge.length} overlap` : "0 overlap", "0 overlap", hedge),
     rule("C8", "CONSISTENCY", "Không copy tín hiệu", "Nguồn tín hiệu bên ngoài không thể chứng minh chỉ bằng dữ liệu MT5.", "NOT_VERIFIABLE", "Không có telemetry nguồn tín hiệu", "Xác minh ngoài MT5"),
-    rule("C9", "CONSISTENCY", "Không nạp/rút", "Nạp hoặc rút tiền trong giai đoạn đánh giá là vi phạm.", c9, `${deposits.length} cash-flow`, "0 deposit/withdrawal", deposits.slice(0, 8).map((flow) => `${flow.kind} · ${flow.amount.toFixed(2)}`)),
+    rule("C9", "CONSISTENCY", "Không nạp/rút", "Chỉ nạp/rút phát sinh từ lúc bắt đầu giai đoạn đánh giá mới là vi phạm; số dư khởi tạo trước giao dịch đầu tiên không tính.", c9, `${deposits.length} cash-flow trong kỳ`, "0 deposit/withdrawal sau giao dịch đầu tiên", deposits.slice(0, 8).map((flow) => `${flow.kind} · ${flow.amount.toFixed(2)}`)),
   ];
 }
 

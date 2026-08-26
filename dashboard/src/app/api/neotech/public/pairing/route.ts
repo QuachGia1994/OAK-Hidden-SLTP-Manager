@@ -19,8 +19,11 @@ export async function POST(request: Request) {
   const workspace = await resolvePrivateWorkspaceSession(neoTechPublicStore, sessionTokenFromRequest(request));
   if (!workspace) return secureJson({ ok: false, error: "private workspace session required" }, 401);
   try {
-    const pairing = await createPairing(neoTechPublicStore, workspace.id);
-    return secureJson({ ok: true, pairingCode: pairing.code, expiresAt: pairing.expiresAt, ttlSeconds: Math.max(0, Math.floor((pairing.expiresAt - Date.now()) / 1000)) });
+    const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+    const requestedMode = body.accessMode === "TRADING_CAPABLE_ACCEPTED" ? "TRADING_CAPABLE_ACCEPTED" : "READ_ONLY";
+    if (requestedMode === "TRADING_CAPABLE_ACCEPTED" && body.riskAccepted !== true) return secureJson({ ok: false, error: "explicit Master Password risk acceptance is required" }, 400);
+    const pairing = await createPairing(neoTechPublicStore, workspace.id, Date.now(), requestedMode);
+    return secureJson({ ok: true, pairingCode: pairing.code, expiresAt: pairing.expiresAt, accessMode: pairing.accessMode, ttlSeconds: Math.max(0, Math.floor((pairing.expiresAt - Date.now()) / 1000)) });
   } catch {
     return secureJson({ ok: false, error: "unable to create pairing code" }, 503);
   }

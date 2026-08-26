@@ -49,7 +49,8 @@ test("H1 header stays simplified and VIP logout errors remain visible", () => {
 
 test("NeoTech and shared FactCheck states follow the global locale", () => {
   assert.match(neoTechSource, /useLocale\(\)/);
-  assert.match(neoTechSource, /copyStatus/);
+  assert.match(neoTechSource, /ToastState/);
+  assert.match(neoTechSource, /styles\.toast/);
   assert.match(neoTechSource, /fmtDate\(profile\.generatedAtUtc, locale\)/);
   assert.match(factCheckSharedSource, /detectServerLocaleFromCookie/);
   assert.doesNotMatch(factCheckSharedSource, /const locale: "VN" \| "EN" = "VN"/);

@@ -14,6 +14,7 @@ export type NeoTechPublicOverall = "CLEAR" | "TRACKING" | "INSUFFICIENT_DATA" | 
 export type NeoTechPublicRuleCode = "E1" | "E2" | "E3" | "E5" | "C1" | "C2" | "C4" | "C5" | "C6" | "C7" | "C8" | "C9";
 
 export type NeoTechAccountMode = "REAL" | "DEMO" | "CONTEST" | "UNKNOWN";
+export type NeoTechConnectorAccessMode = "READ_ONLY" | "TRADING_CAPABLE_ACCEPTED";
 export type NeoTechDealEntry = "IN" | "OUT" | "OUT_BY" | "INOUT";
 export type NeoTechDealSide = "BUY" | "SELL";
 export type NeoTechReason = "CLIENT" | "MOBILE" | "WEB" | "EXPERT" | "OTHER" | "UNKNOWN";
@@ -195,6 +196,7 @@ export type NeoTechPublicAccountRecord = {
   currency: string;
   mode: NeoTechAccountMode;
   readOnlyVerified: boolean;
+  accessMode: NeoTechConnectorAccessMode;
   connectorVersion: string;
   connectorId: string;
   createdAt: number;
@@ -208,6 +210,7 @@ export type NeoTechPublicConnectorRecord = {
   accountId: string;
   accountFingerprint: string;
   tokenSha256: string;
+  accessMode: NeoTechConnectorAccessMode;
   createdAt: number;
   lastSeenAt: number;
   revokedAt: number | null;
@@ -223,6 +226,8 @@ export type NeoTechPublicPairingRecord = {
   workspaceId: string;
   createdAt: number;
   expiresAt: number;
+  accessMode: NeoTechConnectorAccessMode;
+  riskAcceptedAt: number | null;
 };
 
 function record(value: unknown): value is Record<string, unknown> {

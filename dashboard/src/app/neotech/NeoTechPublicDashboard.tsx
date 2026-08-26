@@ -14,13 +14,15 @@ type PublicAccount = {
   currency: string;
   mode: string;
   readOnlyVerified: boolean;
+  accessMode: "READ_ONLY" | "TRADING_CAPABLE_ACCEPTED";
   connectorVersion: string;
   createdAt: number;
   lastSeenAt: number;
 };
 
 type AccountRow = { account: PublicAccount; profile: NeoTechPublicProfile | null };
-type PairingState = { code: string; expiresAt: number; baselineCount: number };
+type PairingState = { code: string; expiresAt: number; baselineCount: number; accessMode: "READ_ONLY" | "TRADING_CAPABLE_ACCEPTED" };
+type ToastState = { message: string; kind: "success" | "error" };
 
 type Locale = "EN" | "VN";
 
@@ -143,7 +145,7 @@ export function NeoTechPublicDashboard() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [copyStatus, setCopyStatus] = useState("");
+  const [toast, setToast] = useState<ToastState | null>(null);
   const [pairing, setPairing] = useState<PairingState | null>(null);
   const [nowMs, setNowMs] = useState(Date.now());
   const pairingDialogRef = useDialogFocusTrap<HTMLDivElement>(Boolean(pairing), () => setPairing(null));
@@ -204,16 +206,24 @@ export function NeoTechPublicDashboard() {
   const selected = useMemo(() => accounts.find((row) => row.account.id === selectedId) || accounts[0] || null, [accounts, selectedId]);
   const profile = selected?.profile || null;
 
-  const createPairing = async () => {
+  const createPairing = async (accessMode: "READ_ONLY" | "TRADING_CAPABLE_ACCEPTED" = "READ_ONLY") => {
     setBusy(true); setError("");
     try {
-      const response = await fetch("/api/neotech/public/pairing", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const response = await fetch("/api/neotech/public/pairing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accessMode, riskAccepted: accessMode === "TRADING_CAPABLE_ACCEPTED" }) });
       const body = await readJson(response);
       if (!response.ok || body.ok !== true) throw new Error(String(body.error || (locale === "EN" ? "Cannot create pairing code." : "Không tạo được pairing code.")));
-      setPairing({ code: String(body.pairingCode), expiresAt: Number(body.expiresAt), baselineCount: accounts.length });
+      setPairing({ code: String(body.pairingCode), expiresAt: Number(body.expiresAt), baselineCount: accounts.length, accessMode: String(body.accessMode) === "TRADING_CAPABLE_ACCEPTED" ? "TRADING_CAPABLE_ACCEPTED" : "READ_ONLY" });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : (locale === "EN" ? "Cannot create pairing code." : "Không tạo được pairing code."));
     } finally { setBusy(false); }
+  };
+
+  const createMasterPairing = async () => {
+    const accepted = window.confirm(tr(
+      "MASTER PASSWORD WARNING\n\nThis MT5 session can trade. OAK never receives or stores your password and this connector contains no trading functions, but Investor Password remains safer.\n\nContinue and accept this risk?",
+      "CẢNH BÁO MASTER PASSWORD\n\nPhiên MT5 này có quyền giao dịch. OAK không nhận/lưu password và connector này không chứa chức năng đặt lệnh, nhưng Investor Password vẫn an toàn hơn.\n\nTiếp tục và chấp nhận rủi ro này?",
+    ));
+    if (accepted) await createPairing("TRADING_CAPABLE_ACCEPTED");
   };
 
   const revoke = async () => {
@@ -244,15 +254,15 @@ export function NeoTechPublicDashboard() {
     } finally { setBusy(false); }
   };
 
-  const copy = async (value: string) => {
+  const copy = async (value: string, label?: string) => {
     try {
-      if (!navigator.clipboard) throw new Error("clipboard unavailable");
+      if (!navigator.clipboard?.writeText) throw new Error("clipboard unavailable");
       await navigator.clipboard.writeText(value);
-      setCopyStatus(locale === "EN" ? "Copied" : "Đã copy");
+      setToast({ message: label || tr("Copied to clipboard", "Đã copy vào clipboard"), kind: "success" });
     } catch {
-      setCopyStatus(locale === "EN" ? "Copy failed" : "Copy thất bại");
+      setToast({ message: tr("Copy failed — please copy manually", "Copy thất bại — hãy copy thủ công"), kind: "error" });
     }
-    window.setTimeout(() => setCopyStatus(""), 1800);
+    window.setTimeout(() => setToast(null), 2200);
   };
   const secondsLeft = pairing ? Math.max(0, Math.floor((pairing.expiresAt - nowMs) / 1000)) : 0;
 
@@ -262,40 +272,41 @@ export function NeoTechPublicDashboard() {
         <div className={styles.heroCopy}>
           <span className={styles.eyebrow}>◉ NeoTech · Read-only intelligence</span>
           <h1>{tr("Visual profile for", "Visual profile cho")} <span>{tr("account discipline.", "kỷ luật tài khoản.")}</span></h1>
-          <p>{tr("Connect MT5 with an Investor Password. OAK receives only the required telemetry, calculates NeoTech rules on the server, and never asks for the Master Trading Password.", "Kết nối MT5 bằng Investor Password. OAK chỉ nhận telemetry cần thiết, tự tính rule NeoTech trên server và không bao giờ yêu cầu Master Trading Password.")}</p>
+          <p>{tr("Investor Password is recommended. Master Password is also supported after an explicit risk warning; OAK never receives or stores either MT5 password.", "Investor Password là lựa chọn khuyến nghị. Master Password cũng được hỗ trợ sau cảnh báo rủi ro rõ ràng; OAK không bao giờ nhận hoặc lưu password MT5.")}</p>
           <div className={styles.heroActions}>
-            <button className={styles.primaryButton} onClick={createPairing} disabled={busy}>{accounts.length ? tr("+ Connect account", "+ Kết nối tài khoản") : tr("Connect MT5 read-only", "Kết nối MT5 read-only")}</button>
+            <button className={styles.primaryButton} onClick={() => void createPairing("READ_ONLY")} disabled={busy}>{accounts.length ? tr("+ Connect account", "+ Kết nối tài khoản") : tr("Connect with Investor Password", "Kết nối bằng Investor Password")}</button>
+            <button className={styles.secondaryButton} onClick={() => void createMasterPairing()} disabled={busy}>{tr("Use Master Password", "Dùng Master Password")}</button>
             <a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_ReadOnly_Connector.ex5" download>{tr("Download connector", "Tải connector")}</a>
             <a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_ReadOnly_Connector.mq5" download>{tr("Source for audit", "Source để audit")}</a>
           </div>
         </div>
         <div className={styles.heroPanel}>
-          <div className={styles.trustRow}><span className={styles.trustIcon}>R/O</span><span><b>Broker-level read only</b><small>{tr("Pairing is rejected while MT5 still has trading permission.", "Pairing bị từ chối nếu MT5 còn quyền trade.")}</small></span></div>
-          <div className={styles.trustRow}><span className={styles.trustIcon}>0×</span><span><b>{tr("No password stored", "Không lưu password")}</b><small>{tr("The Investor Password stays inside the user's MT5 terminal.", "Investor Password chỉ nằm trong terminal MT5 của khách.")}</small></span></div>
+          <div className={styles.trustRow}><span className={styles.trustIcon}>R/O</span><span><b>{tr("Read-only recommended", "Khuyến nghị read-only")}</b><small>{tr("Investor Password blocks trading at broker level. Master access requires explicit user acceptance.", "Investor Password khóa quyền trade ở cấp broker. Master chỉ được bật sau khi user chấp nhận cảnh báo.")}</small></span></div>
+          <div className={styles.trustRow}><span className={styles.trustIcon}>0×</span><span><b>{tr("No password stored", "Không lưu password")}</b><small>{tr("The MT5 password stays inside the user's terminal in both modes.", "Password MT5 chỉ nằm trong terminal của khách ở cả hai chế độ.")}</small></span></div>
           <div className={styles.trustRow}><span className={styles.trustIcon}>↯</span><span><b>{tr("Instant revoke", "Revoke tức thì")}</b><small>{tr("Each connector has its own token; only the hash is stored on the server.", "Mỗi connector có token riêng, chỉ lưu hash ở server.")}</small></span></div>
         </div>
       </section>
 
       <section className={styles.securityStrip} aria-label="Security guarantees">
         <div className={styles.securityItem} data-good="true"><small>MT5 credential</small><b>{tr("Stays in terminal", "Không rời terminal")}</b></div>
-        <div className={styles.securityItem} data-good="true"><small>Trading capability</small><b>{tr("Rejected by server", "Server từ chối")}</b></div>
+        <div className={styles.securityItem} data-good="true"><small>Trading capability</small><b>{tr("Read-only by default", "Read-only mặc định")}</b></div>
         <div className={styles.securityItem}><small>Private workspace</small><b>{workspaceRef ? `#${workspaceRef}` : tr("Creating…", "Đang tạo…")}</b></div>
         <div className={styles.securityItem}><small>Rule authority</small><b>Server-side only</b></div>
       </section>
 
       {error && <div className={styles.error}>{error}</div>}
-      {copyStatus && <div className={styles.copyStatus} role="status" aria-live="polite">{copyStatus}</div>}
+      {toast && <div className={styles.toast} data-kind={toast.kind} role="status" aria-live="polite"><b>{toast.kind === "success" ? "✓" : "!"}</b><span>{toast.message}</span></div>}
 
       {loading ? <div className={styles.loading}><span className={styles.waiting}><span className={styles.spinner} /> {tr("Opening private workspace…", "Đang mở private workspace…")}</span></div> : accounts.length === 0 ? (
         <section className={styles.emptyState}>
-          <strong>{tr("No read-only account yet.", "Chưa có tài khoản read-only.")}</strong>
-          <p>{tr("No registration and no broker password on the website. Create a pairing code and attach the connector to an MT5 terminal logged in with the Investor Password.", "Không cần đăng ký, không cần nhập broker password trên web. Tạo pairing code và gắn connector vào một MT5 đang đăng nhập bằng Investor Password.")}</p>
-          <button className={styles.primaryButton} onClick={createPairing} disabled={busy}>{tr("Create pairing code", "Tạo pairing code")}</button>
+          <strong>{tr("No NeoTech account connected yet.", "Chưa có tài khoản NeoTech nào được kết nối.")}</strong>
+          <p>{tr("No registration and no broker password on the website. Investor Password is recommended; Master Password is optional with an explicit warning.", "Không cần đăng ký, không nhập broker password trên web. Investor Password được khuyến nghị; Master Password là tùy chọn có cảnh báo rõ ràng.")}</p>
+          <div className={styles.heroActions}><button className={styles.primaryButton} onClick={() => void createPairing("READ_ONLY")} disabled={busy}>{tr("Investor pairing", "Pair bằng Investor")}</button><button className={styles.secondaryButton} onClick={() => void createMasterPairing()} disabled={busy}>{tr("Master pairing", "Pair bằng Master")}</button></div>
         </section>
       ) : (
         <section className={styles.workspace}>
           <aside className={styles.sidebar}>
-            <div className={styles.sidebarHeader}><small>READ-ONLY ACCOUNTS</small><button className={styles.ghostButton} onClick={createPairing}>＋</button></div>
+            <div className={styles.sidebarHeader}><small>NEOTECH ACCOUNTS</small><button className={styles.ghostButton} onClick={() => void createPairing("READ_ONLY")}>＋</button></div>
             {accounts.map((row) => (
               <button key={row.account.id} className={styles.accountButton} data-active={selected?.account.id === row.account.id ? "true" : undefined} onClick={() => setSelectedId(row.account.id)}>
                 <b>{row.account.maskedLogin} · {row.account.currency}</b>
@@ -313,7 +324,7 @@ export function NeoTechPublicDashboard() {
                     <div className={styles.accountTitle}>
                       <h2>{selected.account.maskedLogin}</h2>
                       {profile ? <StatusPill overall={profile.overall} locale={locale} /> : <StatusPill status="IN_PROGRESS" locale={locale} />}
-                      {selected.account.readOnlyVerified && <span className={styles.statusPill} data-status="PASS">READ ONLY VERIFIED</span>}
+                      {selected.account.readOnlyVerified ? <span className={styles.statusPill} data-status="PASS">READ ONLY VERIFIED</span> : selected.account.accessMode === "TRADING_CAPABLE_ACCEPTED" ? <span className={styles.statusPill} data-status="IN_PROGRESS">MASTER RISK ACCEPTED</span> : null}
                     </div>
                     <div className={styles.accountDetails}>
                       <span>{selected.account.broker}</span><span>{selected.account.server}</span><span>{selected.account.mode}</span><span>Connector {selected.account.connectorVersion}</span><span>Sync {relativeTime(selected.account.lastSeenAt, nowMs, locale)}</span>
@@ -384,14 +395,15 @@ export function NeoTechPublicDashboard() {
 
       {pairing && (
         <div className={styles.pairingOverlay} onMouseDown={(event) => event.target === event.currentTarget && setPairing(null)}>
-          <div ref={pairingDialogRef} className={styles.pairingModal} role="dialog" aria-modal="true" aria-label={tr("Connect MT5 read-only", "Kết nối MT5 read-only")} tabIndex={-1}>
+          <div ref={pairingDialogRef} className={styles.pairingModal} role="dialog" aria-modal="true" aria-label={tr("Connect MT5 NeoTech", "Kết nối MT5 NeoTech")} tabIndex={-1}>
             <div className={styles.pairingHeader}><div><h3>{tr("Connect MT5 in 3 steps", "Kết nối MT5 trong 3 bước")}</h3><p>{tr("The pairing code is single-use and expires automatically after 10 minutes.", "Pairing code dùng một lần và tự hết hạn sau 10 phút.")}</p></div><button className={styles.ghostButton} onClick={() => setPairing(null)}>{tr("Close", "Đóng")}</button></div>
             <div className={styles.pairingBody}>
-              <div className={styles.codeBox}><div><code>{pairing.code}</code><small>{tr("Remaining", "Còn")} {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}</small></div><button className={styles.secondaryButton} onClick={() => void copy(pairing.code)}>Copy</button></div>
+              {pairing.accessMode === "TRADING_CAPABLE_ACCEPTED" && <div className={styles.masterWarning}><b>{tr("Master Password risk accepted", "Đã chấp nhận rủi ro Master Password")}</b><span>{tr("This terminal can trade. OAK does not receive the password and the connector has no trading functions, but Investor Password remains the safer mode.", "Terminal này có quyền giao dịch. OAK không nhận password và connector không có chức năng đặt lệnh, nhưng Investor Password vẫn là chế độ an toàn hơn.")}</span></div>}
+              <div className={styles.codeBox}><div><code>{pairing.code}</code><small>{pairing.accessMode === "READ_ONLY" ? tr("Investor / read-only", "Investor / read-only") : tr("Master access accepted", "Master đã chấp nhận")} · {tr("Remaining", "Còn")} {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}</small></div><button className={styles.secondaryButton} onClick={() => void copy(pairing.code, tr("Pairing code copied", "Đã copy pairing code"))}>Copy</button></div>
               <div className={styles.steps}>
-                <div className={styles.step}><div><b>{tr("Log in to MT5 with the Investor Password", "Đăng nhập MT5 bằng Investor Password")}</b><p>{tr("Do not enter the password on the website. OAK rejects pairing while the terminal reports", "Không nhập password lên website. OAK sẽ từ chối pairing nếu terminal còn")} <code>ACCOUNT_TRADE_ALLOWED=true</code>.</p></div></div>
-                <div className={styles.step}><div><b>{tr("Download the connector and allow WebRequest", "Tải connector và cho phép WebRequest")}</b><p>{tr("Place the .ex5 file in MQL5/Experts, refresh Navigator, then add this URL in Tools → Options → Expert Advisors. The .mq5 source is public for independent audit.", "Đặt file .ex5 vào MQL5/Experts, refresh Navigator, rồi thêm URL này trong Tools → Options → Expert Advisors. Source .mq5 được công khai để tự audit.")}</p><span className={styles.urlBox}>https://www.oakgatekeeper.uk <button className={styles.ghostButton} onClick={() => void copy("https://www.oakgatekeeper.uk")}>Copy</button></span><div className={styles.heroActions}><a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_ReadOnly_Connector.ex5" download>{tr("Download .ex5", "Tải .ex5")}</a><a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_ReadOnly_Connector.mq5" download>{tr("View source", "Xem source")}</a><a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_ReadOnly_Connector.sha256.txt" download>SHA-256</a></div></div></div>
-                <div className={styles.step}><div><b>{tr("Attach the EA and enter the pairing code", "Attach EA và nhập pairing code")}</b><p>{tr("Attach OAK_NeoTech_ReadOnly_Connector to any chart and enter the code above. The connector pairs itself, stores the ingest token locally, and sends read-only snapshots.", "Gắn OAK_NeoTech_ReadOnly_Connector vào chart bất kỳ, nhập code phía trên. Connector tự pair, lưu token ingest cục bộ và gửi snapshot read-only.")}</p></div></div>
+                <div className={styles.step}><div><b>{pairing.accessMode === "READ_ONLY" ? tr("Log in to MT5 with the Investor Password", "Đăng nhập MT5 bằng Investor Password") : tr("Log in to MT5 with the Master Password", "Đăng nhập MT5 bằng Master Password")}</b><p>{tr("Never enter the password on this website. The pairing code itself records which capability mode you explicitly selected.", "Không bao giờ nhập password lên website. Pairing code ghi nhận đúng chế độ quyền mà bạn đã chủ động chọn.")}</p></div></div>
+                <div className={styles.step}><div><b>{tr("Download the connector and allow WebRequest", "Tải connector và cho phép WebRequest")}</b><p>{tr("Place the .ex5 file in MQL5/Experts, refresh Navigator, then add this URL in Tools → Options → Expert Advisors. The .mq5 source is public for independent audit.", "Đặt file .ex5 vào MQL5/Experts, refresh Navigator, rồi thêm URL này trong Tools → Options → Expert Advisors. Source .mq5 được công khai để tự audit.")}</p><span className={styles.urlBox}>https://www.oakgatekeeper.uk <button className={styles.ghostButton} onClick={() => void copy("https://www.oakgatekeeper.uk", tr("WebRequest URL copied", "Đã copy URL WebRequest"))}>Copy</button></span><div className={styles.heroActions}><a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_ReadOnly_Connector.ex5" download>{tr("Download .ex5", "Tải .ex5")}</a><a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_ReadOnly_Connector.mq5" download>{tr("View source", "Xem source")}</a><a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_ReadOnly_Connector.sha256.txt" download>SHA-256</a></div></div></div>
+                <div className={styles.step}><div><b>{tr("Attach the EA and enter the pairing code", "Attach EA và nhập pairing code")}</b><p>{tr("Attach OAK_NeoTech_ReadOnly_Connector to any chart and enter the code above. The connector stores its ingest token locally and sends telemetry only; it contains no trading functions.", "Gắn OAK_NeoTech_ReadOnly_Connector vào chart bất kỳ, nhập code phía trên. Connector lưu token ingest cục bộ và chỉ gửi telemetry; source không có chức năng đặt lệnh.")}</p></div></div>
               </div>
               <div className={styles.waiting}><span className={styles.spinner} /> {tr("Waiting for connector… the profile opens automatically when the account appears.", "Đang chờ connector… profile sẽ mở tự động khi account xuất hiện.")}</div>
               {secondsLeft <= 0 && <div className={styles.error}>{tr("Pairing code expired. Close this dialog and create a new code.", "Pairing code đã hết hạn. Đóng cửa sổ và tạo code mới.")}</div>}

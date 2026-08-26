@@ -31,5 +31,6 @@ export async function POST(request: Request) {
     connectorId: result.result.connectorId,
     connectorToken: result.result.connectorToken,
     readOnlyVerified: result.result.account.readOnlyVerified,
+    accessMode: result.result.account.accessMode,
   });
 }

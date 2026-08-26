@@ -37,12 +37,25 @@ test("public NeoTech analytics source cannot import trading execution surfaces",
   }
 });
 
-test("public MT5 connector is structurally read-only", () => {
+test("public MT5 connector remains structurally non-trading even when Master access is explicitly accepted", () => {
   const sourcePath = path.join(repoRoot, "mt5", "OAK_NeoTech_ReadOnly_Connector.mq5");
   const source = readFileSync(sourcePath, "utf8");
   const forbidden = ["#include <Trade/", "CTrade", "OrderSend(", "OrderSendAsync(", ".Buy(", ".Sell(", "PositionClose(", "PositionModify(", "OrderDelete("];
-  for (const token of forbidden) assert.equal(source.includes(token), false, `read-only connector must not contain ${token}`);
+  for (const token of forbidden) assert.equal(source.includes(token), false, `telemetry connector must not contain ${token}`);
   assert.match(source, /ACCOUNT_TRADE_ALLOWED/);
   assert.match(source, /Investor Password/);
+  assert.match(source, /TRADING_CAPABLE_ACCEPTED/);
   assert.match(source, /WebRequest\(/);
+});
+
+test("Master pairing is browser-authorized and NeoTech Copy actions expose visible toast feedback", () => {
+  const pairingRoute = readFileSync(path.join(dashboardRoot, "src", "app", "api", "neotech", "public", "pairing", "route.ts"), "utf8");
+  const ui = readFileSync(path.join(dashboardRoot, "src", "app", "neotech", "NeoTechPublicDashboard.tsx"), "utf8");
+  assert.match(pairingRoute, /TRADING_CAPABLE_ACCEPTED/);
+  assert.match(pairingRoute, /riskAccepted !== true/);
+  assert.match(ui, /MASTER PASSWORD WARNING/);
+  assert.match(ui, /Master Password risk accepted/);
+  assert.match(ui, /styles\.toast/);
+  assert.match(ui, /Pairing code copied/);
+  assert.match(ui, /WebRequest URL copied/);
 });

@@ -3,7 +3,7 @@ import { NeoTechPublicDashboard } from "./NeoTechPublicDashboard";
 
 export const metadata: Metadata = {
   title: "NeoTech Visual Profile — OAK Gatekeeper",
-  description: "Read-only MT5 analytics and NeoTech rule profile with no trading password stored by OAK.",
+  description: "NeoTech MT5 analytics with Investor Password recommended, optional Master access after explicit risk acceptance, and no MT5 password stored by OAK.",
 };
 
 export default function NeoTechPage() {
