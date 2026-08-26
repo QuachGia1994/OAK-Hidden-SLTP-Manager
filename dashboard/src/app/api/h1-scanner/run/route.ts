@@ -12,8 +12,9 @@ import {
   H1_SCAN_END_HOUR,
   H1_SCAN_HOURS,
   H1_TARGET_BASES,
-  audusdH3SignalForXauH4,
+  audusdH3Signal,
   backfillSuppressedHistory,
+  baseHourForTargetSlot,
   baseSymbolForTargetSlot,
   blockedTradeSlots,
   buildStoredAlert,
@@ -230,12 +231,13 @@ export async function POST(request: Request) {
       for (const match of matches) {
         if (delivered.has(match.slotHour)) continue;
         const baseSymbol = baseSymbolForTargetSlot(base, match.slotHour);
-        const baseBar = byBaseHour[baseSymbol]?.get(match.slotHour - 1);
+        const baseBar = byBaseHour[baseSymbol]?.get(baseHourForTargetSlot(base, match.slotHour));
         if (!baseBar) break;
-        const inheritedSignal = base === "XAUUSD" && match.slotHour === 4
-          ? audusdH3SignalForXauH4(market.symbols.AUDUSD.bars, market.symbols.XAUUSD.bars)
+        const inheritsAudusdH3 = (base === "XAUUSD" && match.slotHour === 4) || (base === "GBPUSD" && match.slotHour === 3);
+        const inheritedSignal = inheritsAudusdH3
+          ? audusdH3Signal(market.symbols.AUDUSD.bars, market.symbols.XAUUSD.bars)
           : null;
-        if (base === "XAUUSD" && match.slotHour === 4 && !inheritedSignal) break;
+        if (inheritsAudusdH3 && !inheritedSignal) break;
         const alert = buildStoredAlert({
           base,
           brokerSymbol: market.symbols[base].displayName || base,
@@ -244,7 +246,9 @@ export async function POST(request: Request) {
           match,
           baseSymbol,
           baseBar,
+          baseHourOverride: base === "GBPUSD" && match.slotHour === 3 ? 3 : undefined,
           inheritedSignal: inheritedSignal || undefined,
+          inheritedSignalMode: base === "GBPUSD" && match.slotHour === 3 ? "inverse" : "direct",
         });
         pending.push({
           base,

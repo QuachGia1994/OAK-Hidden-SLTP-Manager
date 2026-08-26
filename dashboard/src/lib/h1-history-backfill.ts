@@ -1,7 +1,8 @@
 import { brokerDateWeekdayIndex, isValidBrokerDateKey } from "./h1-broker-date.ts";
 import {
   H1_TARGET_BASES,
-  audusdH3SignalForXauH4,
+  audusdH3Signal,
+  baseHourForTargetSlot,
   baseSymbolForTargetSlot,
   buildStoredAlert,
   findH1PatternMatchesForTarget,
@@ -38,12 +39,13 @@ export function reconstructHistoricalDays(market: H1HistoricalMarket): H1Histori
       const alerts = findH1PatternMatchesForTarget(base, perBase[scannerBase], 18).flatMap((match) => {
         const baseSymbol = baseSymbolForTargetSlot(base, match.slotHour);
         const baseByHour = new Map(perBase[baseSymbol].map((bar) => [bar.hour, bar]));
-        const baseBar = baseByHour.get(match.slotHour - 1);
+        const baseBar = baseByHour.get(baseHourForTargetSlot(base, match.slotHour));
         if (!baseBar) return [];
-        const inheritedSignal = base === "XAUUSD" && match.slotHour === 4
-          ? audusdH3SignalForXauH4(perBase.AUDUSD, perBase.XAUUSD)
+        const inheritsAudusdH3 = (base === "XAUUSD" && match.slotHour === 4) || (base === "GBPUSD" && match.slotHour === 3);
+        const inheritedSignal = inheritsAudusdH3
+          ? audusdH3Signal(perBase.AUDUSD, perBase.XAUUSD)
           : null;
-        if (base === "XAUUSD" && match.slotHour === 4 && !inheritedSignal) return [];
+        if (inheritsAudusdH3 && !inheritedSignal) return [];
         return [buildStoredAlert({
           base,
           brokerSymbol: market[base].displayName || base,
@@ -52,7 +54,9 @@ export function reconstructHistoricalDays(market: H1HistoricalMarket): H1Histori
           match,
           baseSymbol,
           baseBar,
+          baseHourOverride: base === "GBPUSD" && match.slotHour === 3 ? 3 : undefined,
           inheritedSignal: inheritedSignal || undefined,
+          inheritedSignalMode: base === "GBPUSD" && match.slotHour === 3 ? "inverse" : "direct",
         })];
       });
       const symbolState = {

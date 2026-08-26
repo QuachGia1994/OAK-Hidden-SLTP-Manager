@@ -209,6 +209,8 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
   const { base, date, alert } = selection;
   const baseInverted = base === "GBPUSD" || base === "AUDUSD" || base === "USDCAD" || base === "USDJPY";
   const inheritedAudusdH3 = base === "XAUUSD" && alert.slotHour === 4 && alert.baseSymbol === "AUDUSD";
+  const invertedAudusdH3 = base === "GBPUSD" && alert.slotHour === 3 && alert.baseSymbol === "AUDUSD";
+  const audusdH3Source = inheritedAudusdH3 || invertedAudusdH3;
   const baseDetail = alert.baseSignal
     ? `${alert.baseSignal}${alert.baseHour !== null ? ` · H${String(alert.baseHour).padStart(2, "0")}=${alert.baseDirection || "—"}` : ""}`
     : "—";
@@ -227,8 +229,8 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
         </div>
         <div className="oak-h1-explain">
           <p><span>{locale === "EN" ? "Pattern group" : "Nhóm pattern"}</span><b>{patternLabel(alert.patternKind, locale)}</b></p>
-          <p><span>{inheritedAudusdH3 ? (locale === "EN" ? "Source signal · AUDUSD H3" : "Nguồn signal · AUDUSD H3") : `Base H1 · ${alert.baseSymbol}`}</span><b>{baseDetail}</b></p>
-          <p><span>{locale === "EN" ? "Base logic" : "Logic base"}</span><b>{inheritedAudusdH3 ? (locale === "EN" ? "inherit AUDUSD H3 signal" : "lấy signal AUDUSD H3") : locale === "EN" ? `${baseInverted ? "reverse" : "follow"} ${alert.baseSymbol} H1` : `${baseInverted ? "đảo ngược" : "giữ nguyên"} ${alert.baseSymbol} H1`}</b></p>
+          <p><span>{audusdH3Source ? (locale === "EN" ? "Source signal · AUDUSD H3" : "Nguồn signal · AUDUSD H3") : `Base H1 · ${alert.baseSymbol}`}</span><b>{baseDetail}</b></p>
+          <p><span>{locale === "EN" ? "Base logic" : "Logic base"}</span><b>{inheritedAudusdH3 ? (locale === "EN" ? "inherit AUDUSD H3 signal" : "lấy signal AUDUSD H3") : invertedAudusdH3 ? (locale === "EN" ? "reverse AUDUSD H3 signal" : "đảo ngược signal AUDUSD H3") : locale === "EN" ? `${baseInverted ? "reverse" : "follow"} ${alert.baseSymbol} H1` : `${baseInverted ? "đảo ngược" : "giữ nguyên"} ${alert.baseSymbol} H1`}</b></p>
           <p><span>AllowTrade lookback</span><b>{allowTradeLookbackLabel(alert, locale)}</b></p>
           <p><span>{locale === "EN" ? "Post-signal" : "Hậu signal"}</span><b>{postSignalLabel(alert.postSignalRule, alert.postSignalInverted, locale)}</b></p>
           <p><span>{locale === "EN" ? "Trade state" : "Trạng thái trade"}</span><b data-trade-state={alert.tradeAllowed === false ? "blocked" : "active"}>{alert.tradeAllowed === false ? "BLOCK / NOT TRADE" : "ACTIVE"}</b></p>
