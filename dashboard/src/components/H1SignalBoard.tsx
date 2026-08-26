@@ -173,7 +173,7 @@ function patternLabel(kind: H1PatternKind, locale: Locale) {
   const labels: Record<H1PatternKind, { EN: string; VN: string }> = {
     sw2: { EN: "SW 2-candle", VN: "SW 2 cây" },
     sw3Pure: { EN: "Pattern 1 · TGG / GTT", VN: "Pattern 1 · TGG / GTT" },
-    sw3Normal: { EN: "Pattern 2 · TTT / GGG", VN: "Pattern 2 · TTT / GGG" },
+    sw3Normal: { EN: "Pattern 2 · 4+ same-direction candles", VN: "Pattern 2 · từ 4 cây cùng hướng" },
   };
   return labels[kind][locale];
 }

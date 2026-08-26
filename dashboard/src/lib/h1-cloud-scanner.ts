@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 33;
+export const H1_CLOUD_STATE_VERSION = 34;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 27;
+export const H1_SIGNAL_RULE_VERSION = 28;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v33";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v34";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -70,7 +70,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 33;
+  version: 34;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -79,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 27;
+  signalRuleVersion: 28;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -115,7 +115,7 @@ const BLOCK_PAIR_2 = new Set(["TG", "GT"]);
 const PATTERN_LABELS: Record<H1PatternKind, string> = {
   sw2: "SW 2 cây",
   sw3Pure: "SW 3 cây thuần",
-  sw3Normal: "SW 3 cây thường",
+  sw3Normal: "Pattern 2 · 4+ cây cùng hướng",
 };
 
 export function signalFromDirection(direction: H1Direction): H1Signal {
@@ -229,10 +229,6 @@ function rowsForHours(byHour: Map<number, H1DirectionBar>, hours: number[]): H1D
   return rows.every(Boolean) ? rows as H1DirectionBar[] : null;
 }
 
-function isPattern2Triple(pattern: string): boolean {
-  return PATTERN_2_TRIPLES.has(pattern);
-}
-
 function lookbackActionForPattern(pattern: string): H1LookbackAction {
   if (PURE_SW_3.has(pattern)) return "block-pattern1";
   if (PATTERN_2_TRIPLES.has(pattern)) return "block-pattern2";
@@ -241,7 +237,7 @@ function lookbackActionForPattern(pattern: string): H1LookbackAction {
 }
 
 function allowTradeLookback(byHour: Map<number, H1DirectionBar>, slotHour: number, patternKind: H1PatternKind): { pattern: string | null; action: H1LookbackAction } {
-  if (slotHour < 7 || patternKind !== "sw3Pure") return { pattern: null, action: "none" };
+  if (slotHour < 7 || (patternKind !== "sw3Pure" && patternKind !== "sw3Normal")) return { pattern: null, action: "none" };
 
   const primaryRows = rowsForHours(byHour, [slotHour - 4, slotHour - 5, slotHour - 6]);
   if (!primaryRows) return { pattern: null, action: "none" };
@@ -307,13 +303,13 @@ function targetLookbackGate(base: H1TargetBase, byHour: Map<number, H1DirectionB
 function mainPatternMatch(byHour: Map<number, H1DirectionBar>, slotHour: number): H1PatternMatch | null {
   const rows3 = rowsForHours(byHour, [slotHour - 1, slotHour - 2, slotHour - 3]);
   if (!rows3) return null;
-  const pattern = rows3.map((row) => row.direction) as H1Direction[];
-  const text = pattern.join("");
-  if (PURE_SW_3.has(text)) {
+  const pattern3 = rows3.map((row) => row.direction) as H1Direction[];
+  const text3 = pattern3.join("");
+  if (PURE_SW_3.has(text3)) {
     const lookback = allowTradeLookback(byHour, slotHour, "sw3Pure");
     return {
       slotHour,
-      pattern,
+      pattern: pattern3,
       bars: rows3,
       patternKind: "sw3Pure",
       lookbackPattern: lookback.pattern,
@@ -321,10 +317,28 @@ function mainPatternMatch(byHour: Map<number, H1DirectionBar>, slotHour: number)
       tradeAllowed: !lookback.action.startsWith("block-"),
     };
   }
-  if (!isPattern2Triple(text)) return null;
-  const older = byHour.get(slotHour - 4);
-  if (older?.direction === pattern[0]) return null;
-  return { slotHour, pattern, bars: rows3, patternKind: "sw3Normal", lookbackPattern: null, lookbackAction: "none", tradeAllowed: true };
+
+  const rows4 = rowsForHours(byHour, [slotHour - 1, slotHour - 2, slotHour - 3, slotHour - 4]);
+  if (!rows4) return null;
+  const pattern4 = rows4.map((row) => row.direction) as H1Direction[];
+  if (!pattern4.every((direction) => direction === pattern4[0])) return null;
+
+  // Pattern 2 begins at four same-direction candles. At H6 we still accept a run
+  // that already started before the main scanner opened; from H7 onward, an older
+  // candle in the same direction means this slot is only a continuation of the run.
+  const older = byHour.get(slotHour - 5);
+  if (slotHour > H1_SCAN_START_HOUR && older?.direction === pattern4[0]) return null;
+
+  const lookback = allowTradeLookback(byHour, slotHour, "sw3Normal");
+  return {
+    slotHour,
+    pattern: pattern4,
+    bars: rows4,
+    patternKind: "sw3Normal",
+    lookbackPattern: lookback.pattern,
+    lookbackAction: lookback.action,
+    tradeAllowed: !lookback.action.startsWith("block-"),
+  };
 }
 
 export function findH1PatternMatchesForTarget(base: H1TargetBase, bars: H1DirectionBar[], brokerHour: number): H1PatternMatch[] {
@@ -337,11 +351,6 @@ export function findH1PatternMatchesForTarget(base: H1TargetBase, bars: H1Direct
   const byHour = new Map(bars.map((bar) => [bar.hour, bar]));
   const mainMatches = findH1PatternMatches(bars, brokerHour);
   matches.push(...mainMatches.map((match) => {
-    // The first valid Pattern 2 of the day is strongest: it is scanned/traded
-    // without any pair/triple lookback block or inversion. Repeated Pattern 2
-    // matches are still removed by the daily first-only filter below.
-    if (match.patternKind === "sw3Normal") return match;
-
     const gate = targetLookbackGate(base, byHour, match.slotHour);
     if (gate.pattern === null) return match;
     return {
