@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixed dashboard UI/UX regressions across mobile locale access, provider-account error states, VIP/H1/NeoTech keyboard focus, VIP logout feedback, shared Fact Check locale handling and the removed H1 PROFILE card; NeoTech now follows EN/VN globally, reports Copy outcomes and reuses shared semantic status colors. Added a UI/UX regression contract to the dashboard test/build gate.
 - Added a public/customer NeoTech Visual Profile at `/neotech` with low-friction Investor Password onboarding, a separately compiled/readable MT5 read-only connector, server-authoritative rule scoring, visual rule/FDD/coverage/month evidence, private browser workspaces, one-time pairing, revoke and immediate server-data purge. The web never receives MT5 passwords; pairing/ingest fail closed when `ACCOUNT_TRADE_ALLOWED=true`, connector tokens are stored only as SHA-256 hashes, raw deal/cash-flow payloads are not persisted, retained derived/account/equity/audit data uses a 400-day maximum sliding retention, and build-time contract tests forbid public analytics from importing trading execution surfaces.
 - Fixed Telegram `/help` and `/start` being silently ignored outside the configured cloud-control chat; only these read-only help commands now bypass the cloud chat fence, while trading/control commands remain restricted.
 - Telegram `/help` and `/start` now include NeoTech `/check` usage for summary, C5, violations, pagination and group commands; `/check @profile 2` is supported as summary page 2 shorthand.

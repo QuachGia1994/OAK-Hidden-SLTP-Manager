@@ -144,7 +144,7 @@ color: var(--oak-accent-command);
 }
 .oak-locale-switch button[data-active="true"] {
 
-color: #fff; background: var(--oak-accent-command); box-shadow: none;
+color: var(--oak-bg-canvas); background: var(--oak-accent-command); box-shadow: none;
 }
 .oak-theme-toggle {
   display: grid;
@@ -188,7 +188,7 @@ color: var(--oak-accent-command); font-size: .5rem; letter-spacing: .15em;
   text-transform: uppercase;
   transition: transform .36s cubic-bezier(.2,.8,.2,1), box-shadow .36s ease, opacity .24s ease;
 
-color: #fff; background: var(--oak-accent-command); border-color: var(--oak-accent-command); box-shadow: none;
+color: var(--oak-bg-canvas); background: var(--oak-accent-command); border-color: var(--oak-accent-command); box-shadow: none;
 }
 .oak-primary-action:hover:not(:disabled) {
 
@@ -744,7 +744,7 @@ font-size: clamp(2rem,5vw,3.25rem); line-height: .96;
 .discover-form textarea { min-height: 7rem; resize: vertical; padding: .75rem .8rem; }.discover-form input,.mood-note input { min-height: 2.8rem; padding: 0 .8rem; }
 .discover-form textarea:focus,.discover-form input:focus,.mood-note input:focus { border-color: color-mix(in srgb, var(--terminal-accent) 55%, var(--panel-border)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--terminal-accent) 7%, transparent); }
 .discover-form-foot { display: flex; align-items: center; justify-content: space-between; gap: .7rem; }.discover-form-foot small { color: var(--muted); font: 750 .52rem "Cascadia Mono", Consolas, monospace; }
-.discover-form button,.mood-note button { min-height: 2.75rem; padding: .55rem .85rem; border: 1px solid color-mix(in srgb, var(--terminal-accent) 52%, var(--panel-border)); border-radius: .68rem; color: #03130d; background: var(--terminal-accent); font: 900 .62rem "Cascadia Mono", Consolas, monospace; transition: transform .28s ease, opacity .25s ease; }
+.discover-form button,.mood-note button { min-height: 2.75rem; padding: .55rem .85rem; border: 1px solid color-mix(in srgb, var(--terminal-accent) 52%, var(--panel-border)); border-radius: .68rem; color: var(--oak-bg-canvas); background: var(--terminal-accent); font: 900 .62rem "Cascadia Mono", Consolas, monospace; transition: transform .28s ease, opacity .25s ease; }
 .discover-form button:hover:not(:disabled),.mood-note button:hover { transform: translateY(-1px); }.discover-form button:disabled { opacity: .38; }
 .discover-ai-result { display: grid; gap: .65rem; margin-top: .85rem; animation: oak-panel-enter .55s cubic-bezier(.16,1,.3,1) both; }
 .discover-summary { padding: .8rem .9rem; border-left: 2px solid var(--terminal-accent); background: color-mix(in srgb, var(--terminal-accent) 4%, var(--surface-raised)); font-size: .76rem; line-height: 1.65; }
@@ -1037,7 +1037,6 @@ min-height: 7rem;
   .oak-tools { display: contents; }
   .oak-tools-trigger { width: 100%; }
   .oak-tools-menu { position: fixed; top: calc(env(safe-area-inset-top) + 7rem); left: .65rem; right: .65rem; width: auto; max-height: min(20rem, calc(100dvh - env(safe-area-inset-top) - 8rem)); overflow-y: auto; overscroll-behavior: contain; }
-  .oak-locale-switch { display: none; }
   .oak-command-strip { align-items: flex-start; flex-direction: column; min-height: 0; padding: .6rem .7rem; }
   .oak-engine-error { grid-template-columns: auto 1fr; }
   .oak-engine-error > button { grid-column: 1 / -1; width: 100%; }
@@ -1045,7 +1044,6 @@ min-height: 7rem;
   .oak-command-title h1 { font-size: 1rem; }
   .oak-command-meta { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: .25rem; }
   .oak-command-meta > span { min-width: 0; padding: .35rem .45rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-sm); background: var(--oak-bg-raised); }
-  .oak-command-meta > span:last-child { grid-column: 1 / -1; }
   .oak-command-meta b { white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
   .oak-fact-hero-main h1 { font-size: 1.8rem; }
   .tarot-hero-copy h1, .discover-hero h1 { font-size: 2.2rem !important; }

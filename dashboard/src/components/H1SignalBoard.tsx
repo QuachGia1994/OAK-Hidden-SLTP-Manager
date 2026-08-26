@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useDialogFocusTrap } from "@/hooks/useDialogFocusTrap";
 import { historyDatesForWeekday, selectHistoryDate, type H1HistoryWeekdayFilter } from "@/lib/h1-history-navigation";
 import type { H1PatternKind, H1SignalAlert, H1SignalPayload } from "@/lib/h1-signals";
 
@@ -202,33 +203,8 @@ function allowTradeLookbackLabel(alert: H1SignalAlert, locale: Locale) {
   return locale === "EN" ? "no effect" : "không tác động";
 }
 
-function useDialogFocus(onClose: () => void) {
-  const ref = useRef<HTMLElement | null>(null);
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-  useEffect(() => {
-    const dialog = ref.current;
-    if (!dialog) return;
-    const previous = document.activeElement as HTMLElement | null;
-    const oldOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const focusTarget = dialog.querySelector<HTMLElement>("button");
-    focusTarget?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeRef.current();
-    };
-    dialog.addEventListener("keydown", onKeyDown);
-    return () => {
-      dialog.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = oldOverflow;
-      previous?.focus();
-    };
-  }, []);
-  return ref;
-}
-
 function DetailModal({ selection, locale, onClose }: { selection: Selection; locale: Locale; onClose: () => void }) {
-  const ref = useDialogFocus(onClose);
+  const ref = useDialogFocusTrap(true, onClose);
   const { base, date, alert } = selection;
   const baseInverted = base === "GBPUSD" || base === "AUDUSD" || base === "USDJPY";
   const baseDetail = alert.baseSignal

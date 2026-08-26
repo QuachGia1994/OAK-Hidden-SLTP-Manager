@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { H1SignalBoard } from "@/components/H1SignalBoard";
+import { useDialogFocusTrap } from "@/hooks/useDialogFocusTrap";
 import type { H1SignalPayload } from "@/lib/h1-signals";
 
 type Locale = "EN" | "VN";
@@ -29,34 +30,6 @@ function formatPublished(value: string | undefined, locale: Locale) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function useDialogFocusTrap(open: boolean, onClose: () => void) {
-  const dialogRef = useRef<HTMLElement | null>(null);
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-  useEffect(() => {
-    if (!open || !dialogRef.current) return;
-    const dialog = dialogRef.current;
-    const previous = document.activeElement as HTMLElement | null;
-    const oldOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const initial = window.requestAnimationFrame(() => dialog.querySelector<HTMLElement>("input,button")?.focus());
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onCloseRef.current();
-      }
-    };
-    dialog.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.cancelAnimationFrame(initial);
-      dialog.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = oldOverflow;
-      previous?.focus();
-    };
-  }, [open]);
-  return dialogRef;
 }
 
 function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) {
@@ -115,6 +88,7 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
       {access.mode === "vip" && <button type="button" disabled={loading} onClick={() => void logout()}>{loading ? "…" : modeCopy.action}</button>}
       {access.mode === "locked" && <button type="button" onClick={() => setOpen(true)}>{modeCopy.action}</button>}
     </section>
+    {!open && error && <p className="oak-form-error" role="alert">{error}</p>}
     {open && <div className="oak-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
       <section ref={dialogRef} className="oak-vip-modal" role="dialog" aria-modal="true" aria-label="VIP Unlock">
         <header className="oak-modal-header"><div><span className="oak-eyebrow">PRIVATE ACCESS</span><h2>VIP UNLOCK</h2><p>{isEn ? "Enter your access code to reveal weekday signals." : "Nhập mã truy cập để mở tín hiệu ngày thường."}</p></div><button type="button" onClick={() => setOpen(false)} aria-label="Close">×</button></header>
@@ -129,7 +103,6 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
 export function H1EngineBoard({ h1Data, locale, access }: { h1Data: H1SignalPayload | null; locale: Locale; access: VipAccessView }) {
   const dates = h1Data ? Object.keys(h1Data.days).sort() : [];
   const brokerDay = dates.at(-1) ?? "—";
-  const profile = h1Data?.profile || "cTrader IcMarkets";
   const copy = locale === "EN"
     ? { title: "H1 Cloud Scanner", subtitle: "cTrader Live", day: "Broker day", updated: "Updated" }
     : { title: "Scanner H1 Cloud", subtitle: "cTrader Live", day: "Ngày broker", updated: "Cập nhật" };
@@ -138,7 +111,6 @@ export function H1EngineBoard({ h1Data, locale, access }: { h1Data: H1SignalPayl
     <header className="oak-command-strip">
       <div className="oak-command-title"><span className="oak-eyebrow">TRADING / H1 CLOUD</span><div><h1>{copy.title}</h1><b>{copy.subtitle}</b></div></div>
       <div className="oak-command-meta">
-        <span><small>PROFILE</small><b>{profile}</b></span>
         <span><small>{copy.day.toUpperCase()}</small><b>{brokerDay}</b></span>
         <span><small>{copy.updated.toUpperCase()}</small><b>{formatPublished(h1Data?.publishedAt, locale)}</b></span>
       </div>

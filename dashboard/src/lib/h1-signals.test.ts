@@ -53,10 +53,9 @@ test("mobile H1 adapter preserves admin auth and normalized cloud feed semantics
   assert.doesNotMatch(mobileH1RouteSource, /UPSTASH|CTRADER_CLIENT_SECRET|DASHBOARD_API_KEY/);
 });
 
-test("engine web surface is H1-only and profiles from cTrader feed", () => {
+test("engine web surface is H1-only with the compact command header", () => {
   assert.doesNotMatch(enginePageSource, /getLatestPattern5|filterActivePattern5|maskFuturePattern5|redactPattern5Signals/);
-  assert.doesNotMatch(engineBoardSource, /Pattern5Payload|Pattern5Table|H4|ENGINE 05|Pattern Matrix|Trạng thái tín hiệu hiện tại/);
-  assert.match(engineBoardSource, /h1Data\?\.profile \|\| "cTrader IcMarkets"/);
+  assert.doesNotMatch(engineBoardSource, /Pattern5Payload|Pattern5Table|H4|ENGINE 05|Pattern Matrix|Trạng thái tín hiệu hiện tại|<small>PROFILE<\/small>|h1Data\?\.profile/);
   assert.match(engineBoardSource, /TRADING \/ H1 CLOUD/);
 });
 

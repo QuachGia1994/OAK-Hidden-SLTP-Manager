@@ -2,7 +2,7 @@
 
 All notable changes to the dashboard are recorded here.
 
-## [Unreleased]
+## [0.6.0] - 2026-08-26
 
 ### Added
 
@@ -15,10 +15,13 @@ All notable changes to the dashboard are recorded here.
 ### Changed
 
 - Telegram `/help` and `/start` now show NeoTech `/check` examples for summary, C5, violations, pagination and group use. `/check @profile 2` now selects summary page 2 directly.
+- NeoTech now follows the global EN/VN locale for its public workspace, pairing flow, timestamps, status labels and account actions. Hardcoded NeoTech status/accent colors now reuse the shared OAK semantic tokens across light/dark/contrast themes.
 
 ### Fixed
 
 - Telegram `/help` and `/start` now respond even when the chat is not the configured cloud-control chat. The bypass is limited to read-only help; trading/control commands remain chat-fenced.
+- Fixed dashboard UI/UX regressions: the EN/VN switch remains available on mobile, provider-account network/API failures no longer masquerade as an admin-auth lock, VIP/H1/NeoTech dialogs trap keyboard focus and close with Escape, VIP logout failures remain visible, expired/missing shared Fact Check pages respect the active locale, NeoTech Copy actions report success/failure, and the removed H1 `PROFILE` card no longer reappears.
+- Added a UI/UX contract test to the normal test/build gate so the repaired mobile locale, account error-state, dialog focus, H1 header and locale contracts are regression-checked.
 
 ## [0.5.0] - 2026-08-25
 

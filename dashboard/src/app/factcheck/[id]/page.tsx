@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import { FactCheckPublicView } from "@/components/factcheck/FactCheckPublicView";
 import { FactCheckMediaPublicView } from "@/components/factcheck/FactCheckMediaPublicView";
 import type { FactCheckResult } from "@/lib/factcheck/types";
 import type { ImageAuthenticityResult } from "@/lib/factcheck/media-types";
 import { TEXT } from "@/lib/factcheck/locale-copy";
+import { detectServerLocaleFromCookie } from "@/lib/i18n";
 import { buildOgDescription, buildOgTitle } from "@/lib/factcheck/presentation";
 import { buildMediaOgDescription, buildMediaOgTitle } from "@/lib/factcheck/media-presentation";
 import { isValidShareId, publicSharePath } from "@/lib/factcheck/share-id";
@@ -79,7 +81,8 @@ export default async function SharedFactCheckPage({ params }: PageProps) {
   if (lookup.status === "malformed") notFound();
 
   if (lookup.status === "not_found" || lookup.status === "expired") {
-    const locale: "VN" | "EN" = "VN";
+    const headerList = await headers();
+    const locale = detectServerLocaleFromCookie(headerList.get("cookie"), headerList.get("accept-language"));
     const t = TEXT[locale];
     const isExpired = lookup.status === "expired";
     return (

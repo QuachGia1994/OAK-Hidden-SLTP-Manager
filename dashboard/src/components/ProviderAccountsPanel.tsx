@@ -50,15 +50,17 @@ type AccountPayload = {
 };
 
 export function ProviderAccountsPanel() {
-  const [state, setState] = useState<"loading" | "locked" | "ready">("loading");
+  const [state, setState] = useState<"loading" | "locked" | "error" | "ready">("loading");
   const [payload, setPayload] = useState<AccountPayload | null>(null);
   const [providerTab, setProviderTab] = useState<Provider>("ctrader");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
 
   const load = useCallback(async () => {
+    setError("");
     const response = await fetch("/api/accounts", { cache: "no-store" });
     if (response.status === 401) {
+      setPayload(null);
       setState("locked");
       return;
     }
@@ -71,7 +73,7 @@ export function ProviderAccountsPanel() {
   useEffect(() => {
     load().catch((reason) => {
       setError(reason instanceof Error ? reason.message : String(reason));
-      setState("locked");
+      setState("error");
     });
   }, [load]);
 
@@ -231,6 +233,14 @@ export function ProviderAccountsPanel() {
           <button type="submit" disabled={busy === "login"}>{busy === "login" ? "Signing in…" : "Sign in"}</button>
         </form>
         {error && <p className="oak-account-error">{error}</p>}
+      </section>
+    );
+  }
+  if (state === "error") {
+    return (
+      <section className="oak-account-panel oak-account-login" role="alert">
+        <header><small>ACCOUNT SERVICE</small><h1>Provider accounts unavailable</h1><p>{error || "Cannot load provider accounts."}</p></header>
+        <button type="button" onClick={() => { setState("loading"); void load().catch((reason) => { setError(reason instanceof Error ? reason.message : String(reason)); setState("error"); }); }}>Retry</button>
       </section>
     );
   }
