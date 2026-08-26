@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 36;
+export const H1_CLOUD_STATE_VERSION = 37;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 30;
+export const H1_SIGNAL_RULE_VERSION = 31;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v36";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v37";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -70,7 +70,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 36;
+  version: 37;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -79,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 30;
+  signalRuleVersion: 31;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -430,7 +430,13 @@ export function buildStoredAlert(args: {
     ? (patternSignal === "BUY" ? "SELL" : "BUY")
     : patternSignal;
   const postSignal = args.inheritedSignal ? { inverted: false, rule: "none" as H1PostSignalRule } : postSignalDecision(args.baseBar.brokerDate, args.match.slotHour);
-  const finalSignal = args.inheritedSignal ? allowTradeSignal : signalFromBaseAfterCalendar(allowTradeSignal, args.baseBar.brokerDate, args.match.slotHour);
+  const calculatedSignal = args.inheritedSignal ? allowTradeSignal : signalFromBaseAfterCalendar(allowTradeSignal, args.baseBar.brokerDate, args.match.slotHour);
+  // GBPUSD has a final polarity lock to the current closed XAUUSD H1 candle.
+  // Lookback/calendar metadata remains diagnostic, but neither may break the
+  // invariant requested for GBPUSD: final signal is always opposite XAUUSD.
+  const finalSignal = args.base === "GBPUSD" && args.baseSymbol === "XAUUSD"
+    ? targetBaseSignal
+    : calculatedSignal;
   return {
     slotHour: args.match.slotHour,
     pattern: args.match.pattern.join(" "),
