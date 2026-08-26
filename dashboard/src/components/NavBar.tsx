@@ -15,6 +15,9 @@ function AccountIcon() {
 function CheckIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5.6c0 4.4 3.1 7.8 7.5 9.4 4.4-1.6 7.5-5 7.5-9.4V6L12 3Z" /><path d="m8.5 12 2.2 2.2 4.8-5" /></svg>;
 }
+function NeoTechIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v4m0 10v4M3 12h4m10 0h4" /><path d="m12 7 3.5 2 2 3.5-2 3.5-3.5 2-3.5-2-2-3.5 2-3.5 3.5-2Z" /><circle cx="12" cy="12.5" r="2.2" /></svg>;
+}
 function TarotIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="2" /><path d="m12 8 .8 2.2L15 11l-2.2.8L12 14l-.8-2.2L9 11l2.2-.8L12 8Z" /></svg>;
 }
@@ -123,6 +126,15 @@ export function NavBar() {
           >
             <span className="oak-nav-icon"><AccountIcon /></span>
             <span>Accounts</span>
+          </Link>
+          <Link
+            href="/neotech"
+            aria-current={pathname === "/neotech" ? "page" : undefined}
+            className="oak-nav-link"
+            data-active={pathname === "/neotech" ? "true" : undefined}
+          >
+            <span className="oak-nav-icon"><NeoTechIcon /></span>
+            <span>NeoTech</span>
           </Link>
 
           <div className="oak-tools" ref={toolsRef}>

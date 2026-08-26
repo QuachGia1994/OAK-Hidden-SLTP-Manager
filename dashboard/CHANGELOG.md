@@ -4,6 +4,14 @@ All notable changes to the dashboard are recorded here.
 
 ## [Unreleased]
 
+### Added
+
+- Added `/neotech` customer Visual Profile with a three-step Investor Password onboarding flow, compiled + auditable-source MT5 read-only connector downloads, server-side NeoTech rule evaluation, radar/rule evidence views, coverage/FDD/month tracking, private browser workspaces, one-time pairing, revoke and immediate data purge.
+
+### Security / privacy
+
+- Public NeoTech analytics is isolated from MT5/cTrader/Telegram execution surfaces by build-time contract tests. Pairing/ingest reject `ACCOUNT_TRADE_ALLOWED=true`, connector bearer tokens are retained only as SHA-256 hashes, raw deal/cash-flow bodies are not persisted, retained derived/account/equity/audit data has a 400-day maximum sliding retention, and missing evidence remains fail-closed instead of being inferred PASS.
+
 ### Changed
 
 - Telegram `/help` and `/start` now show NeoTech `/check` examples for summary, C5, violations, pagination and group use. `/check @profile 2` now selects summary page 2 directly.

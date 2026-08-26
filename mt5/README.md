@@ -70,6 +70,14 @@ The PC may be shut down on weekends if no MT5 cloud work is expected. While the 
 
 Offline verification of the local failover code does not install the Windows Scheduled Task or perform a live Telegram handoff/Upstash outage simulation. Those are separate operator-authorized production steps; no broker mutation is required merely to validate failover ownership.
 
+## NeoTech customer read-only connector
+
+`OAK_NeoTech_ReadOnly_Connector.mq5` is the public/customer telemetry path for `/neotech`. It is intentionally separate from `OAK_Cloud_Manager_EA`: it contains no trading class, `OrderSend`, close, modify or delete path, and initialization plus every sync fail closed unless `ACCOUNT_TRADE_ALLOWED=false` (Investor Password/read-only login).
+
+Customer flow is three steps: log in with Investor Password, download the compiled `OAK_NeoTech_ReadOnly_Connector.ex5` from `/neotech`, add `https://www.oakgatekeeper.uk` to MT5 WebRequest allow-list, then attach the EA with the one-time pairing code. The matching `.mq5` source and SHA-256 manifest are published beside the compiled file for audit. No MT5 password is sent to OAK.
+
+The connector receives one revocable 256-bit ingest token after pairing and stores it only inside the customer's MT5 Files area; the server stores only its SHA-256. Raw deal/cash-flow history is transmitted over HTTPS for server-side rule computation and is not retained as a database record. The retained cloud state is masked/fingerprinted account metadata, derived Visual Profile, bounded equity samples and scoped audit metadata with a 400-day maximum sliding retention. The `/neotech` UI can revoke connector access or immediately purge retained account/profile/equity/connector data.
+
 ## NeoTech compliance EA — independent, read-only
 
 `OAK_NeoTech_Compliance_EA.mq5` is a standalone MQL5 auditor. It reads the attached account's MT5 history, evaluates the NeoTech criteria and answers Telegram directly through the Bot API; no dashboard, Redis, webhook service or Vercel deployment is required. MQL5 (`OAK_NeoTech_Compliance_EA.mq5` plus `neotech/`) remains the only source of truth for formulas and conclusions. This project does not claim official NeoTech approval.
