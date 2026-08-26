@@ -81,6 +81,18 @@ test("historical reconstruction reuses live pattern/base/calendar rules and skip
   });
   assert.deepEqual(history["2026-08-21"].symbols.AUDUSD?.alerts.find((alert) => alert.slotHour === 3), audH3Expected);
 
+  const cadH3Match = findH1PatternMatchesForTarget("USDCAD", market.USDCAD.bars, 3).find((item) => item.slotHour === 3)!;
+  const cadH3Expected = buildStoredAlert({
+    base: "USDCAD",
+    brokerSymbol: "USDCAD",
+    scannerBase: "USDCAD",
+    scannerSymbol: "USDCAD",
+    match: cadH3Match,
+    baseSymbol: "GBPUSD",
+    baseBar: market.GBPUSD.bars.find((bar) => bar.hour === 2)!,
+  });
+  assert.deepEqual(history["2026-08-21"].symbols.USDCAD?.alerts.find((alert) => alert.slotHour === 3), cadH3Expected);
+
   const jpyH3Match = findH1PatternMatchesForTarget("USDJPY", market.USDJPY.bars, 3).find((item) => item.slotHour === 3)!;
   const jpyH3Expected = buildStoredAlert({
     base: "USDJPY",

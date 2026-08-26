@@ -206,7 +206,7 @@ function allowTradeLookbackLabel(alert: H1SignalAlert, locale: Locale) {
 function DetailModal({ selection, locale, onClose }: { selection: Selection; locale: Locale; onClose: () => void }) {
   const ref = useDialogFocusTrap(true, onClose);
   const { base, date, alert } = selection;
-  const baseInverted = base === "GBPUSD" || base === "AUDUSD" || base === "USDJPY";
+  const baseInverted = base === "GBPUSD" || base === "AUDUSD" || base === "USDCAD" || base === "USDJPY";
   const baseDetail = alert.baseSignal
     ? `${alert.baseSignal}${alert.baseHour !== null ? ` · H${String(alert.baseHour).padStart(2, "0")}=${alert.baseDirection || "—"}` : ""}`
     : "—";
