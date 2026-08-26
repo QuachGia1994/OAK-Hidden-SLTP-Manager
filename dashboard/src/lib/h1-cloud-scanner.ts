@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 32;
+export const H1_CLOUD_STATE_VERSION = 33;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 26;
+export const H1_SIGNAL_RULE_VERSION = 27;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v32";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v33";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -70,7 +70,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 32;
+  version: 33;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -79,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 26;
+  signalRuleVersion: 27;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -337,6 +337,11 @@ export function findH1PatternMatchesForTarget(base: H1TargetBase, bars: H1Direct
   const byHour = new Map(bars.map((bar) => [bar.hour, bar]));
   const mainMatches = findH1PatternMatches(bars, brokerHour);
   matches.push(...mainMatches.map((match) => {
+    // The first valid Pattern 2 of the day is strongest: it is scanned/traded
+    // without any pair/triple lookback block or inversion. Repeated Pattern 2
+    // matches are still removed by the daily first-only filter below.
+    if (match.patternKind === "sw3Normal") return match;
+
     const gate = targetLookbackGate(base, byHour, match.slotHour);
     if (gate.pattern === null) return match;
     return {
