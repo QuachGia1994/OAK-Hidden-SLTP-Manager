@@ -16,6 +16,7 @@ type Account = {
   isDefault: boolean;
   connectionMode: "oauth" | "bridge";
   bridgeProfile: string | null;
+  bridgeServer: string | null;
   fxSlPoints: number;
   fxTpPoints: number;
   goldSlPoints: number;
@@ -150,6 +151,7 @@ export function ProviderAccountsPanel() {
           login: Number(form.get("login")),
           label: String(form.get("label") || ""),
           bridgeProfile: String(form.get("bridgeProfile") || ""),
+          bridgeServer: String(form.get("bridgeServer") || ""),
         }),
       });
       const body = await response.json().catch(() => null) as { payload?: AccountPayload; error?: string } | null;
@@ -178,6 +180,7 @@ export function ProviderAccountsPanel() {
           enabled: form.get("enabled") === "on",
           makeDefault: form.get("makeDefault") === "on",
           bridgeProfile: account.provider === "mt5" ? String(form.get("bridgeProfile") || "") : undefined,
+          bridgeServer: account.provider === "mt5" ? String(form.get("bridgeServer") || "") : undefined,
           fxSlPoints: Number(form.get("fxSlPoints")),
           fxTpPoints: Number(form.get("fxTpPoints")),
           goldSlPoints: Number(form.get("goldSlPoints")),
@@ -295,6 +298,7 @@ export function ProviderAccountsPanel() {
           <label>{tr("Environment", "Môi trường")}<select name="environment" defaultValue="live"><option value="live">LIVE</option><option value="demo">DEMO</option></select></label>
           <label>{tr("Label", "Nhãn")}<input name="label" placeholder="Main Vantage" /></label>
           <label>{tr("Bridge profile", "Profile bridge")}<input name="bridgeProfile" placeholder="Vantage" /></label>
+          <label>{tr("MT5 server", "Server MT5")}<input name="bridgeServer" placeholder="Broker-Live" /></label>
         </div>
         <footer><button type="submit" disabled={busy === "create-mt5"}>{busy === "create-mt5" ? tr("Adding…", "Đang thêm…") : tr("Add MT5 account", "Thêm tài khoản MT5")}</button></footer>
       </form>}
@@ -309,6 +313,7 @@ export function ProviderAccountsPanel() {
             <div className="oak-account-fields">
               <label>{tr("Account label", "Nhãn tài khoản")}<input name="label" defaultValue={account.label} /></label>
               {account.provider === "mt5" && <label>{tr("Bridge profile", "Profile bridge")}<input name="bridgeProfile" defaultValue={account.bridgeProfile || ""} placeholder="Vantage" /></label>}
+              {account.provider === "mt5" && <label>{tr("MT5 server", "Server MT5")}<input name="bridgeServer" defaultValue={account.bridgeServer || ""} placeholder="Broker-Live" /></label>}
               <label>{tr("FX SL points", "Điểm SL FX")}<input name="fxSlPoints" type="number" min="1" step="1" defaultValue={account.fxSlPoints} /></label>
               <label>{tr("FX TP points", "Điểm TP FX")}<input name="fxTpPoints" type="number" min="1" step="1" defaultValue={account.fxTpPoints} /></label>
               <label>{tr("Gold SL points", "Điểm SL Gold")}<input name="goldSlPoints" type="number" min="1" step="1" defaultValue={account.goldSlPoints} /></label>

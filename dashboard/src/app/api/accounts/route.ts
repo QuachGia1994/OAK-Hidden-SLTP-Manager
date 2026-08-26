@@ -10,6 +10,7 @@ import {
   deleteManagedMt5Account,
   getDefaultProviderAccountId,
   listProviderAccounts,
+  reconcileManagedMt5AutoBind,
   setDefaultProviderAccount,
   updateProviderAccount,
 } from "@/lib/provider-accounts";
@@ -74,6 +75,10 @@ export async function POST(request: Request) {
       await syncManagedCTraderAccounts(granted.accounts);
       return NextResponse.json(await responsePayload(), { headers: { "Cache-Control": "no-store" } });
     }
+    if (action === "reconcile-mt5-auto-bind") {
+      const reconciliation = await reconcileManagedMt5AutoBind();
+      return NextResponse.json({ ok: true, reconciliation, payload: await responsePayload() }, { headers: { "Cache-Control": "no-store" } });
+    }
     if (action === "create-mt5") {
       const account = await createManagedMt5Account({
         broker: String(body?.broker || ""),
@@ -81,6 +86,7 @@ export async function POST(request: Request) {
         login: Number(body?.login),
         label: String(body?.label || ""),
         bridgeProfile: String(body?.bridgeProfile || ""),
+        bridgeServer: String(body?.bridgeServer || ""),
         fxSlPoints: body?.fxSlPoints === undefined ? undefined : Number(body.fxSlPoints),
         fxTpPoints: body?.fxTpPoints === undefined ? undefined : Number(body.fxTpPoints),
         goldSlPoints: body?.goldSlPoints === undefined ? undefined : Number(body.goldSlPoints),
@@ -105,6 +111,7 @@ export async function PATCH(request: Request) {
       label: body?.label === undefined ? undefined : String(body.label),
       enabled: body?.enabled === undefined ? undefined : body.enabled === true,
       bridgeProfile: body?.bridgeProfile === undefined ? undefined : String(body.bridgeProfile),
+      bridgeServer: body?.bridgeServer === undefined ? undefined : String(body.bridgeServer),
       fxSlPoints: body?.fxSlPoints === undefined ? undefined : Number(body.fxSlPoints),
       fxTpPoints: body?.fxTpPoints === undefined ? undefined : Number(body.fxTpPoints),
       goldSlPoints: body?.goldSlPoints === undefined ? undefined : Number(body.goldSlPoints),

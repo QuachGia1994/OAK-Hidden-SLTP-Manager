@@ -3,6 +3,8 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { redis } from "@/lib/redis-core";
 import { listManagedCTraderAccounts, updateManagedCTraderAccount } from "@/lib/ctrader-accounts";
+import { getMt5BridgeHeartbeat } from "@/lib/mt5-bridge";
+import { createMt5AutoBindRecord, mt5AutoBindExactKey, mt5AutoBindLoginKey, normalizeMt5Server } from "@/lib/mt5-auto-bind-domain";
 import {
   assertUniqueProviderLabels,
   cTraderProviderAccountId,
@@ -26,6 +28,7 @@ export type ManagedMt5Account = {
   label: string;
   enabled: boolean;
   bridgeProfile: string;
+  bridgeServer: string;
   fxSlPoints: number;
   fxTpPoints: number;
   goldSlPoints: number;
@@ -51,6 +54,7 @@ function parseMt5Account(raw: unknown): ManagedMt5Account | null {
       label: String(row.label || login).trim().slice(0, 80),
       enabled: row.enabled === true,
       bridgeProfile: String(row.bridgeProfile || "").trim().slice(0, 120),
+      bridgeServer: String(row.bridgeServer || "").trim().replace(/\s+/g, " ").slice(0, 120),
       fxSlPoints: normalizePositivePoints(row.fxSlPoints, 500),
       fxTpPoints: normalizePositivePoints(row.fxTpPoints, 10000),
       goldSlPoints: normalizePositivePoints(row.goldSlPoints, 1000),
@@ -70,6 +74,60 @@ export async function listManagedMt5Accounts(): Promise<ManagedMt5Account[]> {
     .map(parseMt5Account)
     .filter((value): value is ManagedMt5Account => Boolean(value))
     .sort((left, right) => Number(right.enabled) - Number(left.enabled) || left.broker.localeCompare(right.broker) || left.login - right.login);
+}
+
+async function syncMt5LoginAutoBind(login: number): Promise<void> {
+  const enabled = (await listManagedMt5Accounts()).filter((account) => account.enabled && account.bridgeProfile && account.login === login);
+  if (enabled.length === 1 && !enabled[0].bridgeServer) {
+    await redis.set(mt5AutoBindLoginKey(login), JSON.stringify(createMt5AutoBindRecord(enabled[0])));
+    return;
+  }
+  await redis.del(mt5AutoBindLoginKey(login));
+}
+
+async function deleteMt5ExactAutoBind(account: ManagedMt5Account): Promise<void> {
+  if (!account.bridgeServer) return;
+  await redis.del(mt5AutoBindExactKey(account.login, account.bridgeServer));
+}
+
+async function writeMt5ExactAutoBind(account: ManagedMt5Account): Promise<void> {
+  if (!account.enabled || !account.bridgeProfile || !account.bridgeServer) return;
+  await redis.set(mt5AutoBindExactKey(account.login, account.bridgeServer), JSON.stringify(createMt5AutoBindRecord(account)));
+}
+
+async function syncMt5AutoBind(previous: ManagedMt5Account | null, next: ManagedMt5Account | null): Promise<void> {
+  if (previous) await deleteMt5ExactAutoBind(previous);
+  if (next) await writeMt5ExactAutoBind(next);
+  const logins = new Set<number>([previous?.login, next?.login].filter((value): value is number => Boolean(value)));
+  for (const login of logins) await syncMt5LoginAutoBind(login);
+}
+
+export async function reconcileManagedMt5AutoBind(): Promise<{ total: number; mapped: number; serverFilled: number; unresolved: number; conflicts: string[] }> {
+  const accounts = (await listManagedMt5Accounts()).filter((account) => account.enabled && account.bridgeProfile);
+  let mapped = 0;
+  let serverFilled = 0;
+  let unresolved = 0;
+  const conflicts: string[] = [];
+  for (const account of accounts) {
+    const heartbeat = await getMt5BridgeHeartbeat(account.bridgeProfile);
+    if (!heartbeat || heartbeat.login !== account.login || !String(heartbeat.server || "").trim()) {
+      unresolved += 1;
+      continue;
+    }
+    if (account.bridgeServer && normalizeMt5Server(account.bridgeServer) !== normalizeMt5Server(heartbeat.server)) {
+      conflicts.push(account.id);
+      continue;
+    }
+    let next = account;
+    if (!account.bridgeServer) {
+      next = { ...account, bridgeServer: String(heartbeat.server).trim(), updatedAt: Date.now() };
+      await redis.hset(MT5_ACCOUNTS_KEY, { [account.id]: JSON.stringify(next) });
+      serverFilled += 1;
+    }
+    await syncMt5AutoBind(account.bridgeServer ? null : account, next);
+    mapped += 1;
+  }
+  return { total: accounts.length, mapped, serverFilled, unresolved, conflicts };
 }
 
 export async function getDefaultProviderAccountId(): Promise<string> {
@@ -95,6 +153,7 @@ export async function listProviderAccounts(): Promise<ProviderAccountSummary[]> 
       isDefault: defaultId === cTraderProviderAccountId(account.accountId),
       connectionMode: "oauth" as const,
       bridgeProfile: null,
+      bridgeServer: null,
       fxSlPoints: account.fxSlPoints,
       fxTpPoints: account.fxTpPoints,
       goldSlPoints: account.goldSlPoints,
@@ -114,6 +173,7 @@ export async function listProviderAccounts(): Promise<ProviderAccountSummary[]> 
       isDefault: defaultId === account.id,
       connectionMode: "bridge" as const,
       bridgeProfile: account.bridgeProfile || null,
+      bridgeServer: account.bridgeServer || null,
       fxSlPoints: account.fxSlPoints,
       fxTpPoints: account.fxTpPoints,
       goldSlPoints: account.goldSlPoints,
@@ -145,26 +205,32 @@ export async function createManagedMt5Account(input: Mt5RegistrationInput): Prom
     updatedAt: now,
   };
   await redis.hset(MT5_ACCOUNTS_KEY, { [account.id]: JSON.stringify(account) });
+  await syncMt5AutoBind(null, account);
   return account;
 }
 
-export async function updateManagedMt5Account(id: string, patch: Partial<Pick<ManagedMt5Account, "label" | "enabled" | "bridgeProfile" | "fxSlPoints" | "fxTpPoints" | "goldSlPoints" | "goldTpPoints">>): Promise<ManagedMt5Account> {
+export async function updateManagedMt5Account(id: string, patch: Partial<Pick<ManagedMt5Account, "label" | "enabled" | "bridgeProfile" | "bridgeServer" | "fxSlPoints" | "fxTpPoints" | "goldSlPoints" | "goldTpPoints">>): Promise<ManagedMt5Account> {
   const accounts = await listManagedMt5Accounts();
   const current = accounts.find((item) => item.id === id);
   if (!current) throw new Error(`Unknown MT5 account: ${id}`);
   const label = patch.label === undefined ? current.label : normalizeAccountLabel(patch.label, `${current.broker} ${current.login}`);
   await ensureUniqueLabel(label, id);
   const bridgeProfile = patch.bridgeProfile === undefined ? current.bridgeProfile : String(patch.bridgeProfile || "").trim().replace(/\s+/g, " ").slice(0, 120);
+  const bridgeServer = patch.bridgeServer === undefined ? current.bridgeServer : String(patch.bridgeServer || "").trim().replace(/\s+/g, " ").slice(0, 120);
   const enabled = patch.enabled === undefined ? current.enabled : patch.enabled === true;
   if (enabled && !bridgeProfile) throw new Error("MT5 bridge profile is required before enabling the account");
   if (enabled && accounts.some((item) => item.id !== id && item.enabled && item.bridgeProfile.trim().toLowerCase() === bridgeProfile.toLowerCase())) {
     throw new Error(`MT5 bridge profile is already assigned: ${bridgeProfile}`);
+  }
+  if (enabled && bridgeServer && accounts.some((item) => item.id !== id && item.enabled && item.login === current.login && item.bridgeServer && normalizeMt5Server(item.bridgeServer) === normalizeMt5Server(bridgeServer))) {
+    throw new Error("Another enabled MT5 account already uses this login/server identity");
   }
   const next: ManagedMt5Account = {
     ...current,
     label,
     enabled,
     bridgeProfile,
+    bridgeServer,
     fxSlPoints: normalizePositivePoints(patch.fxSlPoints, current.fxSlPoints),
     fxTpPoints: normalizePositivePoints(patch.fxTpPoints, current.fxTpPoints),
     goldSlPoints: normalizePositivePoints(patch.goldSlPoints, current.goldSlPoints),
@@ -172,6 +238,7 @@ export async function updateManagedMt5Account(id: string, patch: Partial<Pick<Ma
     updatedAt: Date.now(),
   };
   await redis.hset(MT5_ACCOUNTS_KEY, { [id]: JSON.stringify(next) });
+  await syncMt5AutoBind(current, next);
   if (!next.enabled && await getDefaultProviderAccountId() === id) await redis.del(DEFAULT_ACCOUNT_KEY);
   return next;
 }
@@ -180,6 +247,7 @@ export async function updateProviderAccount(id: string, patch: {
   label?: string;
   enabled?: boolean;
   bridgeProfile?: string;
+  bridgeServer?: string;
   fxSlPoints?: number;
   fxTpPoints?: number;
   goldSlPoints?: number;
@@ -226,6 +294,7 @@ export async function deleteManagedMt5Account(id: string): Promise<boolean> {
   const account = (await listManagedMt5Accounts()).find((item) => item.id === id);
   if (!account) return false;
   await redis.hdel(MT5_ACCOUNTS_KEY, id);
+  await syncMt5AutoBind(account, null);
   if (await getDefaultProviderAccountId() === id) await redis.del(DEFAULT_ACCOUNT_KEY);
   return true;
 }

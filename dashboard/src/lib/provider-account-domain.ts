@@ -15,6 +15,7 @@ export type ProviderAccountSummary = {
   isDefault: boolean;
   connectionMode: "oauth" | "bridge";
   bridgeProfile: string | null;
+  bridgeServer: string | null;
   fxSlPoints: number;
   fxTpPoints: number;
   goldSlPoints: number;
@@ -29,6 +30,7 @@ export type Mt5RegistrationInput = {
   login: number;
   label?: string;
   bridgeProfile?: string;
+  bridgeServer?: string;
   fxSlPoints?: number;
   fxTpPoints?: number;
   goldSlPoints?: number;
@@ -59,7 +61,7 @@ export function normalizePositivePoints(value: unknown, fallback: number): numbe
   return Math.round(parsed * 1000) / 1000;
 }
 
-export function normalizeMt5Registration(input: Mt5RegistrationInput): Required<Omit<Mt5RegistrationInput, "label" | "bridgeProfile">> & { label: string; bridgeProfile: string } {
+export function normalizeMt5Registration(input: Mt5RegistrationInput): Required<Omit<Mt5RegistrationInput, "label" | "bridgeProfile" | "bridgeServer">> & { label: string; bridgeProfile: string; bridgeServer: string } {
   const broker = String(input.broker || "").trim().replace(/\s+/g, " ").slice(0, 80);
   if (!broker) throw new Error("Broker is required");
   if (input.environment !== "live" && input.environment !== "demo") throw new Error("Environment must be live or demo");
@@ -72,6 +74,7 @@ export function normalizeMt5Registration(input: Mt5RegistrationInput): Required<
     login,
     label: normalizeAccountLabel(input.label || "", fallback),
     bridgeProfile: String(input.bridgeProfile || "").trim().replace(/\s+/g, " ").slice(0, 120),
+    bridgeServer: String(input.bridgeServer || "").trim().replace(/\s+/g, " ").slice(0, 120),
     fxSlPoints: normalizePositivePoints(input.fxSlPoints, 500),
     fxTpPoints: normalizePositivePoints(input.fxTpPoints, 10000),
     goldSlPoints: normalizePositivePoints(input.goldSlPoints, 1000),

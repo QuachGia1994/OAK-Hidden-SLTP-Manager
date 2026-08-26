@@ -20,6 +20,7 @@ export type Mt5BridgeAction = CloudIntentKind | "positions";
 
 export type Mt5BridgeHeartbeat = {
   profile: string;
+  providerAccountId?: string;
   login: number;
   server: string;
   runtime?: "mql5-ea";
@@ -222,6 +223,9 @@ export async function executeMt5BridgeAction(args: {
   if (!heartbeat) return offlineResult(args.account, args.action, "MT5 bridge profile is offline");
   if (heartbeat.login !== args.account.traderLogin) {
     return offlineResult(args.account, args.action, `MT5 bridge login mismatch: local ${heartbeat.login}, expected ${args.account.traderLogin}`);
+  }
+  if (heartbeat.providerAccountId && heartbeat.providerAccountId !== args.account.id) {
+    return offlineResult(args.account, args.action, "MT5 bridge provider account identity mismatch");
   }
   if (!String(heartbeat.server || "").trim()) return offlineResult(args.account, args.action, "MT5 bridge heartbeat server identity is missing");
   let queued: Mt5BridgeTask;

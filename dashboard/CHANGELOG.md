@@ -2,7 +2,11 @@
 
 All notable changes to the dashboard are recorded here.
 
-## [Unreleased]
+## [0.7.0] - 2026-08-26
+
+### Added
+
+- MT5 account switching no longer requires reattaching the OAK EAs. Cloud Manager v1.04 auto-binds the current login/server to the registered provider account and bridge profile with fail-closed unbound behavior, while NeoTech Connector v1.0.3 reloads server-scoped per-account credentials and stays attached in waiting state for accounts that still need pairing/authorization. `/accounts` now stores optional MT5 server identity and exposes an authenticated auto-bind reconciliation action for existing live bridge registrations.
 
 ### Fixed
 

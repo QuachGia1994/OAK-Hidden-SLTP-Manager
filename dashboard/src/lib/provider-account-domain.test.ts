@@ -31,10 +31,12 @@ test("MT5 registration normalizes metadata without accepting secret fields", () 
     login: 778899,
     label: " Main   Vantage ",
     bridgeProfile: " Vantage ",
+    bridgeServer: " Vantage-Live ",
   });
   assert.equal(row.broker, "Vantage Markets");
   assert.equal(row.label, "Main Vantage");
   assert.equal(row.bridgeProfile, "Vantage");
+  assert.equal(row.bridgeServer, "Vantage-Live");
   assert.equal(row.login, 778899);
   assert.equal(row.fxSlPoints, 500);
   assert.equal(row.goldTpPoints, 20000);
@@ -52,8 +54,8 @@ test("protection points and labels fail closed", () => {
 
 test("provider routing selects explicit bridge profiles and otherwise fans out to enabled accounts", () => {
   const accounts: ProviderAccountSummary[] = [
-    { id: "ctrader:11", provider: "ctrader", broker: "ICMarkets", environment: "live", externalAccountId: "11", traderLogin: 101, label: "cTrader Main", enabled: true, isDefault: false, connectionMode: "oauth", bridgeProfile: null, fxSlPoints: 500, fxTpPoints: 10000, goldSlPoints: 1000, goldTpPoints: 20000, manager: null, updatedAt: 1 },
-    { id: "mt5:abcdefgh", provider: "mt5", broker: "Vantage", environment: "live", externalAccountId: "202", traderLogin: 202, label: "MT5 Main", enabled: true, isDefault: false, connectionMode: "bridge", bridgeProfile: "Vantage", fxSlPoints: 600, fxTpPoints: 12000, goldSlPoints: 1200, goldTpPoints: 22000, manager: null, updatedAt: 1 },
+    { id: "ctrader:11", provider: "ctrader", broker: "ICMarkets", environment: "live", externalAccountId: "11", traderLogin: 101, label: "cTrader Main", enabled: true, isDefault: false, connectionMode: "oauth", bridgeProfile: null, bridgeServer: null, fxSlPoints: 500, fxTpPoints: 10000, goldSlPoints: 1000, goldTpPoints: 20000, manager: null, updatedAt: 1 },
+    { id: "mt5:abcdefgh", provider: "mt5", broker: "Vantage", environment: "live", externalAccountId: "202", traderLogin: 202, label: "MT5 Main", enabled: true, isDefault: false, connectionMode: "bridge", bridgeProfile: "Vantage", bridgeServer: "Vantage-Live", fxSlPoints: 600, fxTpPoints: 12000, goldSlPoints: 1200, goldTpPoints: 22000, manager: null, updatedAt: 1 },
   ];
   assert.deepEqual(resolveEnabledProviderTargets(accounts).map((item) => item.id), ["ctrader:11", "mt5:abcdefgh"]);
   assert.deepEqual(resolveEnabledProviderTargets(accounts, "Vantage").map((item) => item.id), ["mt5:abcdefgh"]);
@@ -66,9 +68,14 @@ test("provider routing selects explicit bridge profiles and otherwise fans out t
 test("multi-provider web control plane is admin-only and does not expose broker secrets", () => {
   assert.match(routeSource, /requireAdminOrApiAuth/);
   assert.match(routeSource, /sync-ctrader/);
+  assert.match(routeSource, /reconcile-mt5-auto-bind/);
   assert.match(routeSource, /create-mt5/);
   assert.match(storeSource, /oak:provider-accounts:mt5:v1/);
   assert.match(storeSource, /oak:provider-accounts:default:v1/);
+  assert.match(storeSource, /syncMt5AutoBind/);
+  assert.match(storeSource, /mt5AutoBindExactKey/);
+  assert.match(storeSource, /mt5AutoBindLoginKey/);
+  assert.match(panelSource, /name="bridgeServer"/);
   assert.match(panelSource, /Connect cTrader/);
   assert.match(panelSource, /Add MT5 account/);
   assert.match(panelSource, /useState<Provider>\("ctrader"\)/);

@@ -52,10 +52,22 @@ test("OAK MQL5 EA keeps cloud keys, compile-safe helpers and clear bridge inputs
   assert.doesNotMatch(ea, /const char &input\[\]/);
   assert.match(ea, /ShortToString\(8\)/);
   assert.match(ea, /ShortToString\(12\)/);
-  assert.match(ea, /\/\/ Bridge profile/);
-  assert.match(ea, /\/\/ MT5 account login/);
+  assert.match(ea, /InpAutoBindAccount\s*= true/);
+  assert.match(ea, /Fixed-mode bridge profile/);
+  assert.match(ea, /Fixed-mode login/);
   assert.match(ea, /\/\/ Upstash REST URL/);
   assert.match(ea, /\/\/ Upstash REST token/);
+});
+
+test("MT5 EA auto-binds account changes without unloading on login mismatch", () => {
+  assert.match(ea, /AutoBindExactKey\(\)/);
+  assert.match(ea, /oak:mt5:bridge:auto-bind:v1:exact:/);
+  assert.match(ea, /oak:mt5:bridge:auto-bind:v1:login:/);
+  assert.match(ea, /RefreshBridgeBinding\(true\)/);
+  assert.match(ea, /if\(InpBridgeEnabled && !g_bridge_ready\) RefreshBridgeBinding\(false\)/);
+  assert.match(ea, /provider account does not match current auto-bound account/);
+  assert.doesNotMatch(ea, /ACCOUNT MISMATCH[\s\S]*return INIT_FAILED/);
+  assert.match(bridge, /heartbeat\.providerAccountId && heartbeat\.providerAccountId !== args\.account\.id/);
 });
 
 test("MT5 EA bounds Upstash polling while local management remains tick-driven", () => {

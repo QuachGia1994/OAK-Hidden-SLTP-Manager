@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.03"
+#property version   "1.04"
 #property description "OAK cloud bridge + standalone MT5 account manager"
 
 // OAK Cloud Manager EA
@@ -13,8 +13,9 @@
 
 input group "OAK Cloud Bridge"
 input bool   InpBridgeEnabled              = true;
-input string InpBridgeProfile              = "";       // Bridge profile
-input long   InpExpectedLogin              = 0;        // MT5 account login
+input bool   InpAutoBindAccount            = true;      // Resolve current login/server to the registered bridge profile
+input string InpBridgeProfile              = "";       // Fixed-mode bridge profile when auto-bind is disabled
+input long   InpExpectedLogin              = 0;        // Fixed-mode login when auto-bind is disabled
 input string InpUpstashRestUrl             = "";       // Upstash REST URL
 input string InpUpstashRestToken           = "";       // Upstash REST token
 input int    InpHttpTimeoutMs              = 1200;
@@ -57,13 +58,15 @@ input string InpPartialPercents            = "50";      // 1 pct = current-volum
 #define OAK_HEARTBEAT_PREFIX  "oak:mt5:bridge:heartbeat:v1:"
 #define OAK_TASK_TTL          604800
 #define OAK_HEARTBEAT_TTL     45
-#define OAK_EA_VERSION        "1.03"
+#define OAK_EA_VERSION        "1.04"
 #define OAK_LOCAL_DIR         "OAKLocalFailover\\"
 
 string g_profile = "";
+string g_provider_account_id = "";
 long   g_login = 0;
 string g_server = "";
 bool   g_bridge_ready = false;
+datetime g_last_bind_attempt = 0;
 datetime g_last_heartbeat = 0;
 datetime g_last_cloud_poll = 0;
 datetime g_last_cloud_ok = 0;
@@ -95,6 +98,27 @@ string Upper(string value)
 {
    StringToUpper(value);
    return value;
+}
+
+string NormalizeServerIdentity(string value)
+{
+   value=Lower(Trim(value));
+   string out="";
+   bool pending_space=false;
+   for(int i=0;i<StringLen(value);i++)
+   {
+      ushort c=StringGetCharacter(value,i);
+      bool whitespace=(c==' ' || c=='\t' || c=='\r' || c=='\n');
+      if(whitespace)
+      {
+         if(StringLen(out)>0) pending_space=true;
+         continue;
+      }
+      if(pending_space) out+=" ";
+      pending_space=false;
+      out+=ShortToString(c);
+   }
+   return out;
 }
 
 string JsonEscape(string value)
@@ -336,6 +360,104 @@ bool RedisGet(const string key, string &value)
    return true;
 }
 
+string AutoBindServerHash()
+{
+   return StringSubstr(Sha256HexUtf8(NormalizeServerIdentity(g_server)),0,40);
+}
+
+string AutoBindExactKey()
+{
+   return "oak:mt5:bridge:auto-bind:v1:exact:"+IntegerToString(g_login)+":"+AutoBindServerHash();
+}
+
+string AutoBindLoginKey()
+{
+   return "oak:mt5:bridge:auto-bind:v1:login:"+IntegerToString(g_login);
+}
+
+bool ApplyAutoBindRecord(const string record,const bool exact,string &detail)
+{
+   detail="";
+   if(JsonLong(record,"version",0)!=1) { detail="auto-bind record version mismatch"; return false; }
+   if(JsonLong(record,"login",0)!=g_login) { detail="auto-bind login mismatch"; return false; }
+   string provider=JsonString(record,"providerAccountId");
+   string profile=Trim(JsonString(record,"bridgeProfile"));
+   string server_hash=Lower(JsonString(record,"serverHash"));
+   if(StringFind(provider,"mt5:")!=0 || !IsSafeAccountSuffix(StringSubstr(provider,4))) { detail="auto-bind provider id is invalid"; return false; }
+   if(profile=="") { detail="auto-bind bridge profile is empty"; return false; }
+   if(exact && server_hash!=AutoBindServerHash()) { detail="auto-bind server mismatch"; return false; }
+   if(!exact && server_hash!="") { detail="login-only auto-bind must not carry a server identity"; return false; }
+   g_provider_account_id=provider;
+   g_profile=profile;
+   return true;
+}
+
+bool ResolveAutoBind(string &detail)
+{
+   detail="";
+   g_profile="";
+   g_provider_account_id="";
+   string record="";
+   if(!RedisGet(AutoBindExactKey(),record)) { detail="exact auto-bind lookup unavailable"; return false; }
+   if(record!="")
+   {
+      if(ApplyAutoBindRecord(record,true,detail)) return true;
+      return false;
+   }
+   if(!RedisGet(AutoBindLoginKey(),record)) { detail="login auto-bind lookup unavailable"; return false; }
+   if(record!="")
+   {
+      if(ApplyAutoBindRecord(record,false,detail)) return true;
+      return false;
+   }
+   detail="no enabled MT5 auto-bind mapping for current login/server";
+   return false;
+}
+
+void RefreshBridgeBinding(const bool force=false)
+{
+   if(!InpBridgeEnabled)
+   {
+      g_bridge_ready=false;
+      g_profile="";
+      g_provider_account_id="";
+      return;
+   }
+   datetime now=TimeCurrent();
+   if(!force && g_bridge_ready) return;
+   if(!force && g_last_bind_attempt!=0 && now-g_last_bind_attempt<15) return;
+   g_last_bind_attempt=now;
+   g_bridge_ready=false;
+
+   if(InpAutoBindAccount)
+   {
+      string detail="";
+      if(!ResolveAutoBind(detail))
+      {
+         PrintFormat("[OAK-EA] Cloud bridge waiting for account binding login=%I64d server=%s: %s",g_login,g_server,detail);
+         return;
+      }
+   }
+   else
+   {
+      g_profile=Trim(InpBridgeProfile);
+      g_provider_account_id="";
+      if(InpExpectedLogin<=0 || g_login!=InpExpectedLogin)
+      {
+         PrintFormat("[OAK-EA] Fixed bridge mode unbound actual=%I64d expected=%I64d",g_login,InpExpectedLogin);
+         return;
+      }
+   }
+
+   if(g_profile=="" || InpUpstashRestUrl=="" || InpUpstashRestToken=="")
+   {
+      Print("[OAK-EA] Cloud bridge waiting: profile or Upstash credentials are incomplete. Local account management remains active.");
+      return;
+   }
+   g_bridge_ready=true;
+   PrintFormat("[OAK-EA] Cloud bridge bound profile=%s provider=%s login=%I64d server=%s",g_profile,g_provider_account_id==""?"fixed":g_provider_account_id,g_login,g_server);
+}
+
 bool RedisSet(const string key, const string value, int ttl_sec, bool nx, string &server_result)
 {
    string args[];
@@ -546,6 +668,7 @@ bool ValidateBridgeTaskEnvelope(const string task,string &detail)
    if(JsonString(task,"server")!=g_server) { detail="server mismatch"; return false; }
    string provider=JsonString(task,"providerAccountId");
    if(StringFind(provider,"mt5:")!=0 || !IsSafeAccountSuffix(StringSubstr(provider,4))) { detail="invalid provider account id"; return false; }
+   if(g_provider_account_id!="" && provider!=g_provider_account_id) { detail="provider account does not match current auto-bound account"; return false; }
    string payload=JsonRaw(task,"payload");
    if(payload=="" || StringLen(payload)>8192) { detail="task payload is missing/too large"; return false; }
    if(action=="positions") return true;
@@ -1517,6 +1640,7 @@ void FlushPendingFinalTask()
 string HeartbeatJson()
 {
    return "{\"profile\":"+JsonQuote(g_profile)
+      +",\"providerAccountId\":"+JsonQuote(g_provider_account_id)
       +",\"login\":"+IntegerToString(g_login)
       +",\"server\":"+JsonQuote(g_server)
       +",\"runtime\":\"mql5-ea\""
@@ -1603,21 +1727,13 @@ int OnInit()
 {
    g_login=(long)AccountInfoInteger(ACCOUNT_LOGIN);
    g_server=AccountInfoString(ACCOUNT_SERVER);
-   g_profile=Trim(InpBridgeProfile);
+   g_profile="";
+   g_provider_account_id="";
+   g_bridge_ready=false;
+   g_last_bind_attempt=0;
    ParseDoubleList(InpPartialRLevels,g_partial_r);
    ParseDoubleList(InpPartialPercents,g_partial_pct);
-
-   if(InpExpectedLogin>0 && g_login!=InpExpectedLogin)
-   {
-      PrintFormat("[OAK-EA] ACCOUNT MISMATCH actual=%I64d expected=%I64d. EA stopped.",g_login,InpExpectedLogin);
-      return INIT_FAILED;
-   }
-
-   g_bridge_ready=InpBridgeEnabled && InpExpectedLogin>0 && g_login==InpExpectedLogin && g_profile!="" && InpUpstashRestUrl!="" && InpUpstashRestToken!="";
-   if(InpBridgeEnabled && !g_bridge_ready)
-      Print("[OAK-EA] Cloud bridge disabled: set BridgeProfile, ExpectedLogin, Upstash URL/token. Local account management remains active.");
-   else if(g_bridge_ready)
-      PrintFormat("[OAK-EA] Cloud bridge ready profile=%s login=%I64d server=%s",g_profile,g_login,g_server);
+   RefreshBridgeBinding(true);
 
    if(InpLocalFailoverEnabled)
    {
@@ -1646,6 +1762,7 @@ void OnDeinit(const int reason)
 void OnTimer()
 {
    ManageAccount();
+   if(InpBridgeEnabled && !g_bridge_ready) RefreshBridgeBinding(false);
    PollCloudOnce();
    PollLocalFailoverOnce();
 }

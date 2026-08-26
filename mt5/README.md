@@ -1,6 +1,6 @@
 # OAK Cloud Manager EA
 
-`OAK_Cloud_Manager_EA.mq5` is the standalone MT5 execution/runtime for ROBOT SLTP. Attach one EA instance to one chart in each MT5 terminal/account that should be controlled. MT5 execution is owned by this EA; there is no maintained desktop/Python broker worker in the repository.
+`OAK_Cloud_Manager_EA.mq5` is the standalone MT5 execution/runtime for ROBOT SLTP. Attach one EA instance to one chart per MT5 terminal; v1.04 automatically rebinds when that terminal changes account, so switching among registered accounts does not require detaching or attaching the EA again. MT5 execution is owned by this EA; there is no maintained desktop/Python broker worker in the repository.
 
 ## Runtime flow
 
@@ -27,22 +27,22 @@ If the terminal/PC is offline at the due time, the bridge heartbeat expires and 
   - `/partial 123456 profit 200 0.02 @Vantage` arms ticket `123456` to close `0.02` lots once floating profit reaches account-currency `200`.
   - `/partial XAUUSD price 3456.70 0.01 @Vantage` arms the only matching XAUUSD position to close `0.01` lots when the directional target price is reached. If multiple positions match the symbol, use a ticket.
 - Per-position management state persists in MT5 terminal Global Variables using `POSITION_IDENTIFIER`, so initial risk/R state survives EA reloads and netting ticket replacement.
-- Account identity binding: if `InpExpectedLogin` does not match the live MT5 login, EA initialization fails.
+- Account identity binding: `InpAutoBindAccount=true` resolves the live login/server to the registered provider account and bridge profile through the cloud auto-bind registry. If no unique safe mapping exists, cloud execution stays unbound while the EA remains attached and local Account Manager logic continues. `InpExpectedLogin` is retained only for explicit fixed-mode fallback.
 - Cloud queue arbitration still fences task ownership in Redis, but broker mutations also pass through the EA's shared FILE_COMMON per-origin ledger. Cloud and PC-local `entry`, `close`, `modify`, and `partial` use the same canonical Telegram origin/digest and must win the same atomic claim before the broker-facing call.
 - A retained result for the same origin/digest is reconciled without re-execution. A retained claim without a result is `UNCERTAIN` and is never replayed automatically. `positions` is read-only and bypasses the mutation claim. This is a durable fail-closed fence, not an absolute exactly-once guarantee at the broker.
 - Upstash traffic is bounded: local position management stays tick-driven, while the cloud mailbox is checked every 10 seconds by default (runtime-clamped to 10–15 seconds). Heartbeat refresh and queue peek share one atomic Redis command, avoiding the previous 1-second idle polling load.
 - Cloud market entry waits up to 2.5 seconds for the selected symbol to synchronize and expose a positive bid/ask tick before building the broker request. This handles Market Watch warm-up races without retrying any broker mutation.
-- EA v1.03 enables `InpLocalFailoverEnabled=true` by default. The EA writes cloud-health/status and accepts PC-local tasks through MetaTrader `FILE_COMMON`; the companion `local-failover/` controller may take Telegram ownership only after fresh matching EA failure evidence plus repeated independent Redis `SET ... EX` write-canary failures. Normal cloud ownership remains primary.
+- EA v1.04 keeps `InpLocalFailoverEnabled=true` by default and adds account auto-bind without weakening the local/cloud mutation fence. The EA writes cloud-health/status and accepts PC-local tasks through MetaTrader `FILE_COMMON`; the companion `local-failover/` controller may take Telegram ownership only after fresh matching EA failure evidence plus repeated independent Redis `SET ... EX` write-canary failures. Normal cloud ownership remains primary.
 
 ## Install
 
 1. Open the target broker's MT5 terminal and log in to the intended account.
 2. Open MetaEditor (`F4`). Copy `OAK_Cloud_Manager_EA.mq5` into the terminal's `MQL5/Experts/OAK/` folder and compile it.
 3. In MT5 go to **Tools -> Options -> Expert Advisors**. Enable algorithmic trading and add the exact `https://...upstash.io` REST base URL used by ROBOT SLTP to **Allow WebRequest for listed URL**.
-4. Attach `OAK_Cloud_Manager_EA` to one chart. One EA instance is enough to manage the whole logged-in account; do not attach multiple copies with the same bridge profile.
+4. Attach `OAK_Cloud_Manager_EA` to one chart. One EA instance is enough for the terminal; keep it attached when switching accounts.
 5. Set:
-   - `InpBridgeProfile` = the MT5 account's `bridgeProfile` shown/configured in `/accounts`.
-   - `InpExpectedLogin` = exact MT5 login number.
+   - `InpAutoBindAccount` = keep `true`. Register/enable each MT5 account in `/accounts`; set its MT5 server when known. A unique login can use the safe login-only fallback, while duplicate logins require exact server identity.
+   - `InpBridgeProfile` and `InpExpectedLogin` are used only when `InpAutoBindAccount=false` for deliberate fixed-mode operation.
    - `InpUpstashRestUrl` and `InpUpstashRestToken` = the same bridge Redis REST credentials as the cloud control plane.
    - `InpCloudPollSeconds` = keep `10` for the normal balance of command usage and cloud execution latency. The runtime clamps this value to 10–15 seconds; `InpPollSeconds` remains the local manager timer and does not control Redis queue frequency.
    - `InpLocalFailoverEnabled` = keep `true` on the PC/VPS terminal if the `local-failover/` watchdog is installed. This adds no Redis traffic; it only exposes a local FILE_COMMON mailbox and health file.
@@ -54,7 +54,7 @@ If the terminal/PC is offline at the due time, the bridge heartbeat expires and 
 
 `InpUpstashRestToken` is a secret. Never commit it, paste it into screenshots, or save/share a populated `.set` file. The repo ignores MT5 `.set` and compiled `.ex5` files. A dedicated Upstash database/token for broker execution is preferable to reusing a database that contains unrelated application state.
 
-The EA validates both `bridgeProfile` and the live MT5 login before executing a cloud task. Dynamic `/partial` commands are accepted by the cloud only when the heartbeat identifies the runtime as `mql5-ea`.
+The EA validates the auto-bound provider account, bridge profile, live MT5 login and server before executing a cloud task. Dynamic `/partial` commands are accepted by the cloud only when the heartbeat identifies the runtime as `mql5-ea`.
 
 ## Management semantics
 
@@ -74,7 +74,7 @@ Offline verification of the local failover code does not install the Windows Sch
 
 `OAK_NeoTech_ReadOnly_Connector.mq5` is the public/customer telemetry path for `/neotech`. It is intentionally separate from `OAK_Cloud_Manager_EA`: it contains no trading class, `OrderSend`, close, modify or delete path. Investor Password/read-only remains the recommended/default mode. A terminal logged in with Master Password is accepted only when its browser-created one-time pairing explicitly records `TRADING_CAPABLE_ACCEPTED`; a read-only pairing still fails closed if the terminal later gains trading permission.
 
-Customer flow is three steps: choose Investor Password (recommended) or explicitly accept the Master Password warning on `/neotech`, download the compiled `OAK_NeoTech_ReadOnly_Connector.ex5`, add `https://www.oakgatekeeper.uk` to the MT5 WebRequest allow-list, then attach the EA with that one-time pairing code. Connector v1.0.2 recognizes a fresh code even when an older `READ_ONLY` connector credential is already stored, then retains a hash of the consumed code so normal restarts do not attempt to pair again. The matching `.mq5` source and SHA-256 manifest are published beside the compiled file for audit. No MT5 password is sent to OAK.
+Customer flow is three steps: choose Investor Password (recommended) or explicitly accept the Master Password warning on `/neotech`, download the compiled `OAK_NeoTech_ReadOnly_Connector.ex5`, add `https://www.oakgatekeeper.uk` to the MT5 WebRequest allow-list, then attach the EA with that one-time pairing code. Connector v1.0.3 stores credentials by broker/server/login identity and reloads the correct credential automatically when MT5 changes account. An account that has not been paired, or whose saved authorization no longer matches its trading capability, remains attached in a waiting state instead of unloading; pair/authorize that account once, then future switches reuse its credential automatically. Legacy login-only credentials migrate to the server-scoped file only after a successful sync. The matching `.mq5` source and SHA-256 manifest are published beside the compiled file for audit. No MT5 password is sent to OAK.
 
 The connector receives one revocable 256-bit ingest token after pairing and stores it only inside the customer's MT5 Files area; the server stores only its SHA-256. Raw deal/cash-flow history is transmitted over HTTPS for server-side rule computation and is not retained as a database record. The retained cloud state is masked/fingerprinted account metadata, derived Visual Profile, bounded equity samples and scoped audit metadata with a 400-day maximum sliding retention. The `/neotech` UI can revoke connector access or immediately purge retained account/profile/equity/connector data.
 
