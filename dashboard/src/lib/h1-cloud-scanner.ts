@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 34;
+export const H1_CLOUD_STATE_VERSION = 35;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 28;
+export const H1_SIGNAL_RULE_VERSION = 29;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v34";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v35";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -28,7 +28,7 @@ export type H1ScannerBase = typeof H1_SCANNER_BASES[number];
 export type H1Direction = "T" | "G";
 export type H1Signal = "BUY" | "SELL";
 export type H1PatternKind = "sw2" | "sw3Pure" | "sw3Normal";
-export type H1LookbackAction = "none" | "block-pair" | "block-pattern1" | "block-pattern2" | "block-repeat-pattern2" | "invert-pattern3";
+export type H1LookbackAction = "none" | "block-pair" | "block-pattern1" | "block-pattern2" | "block-pattern4" | "block-repeat-pattern2" | "invert-pattern3";
 export type H1PostSignalRule = "none" | "mon-block" | "tue-block" | "wed-block" | "thu-cycle" | "fri-cycle";
 
 export type H1DirectionBar = {
@@ -70,7 +70,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 34;
+  version: 35;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -79,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 28;
+  signalRuleVersion: 29;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -109,7 +109,7 @@ export type H1PublicFeed = {
 };
 
 const PURE_SW_3 = new Set(["TGG", "GTT"]);
-const PATTERN_2_TRIPLES = new Set(["TTT", "GGG"]);
+const PATTERN_4_TRIPLES = new Set(["TTT", "GGG"]);
 const ALTERNATING_SW_3 = new Set(["GTG", "TGT"]);
 const BLOCK_PAIR_2 = new Set(["TG", "GT"]);
 const PATTERN_LABELS: Record<H1PatternKind, string> = {
@@ -229,26 +229,52 @@ function rowsForHours(byHour: Map<number, H1DirectionBar>, hours: number[]): H1D
   return rows.every(Boolean) ? rows as H1DirectionBar[] : null;
 }
 
-function lookbackActionForPattern(pattern: string): H1LookbackAction {
-  if (PURE_SW_3.has(pattern)) return "block-pattern1";
-  if (PATTERN_2_TRIPLES.has(pattern)) return "block-pattern2";
-  if (ALTERNATING_SW_3.has(pattern)) return "invert-pattern3";
-  return "none";
+function sameDirectionRunLength(byHour: Map<number, H1DirectionBar>, hours: number[], direction: H1Direction): number {
+  let length = hours.length;
+  const newest = Math.max(...hours);
+  const oldest = Math.min(...hours);
+  for (let hour = newest + 1; byHour.get(hour)?.direction === direction; hour += 1) length += 1;
+  for (let hour = oldest - 1; byHour.get(hour)?.direction === direction; hour -= 1) length += 1;
+  return length;
+}
+
+function evaluateTripleLookback(byHour: Map<number, H1DirectionBar>, hours: [number, number, number]): { pattern: string | null; action: H1LookbackAction } {
+  const rows = rowsForHours(byHour, hours);
+  if (!rows) return { pattern: null, action: "none" };
+
+  const triplePattern = rows.map((row) => row.direction).join("");
+  if (PURE_SW_3.has(triplePattern)) return { pattern: triplePattern, action: "block-pattern1" };
+  if (ALTERNATING_SW_3.has(triplePattern)) return { pattern: triplePattern, action: "invert-pattern3" };
+
+  if (PATTERN_4_TRIPLES.has(triplePattern)) {
+    const direction = rows[0].direction;
+    const runLength = sameDirectionRunLength(byHour, hours, direction);
+    if (runLength >= 4) return { pattern: direction.repeat(runLength), action: "block-pattern2" };
+    return { pattern: triplePattern, action: "block-pattern4" };
+  }
+
+  return { pattern: triplePattern, action: "none" };
+}
+
+function evaluateBoundaryLookback(byHour: Map<number, H1DirectionBar>, hours: [number, number, number]): { pattern: string | null; action: H1LookbackAction } {
+  const rows = rowsForHours(byHour, hours);
+  if (!rows) return { pattern: null, action: "none" };
+
+  const pairPattern = rows.slice(1).map((row) => row.direction).join("");
+  if (BLOCK_PAIR_2.has(pairPattern)) return { pattern: pairPattern, action: "block-pair" };
+  return evaluateTripleLookback(byHour, hours);
 }
 
 function allowTradeLookback(byHour: Map<number, H1DirectionBar>, slotHour: number, patternKind: H1PatternKind): { pattern: string | null; action: H1LookbackAction } {
   if (slotHour < 7 || (patternKind !== "sw3Pure" && patternKind !== "sw3Normal")) return { pattern: null, action: "none" };
 
-  const primaryRows = rowsForHours(byHour, [slotHour - 4, slotHour - 5, slotHour - 6]);
-  if (!primaryRows) return { pattern: null, action: "none" };
-  const primaryPattern = primaryRows.map((row) => row.direction).join("");
-  const primaryAction = lookbackActionForPattern(primaryPattern);
-  if (primaryAction !== "none") return { pattern: primaryPattern, action: primaryAction };
+  // FX H7+ / XAU H8+: lùi 3 checks the three-candle window only.
+  const primary = evaluateTripleLookback(byHour, [slotHour - 4, slotHour - 5, slotHour - 6]);
+  if (primary.pattern === null) return primary;
+  if (primary.action !== "none") return primary;
 
-  const fallbackRows = rowsForHours(byHour, [slotHour - 3, slotHour - 4, slotHour - 5]);
-  if (!fallbackRows) return { pattern: primaryPattern, action: "none" };
-  const fallbackPattern = fallbackRows.map((row) => row.direction).join("");
-  return { pattern: fallbackPattern, action: lookbackActionForPattern(fallbackPattern) };
+  // Only when lùi 3 has no action do we move to the lùi-2 three-candle window.
+  return evaluateTripleLookback(byHour, [slotHour - 3, slotHour - 4, slotHour - 5]);
 }
 
 function twoCandleMatch(bars: H1DirectionBar[], slotHour: 3 | 4): H1PatternMatch | null {
@@ -275,29 +301,13 @@ function targetLookbackGate(base: H1TargetBase, byHour: Map<number, H1DirectionB
       return { pattern, action: BLOCK_PAIR_2.has(pattern) ? "block-pair" : "none" };
     }
     if (slotHour === 7) {
-      const pairRows = rowsForHours(byHour, [3, 2]);
-      if (!pairRows) return { pattern: null, action: "none" };
-      const pairPattern = pairRows.map((row) => row.direction).join("");
-      if (BLOCK_PAIR_2.has(pairPattern)) return { pattern: pairPattern, action: "block-pair" };
-
-      const tripleRows = rowsForHours(byHour, [4, 3, 2]);
-      if (!tripleRows) return { pattern: pairPattern, action: "none" };
-      const triplePattern = tripleRows.map((row) => row.direction).join("");
-      return { pattern: triplePattern, action: lookbackActionForPattern(triplePattern) };
+      return evaluateBoundaryLookback(byHour, [4, 3, 2]);
     }
     return { pattern: null, action: "none" };
   }
 
   if (slotHour !== 6) return { pattern: null, action: "none" };
-  const pairRows = rowsForHours(byHour, [2, 1]);
-  if (!pairRows) return { pattern: null, action: "none" };
-  const pairPattern = pairRows.map((row) => row.direction).join("");
-  if (BLOCK_PAIR_2.has(pairPattern)) return { pattern: pairPattern, action: "block-pair" };
-
-  const tripleRows = rowsForHours(byHour, [3, 2, 1]);
-  if (!tripleRows) return { pattern: pairPattern, action: "none" };
-  const triplePattern = tripleRows.map((row) => row.direction).join("");
-  return { pattern: triplePattern, action: lookbackActionForPattern(triplePattern) };
+  return evaluateBoundaryLookback(byHour, [3, 2, 1]);
 }
 
 function mainPatternMatch(byHour: Map<number, H1DirectionBar>, slotHour: number): H1PatternMatch | null {
@@ -465,7 +475,9 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
         ? `Pattern 1 (${alert.lookbackPattern?.split("").join(" ")}) → BLOCK`
         : alert.lookbackAction === "block-pattern2"
           ? `Pattern 2 (${alert.lookbackPattern?.split("").join(" ")}) → BLOCK`
-          : alert.lookbackAction === "block-repeat-pattern2"
+          : alert.lookbackAction === "block-pattern4"
+            ? `Pattern 4 (${alert.lookbackPattern?.split("").join(" ")}) → BLOCK`
+            : alert.lookbackAction === "block-repeat-pattern2"
             ? `Pattern 2 lặp trong ngày (${alert.lookbackPattern?.split("").join(" ")}) → BLOCK`
             : alert.lookbackPattern?.length === 2
             ? `Cặp ${alert.lookbackPattern.split("").join(" ")} → bình thường`
@@ -514,7 +526,7 @@ function isPatternKind(value: unknown): value is H1PatternKind {
 }
 
 function isLookbackAction(value: unknown): value is H1LookbackAction {
-  return value === "none" || value === "block-pair" || value === "block-pattern1" || value === "block-pattern2" || value === "block-repeat-pattern2" || value === "invert-pattern3";
+  return value === "none" || value === "block-pair" || value === "block-pattern1" || value === "block-pattern2" || value === "block-pattern4" || value === "block-repeat-pattern2" || value === "invert-pattern3";
 }
 
 function isSignal(value: unknown): value is H1Signal {

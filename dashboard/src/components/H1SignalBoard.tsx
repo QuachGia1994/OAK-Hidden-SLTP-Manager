@@ -197,6 +197,7 @@ function allowTradeLookbackLabel(alert: H1SignalAlert, locale: Locale) {
   if (alert.lookbackAction === "block-pair") return locale === "EN" ? `Pair ${pattern} → BLOCK` : `Cặp ${pattern} → BLOCK`;
   if (alert.lookbackAction === "block-pattern1") return locale === "EN" ? `Pattern 1 (${pattern}) → BLOCK` : `Pattern 1 (${pattern}) → BLOCK`;
   if (alert.lookbackAction === "block-pattern2") return locale === "EN" ? `Pattern 2 (${pattern}) → BLOCK` : `Pattern 2 (${pattern}) → BLOCK`;
+  if (alert.lookbackAction === "block-pattern4") return locale === "EN" ? `Pattern 4 (${pattern}) → BLOCK` : `Pattern 4 (${pattern}) → BLOCK`;
   if (alert.lookbackAction === "block-repeat-pattern2") return locale === "EN" ? `Repeated Pattern 2 (${pattern}) → BLOCK` : `Pattern 2 lặp trong ngày (${pattern}) → BLOCK`;
   if (alert.lookbackAction === "invert-pattern3") return locale === "EN" ? `Pattern 3 (${pattern}) → reverse once` : `Pattern 3 (${pattern}) → đảo 1 lần`;
   if (alert.lookbackPattern?.length === 2) return locale === "EN" ? `Pair ${pattern} → normal` : `Cặp ${pattern} → bình thường`;
