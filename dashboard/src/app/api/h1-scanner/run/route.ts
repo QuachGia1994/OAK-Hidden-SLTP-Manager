@@ -12,8 +12,9 @@ import {
   H1_SCAN_END_HOUR,
   H1_SCAN_HOURS,
   H1_TARGET_BASES,
+  audusdH3SignalForXauH4,
   backfillSuppressedHistory,
-  baseSymbolForTarget,
+  baseSymbolForTargetSlot,
   blockedTradeSlots,
   buildStoredAlert,
   buildTelegramMessage,
@@ -101,7 +102,7 @@ function delay(ms: number) {
 
 function requiredBasesForBrokerHour(hour: number): readonly H1Base[] {
   if (hour === 3) return ["GBPUSD", "USDJPY", "XAUUSD", "AUDUSD", "USDCAD", "EURUSD"];
-  if (hour === 4) return ["XAUUSD", "GBPUSD"];
+  if (hour === 4) return ["XAUUSD", "AUDUSD"];
   return H1_ALL_BASES;
 }
 
@@ -219,7 +220,6 @@ export async function POST(request: Request) {
     for (const base of H1_TARGET_BASES) {
       if (market.brokerHour === 4 && base !== "XAUUSD") continue;
       const scannerBase = scannerBaseForTarget(base);
-      const baseSymbol = baseSymbolForTarget(base);
       const matches = findH1PatternMatchesForTarget(base, market.symbols[scannerBase].bars, market.brokerHour);
       const { day, symbol: symbolState } = ensureSymbolDay(state, market.brokerDate, base);
       if (reconcileTradeState(symbolState)) changed = true;
@@ -229,8 +229,13 @@ export async function POST(request: Request) {
 
       for (const match of matches) {
         if (delivered.has(match.slotHour)) continue;
+        const baseSymbol = baseSymbolForTargetSlot(base, match.slotHour);
         const baseBar = byBaseHour[baseSymbol]?.get(match.slotHour - 1);
         if (!baseBar) break;
+        const inheritedSignal = base === "XAUUSD" && match.slotHour === 4
+          ? audusdH3SignalForXauH4(market.symbols.AUDUSD.bars, market.symbols.XAUUSD.bars)
+          : null;
+        if (base === "XAUUSD" && match.slotHour === 4 && !inheritedSignal) break;
         const alert = buildStoredAlert({
           base,
           brokerSymbol: market.symbols[base].displayName || base,
@@ -239,6 +244,7 @@ export async function POST(request: Request) {
           match,
           baseSymbol,
           baseBar,
+          inheritedSignal: inheritedSignal || undefined,
         });
         pending.push({
           base,

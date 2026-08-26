@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 31;
+export const H1_CLOUD_STATE_VERSION = 32;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 25;
+export const H1_SIGNAL_RULE_VERSION = 26;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v31";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v32";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -70,7 +70,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 31;
+  version: 32;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -79,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 25;
+  signalRuleVersion: 26;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -133,6 +133,11 @@ export function baseSymbolForTarget(base: H1TargetBase): H1Base {
   if (base === "USDCAD") return "GBPUSD";
   if (base === "GBPUSD") return "EURUSD";
   return "USDCAD";
+}
+
+export function baseSymbolForTargetSlot(base: H1TargetBase, slotHour: number): H1Base {
+  if (base === "XAUUSD" && slotHour === 4) return "AUDUSD";
+  return baseSymbolForTarget(base);
 }
 
 const MONDAY_INVERT_SLOTS = new Set([3, 4, 9, 10, 11, 12, 13, 14]);
@@ -204,6 +209,21 @@ export function signalFromBaseAfterCalendar(baseSignal: H1Signal, brokerDate: st
   return postSignalDecision(brokerDate, slotHour).inverted ? (baseSignal === "BUY" ? "SELL" : "BUY") : baseSignal;
 }
 
+export function audusdH3SignalForXauH4(audusdBars: H1DirectionBar[], xauusdBars: H1DirectionBar[]): H1Signal | null {
+  const match = findH1PatternMatchesForTarget("AUDUSD", audusdBars, 3).find((item) => item.slotHour === 3);
+  const xauH2 = xauusdBars.find((bar) => bar.hour === 2);
+  if (!match || !xauH2) return null;
+  return buildStoredAlert({
+    base: "AUDUSD",
+    brokerSymbol: "AUDUSD",
+    scannerBase: "AUDUSD",
+    scannerSymbol: "AUDUSD",
+    match,
+    baseSymbol: "XAUUSD",
+    baseBar: xauH2,
+  }).symbolH1Signal;
+}
+
 function rowsForHours(byHour: Map<number, H1DirectionBar>, hours: number[]): H1DirectionBar[] | null {
   const rows = hours.map((hour) => byHour.get(hour));
   return rows.every(Boolean) ? rows as H1DirectionBar[] : null;
@@ -215,6 +235,7 @@ function isPattern2Triple(pattern: string): boolean {
 
 function lookbackActionForPattern(pattern: string): H1LookbackAction {
   if (PURE_SW_3.has(pattern)) return "block-pattern1";
+  if (PATTERN_2_TRIPLES.has(pattern)) return "block-pattern2";
   if (ALTERNATING_SW_3.has(pattern)) return "invert-pattern3";
   return "none";
 }
@@ -376,15 +397,16 @@ export function buildStoredAlert(args: {
   match: H1PatternMatch;
   baseSymbol: H1Base;
   baseBar: H1DirectionBar;
+  inheritedSignal?: H1Signal;
 }): H1StoredAlert {
-  const baseSignal = signalFromDirection(args.baseBar.direction);
-  const targetBaseSignal = signalFromTargetBase(args.base, baseSignal);
+  const baseSignal = args.inheritedSignal ?? signalFromDirection(args.baseBar.direction);
+  const targetBaseSignal = args.inheritedSignal ?? signalFromTargetBase(args.base, baseSignal);
   const patternSignal = signalFromPatternBase(targetBaseSignal, args.match.patternKind);
   const allowTradeSignal = args.match.lookbackAction === "invert-pattern3"
     ? (patternSignal === "BUY" ? "SELL" : "BUY")
     : patternSignal;
-  const postSignal = postSignalDecision(args.baseBar.brokerDate, args.match.slotHour);
-  const finalSignal = signalFromBaseAfterCalendar(allowTradeSignal, args.baseBar.brokerDate, args.match.slotHour);
+  const postSignal = args.inheritedSignal ? { inverted: false, rule: "none" as H1PostSignalRule } : postSignalDecision(args.baseBar.brokerDate, args.match.slotHour);
+  const finalSignal = args.inheritedSignal ? allowTradeSignal : signalFromBaseAfterCalendar(allowTradeSignal, args.baseBar.brokerDate, args.match.slotHour);
   return {
     slotHour: args.match.slotHour,
     pattern: args.match.pattern.join(" "),
@@ -397,7 +419,7 @@ export function buildStoredAlert(args: {
     baseSymbol: args.baseSymbol,
     baseH1Signal: baseSignal,
     baseHour: args.baseBar.hour,
-    baseDirection: args.baseBar.direction,
+    baseDirection: args.inheritedSignal ? (args.inheritedSignal === "BUY" ? "T" : "G") : args.baseBar.direction,
     symbolH1Signal: finalSignal,
     postSignalInverted: postSignal.inverted,
     postSignalRule: postSignal.rule,
@@ -434,6 +456,7 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
             : alert.lookbackPattern?.length === 2
             ? `Cặp ${alert.lookbackPattern.split("").join(" ")} → bình thường`
             : "không tác động";
+  const inheritedAudusdH3 = base === "XAUUSD" && alert.slotHour === 4 && alert.baseSymbol === "AUDUSD";
   const rows = [
     `🔔 ${base} H1 PATTERN`,
     `• Symbol: ${alert.symbol}`,
@@ -444,8 +467,10 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
     `• Nến xét nguồn (mới→cũ): ${barHours}`,
     `• Pattern nguồn: ${alert.pattern}`,
     `• Nhóm nguồn: ${pureLabel}`,
-    `• Base H1: ${alert.baseSymbol} H${String(alert.baseHour).padStart(2, "0")}=${alert.baseDirection} → ${alert.baseH1Signal}`,
-    `• Logic base: ${base === "GBPUSD" || base === "AUDUSD" || base === "USDCAD" || base === "USDJPY" ? `đảo ngược ${alert.baseSymbol} H1` : `giữ nguyên ${alert.baseSymbol} H1`}`,
+    inheritedAudusdH3
+      ? `• Signal nguồn: AUDUSD H03 → ${alert.baseH1Signal}`
+      : `• Base H1: ${alert.baseSymbol} H${String(alert.baseHour).padStart(2, "0")}=${alert.baseDirection} → ${alert.baseH1Signal}`,
+    `• Logic base: ${inheritedAudusdH3 ? "lấy signal AUDUSD H3" : base === "GBPUSD" || base === "AUDUSD" || base === "USDCAD" || base === "USDJPY" ? `đảo ngược ${alert.baseSymbol} H1` : `giữ nguyên ${alert.baseSymbol} H1`}`,
     `• AllowTrade lookback: ${lookbackLabel}`,
     `• Hậu signal: ${postSignalLabels[alert.postSignalRule]}`,
   ];
@@ -676,7 +701,6 @@ export function backfillSuppressedHistory(
 
   for (const base of H1_TARGET_BASES) {
     const scannerBase = scannerBaseForTarget(base);
-    const baseSymbol = baseSymbolForTarget(base);
     const matches = findH1PatternMatchesForTarget(base, market[scannerBase].bars, suppressedThrough);
     const { symbol } = ensureSymbolDay(state, brokerDate, base);
     const blocked = new Set(symbol.blockedSlots);
@@ -686,8 +710,13 @@ export function backfillSuppressedHistory(
 
     for (const match of matches) {
       if (match.slotHour > suppressedThrough || delivered.has(match.slotHour)) continue;
+      const baseSymbol = baseSymbolForTargetSlot(base, match.slotHour);
       const baseBar = byBaseHour[baseSymbol].get(match.slotHour - 1);
       if (!baseBar) continue;
+      const inheritedSignal = base === "XAUUSD" && match.slotHour === 4
+        ? audusdH3SignalForXauH4(market.AUDUSD.bars, market.XAUUSD.bars)
+        : null;
+      if (base === "XAUUSD" && match.slotHour === 4 && !inheritedSignal) continue;
       symbol.alerts.push(buildStoredAlert({
         base,
         brokerSymbol: market[base].displayName || base,
@@ -696,6 +725,7 @@ export function backfillSuppressedHistory(
         match,
         baseSymbol,
         baseBar,
+        inheritedSignal: inheritedSignal || undefined,
       }));
       delivered.add(match.slotHour);
       added += 1;
