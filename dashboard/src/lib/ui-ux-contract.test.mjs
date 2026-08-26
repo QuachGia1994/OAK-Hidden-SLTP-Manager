@@ -24,6 +24,15 @@ test("provider account load failures do not masquerade as auth lock", () => {
   assert.match(accountSource, /Provider accounts unavailable/);
 });
 
+test("provider account UI follows the global EN/VN locale", () => {
+  assert.match(accountSource, /const \{ locale \} = useLocale\(\)/);
+  assert.match(accountSource, /tr\("Sign in with the Dashboard API key\./);
+  assert.match(accountSource, /tr\("Invalid admin key", "Admin key không đúng"\)/);
+  assert.match(accountSource, /tr\("No cTrader accounts yet\./);
+  assert.match(accountSource, /tr\("No MT5 accounts yet\./);
+  assert.doesNotMatch(accountSource, /<p>Đăng nhập bằng Dashboard API key/);
+});
+
 test("all custom trading and NeoTech dialogs use the shared keyboard focus trap", () => {
   assert.match(h1EngineSource, /useDialogFocusTrap\(open/);
   assert.match(h1SignalSource, /useDialogFocusTrap\(true/);

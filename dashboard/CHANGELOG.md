@@ -2,6 +2,12 @@
 
 All notable changes to the dashboard are recorded here.
 
+## [0.6.1] - 2026-08-26
+
+### Fixed
+
+- `/accounts` now follows the global EN/VN locale across the admin sign-in state, provider descriptions, MT5 registration form, account controls, confirmations, errors and empty states. Added a regression contract for the exact EN admin-login copy shown after a 401 response.
+
 ## [0.6.0] - 2026-08-26
 
 ### Added

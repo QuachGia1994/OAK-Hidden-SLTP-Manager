@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useLocale } from "@/components/LocaleProvider";
 
 type Provider = "ctrader" | "mt5";
 type Account = {
@@ -50,6 +51,8 @@ type AccountPayload = {
 };
 
 export function ProviderAccountsPanel() {
+  const { locale } = useLocale();
+  const tr = (en: string, vi: string) => locale === "EN" ? en : vi;
   const [state, setState] = useState<"loading" | "locked" | "error" | "ready">("loading");
   const [payload, setPayload] = useState<AccountPayload | null>(null);
   const [providerTab, setProviderTab] = useState<Provider>("ctrader");
@@ -65,10 +68,10 @@ export function ProviderAccountsPanel() {
       return;
     }
     const body = await response.json().catch(() => null) as AccountPayload | { error?: string } | null;
-    if (!response.ok || !body || !("accounts" in body)) throw new Error((body && "error" in body && body.error) || "Cannot load provider accounts");
+    if (!response.ok || !body || !("accounts" in body)) throw new Error((body && "error" in body && body.error) || (locale === "EN" ? "Cannot load provider accounts" : "Không thể tải tài khoản provider"));
     setPayload(body);
     setState("ready");
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     load().catch((reason) => {
@@ -88,7 +91,7 @@ export function ProviderAccountsPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ apiKey: String(form.get("apiKey") || "") }),
       });
-      if (!response.ok) throw new Error("Admin key không đúng");
+      if (!response.ok) throw new Error(tr("Invalid admin key", "Admin key không đúng"));
       await load();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
@@ -103,7 +106,7 @@ export function ProviderAccountsPanel() {
     try {
       const response = await fetch("/api/ctrader/oauth", { method: "POST" });
       const body = await response.json().catch(() => null) as { authorizeUrl?: string; error?: string } | null;
-      if (!response.ok || !body?.authorizeUrl) throw new Error(body?.error || "Cannot start cTrader OAuth");
+      if (!response.ok || !body?.authorizeUrl) throw new Error(body?.error || tr("Cannot start cTrader OAuth", "Không thể bắt đầu cTrader OAuth"));
       window.location.assign(body.authorizeUrl);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
@@ -121,7 +124,7 @@ export function ProviderAccountsPanel() {
         body: JSON.stringify({ action: "sync-ctrader" }),
       });
       const body = await response.json().catch(() => null) as AccountPayload | { error?: string } | null;
-      if (!response.ok || !body || !("accounts" in body)) throw new Error((body && "error" in body && body.error) || "cTrader sync failed");
+      if (!response.ok || !body || !("accounts" in body)) throw new Error((body && "error" in body && body.error) || tr("cTrader sync failed", "Đồng bộ cTrader thất bại"));
       setPayload(body);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
@@ -150,7 +153,7 @@ export function ProviderAccountsPanel() {
         }),
       });
       const body = await response.json().catch(() => null) as { payload?: AccountPayload; error?: string } | null;
-      if (!response.ok || !body?.payload) throw new Error(body?.error || "Cannot register MT5 account");
+      if (!response.ok || !body?.payload) throw new Error(body?.error || tr("Cannot register MT5 account", "Không thể đăng ký tài khoản MT5"));
       setPayload(body.payload);
       formElement.reset();
     } catch (reason) {
@@ -196,7 +199,7 @@ export function ProviderAccountsPanel() {
         }),
       });
       const body = await response.json().catch(() => null) as { payload?: AccountPayload; error?: string } | null;
-      if (!response.ok || !body?.payload) throw new Error(body?.error || "Save failed");
+      if (!response.ok || !body?.payload) throw new Error(body?.error || tr("Save failed", "Lưu thất bại"));
       setPayload(body.payload);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
@@ -207,13 +210,13 @@ export function ProviderAccountsPanel() {
 
   async function removeMt5(account: Account) {
     if (account.provider !== "mt5") return;
-    if (!window.confirm(`Xóa metadata MT5 ${account.label}?`)) return;
+    if (!window.confirm(tr(`Remove MT5 metadata for ${account.label}?`, `Xóa metadata MT5 ${account.label}?`))) return;
     setBusy(`delete:${account.id}`);
     setError("");
     try {
       const response = await fetch(`/api/accounts?id=${encodeURIComponent(account.id)}`, { method: "DELETE" });
       const body = await response.json().catch(() => null) as { payload?: AccountPayload; error?: string } | null;
-      if (!response.ok || !body?.payload) throw new Error(body?.error || "Delete failed");
+      if (!response.ok || !body?.payload) throw new Error(body?.error || tr("Delete failed", "Xóa thất bại"));
       setPayload(body.payload);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
@@ -222,15 +225,15 @@ export function ProviderAccountsPanel() {
     }
   }
 
-  if (state === "loading") return <section className="oak-account-panel"><p>Loading provider accounts…</p></section>;
+  if (state === "loading") return <section className="oak-account-panel"><p>{tr("Loading provider accounts…", "Đang tải tài khoản provider…")}</p></section>;
   if (state === "locked") {
     return (
       <section className="oak-account-panel oak-account-login">
-        <header><small>ADMIN</small><h1>Provider Account Manager</h1><p>Đăng nhập bằng Dashboard API key. Session lưu HttpOnly 12 giờ; broker secret/token không được đưa vào browser.</p></header>
+        <header><small>ADMIN</small><h1>{tr("Provider Account Manager", "Quản lý tài khoản Provider")}</h1><p>{tr("Sign in with the Dashboard API key. The session is stored in an HttpOnly cookie for 12 hours; broker secrets and tokens are never exposed to the browser.", "Đăng nhập bằng Dashboard API key. Session lưu HttpOnly 12 giờ; broker secret/token không được đưa vào browser.")}</p></header>
         <form onSubmit={login}>
           <label htmlFor="admin-api-key">Dashboard API key</label>
           <input id="admin-api-key" name="apiKey" type="password" autoComplete="current-password" required />
-          <button type="submit" disabled={busy === "login"}>{busy === "login" ? "Signing in…" : "Sign in"}</button>
+          <button type="submit" disabled={busy === "login"}>{busy === "login" ? tr("Signing in…", "Đang đăng nhập…") : tr("Sign in", "Đăng nhập")}</button>
         </form>
         {error && <p className="oak-account-error">{error}</p>}
       </section>
@@ -239,8 +242,8 @@ export function ProviderAccountsPanel() {
   if (state === "error") {
     return (
       <section className="oak-account-panel oak-account-login" role="alert">
-        <header><small>ACCOUNT SERVICE</small><h1>Provider accounts unavailable</h1><p>{error || "Cannot load provider accounts."}</p></header>
-        <button type="button" onClick={() => { setState("loading"); void load().catch((reason) => { setError(reason instanceof Error ? reason.message : String(reason)); setState("error"); }); }}>Retry</button>
+        <header><small>ACCOUNT SERVICE</small><h1>{tr("Provider accounts unavailable", "Không thể truy cập tài khoản provider")}</h1><p>{error || tr("Cannot load provider accounts.", "Không thể tải tài khoản provider.")}</p></header>
+        <button type="button" onClick={() => { setState("loading"); void load().catch((reason) => { setError(reason instanceof Error ? reason.message : String(reason)); setState("error"); }); }}>{tr("Retry", "Thử lại")}</button>
       </section>
     );
   }
@@ -255,16 +258,18 @@ export function ProviderAccountsPanel() {
       <header className="oak-account-head">
         <div>
           <small>CLOUD / {providerTab === "ctrader" ? "CTRADER" : "MT5"}</small>
-          <h1>Provider Account Manager</h1>
-          <p>{providerTab === "ctrader" ? "cTrader dùng OAuth trading + cloud minute watchdog cho Auto Manager." : "MT5 dùng OAK MQL5 EA gắn trực tiếp vào terminal và Upstash outbound bridge; broker password/token không đi qua browser."}</p>
+          <h1>{tr("Provider Account Manager", "Quản lý tài khoản Provider")}</h1>
+          <p>{providerTab === "ctrader"
+            ? tr("cTrader uses trading OAuth plus the cloud minute watchdog for Auto Manager.", "cTrader dùng OAuth trading + cloud minute watchdog cho Auto Manager.")
+            : tr("MT5 uses the OAK MQL5 EA attached directly to the terminal and the Upstash outbound bridge; broker passwords and tokens never pass through the browser.", "MT5 dùng OAK MQL5 EA gắn trực tiếp vào terminal và Upstash outbound bridge; broker password/token không đi qua browser.")}</p>
         </div>
         {providerTab === "ctrader" && <div className="oak-account-actions">
-          <button type="button" onClick={connectCTrader} disabled={Boolean(busy)}>{payload?.providers.ctrader.connected ? "Reconnect cTrader" : "Connect cTrader"}</button>
-          <button type="button" onClick={syncCTrader} disabled={Boolean(busy) || !payload?.providers.ctrader.connected}>{busy === "sync-ctrader" ? "Syncing…" : "Sync cTrader"}</button>
+          <button type="button" onClick={connectCTrader} disabled={Boolean(busy)}>{payload?.providers.ctrader.connected ? tr("Reconnect cTrader", "Kết nối lại cTrader") : tr("Connect cTrader", "Kết nối cTrader")}</button>
+          <button type="button" onClick={syncCTrader} disabled={Boolean(busy) || !payload?.providers.ctrader.connected}>{busy === "sync-ctrader" ? tr("Syncing…", "Đang đồng bộ…") : tr("Sync cTrader", "Đồng bộ cTrader")}</button>
         </div>}
       </header>
 
-      <div className="oak-account-tabs" role="tablist" aria-label="Provider account type">
+      <div className="oak-account-tabs" role="tablist" aria-label={tr("Provider account type", "Loại tài khoản provider")}>
         <button type="button" role="tab" aria-selected={providerTab === "ctrader"} data-active={providerTab === "ctrader"} onClick={() => setProviderTab("ctrader")}>cTrader <span>{cTraderAccounts.length}</span></button>
         <button type="button" role="tab" aria-selected={providerTab === "mt5"} data-active={providerTab === "mt5"} onClick={() => setProviderTab("mt5")}>MT5 <span>{mt5Accounts.length}</span></button>
       </div>
@@ -277,60 +282,62 @@ export function ProviderAccountsPanel() {
           <span>MT5 <b>{payload?.providers.mt5.connected ? "BRIDGE ONLINE" : "BRIDGE OFFLINE"}</b></span>
           <span>Runtime <b>OAK EA</b></span>
         </>}
-        <span>Enabled <b>{enabled}/{activeAccounts.length}</b></span>
+        <span>{tr("Enabled", "Đang bật")} <b>{enabled}/{activeAccounts.length}</b></span>
       </div>
 
       {error && <p className="oak-account-error">{error}</p>}
 
       {providerTab === "mt5" && <form className="oak-account-card" onSubmit={createMt5}>
-        <header><div><b>Add MT5 account</b><span>Metadata only · no broker password stored</span></div></header>
+        <header><div><b>{tr("Add MT5 account", "Thêm tài khoản MT5")}</b><span>{tr("Metadata only · no broker password stored", "Chỉ lưu metadata · không lưu broker password")}</span></div></header>
         <div className="oak-account-fields">
           <label>Broker<input name="broker" placeholder="Vantage / ICMarkets / Darwinex" required /></label>
-          <label>Login<input name="login" type="number" min="1" step="1" required /></label>
-          <label>Environment<select name="environment" defaultValue="live"><option value="live">LIVE</option><option value="demo">DEMO</option></select></label>
-          <label>Label<input name="label" placeholder="Main Vantage" /></label>
-          <label>Bridge profile<input name="bridgeProfile" placeholder="Vantage" /></label>
+          <label>{tr("Login", "Tài khoản")}<input name="login" type="number" min="1" step="1" required /></label>
+          <label>{tr("Environment", "Môi trường")}<select name="environment" defaultValue="live"><option value="live">LIVE</option><option value="demo">DEMO</option></select></label>
+          <label>{tr("Label", "Nhãn")}<input name="label" placeholder="Main Vantage" /></label>
+          <label>{tr("Bridge profile", "Profile bridge")}<input name="bridgeProfile" placeholder="Vantage" /></label>
         </div>
-        <footer><button type="submit" disabled={busy === "create-mt5"}>{busy === "create-mt5" ? "Adding…" : "Add MT5 account"}</button></footer>
+        <footer><button type="submit" disabled={busy === "create-mt5"}>{busy === "create-mt5" ? tr("Adding…", "Đang thêm…") : tr("Add MT5 account", "Thêm tài khoản MT5")}</button></footer>
       </form>}
 
-      <div className="oak-account-list" role="tabpanel" aria-label={`${providerTab} accounts`}>
+      <div className="oak-account-list" role="tabpanel" aria-label={tr(`${providerTab} accounts`, `Tài khoản ${providerTab}`)}>
         {activeAccounts.map((account) => (
           <form key={account.id} className="oak-account-card" onSubmit={(event) => saveAccount(event, account)}>
             <header>
               <div><b>{account.label}</b><span>{account.provider.toUpperCase()} · {account.broker} · {account.environment.toUpperCase()} · #{account.externalAccountId}{account.provider === "mt5" ? ` · ${account.bridgeOnline ? "BRIDGE ONLINE" : "BRIDGE OFFLINE"}${account.bridgeRuntime ? " · OAK EA" : ""}` : ""}</span></div>
-              <label><input name="enabled" type="checkbox" defaultChecked={account.enabled} /> Enable control</label>
+              <label><input name="enabled" type="checkbox" defaultChecked={account.enabled} /> {tr("Enable control", "Bật điều khiển")}</label>
             </header>
             <div className="oak-account-fields">
-              <label>Account label<input name="label" defaultValue={account.label} /></label>
-              {account.provider === "mt5" && <label>Bridge profile<input name="bridgeProfile" defaultValue={account.bridgeProfile || ""} placeholder="Vantage" /></label>}
-              <label>FX SL points<input name="fxSlPoints" type="number" min="1" step="1" defaultValue={account.fxSlPoints} /></label>
-              <label>FX TP points<input name="fxTpPoints" type="number" min="1" step="1" defaultValue={account.fxTpPoints} /></label>
-              <label>Gold SL points<input name="goldSlPoints" type="number" min="1" step="1" defaultValue={account.goldSlPoints} /></label>
-              <label>Gold TP points<input name="goldTpPoints" type="number" min="1" step="1" defaultValue={account.goldTpPoints} /></label>
+              <label>{tr("Account label", "Nhãn tài khoản")}<input name="label" defaultValue={account.label} /></label>
+              {account.provider === "mt5" && <label>{tr("Bridge profile", "Profile bridge")}<input name="bridgeProfile" defaultValue={account.bridgeProfile || ""} placeholder="Vantage" /></label>}
+              <label>{tr("FX SL points", "Điểm SL FX")}<input name="fxSlPoints" type="number" min="1" step="1" defaultValue={account.fxSlPoints} /></label>
+              <label>{tr("FX TP points", "Điểm TP FX")}<input name="fxTpPoints" type="number" min="1" step="1" defaultValue={account.fxTpPoints} /></label>
+              <label>{tr("Gold SL points", "Điểm SL Gold")}<input name="goldSlPoints" type="number" min="1" step="1" defaultValue={account.goldSlPoints} /></label>
+              <label>{tr("Gold TP points", "Điểm TP Gold")}<input name="goldTpPoints" type="number" min="1" step="1" defaultValue={account.goldTpPoints} /></label>
               {account.provider === "ctrader" && account.manager && <>
                 <label><input name="managerEnabled" type="checkbox" defaultChecked={account.manager.managerEnabled} /> cTrader Auto Manager</label>
-                <label><input name="autoAttachSlTp" type="checkbox" defaultChecked={account.manager.autoAttachSlTp} /> Auto attach missing SL/TP</label>
-                <label><input name="netSkipSameDirection" type="checkbox" defaultChecked={account.manager.netSkipSameDirection} /> Net: skip same direction</label>
-                <label><input name="netCloseOpposite" type="checkbox" defaultChecked={account.manager.netCloseOpposite} /> Net: close opposite</label>
-                <label><input name="netRemoveOppositePending" type="checkbox" defaultChecked={account.manager.netRemoveOppositePending} /> Net: remove opposite pending</label>
-                <label>BE at R<input name="breakEvenAtR" type="number" min="0" step="0.1" defaultValue={account.manager.breakEvenAtR} /></label>
-                <label>BE offset points<input name="breakEvenOffsetPoints" type="number" min="0" step="1" defaultValue={account.manager.breakEvenOffsetPoints} /></label>
-                <label>Full close at R<input name="closeAtR" type="number" min="0" step="0.1" defaultValue={account.manager.closeAtR} /></label>
-                <label>Partial R levels<input name="partialRLevels" defaultValue={account.manager.partialRLevels.join(",")} placeholder="1,2" /></label>
-                <label>Partial %<input name="partialPercents" defaultValue={account.manager.partialPercents.join(",")} placeholder="50 or 50,25" /></label>
-                <label>Max lot / entry<input name="maxLotPerTrade" type="number" min="0.01" step="0.01" defaultValue={account.manager.maxLotPerTrade} /></label>
-                <label>Max exposure / symbol<input name="maxExposurePerSymbol" type="number" min="0.01" step="0.01" defaultValue={account.manager.maxExposurePerSymbol} /></label>
+                <label><input name="autoAttachSlTp" type="checkbox" defaultChecked={account.manager.autoAttachSlTp} /> {tr("Auto attach missing SL/TP", "Tự gắn SL/TP còn thiếu")}</label>
+                <label><input name="netSkipSameDirection" type="checkbox" defaultChecked={account.manager.netSkipSameDirection} /> {tr("Net: skip same direction", "Net: bỏ qua cùng hướng")}</label>
+                <label><input name="netCloseOpposite" type="checkbox" defaultChecked={account.manager.netCloseOpposite} /> {tr("Net: close opposite", "Net: đóng ngược hướng")}</label>
+                <label><input name="netRemoveOppositePending" type="checkbox" defaultChecked={account.manager.netRemoveOppositePending} /> {tr("Net: remove opposite pending", "Net: xóa pending ngược hướng")}</label>
+                <label>{tr("BE at R", "BE tại R")}<input name="breakEvenAtR" type="number" min="0" step="0.1" defaultValue={account.manager.breakEvenAtR} /></label>
+                <label>{tr("BE offset points", "Điểm bù BE")}<input name="breakEvenOffsetPoints" type="number" min="0" step="1" defaultValue={account.manager.breakEvenOffsetPoints} /></label>
+                <label>{tr("Full close at R", "Đóng toàn bộ tại R")}<input name="closeAtR" type="number" min="0" step="0.1" defaultValue={account.manager.closeAtR} /></label>
+                <label>{tr("Partial R levels", "Các mức R partial")}<input name="partialRLevels" defaultValue={account.manager.partialRLevels.join(",")} placeholder="1,2" /></label>
+                <label>{tr("Partial %", "% partial")}<input name="partialPercents" defaultValue={account.manager.partialPercents.join(",")} placeholder={tr("50 or 50,25", "50 hoặc 50,25")} /></label>
+                <label>{tr("Max lot / entry", "Lot tối đa / lệnh")}<input name="maxLotPerTrade" type="number" min="0.01" step="0.01" defaultValue={account.manager.maxLotPerTrade} /></label>
+                <label>{tr("Max exposure / symbol", "Exposure tối đa / symbol")}<input name="maxExposurePerSymbol" type="number" min="0.01" step="0.01" defaultValue={account.manager.maxExposurePerSymbol} /></label>
               </>}
-              <label><input name="makeDefault" type="checkbox" defaultChecked={account.isDefault} disabled={!account.enabled} /> Default account</label>
+              <label><input name="makeDefault" type="checkbox" defaultChecked={account.isDefault} disabled={!account.enabled} /> {tr("Default account", "Tài khoản mặc định")}</label>
             </div>
             <footer>
-              <button type="submit" disabled={busy === account.id}>{busy === account.id ? "Saving…" : "Save account"}</button>
-              {account.provider === "mt5" && <button type="button" onClick={() => removeMt5(account)} disabled={Boolean(busy)}>Remove MT5 metadata</button>}
+              <button type="submit" disabled={busy === account.id}>{busy === account.id ? tr("Saving…", "Đang lưu…") : tr("Save account", "Lưu tài khoản")}</button>
+              {account.provider === "mt5" && <button type="button" onClick={() => removeMt5(account)} disabled={Boolean(busy)}>{tr("Remove MT5 metadata", "Xóa metadata MT5")}</button>}
             </footer>
           </form>
         ))}
-        {!activeAccounts.length && <p className="oak-account-empty">{providerTab === "ctrader" ? "Chưa có cTrader account. Connect/sync cTrader để tải danh sách account." : "Chưa có MT5 account. Thêm account ở form phía trên rồi gắn OAK EA vào terminal."}</p>}
+        {!activeAccounts.length && <p className="oak-account-empty">{providerTab === "ctrader"
+          ? tr("No cTrader accounts yet. Connect or sync cTrader to load the account list.", "Chưa có cTrader account. Connect/sync cTrader để tải danh sách account.")
+          : tr("No MT5 accounts yet. Add an account above, then attach the OAK EA to the terminal.", "Chưa có MT5 account. Thêm account ở form phía trên rồi gắn OAK EA vào terminal.")}</p>}
       </div>
     </section>
   );
