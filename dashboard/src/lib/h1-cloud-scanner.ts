@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 42;
+export const H1_CLOUD_STATE_VERSION = 43;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 36;
+export const H1_SIGNAL_RULE_VERSION = 37;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v42";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v43";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -30,7 +30,7 @@ export type H1Signal = "BUY" | "SELL";
 export type H1PatternKind = "sw2" | "sw3Pure" | "sw3Normal";
 export type H1TriplePatternKind = "pattern1" | "pattern3" | "pattern4" | "pattern6";
 export type H1TriplePatternEffect = "block" | "invert" | "keep";
-export type H1LookbackAction = "none" | "block-pair" | "block-pattern1" | "block-pattern2" | "block-pattern4" | "block-repeat-pattern2" | "invert-pattern3" | "keep-pattern5";
+export type H1LookbackAction = "none" | "block-pair" | "block-pattern1" | "block-pattern2" | "block-pattern4" | "block-run5plus" | "block-repeat-pattern2" | "invert-pattern3" | "keep-pattern5" | "keep-pattern6";
 export type H1PostSignalRule = "none" | "mon-block" | "tue-block" | "wed-block" | "thu-cycle" | "fri-cycle";
 
 export type H1DirectionBar = {
@@ -72,7 +72,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 42;
+  version: 43;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -81,7 +81,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 36;
+  signalRuleVersion: 37;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -119,7 +119,7 @@ const BLOCK_PAIR_2 = new Set(["TG", "GT"]);
 const PATTERN_LABELS: Record<H1PatternKind, string> = {
   sw2: "SW 2 cây",
   sw3Pure: "SW 3 cây thuần",
-  sw3Normal: "Pattern 2 · 4+ cây cùng hướng",
+  sw3Normal: "Pattern 2 · đúng 4 cây cùng hướng",
 };
 
 export function classifyH1TriplePattern(pattern: string): H1TriplePatternKind | null {
@@ -273,17 +273,11 @@ function evaluateTripleLookback(byHour: Map<number, H1DirectionBar>, hours: [num
   if (tripleKind === "pattern1") return { pattern: triplePattern, action: "block-pattern1" };
   if (tripleKind === "pattern3") return { pattern: triplePattern, action: "invert-pattern3" };
 
-  if (tripleKind === "pattern4") {
-    const direction = rows[0].direction;
-    const runLength = sameDirectionRunLength(byHour, hours, direction);
-    if (runLength >= 4) return { pattern: direction.repeat(runLength), action: "block-pattern2" };
-    return { pattern: triplePattern, action: "block-pattern4" };
-  }
+  if (tripleKind === "pattern4") return { pattern: triplePattern, action: "block-pattern4" };
 
-  // Pattern 6 (GGT / TTG) is now an explicit reusable classification with
-  // semantic effect "keep". H1 intentionally preserves its existing action
-  // contract as none here so the ordered fallback window keeps working exactly
-  // as before; M15 can consume the exported classification/effect directly.
+  // Pattern 6 keeps the current signal for this window but is deliberately
+  // non-terminal: ordered lookback must continue into the next window.
+  if (tripleKind === "pattern6") return { pattern: triplePattern, action: "keep-pattern6" };
   return { pattern: triplePattern, action: "none" };
 }
 
@@ -306,6 +300,12 @@ function evaluateOrderedLookbackWindow(
 
   const fullPattern = fourRows.map((row) => row.direction).join("");
   if (ALTERNATING_SW_4.has(fullPattern)) return { pattern: fullPattern, action: "keep-pattern5" };
+  if (fourRows.every((row) => row.direction === fourRows[0].direction)) {
+    const direction = fourRows[0].direction;
+    const runLength = sameDirectionRunLength(byHour, fourHours, direction);
+    if (runLength >= 5) return { pattern: direction.repeat(runLength), action: "block-run5plus" };
+    return { pattern: fullPattern, action: "block-pattern2" };
+  }
 
   const triple = evaluateTripleLookback(byHour, tripleHours);
   if (triple.action === "invert-pattern3") {
@@ -318,23 +318,26 @@ function evaluateOrderedLookbackWindow(
 
 function allowTradeLookback(byHour: Map<number, H1DirectionBar>, slotHour: number, patternKind: H1PatternKind): { pattern: string | null; action: H1LookbackAction } {
   if (slotHour < 7 || (patternKind !== "sw3Pure" && patternKind !== "sw3Normal")) return { pattern: null, action: "none" };
+  const historyByHour = new Map([...byHour].filter(([hour]) => hour < slotHour));
 
   // Each window is authoritative as a unit. Lùi 3 must finish its H4-H3-H2-H1
   // style four-candle classification (Pattern 5 vs isolated Pattern 3) and
   // leading triple action before lùi 2 is allowed to participate.
   const primary = evaluateOrderedLookbackWindow(
-    byHour,
+    historyByHour,
     [slotHour - 4, slotHour - 5, slotHour - 6, slotHour - 7],
     [slotHour - 4, slotHour - 5, slotHour - 6],
   );
   if (primary.pattern === null) return primary;
-  if (primary.action !== "none") return primary;
+  if (primary.action !== "none" && primary.action !== "keep-pattern6") return primary;
 
-  return evaluateOrderedLookbackWindow(
-    byHour,
+  const fallback = evaluateOrderedLookbackWindow(
+    historyByHour,
     [slotHour - 3, slotHour - 4, slotHour - 5, slotHour - 6],
     [slotHour - 3, slotHour - 4, slotHour - 5],
   );
+  if (fallback.action !== "none") return fallback;
+  return primary.action === "keep-pattern6" ? primary : fallback;
 }
 
 function twoCandleMatch(bars: H1DirectionBar[], slotHour: 3 | 4): H1PatternMatch | null {
@@ -360,35 +363,38 @@ function evaluateBoundaryOrderedLookback(
 ): { pattern: string | null; action: H1LookbackAction } {
   const primary = evaluateTripleLookback(byHour, primaryTripleHours);
   if (primary.pattern === null) return primary;
-  if (primary.action !== "none") return primary;
-  return evaluateOrderedLookbackWindow(byHour, fallbackFourHours, fallbackTripleHours);
+  if (primary.action !== "none" && primary.action !== "keep-pattern6") return primary;
+  const fallback = evaluateOrderedLookbackWindow(byHour, fallbackFourHours, fallbackTripleHours);
+  if (fallback.action !== "none") return fallback;
+  return primary.action === "keep-pattern6" ? primary : fallback;
 }
 
 function targetLookbackGate(base: H1TargetBase, byHour: Map<number, H1DirectionBar>, slotHour: number): { pattern: string | null; action: H1LookbackAction } {
+  const historyByHour = new Map([...byHour].filter(([hour]) => hour < slotHour));
   if (base === "XAUUSD") {
     if (slotHour === 6) {
-      const rows = rowsForHours(byHour, [3, 2]);
+      const rows = rowsForHours(historyByHour, [3, 2]);
       if (!rows) return { pattern: null, action: "none" };
       const pattern = rows.map((row) => row.direction).join("");
       return { pattern, action: BLOCK_PAIR_2.has(pattern) ? "block-pair" : "none" };
     }
     if (slotHour === 7) {
-      return evaluateBoundaryLookback(byHour, [4, 3, 2]);
+      return evaluateBoundaryLookback(historyByHour, [4, 3, 2]);
     }
     if (slotHour === 8) {
       // XAUUSD boundary: H4-H3-H2-H1 touches H1, so do not classify
       // the four-candle window. Evaluate H4-H3-H2 first, then move to
       // the valid lùi-2 H5-H4-H3-H2 window only when no action exists.
-      return evaluateBoundaryOrderedLookback(byHour, [4, 3, 2], [5, 4, 3, 2], [5, 4, 3]);
+      return evaluateBoundaryOrderedLookback(historyByHour, [4, 3, 2], [5, 4, 3, 2], [5, 4, 3]);
     }
     return { pattern: null, action: "none" };
   }
 
-  if (slotHour === 6) return evaluateBoundaryLookback(byHour, [3, 2, 1]);
+  if (slotHour === 6) return evaluateBoundaryLookback(historyByHour, [3, 2, 1]);
   if (slotHour === 7) {
     // FX boundary: H3-H2-H1-H0 touches H0, even when a broker H0 bar
     // exists. Skip the four-candle classification and start at H3-H2-H1.
-    return evaluateBoundaryOrderedLookback(byHour, [3, 2, 1], [4, 3, 2, 1], [4, 3, 2]);
+    return evaluateBoundaryOrderedLookback(historyByHour, [3, 2, 1], [4, 3, 2, 1], [4, 3, 2]);
   }
   return { pattern: null, action: "none" };
 }
@@ -416,11 +422,11 @@ function mainPatternMatch(byHour: Map<number, H1DirectionBar>, slotHour: number)
   const pattern4 = rows4.map((row) => row.direction) as H1Direction[];
   if (!pattern4.every((direction) => direction === pattern4[0])) return null;
 
-  // Pattern 2 begins at four same-direction candles. At H6 we still accept a run
-  // that already started before the main scanner opened; from H7 onward, an older
-  // candle in the same direction means this slot is only a continuation of the run.
+  // Pattern 2 is exactly four same-direction closed candles. If the immediately
+  // older candle is also the same direction, this is already a 5+ run: not Pattern 2
+  // and therefore not a scanner signal at this slot (including H6).
   const older = byHour.get(slotHour - 5);
-  if (slotHour > H1_SCAN_START_HOUR && older?.direction === pattern4[0]) return null;
+  if (older?.direction === pattern4[0]) return null;
 
   const lookback = allowTradeLookback(byHour, slotHour, "sw3Normal");
   return {
@@ -454,15 +460,7 @@ export function findH1PatternMatchesForTarget(base: H1TargetBase, bars: H1Direct
     };
   }));
 
-  let pattern2Seen = false;
-  return matches
-    .sort((left, right) => left.slotHour - right.slotHour)
-    .filter((match) => {
-      if (match.patternKind !== "sw3Normal") return true;
-      if (pattern2Seen) return false;
-      pattern2Seen = true;
-      return true;
-    });
+  return matches.sort((left, right) => left.slotHour - right.slotHour);
 }
 
 export function findH1PatternMatches(bars: H1DirectionBar[], brokerHour: number): H1PatternMatch[] {
@@ -555,6 +553,10 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
     ? `Pattern 3 (${alert.lookbackPattern?.split("").join(" ")}) → đảo signal 1 lần`
     : alert.lookbackAction === "keep-pattern5"
       ? `Pattern 5 (${alert.lookbackPattern?.split("").join(" ")}) → giữ nguyên signal`
+    : alert.lookbackAction === "keep-pattern6"
+      ? `Pattern 6 (${alert.lookbackPattern?.split("").join(" ")}) → giữ nguyên signal`
+    : alert.lookbackAction === "block-run5plus"
+      ? `Chuỗi ${alert.lookbackPattern?.split("").join(" ")} · 5+ cây cùng hướng → BLOCK`
     : alert.lookbackAction === "block-pair"
       ? `Cặp ${alert.lookbackPattern?.split("").join(" ")} → BLOCK`
       : alert.lookbackAction === "block-pattern1"
@@ -612,7 +614,7 @@ function isPatternKind(value: unknown): value is H1PatternKind {
 }
 
 function isLookbackAction(value: unknown): value is H1LookbackAction {
-  return value === "none" || value === "block-pair" || value === "block-pattern1" || value === "block-pattern2" || value === "block-pattern4" || value === "block-repeat-pattern2" || value === "invert-pattern3" || value === "keep-pattern5";
+  return value === "none" || value === "block-pair" || value === "block-pattern1" || value === "block-pattern2" || value === "block-pattern4" || value === "block-run5plus" || value === "block-repeat-pattern2" || value === "invert-pattern3" || value === "keep-pattern5" || value === "keep-pattern6";
 }
 
 function isSignal(value: unknown): value is H1Signal {
