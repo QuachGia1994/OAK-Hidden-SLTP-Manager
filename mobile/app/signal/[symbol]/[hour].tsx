@@ -27,7 +27,7 @@ export default function SignalDetailScreen() {
   const hour = Number(params.hour || 0);
   const alert = findAlert(h1, symbol, hour);
   const date = latestH1Date(h1);
-  const baseInverted = symbol === "EURUSD" || symbol === "AUDUSD" || symbol === "USDCAD" || symbol === "USDJPY";
+  const pairVerdict = alert?.m15PairInverted ? "Reverse base" : "Keep base";
 
   return (
     <LinearGradient colors={[theme.canvas, theme.raised]} style={styles.flex}>
@@ -63,17 +63,17 @@ export default function SignalDetailScreen() {
               </GlassCard>
 
               <GlassCard>
-                <Row label="Pattern" value={alert.pattern.replaceAll(" ", " · ")} />
-                <Row label="Scanner" value={`${alert.scannerBase} · ${alert.scannerSymbol}`} />
+                <Row label="Pattern (M15)" value={alert.m15Window?.split("").join(" · ") || alert.pattern.replaceAll(" ", " · ")} />
+                <Row label="M15 pair" value={`${alert.m15Pair || "—"} · ${pairVerdict}`} />
+                <Row label="Entry time" value={alert.entryTime ? `${alert.entryTime} (+${alert.entryOffsetMinutes ?? "?"}p)` : "—"} />
                 <Row label="Base H1" value={`${alert.baseSymbol} · H${String(alert.baseHour || 0).padStart(2, "0")} · ${alert.baseDirection || "—"}`} />
                 <Row label="Base signal" value={alert.baseSignal || "—"} tone={alert.baseSignal === "SELL" ? "sell" : "buy"} />
-                <Row label="Base logic" value={`${baseInverted ? "Reverse" : "Follow"} ${alert.baseSymbol} H1`} />
                 <Row label="Post-signal" value={alert.postSignalRule || "none"} />
                 <Row label="Final signal" value={alert.signal || "—"} tone={alert.signal === "SELL" ? "sell" : "buy"} />
               </GlassCard>
 
               <GlassCard>
-                <Text style={[styles.sectionLabel, { color: theme.muted }]}>CANDLES NEW → OLD</Text>
+                <Text style={[styles.sectionLabel, { color: theme.muted }]}>M15 CANDLES NEW → OLD</Text>
                 <Text style={[styles.bars, { color: theme.text }]}>{alert.bars.join("  →  ") || "—"}</Text>
               </GlassCard>
             </>

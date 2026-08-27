@@ -366,6 +366,7 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-h1-signal-button { position: relative; display: grid; width: 100%; min-height: 3.7rem; place-content: center; padding: .35rem; text-align: center; transition: background-color var(--oak-motion-fast) ease; }
 .oak-h1-signal-button b { font: 950 .72rem "Cascadia Mono", Consolas, monospace; letter-spacing: .04em; }
 .oak-h1-pattern-badge { position: absolute; top: .2rem; right: .24rem; padding: .08rem .18rem; border: 1px solid color-mix(in srgb, var(--oak-accent) 42%, transparent); border-radius: .22rem; color: var(--oak-accent); background: color-mix(in srgb, var(--oak-accent) 9%, var(--oak-bg-surface)); font: 900 .42rem "Cascadia Mono", Consolas, monospace; letter-spacing: .03em; line-height: 1.2; white-space: nowrap; }
+.oak-h1-entry-badge { position: absolute; bottom: .18rem; left: 50%; transform: translateX(-50%); color: var(--oak-fg-muted); font: 800 .44rem "Cascadia Mono", Consolas, monospace; letter-spacing: .04em; white-space: nowrap; }
 .oak-h1-signal-button[data-side="buy"] { background: color-mix(in srgb, var(--oak-signal-buy) 7%, var(--oak-bg-surface)); }
 .oak-h1-signal-button[data-side="sell"] { background: color-mix(in srgb, var(--oak-signal-sell) 7%, var(--oak-bg-surface)); }
 .oak-h1-signal-button[data-side="buy"] b { color: var(--oak-signal-buy); }

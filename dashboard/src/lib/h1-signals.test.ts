@@ -10,38 +10,42 @@ const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.m
 const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
 const mobileH1RouteSource = readFileSync(new URL("../app/api/mobile/h1/route.ts", import.meta.url), "utf8");
 
-test("H1 web feed has independent schema-7 five-pattern Upstash contract", () => {
-  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 7/);
+test("H1 web feed has independent schema-8 H1+M15 Upstash contract", () => {
+  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 8/);
   assert.match(readerSource, /postSignalInverted/);
   assert.match(readerSource, /postSignalRule/);
+  assert.match(readerSource, /entryTime/);
+  assert.match(readerSource, /m15Pair/);
   assert.match(readerSource, /robot-sltp:public:h1-signals:latest/);
   assert.match(readerSource, /payload\.schemaVersion !== H1_SIGNAL_PUBLIC_SCHEMA/);
-  assert.match(readerSource, /normalizeTradeStatePayload/);
-  assert.match(readerSource, /reconcileTradeState\(state\)/);
-  assert.match(readerSource, /normalizeTradeStatePayload\(parsePayload/);
+  assert.match(readerSource, /maskFutureH1Signals\(parsePayload/);
   assert.match(readerSource, /payload\.signalRuleVersion !== H1_SIGNAL_RULE_VERSION/);
   for (const kind of ["pattern1", "pattern2", "pattern3", "pattern4", "pattern5"]) assert.match(readerSource, new RegExp(kind));
-  assert.doesNotMatch(readerSource, /sw2|sw3Pure|sw3Normal|mon-block|tue-block|wed-block/);
+  assert.doesNotMatch(readerSource, /sw2|sw3Pure|sw3Normal|mon-block|tue-block|wed-block|tradeAllowed|blockedSlots|reconcileTradeState/);
 });
 
-test("H1 cells render BUY SELL with explicit five-pattern badges and no BLOCK path", () => {
+test("H1 cells render BUY SELL with pattern badges, entry times and no BLOCK path", () => {
   assert.match(boardSource, /oak-h1-signal-button/);
   assert.match(boardSource, /<b>\{alert\.signal\}<\/b>/);
   assert.match(boardSource, /oak-h1-pattern-badge/);
   assert.match(boardSource, /P\{alert\.patternKind\.slice\(-1\)\}/);
-  assert.match(boardSource, /data-pattern-kind=\{alert\.patternKind\}/);
+  assert.match(boardSource, /oak-h1-entry-badge/);
+  assert.match(boardSource, /\{alert\.entryTime\}/);
   assert.match(redesignCss, /\.oak-h1-pattern-badge \{[^}]*oak-accent/);
+  assert.match(redesignCss, /\.oak-h1-entry-badge \{/);
   assert.doesNotMatch(boardSource, /BLOCK|NOT TRADE|blockedSlots|oak-h1-cell-blocked|oak-h1-blocked-cell|⚠ PURE/);
 });
 
-test("special Thursday Friday cycle highlights only XAUUSD and USDCAD table rows", () => {
+test("special cycle highlights only the XAUUSD table row across Thu Fri Mon rules", () => {
   assert.match(boardSource, /specialCycleRuleForDay/);
-  assert.match(boardSource, /postSignalRule === "thu-cycle" \|\| alert\.postSignalRule === "fri-cycle"/);
-  assert.match(boardSource, /base === "XAUUSD" \|\| base === "USDCAD"/);
+  assert.match(boardSource, /alert\.postSignalRule === "thu-cycle" \|\| alert\.postSignalRule === "fri-cycle" \|\| alert\.postSignalRule === "mon-cycle"/);
+  assert.match(boardSource, /base === "XAUUSD"/);
+  assert.doesNotMatch(boardSource, /base === "USDCAD"/);
   assert.match(boardSource, /oak-h1-special-cycle-row/);
   assert.match(boardSource, /data-cycle-rule/);
   assert.match(boardSource, /T5 CYCLE/);
   assert.match(boardSource, /T6 CYCLE/);
+  assert.match(boardSource, /T2 CYCLE/);
   assert.match(redesignCss, /\.oak-h1-special-cycle-row > th/);
   assert.match(redesignCss, /\.oak-h1-special-cycle-row > \.oak-h1-symbol-sticky/);
   assert.match(redesignCss, /\.oak-h1-cycle-badge/);
@@ -57,7 +61,7 @@ test("mobile H1 adapter preserves admin auth and normalized cloud feed semantics
 
 test("engine web surface is H1-only with the compact command header", () => {
   assert.doesNotMatch(enginePageSource, /getLatestPattern5|filterActivePattern5|maskFuturePattern5|redactPattern5Signals/);
-  assert.doesNotMatch(engineBoardSource, /Pattern5Payload|Pattern5Table|H4|ENGINE 05|Pattern Matrix|Trạng thái tín hiệu hiện tại|<small>PROFILE<\/small>|h1Data\?\.profile/);
+  assert.doesNotMatch(engineBoardSource, /Pattern5Payload|Pattern5Table|ENGINE 05|Pattern Matrix|Trạng thái tín hiệu hiện tại|<small>PROFILE<\/small>|h1Data\?\.profile/);
   assert.match(engineBoardSource, /TRADING \/ H1 CLOUD/);
 });
 
@@ -76,21 +80,22 @@ test("H1 board exports the selected scanner day as a shareable PNG with download
   assert.match(redesignCss, /\.oak-h1-share-png \{/);
 });
 
-test("H1 detail stays compact with five-pattern, base and Thursday Friday cycle evidence", () => {
+test("H1 detail stays compact with M15 evidence, entry time and XAU cycle labels", () => {
   assert.doesNotMatch(boardSource, /<small>SYMBOL<\/small>|<small>PROFILE<\/small>|<small>SCAN<\/small>|SCANNER PATTERN|PATTERN SCANNER|Nguồn scanner|Pattern source/);
   assert.match(boardSource, /Base H1 · \$\{alert\.baseSymbol\}/);
   assert.match(boardSource, /Nhóm pattern/);
-  assert.match(boardSource, /Logic base/);
-  assert.match(boardSource, /baseInverted/);
-  assert.match(boardSource, /base === "AUDUSD"[\s\S]*base === "USDCAD"[\s\S]*base === "USDJPY"/);
-  assert.match(boardSource, /đảo ngược/);
-  for (const label of ["Pattern 1 · TGG / GTT", "Pattern 2 · TTT / GGG", "Pattern 3 · TGT / GTG", "Pattern 4 · GGT / TTG", "Pattern 5 · 4+ cây cùng hướng"]) {
+  assert.match(boardSource, /Cặp M15/);
+  assert.match(boardSource, /m15PairInverted/);
+  assert.match(boardSource, /Giờ entry|Entry time/);
+  assert.match(boardSource, /entryOffsetMinutes/);
+  for (const label of ["Pattern 1 · TGG / GTT", "Pattern 2 · TTT / GGG", "Pattern 3 · TGT / GTG", "Pattern 4 · GGT / TTG", "Pattern 5 · 4+ same-direction candles"]) {
     assert.ok(boardSource.includes(label));
   }
   assert.match(boardSource, /Hậu signal/);
   assert.match(boardSource, /thu-cycle/);
   assert.match(boardSource, /fri-cycle/);
-  assert.doesNotMatch(boardSource, /AllowTrade lookback|BLOCK|sw2|sw3Pure|sw3Normal|audusdH3|mon-block|tue-block|wed-block|invert-pattern|keep-pattern/);
+  assert.match(boardSource, /mon-cycle/);
+  assert.doesNotMatch(boardSource, /AllowTrade lookback|BLOCK|sw2|sw3Pure|sw3Normal|audusdH3|mon-block|tue-block|wed-block|invert-pattern|keep-pattern|Logic base|baseInverted/);
   assert.match(vipSource, /redactH1Signals/);
-  assert.match(vipSource, /\{ \.\.\.symbol, alerts: \[\], blockedSlots: \[\] \}/);
+  assert.match(vipSource, /\{ \.\.\.symbol, alerts: \[\] \}/);
 });

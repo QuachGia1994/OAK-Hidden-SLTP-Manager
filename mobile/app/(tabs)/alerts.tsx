@@ -73,8 +73,9 @@ export default function AlertsScreen() {
               </View>
               <View style={styles.badges}>
                 <Pill label={alert.patternKind.toUpperCase()} />
+                {alert.entryTime ? <Pill label={`ENTRY ${alert.entryTime}`} /> : null}
               </View>
-              <Text style={[styles.meta, { color: theme.muted }]}>{alert.pattern.replaceAll(" ", " · ")} · {alert.scannerBase} → base {alert.baseSymbol}</Text>
+              <Text style={[styles.meta, { color: theme.muted }]}>{alert.m15Window?.split("").join(" · ") || alert.pattern.replaceAll(" ", " · ")} · cặp M15 {alert.m15Pair || "—"}</Text>
             </Pressable>
           );
         })}

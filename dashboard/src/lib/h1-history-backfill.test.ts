@@ -1,147 +1,115 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildStoredAlert, emptyCloudState, findH1PatternMatchesForTarget, type H1Base, type H1Direction, type H1DirectionBar } from "./h1-cloud-scanner.ts";
+import { emptyCloudState, type H1Base, type H1Direction, type H1DirectionBar, type H1M15Bar } from "./h1-cloud-scanner.ts";
 import { mergeHistoricalBackfill, reconstructHistoricalDays } from "./h1-history-backfill.ts";
 
-function bars(sequenceOldestToNewest: string, date: string, startHour = 0): H1DirectionBar[] {
-  return [...sequenceOldestToNewest].map((direction, index) => {
-    const hour = startHour + index;
-    return { hour, brokerDate: date, brokerTime: `${date}T${String(hour).padStart(2, "0")}:00`, direction: direction as H1Direction };
+function h1Bars(date: string): H1DirectionBar[] {
+  return Array.from({ length: 17 }, (_, hour) => ({
+    hour,
+    brokerDate: date,
+    brokerTime: `${date}T${String(hour).padStart(2, "0")}:00`,
+    direction: "T" as H1Direction,
+  }));
+}
+
+function m15Bars(date: string, direction: H1Direction = "T"): H1M15Bar[] {
+  return Array.from({ length: 64 }, (_, index) => {
+    const minuteOfDay = 15 * index;
+    return {
+      brokerDate: date,
+      brokerTime: `${date}T${String(Math.floor(minuteOfDay / 60)).padStart(2, "0")}:${String(minuteOfDay % 60).padStart(2, "0")}`,
+      minuteOfDay,
+      direction,
+    };
   });
 }
 
 function marketForDates(...dates: string[]) {
-  const sequences: Record<H1Base, string> = {
-    GBPUSD: "GGTGGT",
-    XAUUSD: "TTGGTT",
-    AUDUSD: "GGTGGT",
-    USDCAD: "TTTGGG",
-    USDJPY: "GGGTTT",
-    EURUSD: "GTGTTG",
-  };
-  return Object.fromEntries((Object.keys(sequences) as H1Base[]).map((base) => [base, {
+  const bases: H1Base[] = ["GBPUSD", "XAUUSD", "AUDUSD", "USDCAD", "USDJPY", "EURUSD"];
+  return Object.fromEntries(bases.map((base) => [base, {
     displayName: base,
-    bars: dates.flatMap((date) => bars(sequences[base], date)),
-  }])) as Record<H1Base, { displayName: string; bars: H1DirectionBar[] }>;
+    bars: dates.flatMap((date) => h1Bars(date)),
+    m15Bars: dates.flatMap((date) => m15Bars(date)),
+  }])) as Record<H1Base, { displayName: string; bars: H1DirectionBar[]; m15Bars: H1M15Bar[] }>;
 }
 
-test("historical reconstruction reuses live pattern/base/calendar rules and skips weekend records", () => {
-  const history = reconstructHistoricalDays(marketForDates("2026-08-21", "2026-08-22"));
-  assert.ok(history["2026-08-21"]);
-  assert.equal(history["2026-08-22"], undefined);
+test("historical reconstruction applies the block schedule, M15 engine and XAU cycle", () => {
+  const history = reconstructHistoricalDays(marketForDates("2026-07-06", "2026-07-04"));
+  // Weekend broker dates are never reconstructed.
+  assert.ok(history["2026-07-06"]);
+  assert.equal(history["2026-07-04"], undefined);
 
-  const scannerBars = marketForDates("2026-08-21").XAUUSD.bars;
-  const liveMatch = findH1PatternMatchesForTarget("XAUUSD", scannerBars, 18).find((item) => item.slotHour === 6)!;
-  const liveExpected = buildStoredAlert({
-    base: "XAUUSD",
-    brokerSymbol: "XAUUSD",
-    scannerBase: "XAUUSD",
-    scannerSymbol: "XAUUSD",
-    match: liveMatch,
-    baseSymbol: "GBPUSD",
-    baseBar: marketForDates("2026-08-21").GBPUSD.bars.find((bar) => bar.hour === 5)!,
-  });
-  const historical = history["2026-08-21"].symbols.XAUUSD?.alerts.find((alert) => alert.slotHour === 6);
-  assert.deepEqual(historical, liveExpected);
+  const gold = history["2026-07-06"].symbols.XAUUSD?.alerts ?? [];
+  const fx = history["2026-07-06"].symbols.GBPUSD?.alerts ?? [];
+  // XAUUSD owns H4 and joins every later block; FX starts at H3 and skips H4.
+  assert.deepEqual(gold.map((alert) => alert.slotHour), [4, 6, 9, 12, 14, 16]);
+  assert.deepEqual(fx.map((alert) => alert.slotHour), [3, 6, 9, 12, 14, 16]);
 
-  const market = marketForDates("2026-08-21");
-  assert.equal(history["2026-08-21"].symbols.XAUUSD?.alerts.some((alert) => alert.slotHour === 4), false);
-
-  const gbpH3Match = findH1PatternMatchesForTarget("GBPUSD", market.GBPUSD.bars, 3).find((item) => item.slotHour === 3)!;
-  const gbpH3Expected = buildStoredAlert({
-    base: "GBPUSD",
-    brokerSymbol: "GBPUSD",
-    scannerBase: "GBPUSD",
-    scannerSymbol: "GBPUSD",
-    match: gbpH3Match,
-    baseSymbol: "XAUUSD",
-    baseBar: market.XAUUSD.bars.find((bar) => bar.hour === 2)!,
-  });
-  const historicalGbpH3 = history["2026-08-21"].symbols.GBPUSD?.alerts.find((alert) => alert.slotHour === 3);
-  assert.deepEqual(historicalGbpH3, gbpH3Expected);
-  assert.deepEqual([historicalGbpH3?.baseSymbol, historicalGbpH3?.baseHour, historicalGbpH3?.baseH1Signal, historicalGbpH3?.symbolH1Signal], ["XAUUSD", 2, "SELL", "BUY"]);
-
-  const audH3Match = findH1PatternMatchesForTarget("AUDUSD", market.AUDUSD.bars, 3).find((item) => item.slotHour === 3)!;
-  const audH3Expected = buildStoredAlert({
-    base: "AUDUSD",
-    brokerSymbol: "AUDUSD",
-    scannerBase: "AUDUSD",
-    scannerSymbol: "AUDUSD",
-    match: audH3Match,
-    baseSymbol: "XAUUSD",
-    baseBar: market.XAUUSD.bars.find((bar) => bar.hour === 2)!,
-  });
-  assert.deepEqual(history["2026-08-21"].symbols.AUDUSD?.alerts.find((alert) => alert.slotHour === 3), audH3Expected);
-
-  const cadH3Match = findH1PatternMatchesForTarget("USDCAD", market.USDCAD.bars, 3).find((item) => item.slotHour === 3)!;
-  const cadH3Expected = buildStoredAlert({
-    base: "USDCAD",
-    brokerSymbol: "USDCAD",
-    scannerBase: "USDCAD",
-    scannerSymbol: "USDCAD",
-    match: cadH3Match,
-    baseSymbol: "GBPUSD",
-    baseBar: market.GBPUSD.bars.find((bar) => bar.hour === 2)!,
-  });
-  assert.deepEqual(history["2026-08-21"].symbols.USDCAD?.alerts.find((alert) => alert.slotHour === 3), cadH3Expected);
-
-  const jpyH3Match = findH1PatternMatchesForTarget("USDJPY", market.USDJPY.bars, 3).find((item) => item.slotHour === 3)!;
-  const jpyH3Expected = buildStoredAlert({
-    base: "USDJPY",
-    brokerSymbol: "USDJPY",
-    scannerBase: "USDJPY",
-    scannerSymbol: "USDJPY",
-    match: jpyH3Match,
-    baseSymbol: "USDCAD",
-    baseBar: market.USDCAD.bars.find((bar) => bar.hour === 2)!,
-  });
-  assert.deepEqual(history["2026-08-21"].symbols.USDJPY?.alerts.find((alert) => alert.slotHour === 3), jpyH3Expected);
-
-  for (const symbol of ["GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const) {
-    assert.equal(history["2026-08-21"].symbols[symbol]?.alerts.some((alert) => alert.slotHour === 4), false);
+  // All-T M15 keeps every base long, extends every window to Pattern 5 and
+  // enters two hours after the block.
+  for (const alert of [...gold, ...fx]) {
+    assert.equal(alert.patternKind, "pattern5");
+    assert.equal(alert.m15PairInverted, false);
+    assert.equal(alert.entryOffsetMinutes, 120);
+    assert.equal(alert.baseSymbol, alert.symbol === "XAUUSD" ? "XAUUSD" : "GBPUSD");
   }
-  for (const symbol of ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const) {
-    assert.equal(history["2026-08-21"].symbols[symbol]?.alerts.some((alert) => alert.slotHour === 5), false);
+  assert.deepEqual(gold.map((alert) => alert.entryTime), ["06:00", "08:00", "11:00", "14:00", "16:00", "18:00"]);
+
+  // Mon 2026-07-06 follows the special Thursday 2026-07-02 -> gold flips to
+  // SELL while FX stays untouched.
+  assert.ok(gold.every((alert) => alert.postSignalRule === "mon-cycle" && alert.symbolH1Signal === "SELL"));
+  assert.ok(fx.every((alert) => alert.postSignalRule === "none" && alert.symbolH1Signal === "BUY"));
+});
+
+test("historical days without M15 coverage yield no alerts instead of wrong signals", () => {
+  const market = marketForDates("2026-07-06");
+  const withoutM15 = Object.fromEntries(Object.entries(market).map(([base, item]) => [base, {
+    displayName: item.displayName,
+    bars: item.bars,
+    m15Bars: [],
+  }])) as typeof market;
+  const history = reconstructHistoricalDays(withoutM15);
+  for (const symbolState of Object.values(history["2026-07-06"].symbols)) {
+    assert.deepEqual(symbolState?.alerts, []);
   }
 });
 
 test("backfill merge can restore a missing current day after the scanner window without overwriting an existing live day", () => {
-  const reconstructed = reconstructHistoricalDays(marketForDates("2026-08-20", "2026-08-21"));
+  const reconstructed = reconstructHistoricalDays(marketForDates("2026-07-03", "2026-07-06"));
   const missingCurrent = emptyCloudState();
-  const recovered = mergeHistoricalBackfill(missingCurrent, reconstructed, "2026-08-21", { includeMissingCurrentDay: true });
+  const recovered = mergeHistoricalBackfill(missingCurrent, reconstructed, "2026-07-06", { includeMissingCurrentDay: true });
   assert.ok(recovered.addedDays >= 2);
-  assert.ok(missingCurrent.days["2026-08-21"]);
-  assert.ok(Object.values(missingCurrent.days["2026-08-21"].symbols).some((symbol) => (symbol?.alerts.length || 0) > 0));
+  assert.ok(missingCurrent.days["2026-07-06"]);
+  assert.ok(Object.values(missingCurrent.days["2026-07-06"].symbols).some((symbol) => (symbol?.alerts.length || 0) > 0));
 
   const existingLive = emptyCloudState();
-  existingLive.days["2026-08-21"] = {
+  existingLive.days["2026-07-06"] = {
     symbols: {
       XAUUSD: {
-        alerts: [{ ...structuredClone(reconstructed["2026-08-21"].symbols.XAUUSD!.alerts[0]), symbol: "LIVE-SENTINEL" }],
-        blockedSlots: [],
+        alerts: [{ ...structuredClone(reconstructed["2026-07-06"].symbols.XAUUSD!.alerts[0]), symbol: "LIVE-SENTINEL" }],
       },
     },
   };
-  mergeHistoricalBackfill(existingLive, reconstructed, "2026-08-21", { includeMissingCurrentDay: true });
-  assert.equal(existingLive.days["2026-08-21"].symbols.XAUUSD!.alerts[0].symbol, "LIVE-SENTINEL");
+  mergeHistoricalBackfill(existingLive, reconstructed, "2026-07-06", { includeMissingCurrentDay: true });
+  assert.equal(existingLive.days["2026-07-06"].symbols.XAUUSD!.alerts[0].symbol, "LIVE-SENTINEL");
 });
 
 test("backfill merge is idempotent, preserves existing rows and never overwrites current live day", () => {
-  const reconstructed = reconstructHistoricalDays(marketForDates("2026-08-20", "2026-08-21"));
+  const reconstructed = reconstructHistoricalDays(marketForDates("2026-07-03", "2026-07-06"));
   const state = emptyCloudState();
-  const historicalDay = reconstructed["2026-08-20"];
+  const historicalDay = reconstructed["2026-07-03"];
   const original = structuredClone(historicalDay.symbols.XAUUSD!.alerts[0]);
   original.symbolH1Signal = original.symbolH1Signal === "BUY" ? "SELL" : "BUY";
-  state.days["2026-08-20"] = { symbols: { XAUUSD: { alerts: [original], blockedSlots: [] } } };
-  state.days["2026-08-21"] = { symbols: { XAUUSD: { alerts: [{ ...reconstructed["2026-08-21"].symbols.XAUUSD!.alerts[0], symbol: "LIVE-SENTINEL" }], blockedSlots: [] } } };
+  state.days["2026-07-03"] = { symbols: { XAUUSD: { alerts: [original] } } };
+  state.days["2026-07-06"] = { symbols: { XAUUSD: { alerts: [{ ...reconstructed["2026-07-06"].symbols.XAUUSD!.alerts[0], symbol: "LIVE-SENTINEL" }] } } };
 
-  const first = mergeHistoricalBackfill(state, reconstructed, "2026-08-21");
+  const first = mergeHistoricalBackfill(state, reconstructed, "2026-07-06");
   assert.ok(first.addedAlerts > 0);
-  assert.equal(state.days["2026-08-20"].symbols.XAUUSD!.alerts.find((alert) => alert.slotHour === original.slotHour)!.symbolH1Signal, original.symbolH1Signal);
-  assert.equal(state.days["2026-08-21"].symbols.XAUUSD!.alerts[0].symbol, "LIVE-SENTINEL");
+  assert.equal(state.days["2026-07-03"].symbols.XAUUSD!.alerts.find((alert) => alert.slotHour === original.slotHour)!.symbolH1Signal, original.symbolH1Signal);
+  assert.equal(state.days["2026-07-06"].symbols.XAUUSD!.alerts[0].symbol, "LIVE-SENTINEL");
   const afterFirst = JSON.stringify(state);
 
-  const second = mergeHistoricalBackfill(state, reconstructed, "2026-08-21");
+  const second = mergeHistoricalBackfill(state, reconstructed, "2026-07-06");
   assert.deepEqual(second, { addedDays: 0, addedAlerts: 0 });
   assert.equal(JSON.stringify(state), afterFirst);
 });

@@ -46,22 +46,24 @@ test("cloud scanner sends and persists every classified five-pattern alert", () 
   assert.match(route, /getdel/);
   assert.match(route, /await sendTelegram/);
   assert.match(route, /symbolState\.alerts\.push\(alert\)/);
-  assert.match(route, /reconcileTradeState/);
-  assert.ok(route.indexOf("reconcileTradeState(symbolState)") < route.indexOf("deliveredSlots(symbolState.alerts)"));
+  assert.ok(route.indexOf("deliveredSlots(symbolState.alerts)") < route.indexOf("for (const evaluation of evaluations)"));
   assert.match(route, /await saveH1CloudState\(state\)/);
   assert.ok(route.indexOf("await sendTelegram") < route.indexOf("symbolState.alerts.push(alert)"));
-  assert.doesNotMatch(route, /if \(alert\.tradeAllowed\)|if \(!alert\.tradeAllowed\)|blockedTradeSlots/);
+  assert.doesNotMatch(route, /if \(alert\.tradeAllowed\)|if \(!alert\.tradeAllowed\)|blockedTradeSlots|reconcileTradeState/);
 });
 
 test("cTrader cloud scanner remains read-only even when shared OAuth has trading scope", () => {
   assert.match(client, /wss:\/\/\$\{host\}:5036/);
   assert.match(client, /GET_TRENDBARS_REQ: 2137/);
   assert.match(client, /period: H1_PERIOD/);
+  assert.match(client, /period: M15_PERIOD/);
+  assert.match(client, /normalizeM15Trendbars/);
+  assert.match(client, /fetchCurrentBrokerDayMarket/);
   assert.match(client, /session\.scope !== "accounts" && session\.scope !== "trading"/);
   assert.doesNotMatch(route, /placeCTraderMarketOrder|closeCTraderPositions|amendCTraderPositionProtection|NEW_ORDER_REQ|CLOSE_POSITION_REQ/);
 });
 
-test("live route uses the fixed H3 H6 H9 H12 H14 H16 grid for every target", () => {
+test("live route uses the H3 H4 H6 H9 H12 H14 H16 grid with per-block symbol scopes", () => {
   assert.match(route, /H1_SCAN_HOURS as readonly number\[\]\)\.includes\(wall\.hour\)/);
   assert.match(route, /const recoveryOnly = !activeSlot[\s\S]*wall\.hour === 5/);
   assert.match(route, /if \(recoveryOnly && !state\.days\[market\.brokerDate\]\)/);
@@ -69,12 +71,12 @@ test("live route uses the fixed H3 H6 H9 H12 H14 H16 grid for every target", () 
   assert.match(route, /backfillSuppressedHistory[\s\S]*if \(recoveryOnly\)/);
   assert.match(route, /recoveredCurrentDay: changed/);
   assert.match(route, /"inactive-slot"/);
-  assert.match(route, /function requiredBasesForBrokerHour\(_hour: number\)[\s\S]*return H1_ALL_BASES/);
+  assert.match(route, /targetsForBlockHour\(brokerHour\)\.every/);
   assert.match(route, /for \(const base of H1_TARGET_BASES\)/);
-  assert.match(route, /baseSymbolForTargetSlot/);
-  assert.match(route, /findH1PatternMatchesForTarget/);
+  assert.match(route, /evaluateH1BlocksForTarget/);
+  assert.match(route, /m15Counts/);
   assert.match(route, /brokerUtcOffsetHours/);
-  assert.doesNotMatch(route, /brokerHour === 4|slotHour === 4|audusdH3/i);
+  assert.doesNotMatch(route, /audusdH3|baseSymbolForTargetSlot|scannerBaseForTarget/i);
 });
 
 test("H1 history backfill accepts admin/API or repo-fenced GitHub OIDC, stays singleton locked and has no Telegram or trading mutation path", () => {
@@ -100,10 +102,13 @@ test("historical cTrader H1 reads are sequential, throttled and bounded with has
   assert.match(client, /HISTORICAL_REQUEST_DELAY_MS = 260/);
   assert.match(client, /HISTORICAL_CHUNK_MS = 14 \* 86_400_000/);
   assert.match(client, /HISTORICAL_MAX_PAGES_PER_CHUNK = 3/);
-  assert.match(client, /HISTORICAL_MAX_REQUESTS = 150/);
+  assert.match(client, /HISTORICAL_MAX_REQUESTS = 400/);
   assert.match(client, /count: HISTORICAL_PAGE_COUNT/);
   assert.match(client, /trendPayload\.hasMore !== true/);
   assert.match(client, /await throttle\(\)/);
+  assert.match(client, /m15Complete/);
+  assert.match(backfillRoute, /deadlineMs: startedAt \+ 45_000/);
+  assert.match(backfillRoute, /m15HistoryComplete/);
   assert.doesNotMatch(client, /Promise\.all\([^)]*GET_TRENDBARS_REQ/);
 });
 

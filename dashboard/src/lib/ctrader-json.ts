@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { H1_ALL_BASES, type H1Base, type H1Direction, type H1DirectionBar } from "@/lib/h1-cloud-scanner";
+import { H1_ALL_BASES, type H1Base, type H1Direction, type H1DirectionBar, type H1M15Bar } from "@/lib/h1-cloud-scanner";
 import { lotsToProtocolVolume, mt5PointsToCTraderRelative } from "@/lib/ctrader-execution-domain";
 
 const PAYLOAD = {
@@ -34,11 +34,15 @@ const PAYLOAD = {
 } as const;
 
 const H1_PERIOD = 9;
+// cTrader trendbar period for M15 candles. Verified against the official
+// Spotware OpenApiPy ProtoOATrendbarPeriod enum where H1 = 9 (matches the
+// working production constant) and therefore M15 = 7, M30 = 8, H4 = 10.
+const M15_PERIOD = 7;
 const HISTORICAL_REQUEST_DELAY_MS = 260;
 const HISTORICAL_PAGE_COUNT = 500;
 const HISTORICAL_CHUNK_MS = 14 * 86_400_000;
 const HISTORICAL_MAX_PAGES_PER_CHUNK = 3;
-const HISTORICAL_MAX_REQUESTS = 150;
+const HISTORICAL_MAX_REQUESTS = 400;
 const HISTORICAL_MAX_RANGE_MS = 92 * 86_400_000;
 
 export type CTraderScannerSession = {
@@ -286,6 +290,27 @@ export function normalizeHistoricalTrendbars(rows: unknown[]): H1DirectionBar[] 
 
 function normalizeTrendbars(rows: unknown[], brokerDate: string, brokerHour: number): H1DirectionBar[] {
   return normalizeHistoricalTrendbars(rows).filter((bar) => bar.brokerDate === brokerDate && bar.hour < brokerHour);
+}
+
+export function normalizeM15Trendbars(rows: unknown[], brokerDate?: string): H1M15Bar[] {
+  const byMinute = new Map<string, H1M15Bar>();
+  for (const source of rows) {
+    if (!source || typeof source !== "object") continue;
+    const row = source as Record<string, unknown>;
+    const minutes = Number(row.utcTimestampInMinutes || 0);
+    if (!Number.isFinite(minutes) || minutes <= 0) continue;
+    const parts = brokerWallParts(minutes * 60_000);
+    const key = `${parts.dateKey}:${parts.minute}`;
+    byMinute.set(key, {
+      brokerDate: parts.dateKey,
+      brokerTime: `${parts.dateKey}T${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`,
+      minuteOfDay: parts.hour * 60 + parts.minute,
+      direction: directionFromTrendbar(row),
+    });
+  }
+  return [...byMinute.values()]
+    .filter((bar) => !brokerDate || bar.brokerDate === brokerDate)
+    .sort((left, right) => left.brokerDate.localeCompare(right.brokerDate) || left.minuteOfDay - right.minuteOfDay);
 }
 
 export type CTraderSymbolMeta = {
@@ -879,7 +904,7 @@ export async function fetchCTraderGrantedAccounts(args: {
   return { scope: live.scope === "trading" || demo.scope === "trading" ? "trading" : "accounts", accounts };
 }
 
-export async function fetchCurrentBrokerDayH1(
+export async function fetchCurrentBrokerDayMarket(
   session: CTraderScannerSession,
   nowMs = Date.now(),
 ): Promise<{
@@ -888,7 +913,7 @@ export async function fetchCurrentBrokerDayH1(
   brokerMinute: number;
   brokerWeekday: number;
   brokerUtcOffsetHours: number;
-  symbols: Record<H1Base, { displayName: string; bars: H1DirectionBar[] }>;
+  symbols: Record<H1Base, { displayName: string; bars: H1DirectionBar[]; m15Bars: H1M15Bar[] }>;
 }> {
   if (session.scope !== "accounts" && session.scope !== "trading") {
     throw new Error(`Unsupported cTrader OAuth scope: ${session.scope}`);
@@ -901,7 +926,7 @@ export async function fetchCurrentBrokerDayH1(
   try {
     const requested = await resolveH1ScannerSymbols(socket, session.accountId);
     const fromTimestamp = Math.max(0, nowMs - 36 * 3600_000);
-    const output = {} as Record<H1Base, { displayName: string; bars: H1DirectionBar[] }>;
+    const output = {} as Record<H1Base, { displayName: string; bars: H1DirectionBar[]; m15Bars: H1M15Bar[] }>;
     let historicalIndex = 0;
     for (const base of H1_ALL_BASES) {
       if (historicalIndex > 0) await delay(HISTORICAL_REQUEST_DELAY_MS);
@@ -915,9 +940,19 @@ export async function fetchCurrentBrokerDayH1(
         toTimestamp: nowMs,
       });
       const rows = Array.isArray(trendPayload.trendbar) ? trendPayload.trendbar : [];
+      await delay(HISTORICAL_REQUEST_DELAY_MS);
+      const m15Payload = await socket.request(PAYLOAD.GET_TRENDBARS_REQ, PAYLOAD.GET_TRENDBARS_RES, {
+        ctidTraderAccountId: session.accountId,
+        symbolId: meta.symbolId,
+        period: M15_PERIOD,
+        fromTimestamp,
+        toTimestamp: nowMs,
+      });
+      const m15Rows = Array.isArray(m15Payload.trendbar) ? m15Payload.trendbar : [];
       output[base] = {
         displayName: meta.displayName || base,
         bars: normalizeTrendbars(rows, current.dateKey, current.hour),
+        m15Bars: normalizeM15Trendbars(m15Rows, current.dateKey),
       };
     }
     return {
@@ -933,11 +968,49 @@ export async function fetchCurrentBrokerDayH1(
   }
 }
 
+export async function probeTrendbarPeriods(
+  session: CTraderScannerSession,
+  periods: readonly number[],
+  nowMs = Date.now(),
+): Promise<Record<number, number[]>> {
+  const socket = await authorizeAccountSocket(session);
+  try {
+    const requested = await resolveH1ScannerSymbols(socket, session.accountId);
+    const meta = requested.get("XAUUSD")!;
+    const fromTimestamp = Math.max(0, nowMs - 3 * 3600_000);
+    const output: Record<number, number[]> = {};
+    for (const period of periods) {
+      await delay(HISTORICAL_REQUEST_DELAY_MS);
+      const payload = await socket.request(PAYLOAD.GET_TRENDBARS_REQ, PAYLOAD.GET_TRENDBARS_RES, {
+        ctidTraderAccountId: session.accountId,
+        symbolId: meta.symbolId,
+        period,
+        fromTimestamp,
+        toTimestamp: nowMs,
+      });
+      const rows = Array.isArray(payload.trendbar) ? payload.trendbar : [];
+      output[period] = rows
+        .map((row) => Number((row as Record<string, unknown>).utcTimestampInMinutes || 0))
+        .filter((minutes) => minutes > 0)
+        .sort((left, right) => left - right);
+    }
+    return output;
+  } finally {
+    socket.close();
+  }
+}
+
 export async function fetchHistoricalBrokerH1(
   session: CTraderScannerSession,
   fromTimestamp: number,
   toTimestamp: number,
-): Promise<{ symbols: Record<H1Base, { displayName: string; bars: H1DirectionBar[] }>; requestCount: number }> {
+  options: { deadlineMs?: number } = {},
+): Promise<{
+  symbols: Record<H1Base, { displayName: string; bars: H1DirectionBar[]; m15Bars: H1M15Bar[] }>;
+  requestCount: number;
+  m15RequestCount: number;
+  m15Complete: boolean;
+}> {
   if (session.scope !== "accounts" && session.scope !== "trading") throw new Error(`Unsupported cTrader OAuth scope: ${session.scope}`);
   if (!Number.isInteger(session.accountId) || session.accountId <= 0) throw new Error("cTrader account ID is not configured");
   if (!Number.isFinite(fromTimestamp) || !Number.isFinite(toTimestamp) || fromTimestamp <= 0 || toTimestamp <= fromTimestamp || toTimestamp - fromTimestamp > HISTORICAL_MAX_RANGE_MS) {
@@ -948,33 +1021,40 @@ export async function fetchHistoricalBrokerH1(
   try {
     const requested = await resolveH1ScannerSymbols(socket, session.accountId);
     const rawByBase = Object.fromEntries(H1_ALL_BASES.map((base) => [base, [] as unknown[]])) as Record<H1Base, unknown[]>;
+    const m15RawByBase = Object.fromEntries(H1_ALL_BASES.map((base) => [base, [] as unknown[]])) as Record<H1Base, unknown[]>;
     let requestCount = 0;
+    let m15RequestCount = 0;
+    let m15Complete = true;
     let lastHistoricalRequestAt = 0;
     const throttle = async () => {
       const wait = HISTORICAL_REQUEST_DELAY_MS - (Date.now() - lastHistoricalRequestAt);
       if (wait > 0) await delay(wait);
       lastHistoricalRequestAt = Date.now();
     };
-
-    for (const base of H1_ALL_BASES) {
-      const meta = requested.get(base)!;
+    const fetchPages = async (
+      symbolId: number,
+      period: number,
+      sink: unknown[],
+      guard: () => boolean,
+      countRequest: () => void,
+    ) => {
       for (let chunkFrom = fromTimestamp; chunkFrom < toTimestamp; chunkFrom += HISTORICAL_CHUNK_MS) {
         const chunkTo = Math.min(toTimestamp, chunkFrom + HISTORICAL_CHUNK_MS - 1);
         let pageTo = chunkTo;
         for (let page = 0; page < HISTORICAL_MAX_PAGES_PER_CHUNK && pageTo >= chunkFrom; page += 1) {
-          if (requestCount >= HISTORICAL_MAX_REQUESTS) throw new Error("cTrader H1 history request budget exceeded");
+          if (guard()) return false;
           await throttle();
-          requestCount += 1;
+          countRequest();
           const trendPayload = await socket.request(PAYLOAD.GET_TRENDBARS_REQ, PAYLOAD.GET_TRENDBARS_RES, {
             ctidTraderAccountId: session.accountId,
-            symbolId: meta.symbolId,
-            period: H1_PERIOD,
+            symbolId,
+            period,
             fromTimestamp: chunkFrom,
             toTimestamp: pageTo,
             count: HISTORICAL_PAGE_COUNT,
           });
           const rows = Array.isArray(trendPayload.trendbar) ? trendPayload.trendbar : [];
-          rawByBase[base].push(...rows);
+          sink.push(...rows);
           if (trendPayload.hasMore !== true) break;
           const oldestTimestamp = rows.reduce((oldest, raw) => {
             if (!raw || typeof raw !== "object") return oldest;
@@ -986,14 +1066,35 @@ export async function fetchHistoricalBrokerH1(
           pageTo = oldestTimestamp - 1;
         }
       }
+      return true;
+    };
+
+    for (const base of H1_ALL_BASES) {
+      const meta = requested.get(base)!;
+      const complete = await fetchPages(meta.symbolId, H1_PERIOD, rawByBase[base], () => requestCount >= HISTORICAL_MAX_REQUESTS, () => { requestCount += 1; });
+      if (!complete) throw new Error("cTrader H1 history request budget exceeded");
+    }
+    for (const base of H1_ALL_BASES) {
+      const meta = requested.get(base)!;
+      const complete = await fetchPages(meta.symbolId, M15_PERIOD, m15RawByBase[base], () => Boolean(options.deadlineMs && Date.now() > options.deadlineMs) || m15RequestCount >= HISTORICAL_MAX_REQUESTS, () => { m15RequestCount += 1; });
+      if (!complete) {
+        m15Complete = false;
+        break;
+      }
     }
 
     return {
       symbols: Object.fromEntries(H1_ALL_BASES.map((base) => {
         const meta = requested.get(base)!;
-        return [base, { displayName: meta.displayName || base, bars: normalizeHistoricalTrendbars(rawByBase[base]) }];
-      })) as Record<H1Base, { displayName: string; bars: H1DirectionBar[] }>,
+        return [base, {
+          displayName: meta.displayName || base,
+          bars: normalizeHistoricalTrendbars(rawByBase[base]),
+          m15Bars: normalizeM15Trendbars(m15RawByBase[base]),
+        }];
+      })) as Record<H1Base, { displayName: string; bars: H1DirectionBar[]; m15Bars: H1M15Bar[] }>,
       requestCount,
+      m15RequestCount,
+      m15Complete,
     };
   } finally {
     socket.close();

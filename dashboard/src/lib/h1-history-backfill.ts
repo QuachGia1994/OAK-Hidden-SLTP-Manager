@@ -1,23 +1,22 @@
 import { brokerDateWeekdayIndex, isValidBrokerDateKey } from "./h1-broker-date.ts";
 import {
+  H1_SCAN_HOURS,
   H1_TARGET_BASES,
-  baseHourForTargetSlot,
-  baseSymbolForTargetSlot,
   buildStoredAlert,
-  findH1PatternMatchesForTarget,
-  reconcileTradeState,
-  scannerBaseForTarget,
-  type H1Base,
+  evaluateH1Block,
+  targetsForBlockHour,
   type H1CloudState,
   type H1DirectionBar,
+  type H1MarketSnapshot,
+  type H1M15Bar,
   type H1TargetBase,
 } from "./h1-cloud-scanner.ts";
 
-export type H1HistoricalMarket = Record<H1Base, { displayName: string; bars: H1DirectionBar[] }>;
+export type H1HistoricalMarket = H1MarketSnapshot;
 export type H1HistoricalDays = Record<string, H1CloudState["days"][string]>;
 
-function barsForDate(item: H1HistoricalMarket[H1Base], date: string): H1DirectionBar[] {
-  return item.bars.filter((bar) => bar.brokerDate === date).sort((left, right) => left.hour - right.hour);
+function barsForDate<T extends { brokerDate: string }>(rows: T[], date: string): T[] {
+  return rows.filter((row) => row.brokerDate === date);
 }
 
 export function reconstructHistoricalDays(market: H1HistoricalMarket): H1HistoricalDays {
@@ -29,33 +28,24 @@ export function reconstructHistoricalDays(market: H1HistoricalMarket): H1Histori
   for (const date of dateKeys) {
     const weekday = brokerDateWeekdayIndex(date);
     if (weekday === 0 || weekday === 6) continue;
-    const perBase = Object.fromEntries((Object.keys(market) as H1Base[]).map((base) => [base, barsForDate(market[base], date)])) as Record<H1Base, H1DirectionBar[]>;
-    if (!Object.values(perBase).some((bars) => bars.length > 0)) continue;
+    const perBase = Object.fromEntries((Object.keys(market) as H1TargetBase[]).map((base) => [base, {
+      bars: barsForDate(market[base].bars as H1DirectionBar[], date),
+      m15Bars: barsForDate((market[base].m15Bars || []) as H1M15Bar[], date),
+    }])) as Record<H1TargetBase, { bars: H1DirectionBar[]; m15Bars: H1M15Bar[] }>;
+    if (!Object.values(perBase).some((item) => item.bars.length > 0)) continue;
 
     const symbols: H1CloudState["days"][string]["symbols"] = {};
     for (const base of H1_TARGET_BASES) {
-      const scannerBase = scannerBaseForTarget(base);
-      const alerts = findH1PatternMatchesForTarget(base, perBase[scannerBase], 18).flatMap((match) => {
-        const baseSymbol = baseSymbolForTargetSlot(base, match.slotHour);
-        const baseByHour = new Map(perBase[baseSymbol].map((bar) => [bar.hour, bar]));
-        const baseBar = baseByHour.get(baseHourForTargetSlot(base, match.slotHour));
-        if (!baseBar) return [];
-        return [buildStoredAlert({
+      const blocks = H1_SCAN_HOURS.filter((hour) => (targetsForBlockHour(hour) as readonly string[]).includes(base));
+      const alerts = blocks.flatMap((slotHour) => {
+        const evaluation = evaluateH1Block({ slotHour, h1Bars: perBase[base].bars, m15Bars: perBase[base].m15Bars });
+        return evaluation ? [buildStoredAlert({
           base,
           brokerSymbol: market[base].displayName || base,
-          scannerBase,
-          scannerSymbol: market[scannerBase].displayName || scannerBase,
-          match,
-          baseSymbol,
-          baseBar,
-        })];
+          evaluation,
+        })] : [];
       });
-      const symbolState = {
-        alerts,
-        blockedSlots: alerts.filter((alert) => !alert.tradeAllowed).map((alert) => alert.slotHour),
-      };
-      reconcileTradeState(symbolState);
-      symbols[base] = symbolState;
+      symbols[base] = { alerts };
     }
     output[date] = { symbols };
   }
@@ -63,7 +53,7 @@ export function reconstructHistoricalDays(market: H1HistoricalMarket): H1Histori
 }
 
 function cloneSymbolState(source: NonNullable<H1CloudState["days"][string]["symbols"][H1TargetBase]>) {
-  return { alerts: source.alerts.map((alert) => ({ ...alert, bars: [...alert.bars] })), blockedSlots: [...source.blockedSlots] };
+  return { alerts: source.alerts.map((alert) => ({ ...alert, bars: [...alert.bars] })) };
 }
 
 export function mergeHistoricalBackfill(
@@ -96,16 +86,13 @@ export function mergeHistoricalBackfill(
         continue;
       }
       const existingSlots = new Set(target.alerts.map((alert) => alert.slotHour));
-      const blocked = new Set(target.blockedSlots);
       for (const alert of source.alerts) {
         if (existingSlots.has(alert.slotHour)) continue;
         target.alerts.push({ ...alert, bars: [...alert.bars] });
         existingSlots.add(alert.slotHour);
-        if (!alert.tradeAllowed) blocked.add(alert.slotHour);
         addedAlerts += 1;
       }
       target.alerts.sort((left, right) => left.slotHour - right.slotHour);
-      target.blockedSlots = [...blocked].sort((left, right) => left - right);
     }
   }
   return { addedDays, addedAlerts };

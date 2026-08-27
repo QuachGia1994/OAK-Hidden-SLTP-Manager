@@ -54,7 +54,13 @@ export async function POST(request: Request) {
     const recoverMissingCurrentDay = current.hour > H1_SCAN_END_HOUR && !state.days[current.dateKey];
     const requestedThrough = recoverMissingCurrentDay ? current.dateKey : addBrokerCalendarDays(current.dateKey, -1);
     const session = await loadH1CTraderSession();
-    const historical = await fetchHistoricalBrokerH1(session, utcHistoryEnvelopeStart(requestedFrom), nowMs);
+    const startedAt = Date.now();
+    const historical = await fetchHistoricalBrokerH1(session, utcHistoryEnvelopeStart(requestedFrom), nowMs, {
+      // Stay safely inside the 60s serverless budget: H1 history is fetched
+      // first and always completes; the M15 pass stops early when needed and
+      // reports partial coverage instead of failing the whole backfill.
+      deadlineMs: startedAt + 45_000,
+    });
     const reconstructedAll = reconstructHistoricalDays(historical.symbols);
     const reconstructed = Object.fromEntries(Object.entries(reconstructedAll).filter(([date]) =>
       date >= requestedFrom && (date < current.dateKey || (recoverMissingCurrentDay && date === current.dateKey)),
@@ -78,7 +84,12 @@ export async function POST(request: Request) {
       recoveredMissingCurrentDay: recoverMissingCurrentDay && Boolean(state.days[current.dateKey]),
       stateSource: source,
       providerRequestCount: historical.requestCount,
+      providerM15RequestCount: historical.m15RequestCount,
+      m15HistoryComplete: historical.m15Complete,
       providerBarCounts: Object.fromEntries(Object.entries(historical.symbols).map(([base, item]) => [base, item.bars.filter((bar) =>
+        bar.brokerDate >= requestedFrom && (bar.brokerDate < current.dateKey || (recoverMissingCurrentDay && bar.brokerDate === current.dateKey)),
+      ).length])),
+      providerM15BarCounts: Object.fromEntries(Object.entries(historical.symbols).map(([base, item]) => [base, (item.m15Bars || []).filter((bar) =>
         bar.brokerDate >= requestedFrom && (bar.brokerDate < current.dateKey || (recoverMissingCurrentDay && bar.brokerDate === current.dateKey)),
       ).length])),
       availableTradingDays: coverageDates.length,

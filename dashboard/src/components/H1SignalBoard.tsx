@@ -76,7 +76,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   ctx.fillText(locale === "EN" ? "H1 Intraday Signals" : "Tín hiệu H1 trong ngày", padding + 22, padding + 66);
   ctx.fillStyle = colors.muted;
   ctx.font = `700 15px ${H1_SHARE_FONT}`;
-  ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  ${locale === "EN" ? "Five-pattern scanner" : "Scanner 5 pattern"}`, padding + 22, padding + 96);
+  ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  ${locale === "EN" ? "H1 base + M15 engine" : "Base H1 + M15"}`, padding + 22, padding + 96);
 
   const tableX = padding;
   const tableY = padding + titleHeight;
@@ -178,6 +178,7 @@ function postSignalLabel(rule: H1SignalAlert["postSignalRule"], inverted: boolea
     none: { EN: "no inversion", VN: "không đảo" },
     "thu-cycle": { EN: "reverse by Thursday special cycle", VN: "đảo theo chu kỳ Thứ 5 special" },
     "fri-cycle": { EN: "reverse by Friday special cycle", VN: "đảo theo chu kỳ Thứ 6 special" },
+    "mon-cycle": { EN: "reverse by Monday cycle (prior special Thursday)", VN: "đảo theo chu kỳ Thứ 2 (tuần sau T5 đặc biệt)" },
   } as const;
   if (!inverted && rule === "none") return labels.none[locale];
   return labels[rule][locale];
@@ -186,7 +187,9 @@ function postSignalLabel(rule: H1SignalAlert["postSignalRule"], inverted: boolea
 function specialCycleRuleForDay(day: H1SignalPayload["days"][string] | undefined) {
   for (const symbolState of Object.values(day?.symbols ?? {})) {
     for (const alert of symbolState?.alerts ?? []) {
-      if (alert.postSignalRule === "thu-cycle" || alert.postSignalRule === "fri-cycle") return alert.postSignalRule;
+      if (alert.postSignalRule === "thu-cycle" || alert.postSignalRule === "fri-cycle" || alert.postSignalRule === "mon-cycle") {
+        return alert.postSignalRule;
+      }
     }
   }
   return null;
@@ -195,10 +198,12 @@ function specialCycleRuleForDay(day: H1SignalPayload["days"][string] | undefined
 function DetailModal({ selection, locale, onClose }: { selection: Selection; locale: Locale; onClose: () => void }) {
   const ref = useDialogFocusTrap(true, onClose);
   const { base, date, alert } = selection;
-  const baseInverted = base === "AUDUSD" || base === "USDCAD" || base === "USDJPY";
   const baseDetail = alert.baseSignal
     ? `${alert.baseSignal}${alert.baseHour !== null ? ` · H${String(alert.baseHour).padStart(2, "0")}=${alert.baseDirection || "—"}` : ""}`
     : "—";
+  const pairVerdict = alert.m15PairInverted
+    ? { EN: "reverse base", VN: "đảo ngược base" }
+    : { EN: "keep base", VN: "giữ nguyên base" };
 
   return (
     <div className="oak-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
@@ -209,13 +214,14 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
         </header>
         <div className="oak-h1-detail-grid">
           <div><small>{locale === "EN" ? "BROKER DAY" : "NGÀY BROKER"}</small><b>{date}</b></div>
-          <div><small>{locale === "EN" ? "CANDLES NEW→OLD" : "NẾN MỚI→CŨ"}</small><b>{barsLabel(alert.bars) || "—"}</b></div>
-          <div><small>PATTERN</small><b>{alert.pattern || "—"}</b></div>
+          <div><small>{locale === "EN" ? "M15 CANDLES NEW→OLD" : "NẾN M15 MỚI→CŨ"}</small><b>{barsLabel(alert.bars) || "—"}</b></div>
+          <div><small>PATTERN</small><b>{alert.m15Window?.split("").join(" ") || alert.pattern || "—"}</b></div>
         </div>
         <div className="oak-h1-explain">
           <p><span>{locale === "EN" ? "Pattern group" : "Nhóm pattern"}</span><b>{patternLabel(alert.patternKind, locale)}</b></p>
           <p><span>{`Base H1 · ${alert.baseSymbol}`}</span><b>{baseDetail}</b></p>
-          <p><span>{locale === "EN" ? "Base logic" : "Logic base"}</span><b>{locale === "EN" ? `${baseInverted ? "reverse" : "follow"} ${alert.baseSymbol} H1` : `${baseInverted ? "đảo ngược" : "giữ nguyên"} ${alert.baseSymbol} H1`}</b></p>
+          <p><span>{locale === "EN" ? `M15 pair ${alert.m15Pair || "—"}` : `Cặp M15 ${alert.m15Pair || "—"}`}</span><b>{pairVerdict[locale]}</b></p>
+          <p><span>{locale === "EN" ? "Entry time" : "Giờ entry"}</span><b>{alert.entryTime ? `${alert.entryTime} (+${alert.entryOffsetMinutes ?? "?"}p)` : "—"}</b></p>
           <p><span>{locale === "EN" ? "Post-signal" : "Hậu signal"}</span><b>{postSignalLabel(alert.postSignalRule, alert.postSignalInverted, locale)}</b></p>
           <p><span>{locale === "EN" ? `Signal ${base} H1` : `Signal ${base} H1`}</span><b data-side={alert.signal?.toLowerCase()}>{alert.signal}</b></p>
         </div>
@@ -242,7 +248,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
   const copy = locale === "EN"
     ? {
         title: "H1 Intraday Signals",
-        sub: "Five-pattern scanner · only Thursday/Friday special cycles may invert",
+        sub: "H1 base + M15 refinement · entry time per pattern · XAUUSD special Thu/Fri/Mon cycle",
         awaiting: "Awaiting H1 live feed",
         locked: "VIP weekday signals are locked",
         weekdayGroup: "Filter by weekday",
@@ -253,7 +259,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
       }
     : {
         title: "Tín hiệu H1 trong ngày",
-        sub: "Scanner 5 pattern · chỉ chu kỳ special Thứ 5/6 có thể đảo signal",
+        sub: "Base H1 + tinh chỉnh M15 · giờ entry theo pattern · chu kỳ đặc biệt T5/T6/T2 riêng XAUUSD",
         awaiting: "Đang chờ feed H1 live",
         locked: "Tín hiệu H1 ngày thường đang khóa VIP",
         weekdayGroup: "Lọc theo thứ",
@@ -359,11 +365,12 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
             <tbody>{data.symbols.map((base) => {
               const symbolState = day?.symbols?.[base];
               const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
-              const specialCycleRow = Boolean(specialCycleRule && (base === "XAUUSD" || base === "USDCAD"));
-              return <tr key={base} className={specialCycleRow ? "oak-h1-special-cycle-row" : undefined} data-cycle-rule={specialCycleRow ? specialCycleRule : undefined}><th className="oak-h1-symbol-sticky"><b>{base}</b>{specialCycleRow && <small className="oak-h1-cycle-badge">{specialCycleRule === "thu-cycle" ? "T5 CYCLE" : "T6 CYCLE"}</small>}</th>{data.hours.map((hour) => {
+              const specialCycleRow = Boolean(specialCycleRule && base === "XAUUSD");
+              const cycleBadge = specialCycleRule === "thu-cycle" ? "T5 CYCLE" : specialCycleRule === "fri-cycle" ? "T6 CYCLE" : "T2 CYCLE";
+              return <tr key={base} className={specialCycleRow ? "oak-h1-special-cycle-row" : undefined} data-cycle-rule={specialCycleRow ? specialCycleRule : undefined}><th className="oak-h1-symbol-sticky"><b>{base}</b>{specialCycleRow && <small className="oak-h1-cycle-badge">{cycleBadge}</small>}</th>{data.hours.map((hour) => {
                 const alert = byHour.get(hour);
                 if (!alert?.signal) return <td key={hour}><span className="oak-h1-cell-empty">—</span></td>;
-                return <td key={hour} data-pattern-kind={alert.patternKind}><button className="oak-h1-signal-button" type="button" data-side={alert.signal.toLowerCase()} onClick={() => setSelection({ base, date, alert })}><small className="oak-h1-pattern-badge">P{alert.patternKind.slice(-1)}</small><b>{alert.signal}</b></button></td>;
+                return <td key={hour} data-pattern-kind={alert.patternKind}><button className="oak-h1-signal-button" type="button" data-side={alert.signal.toLowerCase()} onClick={() => setSelection({ base, date, alert })}><small className="oak-h1-pattern-badge">P{alert.patternKind.slice(-1)}</small><b>{alert.signal}</b><small className="oak-h1-entry-badge">{alert.entryTime}</small></button></td>;
               })}</tr>;
             })}</tbody>
           </table>

@@ -31,7 +31,7 @@ H1 public feed key:
 
 Current public schema: v7. Cloud state is v45 and signal-rule version is v39.
 
-The H1 scanner uses the same fixed slots for every target: `H3/H6/H9/H12/H14/H16`. It classifies five pattern families: `TGG/GTT`, `TTT/GGG`, `TGT/GTG`, `GGT/TTG`, and 4+ same-direction candles. Patterns do not block or mutate the mapped base signal; only the retained Thursday/Friday special calendar cycle can invert it.
+The H1 engine scans per-symbol blocks: `H3` covers the four FX pairs (`GBPUSD/AUDUSD/USDCAD/USDJPY`), `H4` covers `XAUUSD` only, and `H6/H9/H12/H14/H16` cover all five targets. Each signal starts from the symbol's own H-1 H1 candle, refined by the two M15 candles before the block (TT/GG keeps, TG/GT inverts). The M15 pattern window then classifies Pattern 1-5 (`TGG/GTT`, `TTT/GGG`, `TGT/GTG`, `GGT/TTG`, 4+ same-direction with precedence over Pattern 2) and sets the entry time: `P1 +2:00`, `P2 +0:01`, `P3/P4 +1:35`, `P5 +2:00`. Signals are never blocked; only XAUUSD participates in the special calendar cycle, which inverts whole days — a special Thursday (first Friday of that month-start on day 3/4/7, or prior Wednesday on day 30/1) inverts Thursday, keeps Friday and inverts the next Monday, while a normal Thursday keeps Thursday, inverts Friday and keeps Monday.
 
 The H1 feed retains broker-date records inside the latest 90 calendar days relative to the newest valid stored broker date. `/engine` defaults to the newest date and can filter retained dates by Monday-Friday. Mobile intentionally continues to consume only the latest retained date.
 

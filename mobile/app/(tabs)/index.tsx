@@ -44,10 +44,11 @@ function SignalRow({ symbol, hour, alert }: { symbol: string; hour: number; aler
             <View style={styles.signalTopline}>
               <View style={styles.badges}>
                 <Pill label={alert.patternKind.toUpperCase()} />
+                {alert.entryTime ? <Pill label={`ENTRY ${alert.entryTime}`} /> : null}
               </View>
               <Text style={[styles.signal, { color: signalColor }]}>{alert.signal || "—"}</Text>
             </View>
-            <Text style={[styles.pattern, { color: theme.muted }]}>{alert.pattern.replaceAll(" ", " · ")} · scanner {alert.scannerBase}</Text>
+            <Text style={[styles.pattern, { color: theme.muted }]}>{alert.m15Window?.split("").join(" · ") || alert.pattern.replaceAll(" ", " · ")}</Text>
           </>
         )}
       </View>
@@ -73,7 +74,7 @@ export default function EngineScreen() {
     <OakScreen
       eyebrow="OAK / H1 CLOUD"
       title="Engine"
-      subtitle="Native H1 command view for the fixed six-slot, five-pattern scanner."
+      subtitle="Native H1 command view for the H1+M15 engine across H3 H4 H6 H9 H12 H14 H16 blocks."
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.accent} />}
     >
       <GlassCard>
@@ -112,7 +113,7 @@ export default function EngineScreen() {
 
       <SectionTitle title="H1 timeline" meta={symbol || "—"} />
       <View style={styles.timeline}>
-        {(h1?.hours || [3, 6, 9, 12, 14, 16]).map((hour) => (
+        {(h1?.hours || [3, 4, 6, 9, 12, 14, 16]).map((hour) => (
           <SignalRow key={hour} symbol={symbol} hour={hour} alert={byHour.get(hour) || null} />
         ))}
       </View>

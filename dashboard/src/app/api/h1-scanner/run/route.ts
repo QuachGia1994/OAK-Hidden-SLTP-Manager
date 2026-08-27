@@ -3,25 +3,20 @@ import { NextResponse } from "next/server";
 import { redis, requireAuth } from "@/lib/redis-core";
 import { loadH1CloudConfig, type H1CloudConfig } from "@/lib/h1-cloud-config";
 import { verifyH1ScannerGitHubOidc } from "@/lib/github-oidc";
-import { brokerWallParts, fetchCurrentBrokerDayH1, type CTraderScannerSession } from "@/lib/ctrader-json";
+import { brokerWallParts, fetchCurrentBrokerDayMarket, type CTraderScannerSession } from "@/lib/ctrader-json";
 import { loadH1CTraderSession } from "@/lib/h1-ctrader-session";
 import { acquireH1CloudLock, loadH1CloudState, publishH1CloudState, releaseH1CloudLock, saveH1CloudState } from "@/lib/h1-cloud-store";
 import {
-  H1_ALL_BASES,
   H1_FIRST_SCAN_HOUR,
   H1_SCAN_END_HOUR,
   H1_SCAN_HOURS,
   H1_TARGET_BASES,
   backfillSuppressedHistory,
-  baseHourForTargetSlot,
-  baseSymbolForTargetSlot,
   buildStoredAlert,
   buildTelegramMessage,
   ensureSymbolDay,
-  findH1PatternMatchesForTarget,
-  reconcileTradeState,
-  scannerBaseForTarget,
-  type H1Base,
+  evaluateH1BlocksForTarget,
+  targetsForBlockHour,
   type H1StoredAlert,
 } from "@/lib/h1-cloud-scanner";
 
@@ -39,13 +34,11 @@ type RunSummary = {
   base: string;
   slotHour: number;
   patternKind: string;
-  scannerBase: string;
-  baseSymbol: string;
-  baseSignal: string;
+  m15Pair: string;
+  m15Window: string;
+  entryTime: string;
   signal: string;
-  tradeAllowed: boolean;
-  lookbackPattern: string | null;
-  lookbackAction: string;
+  postSignalRule: string;
 };
 
 function safeHexEqual(left: string, right: string): boolean {
@@ -99,25 +92,21 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function requiredBasesForBrokerHour(_hour: number): readonly H1Base[] {
-  return H1_ALL_BASES;
-}
-
 function marketReadyForSlot(
-  market: Awaited<ReturnType<typeof fetchCurrentBrokerDayH1>>,
+  market: Awaited<ReturnType<typeof fetchCurrentBrokerDayMarket>>,
   brokerHour: number,
 ) {
   const expectedClosedHour = brokerHour - 1;
-  return requiredBasesForBrokerHour(brokerHour).every((base) =>
+  return targetsForBlockHour(brokerHour).every((base) =>
     market.symbols[base].bars.some((bar) => bar.hour === expectedClosedHour),
   );
 }
 
 async function fetchReadyMarket(session: CTraderScannerSession, nowMs: number, brokerHour: number) {
-  let market = await fetchCurrentBrokerDayH1(session, nowMs);
+  let market = await fetchCurrentBrokerDayMarket(session, nowMs);
   for (let attempt = 1; attempt < FINALIZE_RETRY_ATTEMPTS && !marketReadyForSlot(market, brokerHour); attempt += 1) {
     await delay(FINALIZE_RETRY_DELAY_MS);
-    market = await fetchCurrentBrokerDayH1(session, Date.now());
+    market = await fetchCurrentBrokerDayMarket(session, Date.now());
   }
   return market;
 }
@@ -208,46 +197,38 @@ export async function POST(request: Request) {
       }, { headers: { "Cache-Control": "no-store, max-age=0" } });
     }
 
-    const byBaseHour = Object.fromEntries(
-      Object.entries(market.symbols).map(([base, item]) => [base, new Map(item.bars.map((bar) => [bar.hour, bar]))]),
-    ) as Record<string, Map<number, (typeof market.symbols)[keyof typeof market.symbols]["bars"][number]>>;
     const pending: RunSummary[] = [];
     let sent = 0;
 
     for (const base of H1_TARGET_BASES) {
-      const scannerBase = scannerBaseForTarget(base);
-      const matches = findH1PatternMatchesForTarget(base, market.symbols[scannerBase].bars, market.brokerHour);
-      const { day, symbol: symbolState } = ensureSymbolDay(state, market.brokerDate, base);
-      if (reconcileTradeState(symbolState)) changed = true;
+      const evaluations = evaluateH1BlocksForTarget(
+        base,
+        market.symbols[base].bars,
+        market.symbols[base].m15Bars,
+        market.brokerHour,
+      );
+      const { symbol: symbolState } = ensureSymbolDay(state, market.brokerDate, base);
       const delivered = deliveredSlots(symbolState.alerts);
-      const suppressedThrough = Number(day.suppressedThroughHour || 0);
+      const day = state.days[market.brokerDate];
+      const suppressedThrough = Number(day?.suppressedThroughHour || 0);
       for (let hour = 3; hour <= suppressedThrough; hour += 1) delivered.add(hour);
 
-      for (const match of matches) {
-        if (delivered.has(match.slotHour)) continue;
-        const baseSymbol = baseSymbolForTargetSlot(base, match.slotHour);
-        const baseBar = byBaseHour[baseSymbol]?.get(baseHourForTargetSlot(base, match.slotHour));
-        if (!baseBar) break;
+      for (const evaluation of evaluations) {
+        if (delivered.has(evaluation.slotHour)) continue;
         const alert = buildStoredAlert({
           base,
           brokerSymbol: market.symbols[base].displayName || base,
-          scannerBase,
-          scannerSymbol: market.symbols[scannerBase].displayName || scannerBase,
-          match,
-          baseSymbol,
-          baseBar,
+          evaluation,
         });
         pending.push({
           base,
           slotHour: alert.slotHour,
           patternKind: alert.patternKind,
-          scannerBase: alert.scannerBase,
-          baseSymbol: alert.baseSymbol,
-          baseSignal: alert.baseH1Signal,
+          m15Pair: alert.m15Pair,
+          m15Window: alert.m15Window,
+          entryTime: alert.entryTime,
           signal: alert.symbolH1Signal,
-          tradeAllowed: alert.tradeAllowed,
-          lookbackPattern: alert.lookbackPattern,
-          lookbackAction: alert.lookbackAction,
+          postSignalRule: alert.postSignalRule,
         });
         if (dryRun) continue;
 
@@ -281,6 +262,7 @@ export async function POST(request: Request) {
       sent,
       pending,
       h1Counts: Object.fromEntries(Object.entries(market.symbols).map(([base, item]) => [base, item.bars.length])),
+      m15Counts: Object.fromEntries(Object.entries(market.symbols).map(([base, item]) => [base, item.m15Bars.length])),
     }, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error) {
     console.error("[H1 CLOUD SCANNER]", error instanceof Error ? error.message : String(error));

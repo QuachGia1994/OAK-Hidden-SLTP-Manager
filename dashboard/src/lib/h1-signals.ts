@@ -1,12 +1,11 @@
 import "server-only";
 
 import { redis } from "./redis-core";
-import { H1_SIGNAL_RULE_VERSION, reconcileTradeState, type H1LookbackAction } from "./h1-cloud-scanner";
+import { H1_SIGNAL_RULE_VERSION } from "./h1-cloud-scanner";
 
 export type H1SignalSide = "BUY" | "SELL";
 export type H1PatternKind = "pattern1" | "pattern2" | "pattern3" | "pattern4" | "pattern5";
-export type H1ScannerBase = "XAUUSD" | "GBPUSD" | "AUDUSD" | "USDCAD" | "USDJPY";
-export type H1PostSignalRule = "none" | "thu-cycle" | "fri-cycle";
+export type H1PostSignalRule = "none" | "thu-cycle" | "fri-cycle" | "mon-cycle";
 
 export type H1SignalAlert = {
   slotHour: number;
@@ -15,23 +14,22 @@ export type H1SignalAlert = {
   bars: string[];
   symbol: string;
   profile: string;
-  scannerBase: H1ScannerBase;
-  scannerSymbol: string;
   baseSymbol: string;
   baseSignal: H1SignalSide | null;
   baseHour: number | null;
   baseDirection: "T" | "G" | "";
+  m15Pair: string;
+  m15PairInverted?: boolean;
+  m15Window: string;
+  entryOffsetMinutes?: number;
+  entryTime: string;
   signal: H1SignalSide | null;
   postSignalInverted?: boolean;
   postSignalRule?: H1PostSignalRule;
-  lookbackPattern?: string | null;
-  lookbackAction?: H1LookbackAction;
-  tradeAllowed?: boolean;
 };
 
 export type H1SymbolDay = {
   alerts: H1SignalAlert[];
-  blockedSlots?: number[];
 };
 
 export type H1SignalDay = {
@@ -48,7 +46,7 @@ export type H1SignalPayload = {
   days: Record<string, H1SignalDay>;
 };
 
-export const H1_SIGNAL_PUBLIC_SCHEMA = 7;
+export const H1_SIGNAL_PUBLIC_SCHEMA = 8;
 const LATEST_KEY = "robot-sltp:public:h1-signals:latest";
 
 function vietnamDateKey(now = new Date()): string {
@@ -86,27 +84,6 @@ function parsePayload(raw: unknown, source: string): H1SignalPayload | null {
   }
 }
 
-export function normalizeTradeStatePayload(payload: H1SignalPayload | null): H1SignalPayload | null {
-  if (!payload) return null;
-  return {
-    ...payload,
-    days: Object.fromEntries(Object.entries(payload.days).map(([date, day]) => [
-      date,
-      {
-        ...day,
-        symbols: Object.fromEntries(Object.entries(day.symbols).map(([base, source]) => {
-          const state = {
-            alerts: source.alerts.map((alert) => ({ ...alert })),
-            blockedSlots: [...(source.blockedSlots || [])],
-          };
-          reconcileTradeState(state);
-          return [base, state];
-        })),
-      },
-    ])),
-  };
-}
-
 export function maskFutureH1Signals(payload: H1SignalPayload | null, today = vietnamDateKey()): H1SignalPayload | null {
   if (!payload) return null;
   return {
@@ -117,7 +94,7 @@ export function maskFutureH1Signals(payload: H1SignalPayload | null, today = vie
 
 export async function getLatestH1Signals(): Promise<H1SignalPayload | null> {
   try {
-    return normalizeTradeStatePayload(parsePayload(await redis.get(LATEST_KEY), LATEST_KEY));
+    return maskFutureH1Signals(parsePayload(await redis.get(LATEST_KEY), LATEST_KEY));
   } catch (error) {
     console.error("[H1 SIGNAL READ FAILED]", error);
     return null;
