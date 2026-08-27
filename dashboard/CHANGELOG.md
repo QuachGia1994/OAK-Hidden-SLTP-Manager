@@ -4,6 +4,10 @@ All notable changes to the dashboard are recorded here.
 
 ## [Unreleased]
 
+### Added
+
+- Added revocable NeoTech profile share links. Owners can create 30-day read-only links, copy the secret URL once, list active links, revoke one or revoke all, while shared viewers receive live server-authoritative profile updates without workspace access, MT5 credentials, connector tokens, raw trades, ticket IDs or cash amounts. Share secrets stay in the URL fragment and are resolved through a bearer header; the server stores only SHA-256 hashes.
+
 ### Fixed
 
 - GBPUSD now uses the corresponding closed XAUUSD H1 candle with direct base polarity at every signal slot, including H3; Pattern 3/lookback and Thursday/Friday inversions still apply afterward. The old GBPUSD H3 AUDUSD-H3 exception was removed without changing XAUUSD H4 inheritance.

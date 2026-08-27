@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import {
   NEOTECH_PUBLIC_REPLAY_WINDOW_SECONDS,
+  NEOTECH_PUBLIC_SHARE_TTL_SECONDS,
   accountFingerprint,
   formatPairingCode,
   maskedLogin,
@@ -15,13 +16,16 @@ import {
   type NeoTechPublicConnectorRecord,
   type NeoTechPublicPairingRecord,
   type NeoTechPublicProfile,
+  type NeoTechPublicShareRecord,
   type NeoTechPublicWorkspace,
+  type NeoTechSharedProfile,
 } from "./neotech-public-domain.ts";
 import { buildNeoTechPublicProfile, profileAccountFingerprint } from "./neotech-public-engine.ts";
 
 export const NEOTECH_PUBLIC_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 export const NEOTECH_PUBLIC_PAIRING_TTL_SECONDS = 10 * 60;
 export const NEOTECH_PUBLIC_IDEMPOTENCY_TTL_SECONDS = 7 * 24 * 60 * 60;
+export const NEOTECH_PUBLIC_MAX_ACTIVE_SHARES = 10;
 
 export interface NeoTechPublicStore {
   putWorkspace(workspace: NeoTechPublicWorkspace): Promise<void>;
@@ -45,6 +49,11 @@ export interface NeoTechPublicStore {
   reserveNonce(connectorId: string, nonce: string, ttlSeconds: number): Promise<boolean>;
   getIdempotency(connectorId: string, key: string): Promise<string | null>;
   setIdempotency(connectorId: string, key: string, payloadHash: string, ttlSeconds: number): Promise<void>;
+  putShare(share: NeoTechPublicShareRecord): Promise<void>;
+  getShare(shareId: string): Promise<NeoTechPublicShareRecord | null>;
+  getShareByTokenHash(tokenHash: string): Promise<NeoTechPublicShareRecord | null>;
+  listAccountShares(accountId: string): Promise<NeoTechPublicShareRecord[]>;
+  deleteAccountShares(accountId: string): Promise<void>;
   appendAudit(scope: string, event: Record<string, unknown>): Promise<void>;
 }
 
@@ -74,6 +83,20 @@ export type ConnectorIngestAuth = {
   idempotencyKey: string;
   rawBody: string;
   nowSeconds: number;
+};
+
+export type ProfileShareCreated = {
+  id: string;
+  token: string;
+  createdAt: number;
+  expiresAt: number;
+};
+
+export type ProfileShareMetadata = Omit<NeoTechPublicShareRecord, "workspaceId" | "accountId" | "tokenSha256">;
+
+export type SharedProfileResolved = {
+  share: ProfileShareMetadata;
+  profile: NeoTechSharedProfile;
 };
 
 export type ConnectorIngestResult =
@@ -260,6 +283,117 @@ export async function listWorkspaceAccounts(store: NeoTechPublicStore, workspace
   return rows.filter((row): row is { account: NeoTechPublicAccountRecord; profile: NeoTechPublicProfile | null } => Boolean(row)).sort((a, b) => b.account.lastSeenAt - a.account.lastSeenAt);
 }
 
+function shareMetadata(share: NeoTechPublicShareRecord): ProfileShareMetadata {
+  return {
+    id: share.id,
+    createdAt: share.createdAt,
+    expiresAt: share.expiresAt,
+    revokedAt: share.revokedAt,
+  };
+}
+
+export function sanitizeSharedProfile(profile: NeoTechPublicProfile): NeoTechSharedProfile {
+  return {
+    schemaVersion: profile.schemaVersion,
+    ruleset: profile.ruleset,
+    generatedAtUtc: profile.generatedAtUtc,
+    overall: profile.overall,
+    account: {
+      maskedLogin: profile.account.maskedLogin,
+      broker: profile.account.broker,
+      server: profile.account.server,
+      currency: profile.account.currency,
+      mode: profile.account.mode,
+      readOnlyVerified: profile.account.readOnlyVerified,
+      connectorVersion: profile.account.connectorVersion,
+      lastSeenAt: profile.account.lastSeenAt,
+    },
+    coverage: profile.coverage,
+    counts: profile.counts,
+    risk: profile.risk,
+    fdd: profile.fdd,
+    months: profile.months.map((row) => ({
+      index: row.index,
+      startUtc: row.startUtc,
+      endUtc: row.endUtc,
+      adjustedReturnPct: row.adjustedReturnPct,
+      status: row.status,
+    })),
+    weeks: profile.weeks,
+    rules: profile.rules.map(({ evidence: _evidence, ...rule }) => rule),
+  };
+}
+
+export async function createProfileShare(store: NeoTechPublicStore, workspaceId: string, accountId: string, nowMs = Date.now()): Promise<ProfileShareCreated | null> {
+  if (!validOpaqueId(accountId)) return null;
+  const account = await store.getAccount(accountId);
+  if (!account || account.workspaceId !== workspaceId || account.revokedAt) return null;
+  const profile = await store.getProfile(accountId);
+  if (!profile) return null;
+  const activeShares = (await store.listAccountShares(accountId)).filter((share) => share.workspaceId === workspaceId && !share.revokedAt && share.expiresAt > nowMs);
+  if (activeShares.length >= NEOTECH_PUBLIC_MAX_ACTIVE_SHARES) return null;
+  const token = secureToken(32);
+  const share: NeoTechPublicShareRecord = {
+    id: randomUUID(),
+    workspaceId,
+    accountId,
+    tokenSha256: sha256Hex(token),
+    createdAt: nowMs,
+    expiresAt: nowMs + NEOTECH_PUBLIC_SHARE_TTL_SECONDS * 1000,
+    revokedAt: null,
+  };
+  await store.putShare(share);
+  await store.appendAudit(`account:${accountId}`, { action: "profile_share_created", at: nowMs, shareId: share.id, expiresAt: share.expiresAt });
+  return { id: share.id, token, createdAt: share.createdAt, expiresAt: share.expiresAt };
+}
+
+export async function listWorkspaceProfileShares(store: NeoTechPublicStore, workspaceId: string, accountId: string, nowMs = Date.now()): Promise<ProfileShareMetadata[]> {
+  if (!validOpaqueId(accountId)) return [];
+  const account = await store.getAccount(accountId);
+  if (!account || account.workspaceId !== workspaceId) return [];
+  const rows = await store.listAccountShares(accountId);
+  return rows
+    .filter((share) => share.workspaceId === workspaceId && share.accountId === accountId && !share.revokedAt && share.expiresAt > nowMs)
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .map(shareMetadata);
+}
+
+export async function resolveProfileShare(store: NeoTechPublicStore, token: string, nowMs = Date.now()): Promise<SharedProfileResolved | null> {
+  if (!/^[A-Za-z0-9_-]{40,128}$/.test(token)) return null;
+  const share = await store.getShareByTokenHash(sha256Hex(token));
+  if (!share || share.revokedAt || share.expiresAt <= nowMs) return null;
+  const account = await store.getAccount(share.accountId);
+  if (!account || account.workspaceId !== share.workspaceId || account.revokedAt) return null;
+  const profile = await store.getProfile(share.accountId);
+  if (!profile) return null;
+  return { share: shareMetadata(share), profile: sanitizeSharedProfile(profile) };
+}
+
+export async function revokeProfileShare(store: NeoTechPublicStore, workspaceId: string, accountId: string, shareId: string, nowMs = Date.now()): Promise<boolean> {
+  if (!validOpaqueId(accountId) || !validOpaqueId(shareId)) return false;
+  const account = await store.getAccount(accountId);
+  const share = await store.getShare(shareId);
+  if (!account || account.workspaceId !== workspaceId || !share || share.workspaceId !== workspaceId || share.accountId !== accountId || share.revokedAt) return false;
+  await store.putShare({ ...share, revokedAt: nowMs });
+  await store.appendAudit(`account:${accountId}`, { action: "profile_share_revoked", at: nowMs, shareId });
+  return true;
+}
+
+export async function revokeAllProfileShares(store: NeoTechPublicStore, workspaceId: string, accountId: string, nowMs = Date.now()): Promise<number> {
+  if (!validOpaqueId(accountId)) return 0;
+  const account = await store.getAccount(accountId);
+  if (!account || account.workspaceId !== workspaceId) return 0;
+  const shares = await store.listAccountShares(accountId);
+  let revoked = 0;
+  for (const share of shares) {
+    if (share.workspaceId !== workspaceId || share.accountId !== accountId || share.revokedAt) continue;
+    await store.putShare({ ...share, revokedAt: nowMs });
+    revoked += 1;
+  }
+  if (revoked) await store.appendAudit(`account:${accountId}`, { action: "profile_shares_revoked_all", at: nowMs, count: revoked });
+  return revoked;
+}
+
 export async function revokeWorkspaceAccount(store: NeoTechPublicStore, workspaceId: string, accountId: string, nowMs = Date.now()): Promise<boolean> {
   if (!validOpaqueId(accountId)) return false;
   const account = await store.getAccount(accountId);
@@ -277,6 +411,7 @@ export async function purgeWorkspaceAccount(store: NeoTechPublicStore, workspace
   if (!account || account.workspaceId !== workspaceId) return false;
   const connector = await store.getConnector(account.connectorId);
   if (connector && connector.workspaceId !== workspaceId) return false;
+  await store.deleteAccountShares(account.id);
   await store.purgeAccountData(workspaceId, account.id, account.connectorId);
   return true;
 }

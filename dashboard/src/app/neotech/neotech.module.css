@@ -282,8 +282,35 @@
 @keyframes toastIn { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .loading { min-height: 360px; display: grid; place-items: center; color: var(--oak-fg-muted); }
 
+.sharePrivacy, .sharedTrust {
+  display: grid;
+  gap: .35rem;
+  padding: .85rem;
+  border: 1px solid color-mix(in srgb, var(--oak-accent-command) 30%, var(--oak-border-subtle));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--oak-accent-command) 7%, transparent);
+}
+.sharePrivacy b, .sharedTrust b { color: var(--oak-accent-command); font-size: .76rem; }
+.sharePrivacy span, .sharedTrust span { color: var(--oak-fg-muted); font-size: .7rem; line-height: 1.5; }
+.shareSecretBox { display: grid; gap: .45rem; }
+.shareSecretBox > small { color: var(--oak-status-warning); font-size: .68rem; line-height: 1.45; }
+.shareUrlText { min-width: 0; overflow-wrap: anywhere; font: 700 .68rem/1.45 "Cascadia Mono", Consolas, monospace; color: var(--oak-accent-command); }
+.shareListHeader { display: flex; justify-content: space-between; align-items: center; padding-top: .25rem; }
+.shareListHeader b { font-size: .78rem; }
+.shareListHeader span { min-width: 28px; height: 28px; display: grid; place-items: center; border-radius: 999px; background: var(--oak-bg-raised); font: 800 .68rem "Cascadia Mono", Consolas, monospace; }
+.shareList { display: grid; gap: .55rem; }
+.shareRow { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: .75rem; align-items: center; padding: .75rem; border: 1px solid var(--oak-border-subtle); border-radius: 14px; background: color-mix(in srgb, var(--oak-bg-raised) 52%, transparent); }
+.shareRow > div { min-width: 0; display: grid; gap: .2rem; }
+.shareRow b { font: 800 .72rem "Cascadia Mono", Consolas, monospace; }
+.shareRow span, .shareRow small { color: var(--oak-fg-muted); font-size: .66rem; line-height: 1.4; }
+.shareEmpty { padding: .9rem; border: 1px dashed var(--oak-border-subtle); border-radius: 14px; text-align: center; color: var(--oak-fg-muted); font-size: .72rem; }
+.sharedHero { display: grid; grid-template-columns: minmax(0,1fr) minmax(300px,.72fr); gap: 1rem; align-items: center; border: 1px solid var(--oak-border-subtle); border-radius: 22px; padding: clamp(1rem,3vw,1.6rem); background: radial-gradient(circle at 10% 15%, color-mix(in srgb, var(--oak-accent-command) 12%, transparent), transparent 38%), var(--oak-bg-surface); }
+.sharedHero h1 { margin: .4rem 0 .25rem; font-size: clamp(1.7rem,4vw,2.7rem); letter-spacing: -.05em; }
+.sharedHero h1 span { color: var(--oak-accent-command); }
+.sharedHero p { margin: 0; color: var(--oak-fg-muted); font-size: .78rem; }
+
 @media (max-width: 1050px) {
-  .hero { grid-template-columns: 1fr; }
+  .hero, .sharedHero { grid-template-columns: 1fr; }
   .heroPanel { grid-template-columns: repeat(3,1fr); }
   .trustRow + .trustRow { border-top: 0; border-left: 1px solid var(--oak-border-subtle); border-radius: 0; }
   .workspace { grid-template-columns: 1fr; }
@@ -308,4 +335,6 @@
   .missingList { text-align: left; }
   .ruleCard summary { grid-template-columns: 42px minmax(0,1fr); }
   .ruleCard summary > :last-child { grid-column: 1/-1; justify-self: start; }
+  .codeBox, .shareRow { grid-template-columns: 1fr; }
+  .shareRow .dangerButton { justify-self: start; }
 }

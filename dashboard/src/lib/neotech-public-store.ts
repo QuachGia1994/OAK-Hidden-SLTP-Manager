@@ -9,6 +9,7 @@ import {
   type NeoTechPublicConnectorRecord,
   type NeoTechPublicPairingRecord,
   type NeoTechPublicProfile,
+  type NeoTechPublicShareRecord,
   type NeoTechPublicWorkspace,
 } from "./neotech-public-domain.ts";
 import type { NeoTechPublicStore } from "./neotech-public-service.ts";
@@ -129,6 +130,44 @@ export const neoTechPublicStore: NeoTechPublicStore = {
 
   async setIdempotency(connectorId, idempotencyKey, payloadHash, ttlSeconds) {
     await redis.set(key("idem", connectorId, idempotencyKey), payloadHash, { ex: ttlSeconds });
+  },
+
+  async putShare(share) {
+    await redis.set(key("share", share.id), JSON.stringify(share), { ex: NEOTECH_PUBLIC_DATA_RETENTION_SECONDS });
+    await redis.set(key("share-token", share.tokenSha256), share.id, { ex: NEOTECH_PUBLIC_DATA_RETENTION_SECONDS });
+    const setKey = key("account-shares", share.accountId);
+    await redis.sadd(setKey, share.id);
+    await redis.expire(setKey, NEOTECH_PUBLIC_DATA_RETENTION_SECONDS);
+  },
+
+  async getShare(shareId) {
+    return parseJson<NeoTechPublicShareRecord>(await redis.get<unknown>(key("share", shareId)));
+  },
+
+  async getShareByTokenHash(tokenHash) {
+    const shareId = await redis.get<string>(key("share-token", tokenHash));
+    if (!shareId) return null;
+    return parseJson<NeoTechPublicShareRecord>(await redis.get<unknown>(key("share", String(shareId))));
+  },
+
+  async listAccountShares(accountId) {
+    const ids = await redis.smembers(key("account-shares", accountId));
+    if (!Array.isArray(ids) || !ids.length) return [];
+    const rows = await Promise.all(ids.map((id) => redis.get<unknown>(key("share", String(id)))));
+    return rows.map((row) => parseJson<NeoTechPublicShareRecord>(row)).filter((row): row is NeoTechPublicShareRecord => Boolean(row));
+  },
+
+  async deleteAccountShares(accountId) {
+    const setKey = key("account-shares", accountId);
+    const ids = await redis.smembers(setKey);
+    if (Array.isArray(ids)) {
+      for (const id of ids) {
+        const share = parseJson<NeoTechPublicShareRecord>(await redis.get<unknown>(key("share", String(id))));
+        if (share) await redis.del(key("share-token", share.tokenSha256));
+        await redis.del(key("share", String(id)));
+      }
+    }
+    await redis.del(setKey);
   },
 
   async appendAudit(scope, event) {

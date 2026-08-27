@@ -10,15 +10,21 @@ import {
   type NeoTechPublicIngestPayload,
   type NeoTechPublicPairingRecord,
   type NeoTechPublicProfile,
+  type NeoTechPublicShareRecord,
   type NeoTechPublicWorkspace,
 } from "./neotech-public-domain.ts";
 import {
   createPairing,
   createPrivateWorkspaceSession,
+  createProfileShare,
   ingestReadOnlyConnector,
   listWorkspaceAccounts,
+  listWorkspaceProfileShares,
   pairReadOnlyConnector,
   purgeWorkspaceAccount,
+  resolveProfileShare,
+  revokeAllProfileShares,
+  revokeProfileShare,
   revokeWorkspaceAccount,
   type NeoTechPublicStore,
 } from "./neotech-public-service.ts";
@@ -31,6 +37,9 @@ class FakeStore implements NeoTechPublicStore {
   workspaceAccounts = new Map<string, Set<string>>();
   connectors = new Map<string, NeoTechPublicConnectorRecord>();
   profiles = new Map<string, NeoTechPublicProfile>();
+  shares = new Map<string, NeoTechPublicShareRecord>();
+  shareByTokenHash = new Map<string, string>();
+  accountShares = new Map<string, Set<string>>();
   equity = new Map<string, NeoTechPublicIngestPayload["equityPoints"]>();
   nonces = new Set<string>();
   idem = new Map<string, string>();
@@ -57,6 +66,11 @@ class FakeStore implements NeoTechPublicStore {
   async reserveNonce(connectorId: string, nonce: string) { const key = `${connectorId}:${nonce}`; if (this.nonces.has(key)) return false; this.nonces.add(key); return true; }
   async getIdempotency(connectorId: string, key: string) { return this.idem.get(`${connectorId}:${key}`) || null; }
   async setIdempotency(connectorId: string, key: string, hash: string) { this.idem.set(`${connectorId}:${key}`, hash); }
+  async putShare(value: NeoTechPublicShareRecord) { this.shares.set(value.id, value); this.shareByTokenHash.set(value.tokenSha256, value.id); const set = this.accountShares.get(value.accountId) || new Set<string>(); set.add(value.id); this.accountShares.set(value.accountId, set); }
+  async getShare(id: string) { return this.shares.get(id) || null; }
+  async getShareByTokenHash(hash: string) { const id = this.shareByTokenHash.get(hash); return id ? this.shares.get(id) || null : null; }
+  async listAccountShares(accountId: string) { return [...(this.accountShares.get(accountId) || [])].map((id) => this.shares.get(id)).filter((row): row is NeoTechPublicShareRecord => Boolean(row)); }
+  async deleteAccountShares(accountId: string) { for (const id of this.accountShares.get(accountId) || []) { const share = this.shares.get(id); if (share) this.shareByTokenHash.delete(share.tokenSha256); this.shares.delete(id); } this.accountShares.delete(accountId); }
   async appendAudit(scope: string, event: Record<string, unknown>) { this.audit.push({ scope, event }); }
 }
 
@@ -345,4 +359,83 @@ test("delete my data purges retained account, profile, equity and connector only
   assert.equal(a.store.profiles.has(a.pair.account.id), false);
   assert.equal(a.store.equity.has(a.pair.account.id), false);
   assert.equal((await listWorkspaceAccounts(a.store, b.session.workspace.id)).length, 1);
+});
+
+test("profile share token is returned once, stored only as SHA-256, and resolves a sanitized live profile", async () => {
+  const { store, pair, session } = await paired();
+  const rawBody = JSON.stringify(payload());
+  const ingested = await ingestReadOnlyConnector(store, { connectorId: pair.connectorId, token: pair.connectorToken, timestamp: String(NOW), nonce: "nonce-share-ingest-001", idempotencyKey: sha256Hex(rawBody), rawBody, nowSeconds: NOW });
+  assert.equal(ingested.ok, true);
+  const created = await createProfileShare(store, session.workspace.id, pair.account.id, NOW * 1000);
+  assert.ok(created);
+  if (!created) throw new Error("share creation failed");
+  const stored = store.shares.get(created.id);
+  assert.ok(stored);
+  assert.notEqual(stored?.tokenSha256, created.token);
+  assert.equal(stored?.tokenSha256, sha256Hex(created.token));
+  const resolved = await resolveProfileShare(store, created.token, NOW * 1000 + 1000);
+  assert.ok(resolved);
+  if (!resolved) throw new Error("share resolution failed");
+  assert.equal("id" in resolved.profile.account, false);
+  assert.equal("evidence" in resolved.profile.rules[0], false);
+  assert.equal("openingBalance" in resolved.profile.months[0], false);
+  assert.equal(resolved.profile.account.maskedLogin, "••••5678");
+  assert.equal("lastAccessAt" in resolved.share, false);
+});
+
+test("share links are account/tenant scoped and revoke immediately fails closed", async () => {
+  const a = await paired();
+  const b = await paired(a.store);
+  for (const target of [a, b]) {
+    const rawBody = JSON.stringify(payload());
+    const result = await ingestReadOnlyConnector(a.store, { connectorId: target.pair.connectorId, token: target.pair.connectorToken, timestamp: String(NOW), nonce: `nonce-share-scope-${target.pair.connectorId.slice(0, 8)}`, idempotencyKey: sha256Hex(rawBody), rawBody, nowSeconds: NOW });
+    assert.equal(result.ok, true);
+  }
+  const created = await createProfileShare(a.store, a.session.workspace.id, a.pair.account.id, NOW * 1000);
+  assert.ok(created);
+  if (!created) throw new Error("share creation failed");
+  assert.equal((await listWorkspaceProfileShares(a.store, b.session.workspace.id, a.pair.account.id, NOW * 1000)).length, 0);
+  assert.equal(await revokeProfileShare(a.store, b.session.workspace.id, a.pair.account.id, created.id, NOW * 1000 + 1000), false);
+  assert.ok(await resolveProfileShare(a.store, created.token, NOW * 1000 + 1000));
+  assert.equal(await revokeProfileShare(a.store, a.session.workspace.id, a.pair.account.id, created.id, NOW * 1000 + 2000), true);
+  assert.equal(await resolveProfileShare(a.store, created.token, NOW * 1000 + 3000), null);
+});
+
+test("profile share creation caps active links and allows replacement after revoke", async () => {
+  const { store, pair, session } = await paired();
+  const rawBody = JSON.stringify(payload());
+  assert.equal((await ingestReadOnlyConnector(store, { connectorId: pair.connectorId, token: pair.connectorToken, timestamp: String(NOW), nonce: "nonce-share-cap-001", idempotencyKey: sha256Hex(rawBody), rawBody, nowSeconds: NOW })).ok, true);
+  const created = [];
+  for (let index = 0; index < 10; index += 1) {
+    const share = await createProfileShare(store, session.workspace.id, pair.account.id, NOW * 1000 + index);
+    assert.ok(share);
+    if (share) created.push(share);
+  }
+  assert.equal(await createProfileShare(store, session.workspace.id, pair.account.id, NOW * 1000 + 20), null);
+  assert.equal(await revokeProfileShare(store, session.workspace.id, pair.account.id, created[0].id, NOW * 1000 + 30), true);
+  assert.ok(await createProfileShare(store, session.workspace.id, pair.account.id, NOW * 1000 + 31));
+});
+
+test("expired share fails closed, revoke-all invalidates every active link, and purge removes share lookup state", async () => {
+  const { store, pair, session } = await paired();
+  const rawBody = JSON.stringify(payload());
+  assert.equal((await ingestReadOnlyConnector(store, { connectorId: pair.connectorId, token: pair.connectorToken, timestamp: String(NOW), nonce: "nonce-share-expiry-001", idempotencyKey: sha256Hex(rawBody), rawBody, nowSeconds: NOW })).ok, true);
+  const one = await createProfileShare(store, session.workspace.id, pair.account.id, NOW * 1000);
+  const two = await createProfileShare(store, session.workspace.id, pair.account.id, NOW * 1000 + 1);
+  assert.ok(one && two);
+  if (!one || !two) throw new Error("share creation failed");
+  const firstStored = store.shares.get(one.id);
+  assert.ok(firstStored);
+  if (!firstStored) throw new Error("missing stored share");
+  await store.putShare({ ...firstStored, expiresAt: NOW * 1000 + 5 });
+  assert.equal(await resolveProfileShare(store, one.token, NOW * 1000 + 6), null);
+  assert.equal(await revokeAllProfileShares(store, session.workspace.id, pair.account.id, NOW * 1000 + 10), 2);
+  assert.equal(await resolveProfileShare(store, two.token, NOW * 1000 + 11), null);
+  const three = await createProfileShare(store, session.workspace.id, pair.account.id, NOW * 1000 + 20);
+  assert.ok(three);
+  if (!three) throw new Error("third share creation failed");
+  assert.equal(await purgeWorkspaceAccount(store, session.workspace.id, pair.account.id), true);
+  assert.equal(store.shares.size, 0);
+  assert.equal(store.shareByTokenHash.size, 0);
+  assert.equal(await resolveProfileShare(store, three.token, NOW * 1000 + 21), null);
 });

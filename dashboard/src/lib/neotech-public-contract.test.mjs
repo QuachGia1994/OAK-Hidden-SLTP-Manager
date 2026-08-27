@@ -62,6 +62,27 @@ test("public MT5 connector remains structurally non-trading even when Master acc
   assert.match(source, /WebRequest\(/);
 });
 
+test("NeoTech profile sharing uses fragment capability links, bearer resolution, redaction, and owner revoke controls", () => {
+  const sharesRoute = readFileSync(path.join(dashboardRoot, "src", "app", "api", "neotech", "public", "shares", "route.ts"), "utf8");
+  const sharedRoute = readFileSync(path.join(dashboardRoot, "src", "app", "api", "neotech", "public", "shared-profile", "route.ts"), "utf8");
+  const service = readFileSync(path.join(dashboardRoot, "src", "lib", "neotech-public-service.ts"), "utf8");
+  const ownerUi = readFileSync(path.join(dashboardRoot, "src", "app", "neotech", "NeoTechPublicDashboard.tsx"), "utf8");
+  const sharePage = readFileSync(path.join(dashboardRoot, "src", "app", "neotech", "share", "page.tsx"), "utf8");
+  assert.match(sharesRoute, /\/neotech\/share#\$\{created\.token\}/);
+  assert.doesNotMatch(sharesRoute, /[?&]token=/);
+  assert.match(sharedRoute, /authorization/);
+  assert.match(sharedRoute, /Bearer\\s\+/);
+  assert.doesNotMatch(sharedRoute, /sessionTokenFromRequest/);
+  assert.match(service, /tokenSha256:\s*sha256Hex\(token\)/);
+  assert.match(service, /rules:\s*profile\.rules\.map\(\(\{ evidence: _evidence, \.\.\.rule \}\) => rule\)/);
+  assert.doesNotMatch(service.slice(service.indexOf("sanitizeSharedProfile"), service.indexOf("createProfileShare")), /account:\s*\{[\s\S]*?id:/);
+  assert.match(ownerUi, /Share profile/);
+  assert.match(ownerUi, /Revoke all/);
+  assert.match(ownerUi, /Share link copied/);
+  assert.match(sharePage, /index:\s*false/);
+  assert.match(sharePage, /referrer:\s*"no-referrer"/);
+});
+
 test("Master pairing is browser-authorized and NeoTech Copy actions expose visible toast feedback", () => {
   const pairingRoute = readFileSync(path.join(dashboardRoot, "src", "app", "api", "neotech", "public", "pairing", "route.ts"), "utf8");
   const ui = readFileSync(path.join(dashboardRoot, "src", "app", "neotech", "NeoTechPublicDashboard.tsx"), "utf8");

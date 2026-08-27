@@ -23,6 +23,7 @@ type PublicAccount = {
 
 type AccountRow = { account: PublicAccount; profile: NeoTechPublicProfile | null };
 type PairingState = { code: string; expiresAt: number; baselineCount: number; accessMode: "READ_ONLY" | "TRADING_CAPABLE_ACCEPTED" };
+type ShareLink = { id: string; createdAt: number; expiresAt: number; revokedAt: number | null };
 type ToastState = { message: string; kind: "success" | "error" };
 
 type Locale = "EN" | "VN";
@@ -48,6 +49,10 @@ function fmtPercent(value: number | null, digits = 2): string {
 function fmtDate(epochSeconds: number, locale: Locale): string {
   if (!epochSeconds) return "—";
   return new Intl.DateTimeFormat(locale === "EN" ? "en-GB" : "vi-VN", { day: "2-digit", month: "2-digit", year: "2-digit" }).format(new Date(epochSeconds * 1000));
+}
+
+function fmtDateTimeMs(epochMs: number, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale === "EN" ? "en-GB" : "vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(epochMs));
 }
 
 function relativeTime(epochMs: number, nowMs: number, locale: Locale): string {
@@ -148,8 +153,13 @@ export function NeoTechPublicDashboard() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState<ToastState | null>(null);
   const [pairing, setPairing] = useState<PairingState | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
+  const [shareUrl, setShareUrl] = useState("");
+  const [shareBusy, setShareBusy] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
   const pairingDialogRef = useDialogFocusTrap<HTMLDivElement>(Boolean(pairing), () => setPairing(null));
+  const shareDialogRef = useDialogFocusTrap<HTMLDivElement>(shareOpen, () => setShareOpen(false));
   const selectedRef = useRef(selectedId);
   selectedRef.current = selectedId;
 
@@ -255,6 +265,75 @@ export function NeoTechPublicDashboard() {
     } finally { setBusy(false); }
   };
 
+  const loadShareLinks = useCallback(async (accountId: string) => {
+    const response = await fetch(`/api/neotech/public/shares?accountId=${encodeURIComponent(accountId)}`, { cache: "no-store" });
+    const body = await readJson(response);
+    if (!response.ok || body.ok !== true) throw new Error(String(body.error || tr("Cannot load share links.", "Không đọc được share link.")));
+    setShareLinks(Array.isArray(body.shares) ? body.shares as ShareLink[] : []);
+  }, [locale]);
+
+  const openShare = async () => {
+    if (!selected?.profile) return;
+    setShareOpen(true);
+    setShareUrl("");
+    setShareBusy(true);
+    try {
+      await loadShareLinks(selected.account.id);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : tr("Cannot load share links.", "Không đọc được share link."));
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const createShare = async () => {
+    if (!selected?.profile) return;
+    setShareBusy(true); setError("");
+    try {
+      const response = await fetch("/api/neotech/public/shares", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accountId: selected.account.id }) });
+      const body = await readJson(response);
+      if (!response.ok || body.ok !== true || typeof body.shareUrl !== "string") throw new Error(String(body.error || tr("Cannot create share link.", "Không tạo được share link.")));
+      setShareUrl(body.shareUrl);
+      await loadShareLinks(selected.account.id);
+      setToast({ message: tr("Share link created — copy it now", "Đã tạo share link — hãy copy ngay"), kind: "success" });
+      window.setTimeout(() => setToast(null), 2600);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : tr("Cannot create share link.", "Không tạo được share link."));
+    } finally { setShareBusy(false); }
+  };
+
+  const revokeShareLink = async (shareId: string) => {
+    if (!selected) return;
+    setShareBusy(true); setError("");
+    try {
+      const response = await fetch(`/api/neotech/public/shares?accountId=${encodeURIComponent(selected.account.id)}&shareId=${encodeURIComponent(shareId)}`, { method: "DELETE" });
+      const body = await readJson(response);
+      if (!response.ok || body.ok !== true) throw new Error(String(body.error || tr("Cannot revoke share link.", "Không revoke được share link.")));
+      setShareUrl("");
+      await loadShareLinks(selected.account.id);
+      setToast({ message: tr("Share link revoked", "Đã revoke share link"), kind: "success" });
+      window.setTimeout(() => setToast(null), 2200);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : tr("Cannot revoke share link.", "Không revoke được share link."));
+    } finally { setShareBusy(false); }
+  };
+
+  const revokeAllShareLinks = async () => {
+    if (!selected || !shareLinks.length || !window.confirm(tr("Revoke every active share link for this profile?", "Revoke toàn bộ share link đang hoạt động của profile này?"))) return;
+    setShareBusy(true); setError("");
+    try {
+      const response = await fetch(`/api/neotech/public/shares?accountId=${encodeURIComponent(selected.account.id)}&all=1`, { method: "DELETE" });
+      const body = await readJson(response);
+      if (!response.ok || body.ok !== true) throw new Error(String(body.error || tr("Cannot revoke share links.", "Không revoke được share link.")));
+      setShareUrl("");
+      await loadShareLinks(selected.account.id);
+      setToast({ message: tr("All share links revoked", "Đã revoke toàn bộ share link"), kind: "success" });
+      window.setTimeout(() => setToast(null), 2200);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : tr("Cannot revoke share links.", "Không revoke được share link."));
+    } finally { setShareBusy(false); }
+  };
+
   const copy = async (value: string, label?: string) => {
     try {
       if (!navigator.clipboard?.writeText) throw new Error("clipboard unavailable");
@@ -335,7 +414,7 @@ export function NeoTechPublicDashboard() {
                       <span>{selected.account.broker}</span><span>{selected.account.server}</span><span>{selected.account.mode}</span><span>Connector {selected.account.connectorVersion}</span><span>Sync {relativeTime(selected.account.lastSeenAt, nowMs, locale)}</span>
                     </div>
                   </div>
-                  <div className={styles.heroActions}><button className={styles.dangerButton} onClick={revoke} disabled={busy}>Revoke</button><button className={styles.dangerButton} onClick={purge} disabled={busy}>{tr("Delete data", "Xóa dữ liệu")}</button></div>
+                  <div className={styles.heroActions}><button className={styles.secondaryButton} onClick={() => void openShare()} disabled={busy || !profile}>{tr("Share profile", "Chia sẻ profile")}</button><button className={styles.dangerButton} onClick={revoke} disabled={busy}>Revoke</button><button className={styles.dangerButton} onClick={purge} disabled={busy}>{tr("Delete data", "Xóa dữ liệu")}</button></div>
                 </div>
               </section>
             )}
@@ -396,6 +475,21 @@ export function NeoTechPublicDashboard() {
             )}
           </div>
         </section>
+      )}
+
+      {shareOpen && selected && (
+        <div className={styles.pairingOverlay} onMouseDown={(event) => event.target === event.currentTarget && setShareOpen(false)}>
+          <div ref={shareDialogRef} className={styles.pairingModal} role="dialog" aria-modal="true" aria-label={tr("Share NeoTech profile", "Chia sẻ NeoTech profile")} tabIndex={-1}>
+            <div className={styles.pairingHeader}><div><h3>{tr("Share NeoTech profile", "Chia sẻ NeoTech profile")}</h3><p>{tr("Create revocable read-only links for this profile. Each link expires after 30 days.", "Tạo link chỉ đọc có thể revoke cho profile này. Mỗi link tự hết hạn sau 30 ngày.")}</p></div><button className={styles.ghostButton} onClick={() => setShareOpen(false)}>{tr("Close", "Đóng")}</button></div>
+            <div className={styles.pairingBody}>
+              <div className={styles.sharePrivacy}><b>{tr("Privacy boundary", "Giới hạn dữ liệu share")}</b><span>{tr("Shared viewers see masked account identity, rule status, coverage, FDD and percentage aggregates only. Workspace IDs, MT5 credentials, connector tokens, raw trades, ticket IDs and cash amounts remain private.", "Người xem chỉ thấy account đã mask, trạng thái rule, coverage, FDD và tỷ lệ tổng hợp. Workspace ID, MT5 credential, connector token, raw trade, ticket ID và số tiền vẫn riêng tư.")}</span></div>
+              <div className={styles.heroActions}><button className={styles.primaryButton} onClick={() => void createShare()} disabled={shareBusy || !profile}>{shareBusy ? tr("Working…", "Đang xử lý…") : tr("Create 30-day share link", "Tạo share link 30 ngày")}</button>{shareLinks.length > 0 && <button className={styles.dangerButton} onClick={() => void revokeAllShareLinks()} disabled={shareBusy}>{tr("Revoke all", "Revoke tất cả")}</button>}</div>
+              {shareUrl && <div className={styles.shareSecretBox}><small>{tr("This secret URL is shown only now. Copy it before closing; the server stores only its SHA-256 hash.", "URL bí mật này chỉ hiển thị lúc vừa tạo. Hãy copy trước khi đóng; server chỉ lưu SHA-256 hash.")}</small><div className={styles.codeBox}><div className={styles.shareUrlText}>{shareUrl}</div><button className={styles.secondaryButton} onClick={() => void copy(shareUrl, tr("Share link copied", "Đã copy share link"))}>Copy</button></div></div>}
+              <div className={styles.shareListHeader}><b>{tr("Active share links", "Share link đang hoạt động")}</b><span>{shareLinks.length}</span></div>
+              {shareBusy && shareLinks.length === 0 ? <div className={styles.waiting}><span className={styles.spinner} /> {tr("Loading links…", "Đang tải link…")}</div> : shareLinks.length === 0 ? <div className={styles.shareEmpty}>{tr("No active share links.", "Chưa có share link đang hoạt động.")}</div> : <div className={styles.shareList}>{shareLinks.map((link) => <div className={styles.shareRow} key={link.id}><div><b>#{link.id.slice(0, 8)}</b><span>{tr("Created", "Tạo")} {fmtDateTimeMs(link.createdAt, locale)} · {tr("Expires", "Hết hạn")} {fmtDateTimeMs(link.expiresAt, locale)}</span></div><button className={styles.dangerButton} onClick={() => void revokeShareLink(link.id)} disabled={shareBusy}>{tr("Revoke", "Revoke")}</button></div>)}</div>}
+            </div>
+          </div>
+        </div>
       )}
 
       {pairing && (

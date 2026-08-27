@@ -8,6 +8,7 @@ export const NEOTECH_PUBLIC_MAX_CASHFLOWS = 1000;
 export const NEOTECH_PUBLIC_MAX_EQUITY_POINTS = 10000;
 export const NEOTECH_PUBLIC_REPLAY_WINDOW_SECONDS = 300;
 export const NEOTECH_PUBLIC_DATA_RETENTION_SECONDS = 400 * 24 * 60 * 60;
+export const NEOTECH_PUBLIC_SHARE_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 export type NeoTechPublicStatus = "PASS" | "FAIL" | "IN_PROGRESS" | "INSUFFICIENT_DATA" | "NOT_VERIFIABLE";
 export type NeoTechPublicOverall = "CLEAR" | "TRACKING" | "INSUFFICIENT_DATA" | "VIOLATION";
@@ -184,6 +185,22 @@ export type NeoTechPublicProfile = {
   months: NeoTechPublicMonth[];
   weeks: NeoTechPublicWeek[];
   rules: NeoTechPublicRule[];
+};
+
+export type NeoTechSharedProfile = Omit<NeoTechPublicProfile, "account" | "months" | "rules"> & {
+  account: Omit<NeoTechPublicProfile["account"], "id">;
+  months: Array<Pick<NeoTechPublicMonth, "index" | "startUtc" | "endUtc" | "adjustedReturnPct" | "status">>;
+  rules: Array<Omit<NeoTechPublicRule, "evidence">>;
+};
+
+export type NeoTechPublicShareRecord = {
+  id: string;
+  workspaceId: string;
+  accountId: string;
+  tokenSha256: string;
+  createdAt: number;
+  expiresAt: number;
+  revokedAt: number | null;
 };
 
 export type NeoTechPublicAccountRecord = {

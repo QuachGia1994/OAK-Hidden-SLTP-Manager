@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added revocable NeoTech Visual Profile share links: owners can create 30-day read-only links, copy the one-time visible secret URL, list/revoke individual links or revoke all, and viewers receive live server-authoritative profile updates without owner workspace access. Share secrets are kept in the URL fragment, resolved through a bearer header, stored only as SHA-256, and the shared payload omits internal account IDs, rule evidence/ticket IDs, raw trades and cash amounts.
 - Fixed GBPUSD H1 signal sourcing across every scanner slot: H3 and H6-H16 now use the corresponding closed XAUUSD H1 candle with direct polarity at the base-mapping layer. Pattern 3/lookback and Thursday/Friday post-signal inversions still apply normally afterward. The former GBPUSD H3 AUDUSD-H3 exception was removed; XAUUSD H4 continues to inherit AUDUSD H3.
 - Fixed H1 scanner Pattern 5 lookback precedence: alternating four-candle sequences `TGTG` / `GTGT` now keep the calculated signal when found at the ordered lùi-3 or lùi-2 window, while an isolated three-candle Pattern 3 still reverses once. XAUUSD H4 continues to inherit the AUDUSD H3 signal.
 - Fixed NeoTech Connector v1.0.4 revoked-account recovery: server-confirmed connector/account unauthorized responses no longer loop HTTP 401. Matching stale per-account credentials are cleared, telemetry stops fail-closed in `WAITING_PAIR`, and the operator can enter one fresh pairing code in EA Properties without detaching/reattaching the EA. Revoked server records are never auto-restored.
