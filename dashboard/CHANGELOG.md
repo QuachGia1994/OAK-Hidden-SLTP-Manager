@@ -12,6 +12,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Fixed cTrader M15 normalization to key candles by broker date, hour and minute. This prevents cross-hour `:00/:15/:30/:45` collisions that reduced every historical day to four M15 candles and left the H1 table empty; deployment backfill now reconstructs BUY/SELL from the complete provider history.
 - Restored observable BUY/SELL output in the H1 table and synchronized its evidence labels with the post-block M15 base/action contract. NeoTech Master Password pairing now uses a keyboard-accessible in-page risk dialog with explicit accept/cancel actions, avoiding browser-native confirmation no-ops while preserving the server-side `TRADING_CAPABLE_ACCEPTED` requirement.
 
 

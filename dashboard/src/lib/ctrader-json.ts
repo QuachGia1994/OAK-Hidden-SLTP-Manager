@@ -304,7 +304,7 @@ export function normalizeM15Trendbars(rows: unknown[], brokerDate?: string): H1M
     const minutes = Number(row.utcTimestampInMinutes || 0);
     if (!Number.isFinite(minutes) || minutes <= 0) continue;
     const parts = brokerWallParts(minutes * 60_000);
-    const key = `${parts.dateKey}:${parts.minute}`;
+    const key = `${parts.dateKey}:${parts.hour}:${parts.minute}`;
     byMinute.set(key, {
       brokerDate: parts.dateKey,
       brokerTime: `${parts.dateKey}T${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`,
