@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { GlassCard, Metric, OakScreen, Pill, SectionTitle } from "@/components/ui";
-import { alertsForSymbol, allowTradeDetail, latestH1Date } from "@/lib/h1";
+import { alertsForSymbol, latestH1Date } from "@/lib/h1";
 import { radius, spacing, useOakTheme } from "@/lib/theme";
 import type { H1SignalAlert } from "@/lib/types";
 import { useOakData } from "@/state/data";
@@ -11,8 +11,6 @@ import { useOakData } from "@/state/data";
 function SignalRow({ symbol, hour, alert }: { symbol: string; hour: number; alert: H1SignalAlert | null }) {
   const theme = useOakTheme();
   const router = useRouter();
-  const pure = alert?.patternKind === "sw3Pure";
-  const blocked = alert?.tradeAllowed === false;
   const signalColor = alert?.signal === "SELL" ? theme.sell : theme.buy;
 
   async function open() {
@@ -28,15 +26,15 @@ function SignalRow({ symbol, hour, alert }: { symbol: string; hour: number; aler
       style={({ pressed }) => [
         styles.signalRow,
         {
-          borderColor: blocked ? `${theme.warning}AA` : pure ? `${theme.warning}66` : theme.border,
-          backgroundColor: blocked ? `${theme.warning}15` : theme.surface,
+          borderColor: theme.border,
+          backgroundColor: theme.surface,
           opacity: pressed ? 0.72 : 1,
         },
       ]}
     >
       <View style={styles.hourRail}>
         <Text style={[styles.hourLabel, { color: alert ? theme.text : theme.muted }]}>H{String(hour).padStart(2, "0")}</Text>
-        <View style={[styles.hourDot, { backgroundColor: blocked ? theme.warning : alert ? signalColor : theme.border }]} />
+        <View style={[styles.hourDot, { backgroundColor: alert ? signalColor : theme.border }]} />
       </View>
       <View style={styles.signalBody}>
         {!alert ? (
@@ -45,13 +43,11 @@ function SignalRow({ symbol, hour, alert }: { symbol: string; hour: number; aler
           <>
             <View style={styles.signalTopline}>
               <View style={styles.badges}>
-                {pure ? <Pill label="⚠ PURE" tone="warning" /> : <Pill label={alert.patternKind === "sw2" ? "SW2" : "SW NORMAL"} />}
-                {blocked ? <Pill label="BLOCK / NOT TRADE" tone="warning" /> : <Pill label="ACTIVE" tone="online" />}
+                <Pill label={alert.patternKind.toUpperCase()} />
               </View>
-              <Text style={[styles.signal, { color: blocked ? theme.warning : signalColor }]}>{blocked ? "BLOCK" : alert.signal || "—"}</Text>
+              <Text style={[styles.signal, { color: signalColor }]}>{alert.signal || "—"}</Text>
             </View>
             <Text style={[styles.pattern, { color: theme.muted }]}>{alert.pattern.replaceAll(" ", " · ")} · scanner {alert.scannerBase}</Text>
-            {blocked ? <Text style={[styles.cooldown, { color: theme.warning }]}>{allowTradeDetail(alert)} · calculated {alert.signal}</Text> : null}
           </>
         )}
       </View>
@@ -77,7 +73,7 @@ export default function EngineScreen() {
     <OakScreen
       eyebrow="OAK / H1 CLOUD"
       title="Engine"
-      subtitle="Native H1 command view. Pattern state and allowTrade lookback are normalized by the Vercel backend before rendering."
+      subtitle="Native H1 command view for the fixed six-slot, five-pattern scanner."
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.accent} />}
     >
       <GlassCard>
@@ -116,7 +112,7 @@ export default function EngineScreen() {
 
       <SectionTitle title="H1 timeline" meta={symbol || "—"} />
       <View style={styles.timeline}>
-        {(h1?.hours || Array.from({ length: 15 }, (_, index) => index + 3)).map((hour) => (
+        {(h1?.hours || [3, 6, 9, 12, 14, 16]).map((hour) => (
           <SignalRow key={hour} symbol={symbol} hour={hour} alert={byHour.get(hour) || null} />
         ))}
       </View>
@@ -143,6 +139,5 @@ const styles = StyleSheet.create({
   badges: { flexDirection: "row", flexWrap: "wrap", gap: 6, flex: 1 },
   signal: { fontSize: 20, fontWeight: "900", letterSpacing: -0.4 },
   pattern: { fontSize: 11, fontWeight: "700" },
-  cooldown: { fontSize: 11, fontWeight: "800" },
   empty: { fontSize: 12, fontWeight: "700" },
 });

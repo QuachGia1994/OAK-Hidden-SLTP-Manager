@@ -39,21 +39,18 @@ test("cloud scanner setup uses one-time tickets and encrypted server-side Telegr
   assert.match(setupRoute, /NextResponse\.json\(\{ ok: true, \.\.\.safeH1CloudConfigStatus\(saved\) \}/);
 });
 
-test("cloud scanner gates actionable alerts on Telegram while persisting allowTrade BLOCK rows silently", () => {
+test("cloud scanner sends and persists every classified five-pattern alert", () => {
   assert.match(route, /loadH1CloudState/);
   assert.match(cloudStore, /seedCloudStateFromPublic/);
   assert.match(route, /x-h1-run-ticket/);
   assert.match(route, /getdel/);
-  assert.match(route, /if \(alert\.tradeAllowed\)/);
   assert.match(route, /await sendTelegram/);
   assert.match(route, /symbolState\.alerts\.push\(alert\)/);
-  assert.match(route, /blockedTradeSlots/);
   assert.match(route, /reconcileTradeState/);
   assert.ok(route.indexOf("reconcileTradeState(symbolState)") < route.indexOf("deliveredSlots(symbolState.alerts)"));
-  assert.match(route, /if \(!alert\.tradeAllowed\)/);
-  assert.match(route, /symbolState\.blockedSlots/);
   assert.match(route, /await saveH1CloudState\(state\)/);
-  assert.ok(route.indexOf("if (alert.tradeAllowed)") < route.indexOf("symbolState.alerts.push(alert)"));
+  assert.ok(route.indexOf("await sendTelegram") < route.indexOf("symbolState.alerts.push(alert)"));
+  assert.doesNotMatch(route, /if \(alert\.tradeAllowed\)|if \(!alert\.tradeAllowed\)|blockedTradeSlots/);
 });
 
 test("cTrader cloud scanner remains read-only even when shared OAuth has trading scope", () => {
@@ -64,23 +61,20 @@ test("cTrader cloud scanner remains read-only even when shared OAuth has trading
   assert.doesNotMatch(route, /placeCTraderMarketOrder|closeCTraderPositions|amendCTraderPositionProtection|NEW_ORDER_REQ|CLOSE_POSITION_REQ/);
 });
 
-test("live route scans H3, XAU-only H4 and H06-H16 while H5 remains recovery-only", () => {
-  assert.match(route, /H1_SCAN_HOURS\.includes\(wall\.hour\)/);
+test("live route uses the fixed H3 H6 H9 H12 H14 H16 grid for every target", () => {
+  assert.match(route, /H1_SCAN_HOURS as readonly number\[\]\)\.includes\(wall\.hour\)/);
   assert.match(route, /const recoveryOnly = !activeSlot[\s\S]*wall\.hour === 5/);
   assert.match(route, /if \(recoveryOnly && !state\.days\[market\.brokerDate\]\)/);
   assert.match(route, /suppressedThroughHour: market\.brokerHour/);
   assert.match(route, /backfillSuppressedHistory[\s\S]*if \(recoveryOnly\)/);
   assert.match(route, /recoveredCurrentDay: changed/);
   assert.match(route, /"inactive-slot"/);
-  assert.match(route, /hour === 3[\s\S]*GBPUSD[\s\S]*USDJPY[\s\S]*XAUUSD[\s\S]*AUDUSD[\s\S]*USDCAD[\s\S]*EURUSD/);
-  assert.doesNotMatch(route, /hour === 3[^\n]*NZDUSD/);
-  assert.match(route, /hour === 4[\s\S]*XAUUSD[\s\S]*AUDUSD/);
+  assert.match(route, /function requiredBasesForBrokerHour\(_hour: number\)[\s\S]*return H1_ALL_BASES/);
+  assert.match(route, /for \(const base of H1_TARGET_BASES\)/);
   assert.match(route, /baseSymbolForTargetSlot/);
-  assert.doesNotMatch(route, /base === "GBPUSD" && match\.slotHour === 3/);
-  assert.match(route, /market\.brokerHour === 4 && base !== "XAUUSD"/);
-  assert.match(route, /return H1_ALL_BASES/);
   assert.match(route, /findH1PatternMatchesForTarget/);
   assert.match(route, /brokerUtcOffsetHours/);
+  assert.doesNotMatch(route, /brokerHour === 4|slotHour === 4|audusdH3/i);
 });
 
 test("H1 history backfill accepts admin/API or repo-fenced GitHub OIDC, stays singleton locked and has no Telegram or trading mutation path", () => {

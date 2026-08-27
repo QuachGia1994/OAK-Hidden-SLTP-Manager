@@ -4,9 +4,9 @@ import { redis } from "./redis-core";
 import { H1_SIGNAL_RULE_VERSION, reconcileTradeState, type H1LookbackAction } from "./h1-cloud-scanner";
 
 export type H1SignalSide = "BUY" | "SELL";
-export type H1PatternKind = "sw2" | "sw3Pure" | "sw3Normal";
+export type H1PatternKind = "pattern1" | "pattern2" | "pattern3" | "pattern4" | "pattern5";
 export type H1ScannerBase = "XAUUSD" | "GBPUSD" | "AUDUSD" | "USDCAD" | "USDJPY";
-export type H1PostSignalRule = "none" | "mon-block" | "tue-block" | "wed-block" | "thu-cycle" | "fri-cycle";
+export type H1PostSignalRule = "none" | "thu-cycle" | "fri-cycle";
 
 export type H1SignalAlert = {
   slotHour: number;

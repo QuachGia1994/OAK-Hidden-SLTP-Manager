@@ -3,11 +3,11 @@ import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { OakScreen, Pill, SectionTitle } from "@/components/ui";
-import { allowTradeDetail, latestH1Date, recentAlerts } from "@/lib/h1";
+import { latestH1Date, recentAlerts } from "@/lib/h1";
 import { radius, spacing, useOakTheme } from "@/lib/theme";
 import { useOakData } from "@/state/data";
 
-type Filter = "all" | "pure" | "blocked";
+type Filter = "all" | "pattern1" | "pattern2" | "pattern3" | "pattern4" | "pattern5";
 
 export default function AlertsScreen() {
   const theme = useOakTheme();
@@ -15,11 +15,9 @@ export default function AlertsScreen() {
   const { h1, refreshing, refresh } = useOakData();
   const [filter, setFilter] = useState<Filter>("all");
   const date = latestH1Date(h1);
-  const rows = useMemo(() => recentAlerts(h1).filter(({ alert }) => {
-    if (filter === "pure") return alert.patternKind === "sw3Pure";
-    if (filter === "blocked") return alert.tradeAllowed === false;
-    return true;
-  }), [h1, filter]);
+  const rows = useMemo(() => recentAlerts(h1).filter(({ alert }) =>
+    filter === "all" || alert.patternKind === filter
+  ), [h1, filter]);
 
   return (
     <OakScreen
@@ -29,7 +27,7 @@ export default function AlertsScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.accent} />}
     >
       <View style={[styles.filters, { borderColor: theme.border, backgroundColor: theme.raised }]}>
-        {(["all", "pure", "blocked"] as const).map((item) => {
+        {(["all", "pattern1", "pattern2", "pattern3", "pattern4", "pattern5"] as const).map((item) => {
           const active = filter === item;
           return (
             <Pressable
@@ -49,8 +47,6 @@ export default function AlertsScreen() {
       <SectionTitle title="H1 activity" meta={date || "—"} />
       <View style={styles.list}>
         {rows.map(({ symbol, alert }) => {
-          const pure = alert.patternKind === "sw3Pure";
-          const blocked = alert.tradeAllowed === false;
           const signalColor = alert.signal === "SELL" ? theme.sell : theme.buy;
           return (
             <Pressable
@@ -62,8 +58,8 @@ export default function AlertsScreen() {
               style={({ pressed }) => [
                 styles.row,
                 {
-                  borderColor: blocked ? `${theme.warning}88` : pure ? `${theme.warning}55` : theme.border,
-                  backgroundColor: blocked ? `${theme.warning}12` : theme.surface,
+                  borderColor: theme.border,
+                  backgroundColor: theme.surface,
                   opacity: pressed ? 0.72 : 1,
                 },
               ]}
@@ -73,14 +69,12 @@ export default function AlertsScreen() {
                   <Text style={[styles.symbol, { color: theme.text }]}>{symbol}</Text>
                   <Text style={[styles.hour, { color: theme.muted }]}>H{String(alert.slotHour).padStart(2, "0")}</Text>
                 </View>
-                <Text style={[styles.signal, { color: blocked ? theme.warning : signalColor }]}>{blocked ? "BLOCK" : alert.signal}</Text>
+                <Text style={[styles.signal, { color: signalColor }]}>{alert.signal}</Text>
               </View>
               <View style={styles.badges}>
-                {pure ? <Pill label="⚠ PURE" tone="warning" /> : <Pill label={alert.patternKind === "sw2" ? "SW2" : "SW NORMAL"} />}
-                <Pill label={blocked ? "NOT TRADE" : "ACTIVE"} tone={blocked ? "warning" : "online"} />
+                <Pill label={alert.patternKind.toUpperCase()} />
               </View>
               <Text style={[styles.meta, { color: theme.muted }]}>{alert.pattern.replaceAll(" ", " · ")} · {alert.scannerBase} → base {alert.baseSymbol}</Text>
-              {blocked ? <Text style={[styles.blockedBy, { color: theme.warning }]}>{allowTradeDetail(alert)} · calculated {alert.signal}</Text> : null}
             </Pressable>
           );
         })}
@@ -108,7 +102,6 @@ const styles = StyleSheet.create({
   signal: { fontSize: 18, fontWeight: "900" },
   badges: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   meta: { fontSize: 11, fontWeight: "700" },
-  blockedBy: { fontSize: 11, fontWeight: "800" },
   empty: { padding: spacing.lg, gap: 6, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.md },
   emptyTitle: { fontSize: 16, fontWeight: "900" },
   emptyCopy: { fontSize: 12, lineHeight: 18 },

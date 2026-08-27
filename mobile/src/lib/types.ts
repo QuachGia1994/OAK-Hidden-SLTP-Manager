@@ -1,5 +1,5 @@
 export type H1SignalSide = "BUY" | "SELL";
-export type H1PatternKind = "sw2" | "sw3Pure" | "sw3Normal";
+export type H1PatternKind = "pattern1" | "pattern2" | "pattern3" | "pattern4" | "pattern5";
 
 export type H1SignalAlert = {
   slotHour: number;
@@ -8,7 +8,7 @@ export type H1SignalAlert = {
   bars: string[];
   symbol: string;
   profile: string;
-  scannerBase: "XAUUSD" | "USDJPY" | "AUDUSD" | "GBPUSD";
+  scannerBase: "XAUUSD" | "GBPUSD" | "AUDUSD" | "USDCAD" | "USDJPY";
   scannerSymbol: string;
   baseSymbol: string;
   baseSignal: H1SignalSide | null;
@@ -16,9 +16,9 @@ export type H1SignalAlert = {
   baseDirection: "T" | "G" | "";
   signal: H1SignalSide | null;
   postSignalInverted?: boolean;
-  postSignalRule?: "none" | "mon-block" | "tue-block" | "wed-block" | "thu-cycle" | "fri-cycle";
-  lookbackPattern?: string | null;
-  lookbackAction?: "none" | "block-pair" | "block-pattern1" | "block-pattern2" | "invert-pattern3";
+  postSignalRule?: "none" | "thu-cycle" | "fri-cycle";
+  lookbackPattern?: null;
+  lookbackAction?: "none";
   tradeAllowed?: boolean;
 };
 

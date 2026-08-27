@@ -25,17 +25,6 @@ export function recentAlerts(payload: H1SignalPayload | null): Array<{ symbol: s
   return rows.sort((left, right) => right.alert.slotHour - left.alert.slotHour || left.symbol.localeCompare(right.symbol));
 }
 
-export function allowTradeDetail(alert: H1SignalAlert): string {
-  const pattern = alert.lookbackPattern ? alert.lookbackPattern.split("").join(" ") : "—";
-  if (alert.lookbackAction === "block-pair") return `Pair ${pattern} → BLOCK`;
-  if (alert.lookbackAction === "block-pattern1") return `Pattern 1 (${pattern}) → BLOCK`;
-  if (alert.lookbackAction === "block-pattern2") return `Pattern 2 (${pattern}) → BLOCK`;
-  if (alert.lookbackAction === "invert-pattern3") return `Pattern 3 (${pattern}) → reverse once`;
-  if (alert.lookbackPattern?.length === 2) return `Pair ${pattern} → normal`;
-  return "No lookback effect";
-}
-
-export function signalTone(alert: H1SignalAlert): "buy" | "sell" | "warning" {
-  if (alert.tradeAllowed === false) return "warning";
+export function signalTone(alert: H1SignalAlert): "buy" | "sell" {
   return alert.signal === "SELL" ? "sell" : "buy";
 }

@@ -29,7 +29,9 @@ H1 public feed key:
 
 `robot-sltp:public:h1-signals:latest`
 
-Current public schema: v7. Cloud state is v40 and signal-rule version is v34.
+Current public schema: v7. Cloud state is v45 and signal-rule version is v39.
+
+The H1 scanner uses the same fixed slots for every target: `H3/H6/H9/H12/H14/H16`. It classifies five pattern families: `TGG/GTT`, `TTT/GGG`, `TGT/GTG`, `GGT/TTG`, and 4+ same-direction candles. Patterns do not block or mutate the mapped base signal; only the retained Thursday/Friday special calendar cycle can invert it.
 
 The H1 feed retains broker-date records inside the latest 90 calendar days relative to the newest valid stored broker date. `/engine` defaults to the newest date and can filter retained dates by Monday-Friday. Mobile intentionally continues to consume only the latest retained date.
 

@@ -3,7 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { GlassCard, Pill } from "@/components/ui";
-import { allowTradeDetail, findAlert, latestH1Date } from "@/lib/h1";
+import { findAlert, latestH1Date } from "@/lib/h1";
 import { radius, spacing, useOakTheme } from "@/lib/theme";
 import { useOakData } from "@/state/data";
 
@@ -54,13 +54,11 @@ export default function SignalDetailScreen() {
               <GlassCard>
                 <View style={styles.heroState}>
                   <View style={styles.badges}>
-                    {alert.patternKind === "sw3Pure" ? <Pill label="⚠ PURE" tone="warning" /> : <Pill label={alert.patternKind === "sw2" ? "SW2" : "SW NORMAL"} />}
-                    <Pill label={alert.tradeAllowed === false ? "BLOCK / NOT TRADE" : "ACTIVE"} tone={alert.tradeAllowed === false ? "warning" : "online"} />
+                    <Pill label={alert.patternKind.toUpperCase()} />
                   </View>
-                  <Text style={[styles.heroSignal, { color: alert.tradeAllowed === false ? theme.warning : alert.signal === "SELL" ? theme.sell : theme.buy }]}>
-                    {alert.tradeAllowed === false ? "BLOCK" : alert.signal}
+                  <Text style={[styles.heroSignal, { color: alert.signal === "SELL" ? theme.sell : theme.buy }]}>
+                    {alert.signal}
                   </Text>
-                  {alert.tradeAllowed === false ? <Text style={[styles.calculated, { color: theme.warning }]}>Calculated signal: {alert.signal} · {allowTradeDetail(alert)}</Text> : null}
                 </View>
               </GlassCard>
 
@@ -70,10 +68,8 @@ export default function SignalDetailScreen() {
                 <Row label="Base H1" value={`${alert.baseSymbol} · H${String(alert.baseHour || 0).padStart(2, "0")} · ${alert.baseDirection || "—"}`} />
                 <Row label="Base signal" value={alert.baseSignal || "—"} tone={alert.baseSignal === "SELL" ? "sell" : "buy"} />
                 <Row label="Base logic" value={`${baseInverted ? "Reverse" : "Follow"} ${alert.baseSymbol} H1`} />
-                <Row label="AllowTrade lookback" value={allowTradeDetail(alert)} tone={alert.tradeAllowed === false ? "warning" : undefined} />
                 <Row label="Post-signal" value={alert.postSignalRule || "none"} />
                 <Row label="Final signal" value={alert.signal || "—"} tone={alert.signal === "SELL" ? "sell" : "buy"} />
-                <Row label="Trade state" value={alert.tradeAllowed === false ? "BLOCK / NOT TRADE" : "ACTIVE"} tone={alert.tradeAllowed === false ? "warning" : undefined} />
               </GlassCard>
 
               <GlassCard>
@@ -103,7 +99,6 @@ const styles = StyleSheet.create({
   heroState: { gap: spacing.sm },
   badges: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   heroSignal: { fontSize: 34, fontWeight: "900", letterSpacing: -1.2 },
-  calculated: { fontSize: 12, lineHeight: 18, fontWeight: "800" },
   detailRow: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth },
   detailLabel: { fontSize: 11, fontWeight: "800" },
   detailValue: { flex: 1, textAlign: "right", fontSize: 12, fontWeight: "900" },

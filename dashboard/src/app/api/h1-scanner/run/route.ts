@@ -12,11 +12,9 @@ import {
   H1_SCAN_END_HOUR,
   H1_SCAN_HOURS,
   H1_TARGET_BASES,
-  audusdH3Signal,
   backfillSuppressedHistory,
   baseHourForTargetSlot,
   baseSymbolForTargetSlot,
-  blockedTradeSlots,
   buildStoredAlert,
   buildTelegramMessage,
   ensureSymbolDay,
@@ -101,9 +99,7 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function requiredBasesForBrokerHour(hour: number): readonly H1Base[] {
-  if (hour === 3) return ["GBPUSD", "USDJPY", "XAUUSD", "AUDUSD", "USDCAD", "EURUSD"];
-  if (hour === 4) return ["XAUUSD", "AUDUSD"];
+function requiredBasesForBrokerHour(_hour: number): readonly H1Base[] {
   return H1_ALL_BASES;
 }
 
@@ -144,7 +140,7 @@ export async function POST(request: Request) {
 
   const nowMs = Date.now();
   const wall = brokerWallParts(nowMs);
-  const activeSlot = H1_SCAN_HOURS.includes(wall.hour);
+  const activeSlot = (H1_SCAN_HOURS as readonly number[]).includes(wall.hour);
   const recoveryOnly = !activeSlot && wall.weekday !== 0 && wall.weekday !== 6 && wall.hour === 5;
   if (wall.weekday === 0 || wall.weekday === 6 || wall.hour < H1_FIRST_SCAN_HOUR || wall.hour > H1_SCAN_END_HOUR || (!activeSlot && !recoveryOnly)) {
     return NextResponse.json({
@@ -219,7 +215,6 @@ export async function POST(request: Request) {
     let sent = 0;
 
     for (const base of H1_TARGET_BASES) {
-      if (market.brokerHour === 4 && base !== "XAUUSD") continue;
       const scannerBase = scannerBaseForTarget(base);
       const matches = findH1PatternMatchesForTarget(base, market.symbols[scannerBase].bars, market.brokerHour);
       const { day, symbol: symbolState } = ensureSymbolDay(state, market.brokerDate, base);
@@ -233,11 +228,6 @@ export async function POST(request: Request) {
         const baseSymbol = baseSymbolForTargetSlot(base, match.slotHour);
         const baseBar = byBaseHour[baseSymbol]?.get(baseHourForTargetSlot(base, match.slotHour));
         if (!baseBar) break;
-        const inheritsAudusdH3 = base === "XAUUSD" && match.slotHour === 4;
-        const inheritedSignal = inheritsAudusdH3
-          ? audusdH3Signal(market.symbols.AUDUSD.bars, market.symbols.XAUUSD.bars)
-          : null;
-        if (inheritsAudusdH3 && !inheritedSignal) break;
         const alert = buildStoredAlert({
           base,
           brokerSymbol: market.symbols[base].displayName || base,
@@ -246,7 +236,6 @@ export async function POST(request: Request) {
           match,
           baseSymbol,
           baseBar,
-          inheritedSignal: inheritedSignal || undefined,
         });
         pending.push({
           base,
@@ -262,22 +251,15 @@ export async function POST(request: Request) {
         });
         if (dryRun) continue;
 
-        if (alert.tradeAllowed) {
-          if (!cloudConfig) throw new Error("H1 cloud scanner config is unavailable");
-          await sendTelegram(buildTelegramMessage(base, market.brokerDate, alert), cloudConfig);
-          sent += 1;
-        }
+        if (!cloudConfig) throw new Error("H1 cloud scanner config is unavailable");
+        await sendTelegram(buildTelegramMessage(base, market.brokerDate, alert), cloudConfig);
+        sent += 1;
         symbolState.alerts.push(alert);
         symbolState.alerts.sort((left, right) => left.slotHour - right.slotHour);
         delivered.add(alert.slotHour);
-        if (!alert.tradeAllowed) {
-          const blocked = new Set(symbolState.blockedSlots);
-          for (const hour of blockedTradeSlots([match])) blocked.add(hour);
-          symbolState.blockedSlots = [...blocked].sort((left, right) => left - right);
-        }
         changed = true;
-        // Persist immediately after an actionable Telegram success, or after a
-        // silent BLOCK row is recorded, so retries cannot reinterpret the slot.
+        // Persist immediately after Telegram success so retries cannot
+        // reinterpret or redeliver the slot.
         await saveH1CloudState(state);
       }
     }

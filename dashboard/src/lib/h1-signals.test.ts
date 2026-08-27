@@ -10,7 +10,7 @@ const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.m
 const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
 const mobileH1RouteSource = readFileSync(new URL("../app/api/mobile/h1/route.ts", import.meta.url), "utf8");
 
-test("H1 web feed has independent schema-7 Upstash contract", () => {
+test("H1 web feed has independent schema-7 five-pattern Upstash contract", () => {
   assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 7/);
   assert.match(readerSource, /postSignalInverted/);
   assert.match(readerSource, /postSignalRule/);
@@ -20,29 +20,18 @@ test("H1 web feed has independent schema-7 Upstash contract", () => {
   assert.match(readerSource, /reconcileTradeState\(state\)/);
   assert.match(readerSource, /normalizeTradeStatePayload\(parsePayload/);
   assert.match(readerSource, /payload\.signalRuleVersion !== H1_SIGNAL_RULE_VERSION/);
-  assert.match(readerSource, /sw2/);
-  assert.match(readerSource, /sw3Pure/);
-  assert.match(readerSource, /sw3Normal/);
-  assert.doesNotMatch(readerSource, /previousPureSlot|postCheckApplied|sourceSignal|sw3Alternating|sw4Alternating|stopH17Warning|scannerSignal/);
+  for (const kind of ["pattern1", "pattern2", "pattern3", "pattern4", "pattern5"]) assert.match(readerSource, new RegExp(kind));
+  assert.doesNotMatch(readerSource, /sw2|sw3Pure|sw3Normal|mon-block|tue-block|wed-block/);
 });
 
-test("H1 cells render tradable BUY/SELL and explicit allowTrade BLOCK cells", () => {
+test("H1 cells render BUY SELL with explicit five-pattern badges and no BLOCK path", () => {
   assert.match(boardSource, /oak-h1-signal-button/);
   assert.match(boardSource, /<b>\{alert\.signal\}<\/b>/);
-  assert.match(boardSource, /oak-h1-pure-badge/);
-  assert.match(boardSource, /⚠ PURE/);
-  assert.match(boardSource, /data-pattern-kind=\{pure \? "pure" : undefined\}/);
-  assert.match(boardSource, /oak-h1-cell-blocked/);
-  assert.match(boardSource, /oak-h1-blocked-cell/);
-  assert.match(boardSource, /data-trade-state="blocked"/);
-  assert.match(redesignCss, /\.oak-h1-cell-blocked \{[^}]*background:[^}]*oak-status-warning/);
-  assert.match(redesignCss, /\.oak-h1-cell-blocked \{[^}]*box-shadow:[^}]*oak-status-warning/);
-  assert.match(redesignCss, /\.oak-h1-cell-pure \{[^}]*box-shadow:[^}]*oak-status-warning/);
-  assert.match(redesignCss, /\.oak-h1-pure-badge \{[^}]*oak-status-warning/);
-  assert.match(boardSource, /BLOCK/);
-  assert.match(boardSource, /NOT TRADE/);
-  assert.match(boardSource, /blockedSlots/);
-  assert.doesNotMatch(boardSource, /data-warning|repeatedPure|previousPureSlot|entryTime|postCheckApplied|sourceSignal|targetPattern|STOP H17/);
+  assert.match(boardSource, /oak-h1-pattern-badge/);
+  assert.match(boardSource, /P\{alert\.patternKind\.slice\(-1\)\}/);
+  assert.match(boardSource, /data-pattern-kind=\{alert\.patternKind\}/);
+  assert.match(redesignCss, /\.oak-h1-pattern-badge \{[^}]*oak-accent/);
+  assert.doesNotMatch(boardSource, /BLOCK|NOT TRADE|blockedSlots|oak-h1-cell-blocked|oak-h1-blocked-cell|⚠ PURE/);
 });
 
 test("special Thursday Friday cycle highlights only XAUUSD and USDCAD table rows", () => {
@@ -87,37 +76,21 @@ test("H1 board exports the selected scanner day as a shareable PNG with download
   assert.match(redesignCss, /\.oak-h1-share-png \{/);
 });
 
-test("H1 detail stays compact while preserving target base and calendar evidence", () => {
+test("H1 detail stays compact with five-pattern, base and Thursday Friday cycle evidence", () => {
   assert.doesNotMatch(boardSource, /<small>SYMBOL<\/small>|<small>PROFILE<\/small>|<small>SCAN<\/small>|SCANNER PATTERN|PATTERN SCANNER|Nguồn scanner|Pattern source/);
   assert.match(boardSource, /Base H1 · \$\{alert\.baseSymbol\}/);
-  assert.match(boardSource, /Source signal · AUDUSD H3/);
-  assert.doesNotMatch(boardSource, /base === "GBPUSD" && alert\.slotHour === 3 && alert\.baseSymbol === "AUDUSD"/);
-  assert.match(boardSource, /lấy signal AUDUSD H3/);
-  assert.doesNotMatch(boardSource, /đảo ngược signal AUDUSD H3/);
   assert.match(boardSource, /Nhóm pattern/);
   assert.match(boardSource, /Logic base/);
   assert.match(boardSource, /baseInverted/);
   assert.match(boardSource, /base === "AUDUSD"[\s\S]*base === "USDCAD"[\s\S]*base === "USDJPY"/);
-  assert.doesNotMatch(boardSource, /const baseInverted = base === "GBPUSD"/);
-  assert.doesNotMatch(boardSource, /base === "EURUSD"/);
   assert.match(boardSource, /đảo ngược/);
-  assert.match(boardSource, /AllowTrade lookback/);
-  assert.match(boardSource, /block-repeat-pattern2/);
-  assert.match(boardSource, /Pattern 2 lặp trong ngày/);
-  assert.match(boardSource, /invert-pattern5-post/);
-  assert.match(boardSource, /Pattern 5 \(\$\{pattern\}\) → hậu signal đảo 1 lần/);
-  assert.match(boardSource, /keep-pattern6/);
-  assert.match(boardSource, /Pattern 6 \(\$\{pattern\}\) → giữ nguyên signal/);
-  assert.match(boardSource, /block-run5plus/);
-  assert.match(boardSource, /5\+ cây cùng hướng → BLOCK/);
-  assert.match(boardSource, /Pattern 2 · đúng 4 cây cùng hướng/);
+  for (const label of ["Pattern 1 · TGG / GTT", "Pattern 2 · TTT / GGG", "Pattern 3 · TGT / GTG", "Pattern 4 · GGT / TTG", "Pattern 5 · 4+ cây cùng hướng"]) {
+    assert.ok(boardSource.includes(label));
+  }
   assert.match(boardSource, /Hậu signal/);
-  assert.match(boardSource, /Signal tính toán \$\{base\} H1|Calculated \$\{base\} H1/);
-  assert.match(boardSource, /Trạng thái trade|Trade state/);
-  assert.match(boardSource, /sw2/);
-  assert.match(boardSource, /sw3Pure/);
-  assert.match(boardSource, /sw3Normal/);
-  assert.doesNotMatch(boardSource, /Cảnh báo SW thuần lặp|previousPureSlot|repeatedPure|post-check|hậu kiểm|postCheckApplied|sourceSignal|sw3Alternating|sw4Alternating|warningKind|stopH17Warning|scannerSignal|Phân loại ngày|Day classification/i);
+  assert.match(boardSource, /thu-cycle/);
+  assert.match(boardSource, /fri-cycle/);
+  assert.doesNotMatch(boardSource, /AllowTrade lookback|BLOCK|sw2|sw3Pure|sw3Normal|audusdH3|mon-block|tue-block|wed-block|invert-pattern|keep-pattern/);
   assert.match(vipSource, /redactH1Signals/);
   assert.match(vipSource, /\{ \.\.\.symbol, alerts: \[\], blockedSlots: \[\] \}/);
 });

@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { audusdH3SignalForXauH4, buildStoredAlert, emptyCloudState, findH1PatternMatchesForTarget, type H1Base, type H1Direction, type H1DirectionBar } from "./h1-cloud-scanner.ts";
+import { buildStoredAlert, emptyCloudState, findH1PatternMatchesForTarget, type H1Base, type H1Direction, type H1DirectionBar } from "./h1-cloud-scanner.ts";
 import { mergeHistoricalBackfill, reconstructHistoricalDays } from "./h1-history-backfill.ts";
 
-function bars(sequenceOldestToNewest: string, date: string, startHour = 1): H1DirectionBar[] {
+function bars(sequenceOldestToNewest: string, date: string, startHour = 0): H1DirectionBar[] {
   return [...sequenceOldestToNewest].map((direction, index) => {
     const hour = startHour + index;
     return { hour, brokerDate: date, brokerTime: `${date}T${String(hour).padStart(2, "0")}:00`, direction: direction as H1Direction };
@@ -45,21 +45,7 @@ test("historical reconstruction reuses live pattern/base/calendar rules and skip
   assert.deepEqual(historical, liveExpected);
 
   const market = marketForDates("2026-08-21");
-  const xauH4Match = findH1PatternMatchesForTarget("XAUUSD", market.XAUUSD.bars, 4).find((item) => item.slotHour === 4)!;
-  const audusdH3Signal = audusdH3SignalForXauH4(market.AUDUSD.bars, market.XAUUSD.bars)!;
-  const xauH4Expected = buildStoredAlert({
-    base: "XAUUSD",
-    brokerSymbol: "XAUUSD",
-    scannerBase: "XAUUSD",
-    scannerSymbol: "XAUUSD",
-    match: xauH4Match,
-    baseSymbol: "AUDUSD",
-    baseBar: market.AUDUSD.bars.find((bar) => bar.hour === 3)!,
-    inheritedSignal: audusdH3Signal,
-  });
-  const historicalH4 = history["2026-08-21"].symbols.XAUUSD?.alerts.find((alert) => alert.slotHour === 4);
-  assert.deepEqual(historicalH4, xauH4Expected);
-  assert.deepEqual([historicalH4?.baseSymbol, historicalH4?.baseHour, historicalH4?.baseH1Signal, historicalH4?.symbolH1Signal], ["AUDUSD", 3, audusdH3Signal, audusdH3Signal]);
+  assert.equal(history["2026-08-21"].symbols.XAUUSD?.alerts.some((alert) => alert.slotHour === 4), false);
 
   const gbpH3Match = findH1PatternMatchesForTarget("GBPUSD", market.GBPUSD.bars, 3).find((item) => item.slotHour === 3)!;
   const gbpH3Expected = buildStoredAlert({
@@ -73,7 +59,7 @@ test("historical reconstruction reuses live pattern/base/calendar rules and skip
   });
   const historicalGbpH3 = history["2026-08-21"].symbols.GBPUSD?.alerts.find((alert) => alert.slotHour === 3);
   assert.deepEqual(historicalGbpH3, gbpH3Expected);
-  assert.deepEqual([historicalGbpH3?.baseSymbol, historicalGbpH3?.baseHour, historicalGbpH3?.baseH1Signal, historicalGbpH3?.symbolH1Signal], ["XAUUSD", 2, "BUY", "SELL"]);
+  assert.deepEqual([historicalGbpH3?.baseSymbol, historicalGbpH3?.baseHour, historicalGbpH3?.baseH1Signal, historicalGbpH3?.symbolH1Signal], ["XAUUSD", 2, "SELL", "BUY"]);
 
   const audH3Match = findH1PatternMatchesForTarget("AUDUSD", market.AUDUSD.bars, 3).find((item) => item.slotHour === 3)!;
   const audH3Expected = buildStoredAlert({

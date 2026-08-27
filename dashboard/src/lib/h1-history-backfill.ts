@@ -1,7 +1,6 @@
 import { brokerDateWeekdayIndex, isValidBrokerDateKey } from "./h1-broker-date.ts";
 import {
   H1_TARGET_BASES,
-  audusdH3Signal,
   baseHourForTargetSlot,
   baseSymbolForTargetSlot,
   buildStoredAlert,
@@ -41,11 +40,6 @@ export function reconstructHistoricalDays(market: H1HistoricalMarket): H1Histori
         const baseByHour = new Map(perBase[baseSymbol].map((bar) => [bar.hour, bar]));
         const baseBar = baseByHour.get(baseHourForTargetSlot(base, match.slotHour));
         if (!baseBar) return [];
-        const inheritsAudusdH3 = base === "XAUUSD" && match.slotHour === 4;
-        const inheritedSignal = inheritsAudusdH3
-          ? audusdH3Signal(perBase.AUDUSD, perBase.XAUUSD)
-          : null;
-        if (inheritsAudusdH3 && !inheritedSignal) return [];
         return [buildStoredAlert({
           base,
           brokerSymbol: market[base].displayName || base,
@@ -54,7 +48,6 @@ export function reconstructHistoricalDays(market: H1HistoricalMarket): H1Histori
           match,
           baseSymbol,
           baseBar,
-          inheritedSignal: inheritedSignal || undefined,
         })];
       });
       const symbolState = {

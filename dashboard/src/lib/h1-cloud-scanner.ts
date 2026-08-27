@@ -1,22 +1,17 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 44;
+export const H1_CLOUD_STATE_VERSION = 45;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 38;
+export const H1_SIGNAL_RULE_VERSION = 39;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v44";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v45";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
 export const H1_FIRST_SCAN_HOUR = 3;
-export const H1_SCAN_START_HOUR = 6;
+export const H1_SCAN_START_HOUR = 3;
 export const H1_SCAN_END_HOUR = 16;
-export const H1_SCAN_HOURS = [3, 4, ...Array.from(
-  { length: H1_SCAN_END_HOUR - H1_SCAN_START_HOUR + 1 },
-  (_, index) => H1_SCAN_START_HOUR + index,
-)];
-// Active post-signal calendar rules are intentionally limited to Thursday/Friday.
-// The configured Mon-Wed rules remain available below but are bypassed in production.
+export const H1_SCAN_HOURS = [3, 6, 9, 12, 14, 16] as const;
 export const H1_POST_SIGNAL_ACTIVE_WEEKDAYS = [4, 5] as const;
 
 export const H1_TARGET_BASES = ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const;
@@ -27,11 +22,9 @@ export type H1Base = typeof H1_ALL_BASES[number];
 export type H1ScannerBase = typeof H1_SCANNER_BASES[number];
 export type H1Direction = "T" | "G";
 export type H1Signal = "BUY" | "SELL";
-export type H1PatternKind = "sw2" | "sw3Pure" | "sw3Normal";
-export type H1TriplePatternKind = "pattern1" | "pattern3" | "pattern4" | "pattern6";
-export type H1TriplePatternEffect = "block" | "invert" | "keep";
-export type H1LookbackAction = "none" | "block-pair" | "block-pattern1" | "block-pattern2" | "block-pattern4" | "block-run5plus" | "block-repeat-pattern2" | "invert-pattern3" | "invert-pattern5-post" | "keep-pattern6";
-export type H1PostSignalRule = "none" | "mon-block" | "tue-block" | "wed-block" | "thu-cycle" | "fri-cycle";
+export type H1PatternKind = "pattern1" | "pattern2" | "pattern3" | "pattern4" | "pattern5";
+export type H1LookbackAction = "none";
+export type H1PostSignalRule = "none" | "thu-cycle" | "fri-cycle";
 
 export type H1DirectionBar = {
   hour: number;
@@ -72,7 +65,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 44;
+  version: 45;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -81,7 +74,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 38;
+  signalRuleVersion: 39;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -110,30 +103,25 @@ export type H1PublicFeed = {
   }>;
 };
 
-const PURE_SW_3 = new Set(["TGG", "GTT"]);
-const PATTERN_4_TRIPLES = new Set(["TTT", "GGG"]);
-const ALTERNATING_SW_3 = new Set(["GTG", "TGT"]);
-const ALTERNATING_SW_4 = new Set(["GTGT", "TGTG"]);
-const PATTERN_6_TRIPLES = new Set(["GGT", "TTG"]);
-const BLOCK_PAIR_2 = new Set(["TG", "GT"]);
+const PATTERN_1_TRIPLES = new Set(["TGG", "GTT"]);
+const PATTERN_2_TRIPLES = new Set(["TTT", "GGG"]);
+const PATTERN_3_TRIPLES = new Set(["TGT", "GTG"]);
+const PATTERN_4_TRIPLES = new Set(["GGT", "TTG"]);
 const PATTERN_LABELS: Record<H1PatternKind, string> = {
-  sw2: "SW 2 cây",
-  sw3Pure: "SW 3 cây thuần",
-  sw3Normal: "Pattern 2 · đúng 4 cây cùng hướng",
+  pattern1: "Pattern 1 · TGG/GTT",
+  pattern2: "Pattern 2 · TTT/GGG",
+  pattern3: "Pattern 3 · TGT/GTG",
+  pattern4: "Pattern 4 · GGT/TTG",
+  pattern5: "Pattern 5 · 4+ cây cùng hướng",
 };
 
-export function classifyH1TriplePattern(pattern: string): H1TriplePatternKind | null {
-  if (PURE_SW_3.has(pattern)) return "pattern1";
-  if (ALTERNATING_SW_3.has(pattern)) return "pattern3";
+export function classifyH1Pattern(pattern: string): H1PatternKind | null {
+  if (pattern.length === 4 && [...pattern].every((direction) => direction === pattern[0])) return "pattern5";
+  if (PATTERN_1_TRIPLES.has(pattern)) return "pattern1";
+  if (PATTERN_2_TRIPLES.has(pattern)) return "pattern2";
+  if (PATTERN_3_TRIPLES.has(pattern)) return "pattern3";
   if (PATTERN_4_TRIPLES.has(pattern)) return "pattern4";
-  if (PATTERN_6_TRIPLES.has(pattern)) return "pattern6";
   return null;
-}
-
-export function h1TriplePatternEffect(kind: H1TriplePatternKind): H1TriplePatternEffect {
-  if (kind === "pattern1" || kind === "pattern4") return "block";
-  if (kind === "pattern3") return "invert";
-  return "keep";
 }
 
 export function signalFromDirection(direction: H1Direction): H1Signal {
@@ -153,18 +141,13 @@ export function baseSymbolForTarget(base: H1TargetBase): H1Base {
   return "USDCAD";
 }
 
-export function baseSymbolForTargetSlot(base: H1TargetBase, slotHour: number): H1Base {
-  if (base === "XAUUSD" && slotHour === 4) return "AUDUSD";
+export function baseSymbolForTargetSlot(base: H1TargetBase, _slotHour: number): H1Base {
   return baseSymbolForTarget(base);
 }
 
 export function baseHourForTargetSlot(_base: H1TargetBase, slotHour: number): number {
   return slotHour - 1;
 }
-
-const MONDAY_INVERT_SLOTS = new Set([3, 4, 9, 10, 11, 12, 13, 14]);
-const TUESDAY_INVERT_SLOTS = new Set([3, 4, 9, 10, 11]);
-const WEDNESDAY_INVERT_SLOTS = new Set([3, 4, 12, 13, 14]);
 
 function addUtcDays(value: Date, days: number): Date {
   return new Date(value.getTime() + days * 86_400_000);
@@ -193,11 +176,8 @@ function fridayCycleInverted(value: Date): boolean {
   return false;
 }
 
-function configuredPostSignalDecisionFromDate(value: Date, slotHour: number): { inverted: boolean; rule: H1PostSignalRule } {
+function configuredPostSignalDecisionFromDate(value: Date, _slotHour: number): { inverted: boolean; rule: H1PostSignalRule } {
   const weekday = value.getUTCDay();
-  if (weekday === 1 && MONDAY_INVERT_SLOTS.has(slotHour)) return { inverted: true, rule: "mon-block" };
-  if (weekday === 2 && TUESDAY_INVERT_SLOTS.has(slotHour)) return { inverted: true, rule: "tue-block" };
-  if (weekday === 3 && WEDNESDAY_INVERT_SLOTS.has(slotHour)) return { inverted: true, rule: "wed-block" };
   if (weekday === 4 && thursdayCycleInverted(value)) return { inverted: true, rule: "thu-cycle" };
   if (weekday === 5 && fridayCycleInverted(value)) return { inverted: true, rule: "fri-cycle" };
   return { inverted: false, rule: "none" };
@@ -209,15 +189,10 @@ export function configuredPostSignalDecision(brokerDate: string, slotHour: numbe
 
 export function postSignalDecision(brokerDate: string, slotHour: number): { inverted: boolean; rule: H1PostSignalRule } {
   const value = parseBrokerDateKeyUtc(brokerDate);
-  const weekday = value.getUTCDay();
-  if (!(H1_POST_SIGNAL_ACTIVE_WEEKDAYS as readonly number[]).includes(weekday)) {
+  if (!(H1_POST_SIGNAL_ACTIVE_WEEKDAYS as readonly number[]).includes(value.getUTCDay())) {
     return { inverted: false, rule: "none" };
   }
   return configuredPostSignalDecisionFromDate(value, slotHour);
-}
-
-export function signalFromPatternBase(baseSignal: H1Signal, _patternKind: H1PatternKind): H1Signal {
-  return baseSignal;
 }
 
 export function signalFromTargetBase(base: H1TargetBase, baseSignal: H1Signal): H1Signal {
@@ -231,254 +206,54 @@ export function signalFromBaseAfterCalendar(baseSignal: H1Signal, brokerDate: st
   return postSignalDecision(brokerDate, slotHour).inverted ? (baseSignal === "BUY" ? "SELL" : "BUY") : baseSignal;
 }
 
-export function audusdH3Signal(audusdBars: H1DirectionBar[], xauusdBars: H1DirectionBar[]): H1Signal | null {
-  const match = findH1PatternMatchesForTarget("AUDUSD", audusdBars, 3).find((item) => item.slotHour === 3);
-  const xauH2 = xauusdBars.find((bar) => bar.hour === 2);
-  if (!match || !xauH2) return null;
-  return buildStoredAlert({
-    base: "AUDUSD",
-    brokerSymbol: "AUDUSD",
-    scannerBase: "AUDUSD",
-    scannerSymbol: "AUDUSD",
-    match,
-    baseSymbol: "XAUUSD",
-    baseBar: xauH2,
-  }).symbolH1Signal;
-}
-
-export function audusdH3SignalForXauH4(audusdBars: H1DirectionBar[], xauusdBars: H1DirectionBar[]): H1Signal | null {
-  return audusdH3Signal(audusdBars, xauusdBars);
-}
-
 function rowsForHours(byHour: Map<number, H1DirectionBar>, hours: number[]): H1DirectionBar[] | null {
   const rows = hours.map((hour) => byHour.get(hour));
   return rows.every(Boolean) ? rows as H1DirectionBar[] : null;
 }
 
-function sameDirectionRunLength(byHour: Map<number, H1DirectionBar>, hours: number[], direction: H1Direction): number {
-  let length = hours.length;
-  const newest = Math.max(...hours);
-  const oldest = Math.min(...hours);
-  for (let hour = newest + 1; byHour.get(hour)?.direction === direction; hour += 1) length += 1;
-  for (let hour = oldest - 1; byHour.get(hour)?.direction === direction; hour -= 1) length += 1;
-  return length;
-}
-
-function evaluateTripleLookback(byHour: Map<number, H1DirectionBar>, hours: [number, number, number]): { pattern: string | null; action: H1LookbackAction } {
-  const rows = rowsForHours(byHour, hours);
-  if (!rows) return { pattern: null, action: "none" };
-
-  const triplePattern = rows.map((row) => row.direction).join("");
-  const tripleKind = classifyH1TriplePattern(triplePattern);
-  if (tripleKind === "pattern1") return { pattern: triplePattern, action: "block-pattern1" };
-  if (tripleKind === "pattern3") return { pattern: triplePattern, action: "invert-pattern3" };
-
-  if (tripleKind === "pattern4") return { pattern: triplePattern, action: "block-pattern4" };
-
-  // Pattern 6 keeps the current signal for this window but is deliberately
-  // non-terminal: ordered lookback must continue into the next window.
-  if (tripleKind === "pattern6") return { pattern: triplePattern, action: "keep-pattern6" };
-  return { pattern: triplePattern, action: "none" };
-}
-
-function evaluateBoundaryLookback(byHour: Map<number, H1DirectionBar>, hours: [number, number, number]): { pattern: string | null; action: H1LookbackAction } {
-  const rows = rowsForHours(byHour, hours);
-  if (!rows) return { pattern: null, action: "none" };
-
-  const pairPattern = rows.slice(1).map((row) => row.direction).join("");
-  if (BLOCK_PAIR_2.has(pairPattern)) return { pattern: pairPattern, action: "block-pair" };
-  return evaluateTripleLookback(byHour, hours);
-}
-
-function evaluateOrderedLookbackWindow(
-  byHour: Map<number, H1DirectionBar>,
-  fourHours: [number, number, number, number],
-  tripleHours: [number, number, number],
-): { pattern: string | null; action: H1LookbackAction } {
-  const fourRows = rowsForHours(byHour, fourHours);
-  if (!fourRows) return evaluateTripleLookback(byHour, tripleHours);
-
-  const fullPattern = fourRows.map((row) => row.direction).join("");
-  if (ALTERNATING_SW_4.has(fullPattern)) return { pattern: fullPattern, action: "invert-pattern5-post" };
-  if (fourRows.every((row) => row.direction === fourRows[0].direction)) {
-    const direction = fourRows[0].direction;
-    const runLength = sameDirectionRunLength(byHour, fourHours, direction);
-    if (runLength >= 5) return { pattern: direction.repeat(runLength), action: "block-run5plus" };
-    return { pattern: fullPattern, action: "block-pattern2" };
+function mainPatternMatch(byHour: Map<number, H1DirectionBar>, slotHour: number): H1PatternMatch | null {
+  const rows4 = rowsForHours(byHour, [slotHour - 1, slotHour - 2, slotHour - 3, slotHour - 4]);
+  if (rows4?.every((row) => row.direction === rows4[0].direction)) {
+    return {
+      slotHour,
+      pattern: rows4.map((row) => row.direction) as H1Direction[],
+      patternKind: "pattern5",
+      bars: rows4,
+      lookbackPattern: null,
+      lookbackAction: "none",
+      tradeAllowed: true,
+    };
   }
 
-  const triple = evaluateTripleLookback(byHour, tripleHours);
-  if (triple.action === "invert-pattern3") {
-    // Keep the full four-candle window in evidence so an isolated Pattern 3
-    // such as TGTT is distinguishable from Pattern 5 TGTG.
-    return { pattern: fullPattern, action: triple.action };
-  }
-  return triple.action !== "none" ? triple : { pattern: fullPattern, action: "none" };
-}
-
-function allowTradeLookback(byHour: Map<number, H1DirectionBar>, slotHour: number, patternKind: H1PatternKind): { pattern: string | null; action: H1LookbackAction } {
-  if (slotHour < 7 || (patternKind !== "sw3Pure" && patternKind !== "sw3Normal")) return { pattern: null, action: "none" };
-  const historyByHour = new Map([...byHour].filter(([hour]) => hour < slotHour));
-
-  // Each window is authoritative as a unit. Lùi 3 must finish its H4-H3-H2-H1
-  // style four-candle classification (Pattern 5 vs isolated Pattern 3) and
-  // leading triple action before lùi 2 is allowed to participate.
-  const primary = evaluateOrderedLookbackWindow(
-    historyByHour,
-    [slotHour - 4, slotHour - 5, slotHour - 6, slotHour - 7],
-    [slotHour - 4, slotHour - 5, slotHour - 6],
-  );
-  if (primary.pattern === null) return primary;
-  if (primary.action !== "none" && primary.action !== "keep-pattern6") return primary;
-
-  const fallback = evaluateOrderedLookbackWindow(
-    historyByHour,
-    [slotHour - 3, slotHour - 4, slotHour - 5, slotHour - 6],
-    [slotHour - 3, slotHour - 4, slotHour - 5],
-  );
-  if (fallback.action !== "none") return fallback;
-  return primary.action === "keep-pattern6" ? primary : fallback;
-}
-
-function twoCandleMatch(bars: H1DirectionBar[], slotHour: 3 | 4): H1PatternMatch | null {
-  const byHour = new Map(bars.map((bar) => [bar.hour, bar]));
-  const rows = rowsForHours(byHour, [slotHour - 1, slotHour - 2]);
-  if (!rows) return null;
+  const rows3 = rowsForHours(byHour, [slotHour - 1, slotHour - 2, slotHour - 3]);
+  if (!rows3) return null;
+  const pattern = rows3.map((row) => row.direction) as H1Direction[];
+  const patternKind = classifyH1Pattern(pattern.join(""));
+  if (!patternKind) return null;
   return {
     slotHour,
-    pattern: rows.map((row) => row.direction) as H1Direction[],
-    patternKind: "sw2",
-    bars: rows,
+    pattern,
+    patternKind,
+    bars: rows3,
     lookbackPattern: null,
     lookbackAction: "none",
     tradeAllowed: true,
   };
 }
 
-function evaluateBoundaryOrderedLookback(
-  byHour: Map<number, H1DirectionBar>,
-  primaryTripleHours: [number, number, number],
-  fallbackFourHours: [number, number, number, number],
-  fallbackTripleHours: [number, number, number],
-): { pattern: string | null; action: H1LookbackAction } {
-  const primary = evaluateTripleLookback(byHour, primaryTripleHours);
-  if (primary.pattern === null) return primary;
-  if (primary.action !== "none" && primary.action !== "keep-pattern6") return primary;
-  const fallback = evaluateOrderedLookbackWindow(byHour, fallbackFourHours, fallbackTripleHours);
-  if (fallback.action !== "none") return fallback;
-  return primary.action === "keep-pattern6" ? primary : fallback;
-}
-
-function targetLookbackGate(base: H1TargetBase, byHour: Map<number, H1DirectionBar>, slotHour: number): { pattern: string | null; action: H1LookbackAction } {
-  const historyByHour = new Map([...byHour].filter(([hour]) => hour < slotHour));
-  if (base === "XAUUSD") {
-    if (slotHour === 6) {
-      const rows = rowsForHours(historyByHour, [3, 2]);
-      if (!rows) return { pattern: null, action: "none" };
-      const pattern = rows.map((row) => row.direction).join("");
-      return { pattern, action: BLOCK_PAIR_2.has(pattern) ? "block-pair" : "none" };
-    }
-    if (slotHour === 7) {
-      return evaluateBoundaryLookback(historyByHour, [4, 3, 2]);
-    }
-    if (slotHour === 8) {
-      // XAUUSD boundary: H4-H3-H2-H1 touches H1, so do not classify
-      // the four-candle window. Evaluate H4-H3-H2 first, then move to
-      // the valid lùi-2 H5-H4-H3-H2 window only when no action exists.
-      return evaluateBoundaryOrderedLookback(historyByHour, [4, 3, 2], [5, 4, 3, 2], [5, 4, 3]);
-    }
-    return { pattern: null, action: "none" };
-  }
-
-  if (slotHour === 6) return evaluateBoundaryLookback(historyByHour, [3, 2, 1]);
-  if (slotHour === 7) {
-    // FX boundary: H3-H2-H1-H0 touches H0, even when a broker H0 bar
-    // exists. Skip the four-candle classification and start at H3-H2-H1.
-    return evaluateBoundaryOrderedLookback(historyByHour, [3, 2, 1], [4, 3, 2, 1], [4, 3, 2]);
-  }
-  return { pattern: null, action: "none" };
-}
-
-function mainPatternMatch(byHour: Map<number, H1DirectionBar>, slotHour: number): H1PatternMatch | null {
-  const rows3 = rowsForHours(byHour, [slotHour - 1, slotHour - 2, slotHour - 3]);
-  if (!rows3) return null;
-  const pattern3 = rows3.map((row) => row.direction) as H1Direction[];
-  const text3 = pattern3.join("");
-  if (PURE_SW_3.has(text3)) {
-    const lookback = allowTradeLookback(byHour, slotHour, "sw3Pure");
-    return {
-      slotHour,
-      pattern: pattern3,
-      bars: rows3,
-      patternKind: "sw3Pure",
-      lookbackPattern: lookback.pattern,
-      lookbackAction: lookback.action,
-      tradeAllowed: !lookback.action.startsWith("block-"),
-    };
-  }
-
-  const rows4 = rowsForHours(byHour, [slotHour - 1, slotHour - 2, slotHour - 3, slotHour - 4]);
-  if (!rows4) return null;
-  const pattern4 = rows4.map((row) => row.direction) as H1Direction[];
-  if (!pattern4.every((direction) => direction === pattern4[0])) return null;
-
-  // Pattern 2 is exactly four same-direction closed candles. If the immediately
-  // older candle is also the same direction, this is already a 5+ run: not Pattern 2
-  // and therefore not a scanner signal at this slot (including H6).
-  const older = byHour.get(slotHour - 5);
-  if (older?.direction === pattern4[0]) return null;
-
-  const lookback = allowTradeLookback(byHour, slotHour, "sw3Normal");
-  return {
-    slotHour,
-    pattern: pattern4,
-    bars: rows4,
-    patternKind: "sw3Normal",
-    lookbackPattern: lookback.pattern,
-    lookbackAction: lookback.action,
-    tradeAllowed: !lookback.action.startsWith("block-"),
-  };
-}
-
-export function findH1PatternMatchesForTarget(base: H1TargetBase, bars: H1DirectionBar[], brokerHour: number): H1PatternMatch[] {
-  const matches: H1PatternMatch[] = [];
-  const earlySlot: 3 | 4 = base === "XAUUSD" ? 4 : 3;
-  if (brokerHour >= earlySlot) {
-    const early = twoCandleMatch(bars, earlySlot);
-    if (early) matches.push(early);
-  }
-  const byHour = new Map(bars.map((bar) => [bar.hour, bar]));
-  const mainMatches = findH1PatternMatches(bars, brokerHour);
-  matches.push(...mainMatches.map((match) => {
-    const gate = targetLookbackGate(base, byHour, match.slotHour);
-    if (gate.pattern === null) return match;
-    return {
-      ...match,
-      lookbackPattern: gate.pattern,
-      lookbackAction: gate.action,
-      tradeAllowed: !gate.action.startsWith("block-"),
-    };
-  }));
-
-  return matches.sort((left, right) => left.slotHour - right.slotHour);
+export function findH1PatternMatchesForTarget(_base: H1TargetBase, bars: H1DirectionBar[], brokerHour: number): H1PatternMatch[] {
+  return findH1PatternMatches(bars, brokerHour);
 }
 
 export function findH1PatternMatches(bars: H1DirectionBar[], brokerHour: number): H1PatternMatch[] {
-  if (brokerHour < H1_SCAN_START_HOUR || brokerHour > 23) return [];
-  const byHour = new Map<number, H1DirectionBar>();
-  for (const bar of bars) byHour.set(bar.hour, bar);
-  const matches: H1PatternMatch[] = [];
-  const lastSlot = Math.min(brokerHour, H1_SCAN_END_HOUR);
-
-  for (let slotHour = H1_SCAN_START_HOUR; slotHour <= lastSlot; slotHour += 1) {
-    const match = mainPatternMatch(byHour, slotHour);
-    if (match) matches.push(match);
-  }
-  return matches;
-}
-
-export function blockedTradeSlots(matches: H1PatternMatch[]): number[] {
-  return matches.filter((match) => !match.tradeAllowed).map((match) => match.slotHour).sort((left, right) => left - right);
+  if (brokerHour < H1_FIRST_SCAN_HOUR || brokerHour > 23) return [];
+  const byHour = new Map(bars.map((bar) => [bar.hour, bar]));
+  return H1_SCAN_HOURS
+    .filter((slotHour) => slotHour <= Math.min(brokerHour, H1_SCAN_END_HOUR))
+    .flatMap((slotHour) => {
+      const match = mainPatternMatch(byHour, slotHour);
+      return match ? [match] : [];
+    });
 }
 
 type H1TradeAlertState = {
@@ -502,19 +277,11 @@ export function buildStoredAlert(args: {
   match: H1PatternMatch;
   baseSymbol: H1Base;
   baseBar: H1DirectionBar;
-  inheritedSignal?: H1Signal;
 }): H1StoredAlert {
-  const baseSignal = args.inheritedSignal ?? signalFromDirection(args.baseBar.direction);
-  const targetBaseSignal = args.inheritedSignal ?? signalFromTargetBase(args.base, baseSignal);
-  const patternSignal = signalFromPatternBase(targetBaseSignal, args.match.patternKind);
-  const allowTradeSignal = args.match.lookbackAction === "invert-pattern3"
-    ? (patternSignal === "BUY" ? "SELL" : "BUY")
-    : patternSignal;
-  const postSignal = args.inheritedSignal ? { inverted: false, rule: "none" as H1PostSignalRule } : postSignalDecision(args.baseBar.brokerDate, args.match.slotHour);
-  const calculatedSignal = args.inheritedSignal ? allowTradeSignal : signalFromBaseAfterCalendar(allowTradeSignal, args.baseBar.brokerDate, args.match.slotHour);
-  const finalSignal = args.match.lookbackAction === "invert-pattern5-post"
-    ? (calculatedSignal === "BUY" ? "SELL" : "BUY")
-    : calculatedSignal;
+  const baseSignal = signalFromDirection(args.baseBar.direction);
+  const targetBaseSignal = signalFromTargetBase(args.base, baseSignal);
+  const postSignal = postSignalDecision(args.baseBar.brokerDate, args.match.slotHour);
+  const finalSignal = signalFromBaseAfterCalendar(targetBaseSignal, args.baseBar.brokerDate, args.match.slotHour);
   return {
     slotHour: args.match.slotHour,
     pattern: args.match.pattern.join(" "),
@@ -527,7 +294,7 @@ export function buildStoredAlert(args: {
     baseSymbol: args.baseSymbol,
     baseH1Signal: baseSignal,
     baseHour: args.baseBar.hour,
-    baseDirection: args.inheritedSignal ? (args.inheritedSignal === "BUY" ? "T" : "G") : args.baseBar.direction,
+    baseDirection: args.baseBar.direction,
     symbolH1Signal: finalSignal,
     postSignalInverted: postSignal.inverted,
     postSignalRule: postSignal.rule,
@@ -540,9 +307,6 @@ export function buildStoredAlert(args: {
 export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, alert: H1StoredAlert): string {
   const postSignalLabels: Record<H1PostSignalRule, string> = {
     none: "không đảo",
-    "mon-block": "đảo theo block Thứ 2",
-    "tue-block": "đảo theo block Thứ 3",
-    "wed-block": "đảo theo block Thứ 4",
     "thu-cycle": "đảo theo chu kỳ Thứ 5 special",
     "fri-cycle": "đảo theo chu kỳ Thứ 6 special",
   };
@@ -550,30 +314,7 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
     const match = value.match(/T(\d{2}):/);
     return match ? `H${match[1]}` : value;
   }).join("→");
-  const pureLabel = alert.patternKind === "sw3Pure" ? `/!\\ ${PATTERN_LABELS[alert.patternKind]}` : PATTERN_LABELS[alert.patternKind];
-  const lookbackLabel = alert.lookbackAction === "invert-pattern3"
-    ? `Pattern 3 (${alert.lookbackPattern?.split("").join(" ")}) → đảo signal 1 lần`
-    : alert.lookbackAction === "invert-pattern5-post"
-      ? `Pattern 5 (${alert.lookbackPattern?.split("").join(" ")}) → hậu signal đảo 1 lần`
-    : alert.lookbackAction === "keep-pattern6"
-      ? `Pattern 6 (${alert.lookbackPattern?.split("").join(" ")}) → giữ nguyên signal`
-    : alert.lookbackAction === "block-run5plus"
-      ? `Chuỗi ${alert.lookbackPattern?.split("").join(" ")} · 5+ cây cùng hướng → BLOCK`
-    : alert.lookbackAction === "block-pair"
-      ? `Cặp ${alert.lookbackPattern?.split("").join(" ")} → BLOCK`
-      : alert.lookbackAction === "block-pattern1"
-        ? `Pattern 1 (${alert.lookbackPattern?.split("").join(" ")}) → BLOCK`
-        : alert.lookbackAction === "block-pattern2"
-          ? `Pattern 2 (${alert.lookbackPattern?.split("").join(" ")}) → BLOCK`
-          : alert.lookbackAction === "block-pattern4"
-            ? `Pattern 4 (${alert.lookbackPattern?.split("").join(" ")}) → BLOCK`
-            : alert.lookbackAction === "block-repeat-pattern2"
-            ? `Pattern 2 lặp trong ngày (${alert.lookbackPattern?.split("").join(" ")}) → BLOCK`
-            : alert.lookbackPattern?.length === 2
-            ? `Cặp ${alert.lookbackPattern.split("").join(" ")} → bình thường`
-            : "không tác động";
-  const inheritedAudusdH3 = base === "XAUUSD" && alert.slotHour === 4 && alert.baseSymbol === "AUDUSD";
-  const rows = [
+  return [
     `🔔 ${base} H1 PATTERN`,
     `• Symbol: ${alert.symbol}`,
     `• Profile: ${H1_CLOUD_PROFILE}`,
@@ -582,21 +323,12 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
     `• Scanner pattern: ${alert.scannerBase} (${alert.scannerSymbol})`,
     `• Nến xét nguồn (mới→cũ): ${barHours}`,
     `• Pattern nguồn: ${alert.pattern}`,
-    `• Nhóm nguồn: ${pureLabel}`,
-    inheritedAudusdH3
-      ? `• Signal nguồn: AUDUSD H03 → ${alert.baseH1Signal}`
-      : `• Base H1: ${alert.baseSymbol} H${String(alert.baseHour).padStart(2, "0")}=${alert.baseDirection} → ${alert.baseH1Signal}`,
-    `• Logic base: ${inheritedAudusdH3 ? "lấy signal AUDUSD H3" : base === "AUDUSD" || base === "USDCAD" || base === "USDJPY" ? `đảo ngược ${alert.baseSymbol} H1` : `giữ nguyên ${alert.baseSymbol} H1`}`,
-    `• AllowTrade lookback: ${lookbackLabel}`,
+    `• Nhóm nguồn: ${PATTERN_LABELS[alert.patternKind]}`,
+    `• Base H1: ${alert.baseSymbol} H${String(alert.baseHour).padStart(2, "0")}=${alert.baseDirection} → ${alert.baseH1Signal}`,
+    `• Logic base: ${base === "AUDUSD" || base === "USDCAD" || base === "USDJPY" ? `đảo ngược ${alert.baseSymbol} H1` : `giữ nguyên ${alert.baseSymbol} H1`}`,
     `• Hậu signal: ${postSignalLabels[alert.postSignalRule]}`,
-  ];
-  if (!alert.tradeAllowed) {
-    rows.push(`• Trạng thái: BLOCK / NOT TRADE · ${lookbackLabel}`);
-    rows.push(`• Signal tính toán ${base} H1: ${alert.symbolH1Signal}`);
-  } else {
-    rows.push(`• Signal ${base} H1: ${alert.symbolH1Signal}`);
-  }
-  return rows.join("\n");
+    `• Signal ${base} H1: ${alert.symbolH1Signal}`,
+  ].join("\n");
 }
 
 export function emptyCloudState(): H1CloudState {
@@ -612,11 +344,11 @@ function isScannerBase(value: unknown): value is H1ScannerBase {
 }
 
 function isPatternKind(value: unknown): value is H1PatternKind {
-  return value === "sw2" || value === "sw3Pure" || value === "sw3Normal";
+  return value === "pattern1" || value === "pattern2" || value === "pattern3" || value === "pattern4" || value === "pattern5";
 }
 
 function isLookbackAction(value: unknown): value is H1LookbackAction {
-  return value === "none" || value === "block-pair" || value === "block-pattern1" || value === "block-pattern2" || value === "block-pattern4" || value === "block-run5plus" || value === "block-repeat-pattern2" || value === "invert-pattern3" || value === "invert-pattern5-post" || value === "keep-pattern6";
+  return value === "none";
 }
 
 function isSignal(value: unknown): value is H1Signal {
@@ -624,7 +356,7 @@ function isSignal(value: unknown): value is H1Signal {
 }
 
 function isPostSignalRule(value: unknown): value is H1PostSignalRule {
-  return value === "none" || value === "mon-block" || value === "tue-block" || value === "wed-block" || value === "thu-cycle" || value === "fri-cycle";
+  return value === "none" || value === "thu-cycle" || value === "fri-cycle";
 }
 
 function isDirection(value: unknown): value is H1Direction {
@@ -819,9 +551,7 @@ export function backfillSuppressedHistory(
     const scannerBase = scannerBaseForTarget(base);
     const matches = findH1PatternMatchesForTarget(base, market[scannerBase].bars, suppressedThrough);
     const { symbol } = ensureSymbolDay(state, brokerDate, base);
-    const blocked = new Set(symbol.blockedSlots);
-    for (const hour of blockedTradeSlots(matches)) blocked.add(hour);
-    symbol.blockedSlots = [...blocked].sort((left, right) => left - right);
+    symbol.blockedSlots = [];
     const delivered = new Set(symbol.alerts.map((alert) => alert.slotHour));
 
     for (const match of matches) {
@@ -829,11 +559,6 @@ export function backfillSuppressedHistory(
       const baseSymbol = baseSymbolForTargetSlot(base, match.slotHour);
       const baseBar = byBaseHour[baseSymbol].get(baseHourForTargetSlot(base, match.slotHour));
       if (!baseBar) continue;
-      const inheritsAudusdH3 = base === "XAUUSD" && match.slotHour === 4;
-      const inheritedSignal = inheritsAudusdH3
-        ? audusdH3Signal(market.AUDUSD.bars, market.XAUUSD.bars)
-        : null;
-      if (inheritsAudusdH3 && !inheritedSignal) continue;
       symbol.alerts.push(buildStoredAlert({
         base,
         brokerSymbol: market[base].displayName || base,
@@ -842,7 +567,6 @@ export function backfillSuppressedHistory(
         match,
         baseSymbol,
         baseBar,
-        inheritedSignal: inheritedSignal || undefined,
       }));
       delivered.add(match.slotHour);
       added += 1;

@@ -61,7 +61,6 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     accent: "#4b8cff",
     buy: "#15c98b",
     sell: "#ff626e",
-    block: "#f4b942",
   };
 
   ctx.fillStyle = colors.bg;
@@ -77,7 +76,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   ctx.fillText(locale === "EN" ? "H1 Intraday Signals" : "Tín hiệu H1 trong ngày", padding + 22, padding + 66);
   ctx.fillStyle = colors.muted;
   ctx.font = `700 15px ${H1_SHARE_FONT}`;
-  ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  ${locale === "EN" ? "BUY/SELL = trade · BLOCK = not trade" : "BUY/SELL = trade · BLOCK = không trade"}`, padding + 22, padding + 96);
+  ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  ${locale === "EN" ? "Five-pattern scanner" : "Scanner 5 pattern"}`, padding + 22, padding + 96);
 
   const tableX = padding;
   const tableY = padding + titleHeight;
@@ -121,17 +120,10 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
 
     const symbolState = day.symbols?.[base];
     const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
-    const blockedSlots = new Set(symbolState?.blockedSlots ?? []);
     data.hours.forEach((hour, hourIndex) => {
       const x = tableX + H1_SHARE_SYMBOL_WIDTH + hourIndex * H1_SHARE_HOUR_WIDTH;
       const alert = byHour.get(hour);
-      const blocked = blockedSlots.has(hour) || alert?.tradeAllowed === false;
-      if (blocked) {
-        ctx.fillStyle = "rgba(244,185,66,.12)";
-        ctx.fillRect(x + 1, y + 1, H1_SHARE_HOUR_WIDTH - 2, H1_SHARE_ROW_HEIGHT - 2);
-        drawCentered("BLOCK", x, y - 8, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT, colors.block, `900 13px ${H1_SHARE_FONT}`);
-        drawCentered("NOT TRADE", x, y + 13, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT, colors.block, `700 9px ${H1_SHARE_FONT}`);
-      } else if (alert?.signal) {
+      if (alert?.signal) {
         const sideColor = alert.signal === "BUY" ? colors.buy : colors.sell;
         drawCentered(alert.signal, x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT, sideColor, `950 17px ${H1_SHARE_FONT}`);
       } else {
@@ -171,9 +163,11 @@ function barsLabel(values: string[]) {
 
 function patternLabel(kind: H1PatternKind, locale: Locale) {
   const labels: Record<H1PatternKind, { EN: string; VN: string }> = {
-    sw2: { EN: "SW 2-candle", VN: "SW 2 cây" },
-    sw3Pure: { EN: "Pattern 1 · TGG / GTT", VN: "Pattern 1 · TGG / GTT" },
-    sw3Normal: { EN: "Pattern 2 · exactly 4 same-direction candles", VN: "Pattern 2 · đúng 4 cây cùng hướng" },
+    pattern1: { EN: "Pattern 1 · TGG / GTT", VN: "Pattern 1 · TGG / GTT" },
+    pattern2: { EN: "Pattern 2 · TTT / GGG", VN: "Pattern 2 · TTT / GGG" },
+    pattern3: { EN: "Pattern 3 · TGT / GTG", VN: "Pattern 3 · TGT / GTG" },
+    pattern4: { EN: "Pattern 4 · GGT / TTG", VN: "Pattern 4 · GGT / TTG" },
+    pattern5: { EN: "Pattern 5 · 4+ same-direction candles", VN: "Pattern 5 · 4+ cây cùng hướng" },
   };
   return labels[kind][locale];
 }
@@ -182,9 +176,6 @@ function postSignalLabel(rule: H1SignalAlert["postSignalRule"], inverted: boolea
   if (!rule) return "—";
   const labels = {
     none: { EN: "no inversion", VN: "không đảo" },
-    "mon-block": { EN: "reverse by Monday block", VN: "đảo theo block Thứ 2" },
-    "tue-block": { EN: "reverse by Tuesday block", VN: "đảo theo block Thứ 3" },
-    "wed-block": { EN: "reverse by Wednesday block", VN: "đảo theo block Thứ 4" },
     "thu-cycle": { EN: "reverse by Thursday special cycle", VN: "đảo theo chu kỳ Thứ 5 special" },
     "fri-cycle": { EN: "reverse by Friday special cycle", VN: "đảo theo chu kỳ Thứ 6 special" },
   } as const;
@@ -201,27 +192,10 @@ function specialCycleRuleForDay(day: H1SignalPayload["days"][string] | undefined
   return null;
 }
 
-function allowTradeLookbackLabel(alert: H1SignalAlert, locale: Locale) {
-  const pattern = alert.lookbackPattern ? alert.lookbackPattern.split("").join(" ") : "—";
-  if (alert.lookbackAction === "block-pair") return locale === "EN" ? `Pair ${pattern} → BLOCK` : `Cặp ${pattern} → BLOCK`;
-  if (alert.lookbackAction === "block-pattern1") return locale === "EN" ? `Pattern 1 (${pattern}) → BLOCK` : `Pattern 1 (${pattern}) → BLOCK`;
-  if (alert.lookbackAction === "block-pattern2") return locale === "EN" ? `Pattern 2 (${pattern}) → BLOCK` : `Pattern 2 (${pattern}) → BLOCK`;
-  if (alert.lookbackAction === "block-pattern4") return locale === "EN" ? `Pattern 4 (${pattern}) → BLOCK` : `Pattern 4 (${pattern}) → BLOCK`;
-  if (alert.lookbackAction === "block-repeat-pattern2") return locale === "EN" ? `Repeated Pattern 2 (${pattern}) → BLOCK` : `Pattern 2 lặp trong ngày (${pattern}) → BLOCK`;
-  if (alert.lookbackAction === "invert-pattern3") return locale === "EN" ? `Pattern 3 (${pattern}) → reverse once` : `Pattern 3 (${pattern}) → đảo 1 lần`;
-  if (alert.lookbackAction === "invert-pattern5-post") return locale === "EN" ? `Pattern 5 (${pattern}) → post-signal reverse once` : `Pattern 5 (${pattern}) → hậu signal đảo 1 lần`;
-  if (alert.lookbackAction === "keep-pattern6") return locale === "EN" ? `Pattern 6 (${pattern}) → keep signal` : `Pattern 6 (${pattern}) → giữ nguyên signal`;
-  if (alert.lookbackAction === "block-run5plus") return locale === "EN" ? `${pattern} · 5+ same-direction candles → BLOCK` : `${pattern} · 5+ cây cùng hướng → BLOCK`;
-  if (alert.lookbackPattern?.length === 2) return locale === "EN" ? `Pair ${pattern} → normal` : `Cặp ${pattern} → bình thường`;
-  return locale === "EN" ? "no effect" : "không tác động";
-}
-
 function DetailModal({ selection, locale, onClose }: { selection: Selection; locale: Locale; onClose: () => void }) {
   const ref = useDialogFocusTrap(true, onClose);
   const { base, date, alert } = selection;
   const baseInverted = base === "AUDUSD" || base === "USDCAD" || base === "USDJPY";
-  const inheritedAudusdH3 = base === "XAUUSD" && alert.slotHour === 4 && alert.baseSymbol === "AUDUSD";
-  const audusdH3Source = inheritedAudusdH3;
   const baseDetail = alert.baseSignal
     ? `${alert.baseSignal}${alert.baseHour !== null ? ` · H${String(alert.baseHour).padStart(2, "0")}=${alert.baseDirection || "—"}` : ""}`
     : "—";
@@ -240,12 +214,10 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
         </div>
         <div className="oak-h1-explain">
           <p><span>{locale === "EN" ? "Pattern group" : "Nhóm pattern"}</span><b>{patternLabel(alert.patternKind, locale)}</b></p>
-          <p><span>{audusdH3Source ? (locale === "EN" ? "Source signal · AUDUSD H3" : "Nguồn signal · AUDUSD H3") : `Base H1 · ${alert.baseSymbol}`}</span><b>{baseDetail}</b></p>
-          <p><span>{locale === "EN" ? "Base logic" : "Logic base"}</span><b>{inheritedAudusdH3 ? (locale === "EN" ? "inherit AUDUSD H3 signal" : "lấy signal AUDUSD H3") : locale === "EN" ? `${baseInverted ? "reverse" : "follow"} ${alert.baseSymbol} H1` : `${baseInverted ? "đảo ngược" : "giữ nguyên"} ${alert.baseSymbol} H1`}</b></p>
-          <p><span>AllowTrade lookback</span><b>{allowTradeLookbackLabel(alert, locale)}</b></p>
+          <p><span>{`Base H1 · ${alert.baseSymbol}`}</span><b>{baseDetail}</b></p>
+          <p><span>{locale === "EN" ? "Base logic" : "Logic base"}</span><b>{locale === "EN" ? `${baseInverted ? "reverse" : "follow"} ${alert.baseSymbol} H1` : `${baseInverted ? "đảo ngược" : "giữ nguyên"} ${alert.baseSymbol} H1`}</b></p>
           <p><span>{locale === "EN" ? "Post-signal" : "Hậu signal"}</span><b>{postSignalLabel(alert.postSignalRule, alert.postSignalInverted, locale)}</b></p>
-          <p><span>{locale === "EN" ? "Trade state" : "Trạng thái trade"}</span><b data-trade-state={alert.tradeAllowed === false ? "blocked" : "active"}>{alert.tradeAllowed === false ? "BLOCK / NOT TRADE" : "ACTIVE"}</b></p>
-          <p><span>{locale === "EN" ? `Calculated ${base} H1` : `Signal tính toán ${base} H1`}</span><b data-side={alert.signal?.toLowerCase()}>{alert.signal}</b></p>
+          <p><span>{locale === "EN" ? `Signal ${base} H1` : `Signal ${base} H1`}</span><b data-side={alert.signal?.toLowerCase()}>{alert.signal}</b></p>
         </div>
       </section>
     </div>
@@ -270,7 +242,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
   const copy = locale === "EN"
     ? {
         title: "H1 Intraday Signals",
-        sub: "Scanner result · BUY/SELL is tradable, BLOCK is calculated but not traded",
+        sub: "Five-pattern scanner · only Thursday/Friday special cycles may invert",
         awaiting: "Awaiting H1 live feed",
         locked: "VIP weekday signals are locked",
         weekdayGroup: "Filter by weekday",
@@ -281,7 +253,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
       }
     : {
         title: "Tín hiệu H1 trong ngày",
-        sub: "Kết quả scanner · BUY/SELL được trade, BLOCK vẫn tính nhưng không trade",
+        sub: "Scanner 5 pattern · chỉ chu kỳ special Thứ 5/6 có thể đảo signal",
         awaiting: "Đang chờ feed H1 live",
         locked: "Tín hiệu H1 ngày thường đang khóa VIP",
         weekdayGroup: "Lọc theo thứ",
@@ -387,18 +359,11 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
             <tbody>{data.symbols.map((base) => {
               const symbolState = day?.symbols?.[base];
               const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
-              const blockedSlots = new Set(symbolState?.blockedSlots ?? []);
               const specialCycleRow = Boolean(specialCycleRule && (base === "XAUUSD" || base === "USDCAD"));
               return <tr key={base} className={specialCycleRow ? "oak-h1-special-cycle-row" : undefined} data-cycle-rule={specialCycleRow ? specialCycleRule : undefined}><th className="oak-h1-symbol-sticky"><b>{base}</b>{specialCycleRow && <small className="oak-h1-cycle-badge">{specialCycleRule === "thu-cycle" ? "T5 CYCLE" : "T6 CYCLE"}</small>}</th>{data.hours.map((hour) => {
                 const alert = byHour.get(hour);
-                const blocked = blockedSlots.has(hour) || alert?.tradeAllowed === false;
-                const pure = alert?.patternKind === "sw3Pure";
-                if (blocked) {
-                  if (!alert) return <td key={hour} className="oak-h1-cell-blocked" data-trade-state="blocked"><span className="oak-h1-blocked-cell"><b>BLOCK</b><small>NOT TRADE</small></span></td>;
-                  return <td key={hour} className="oak-h1-cell-blocked oak-h1-cell-pure" data-trade-state="blocked" data-pattern-kind="pure"><button className="oak-h1-blocked-cell" type="button" onClick={() => setSelection({ base, date, alert })}><span className="oak-h1-pure-badge">⚠ PURE</span><b>BLOCK</b><small>NOT TRADE</small></button></td>;
-                }
                 if (!alert?.signal) return <td key={hour}><span className="oak-h1-cell-empty">—</span></td>;
-                return <td key={hour} className={pure ? "oak-h1-cell-pure" : undefined} data-pattern-kind={pure ? "pure" : undefined}><button className="oak-h1-signal-button" type="button" data-side={alert.signal.toLowerCase()} onClick={() => setSelection({ base, date, alert })}>{pure && <span className="oak-h1-pure-badge">⚠ PURE</span>}<b>{alert.signal}</b></button></td>;
+                return <td key={hour} data-pattern-kind={alert.patternKind}><button className="oak-h1-signal-button" type="button" data-side={alert.signal.toLowerCase()} onClick={() => setSelection({ base, date, alert })}><small className="oak-h1-pattern-badge">P{alert.patternKind.slice(-1)}</small><b>{alert.signal}</b></button></td>;
               })}</tr>;
             })}</tbody>
           </table>
