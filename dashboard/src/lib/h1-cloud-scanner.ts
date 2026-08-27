@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 40;
+export const H1_CLOUD_STATE_VERSION = 41;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 34;
+export const H1_SIGNAL_RULE_VERSION = 35;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v40";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v41";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -70,7 +70,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 40;
+  version: 41;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -79,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 34;
+  signalRuleVersion: 35;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -247,16 +247,6 @@ function sameDirectionRunLength(byHour: Map<number, H1DirectionBar>, hours: numb
   return length;
 }
 
-function evaluatePattern5Lookback(byHour: Map<number, H1DirectionBar>, hours: [number, number, number, number]): { pattern: string | null; action: H1LookbackAction } {
-  const rows = rowsForHours(byHour, hours);
-  if (!rows) return { pattern: null, action: "none" };
-
-  const pattern = rows.map((row) => row.direction).join("");
-  return ALTERNATING_SW_4.has(pattern)
-    ? { pattern, action: "keep-pattern5" }
-    : { pattern, action: "none" };
-}
-
 function evaluateTripleLookback(byHour: Map<number, H1DirectionBar>, hours: [number, number, number]): { pattern: string | null; action: H1LookbackAction } {
   const rows = rowsForHours(byHour, hours);
   if (!rows) return { pattern: null, action: "none" };
@@ -284,23 +274,45 @@ function evaluateBoundaryLookback(byHour: Map<number, H1DirectionBar>, hours: [n
   return evaluateTripleLookback(byHour, hours);
 }
 
+function evaluateOrderedLookbackWindow(
+  byHour: Map<number, H1DirectionBar>,
+  fourHours: [number, number, number, number],
+  tripleHours: [number, number, number],
+): { pattern: string | null; action: H1LookbackAction } {
+  const fourRows = rowsForHours(byHour, fourHours);
+  if (!fourRows) return evaluateTripleLookback(byHour, tripleHours);
+
+  const fullPattern = fourRows.map((row) => row.direction).join("");
+  if (ALTERNATING_SW_4.has(fullPattern)) return { pattern: fullPattern, action: "keep-pattern5" };
+
+  const triple = evaluateTripleLookback(byHour, tripleHours);
+  if (triple.action === "invert-pattern3") {
+    // Keep the full four-candle window in evidence so an isolated Pattern 3
+    // such as TGTT is distinguishable from Pattern 5 TGTG.
+    return { pattern: fullPattern, action: triple.action };
+  }
+  return triple.action !== "none" ? triple : { pattern: fullPattern, action: "none" };
+}
+
 function allowTradeLookback(byHour: Map<number, H1DirectionBar>, slotHour: number, patternKind: H1PatternKind): { pattern: string | null; action: H1LookbackAction } {
   if (slotHour < 7 || (patternKind !== "sw3Pure" && patternKind !== "sw3Normal")) return { pattern: null, action: "none" };
 
-  // Pattern 5 is a four-candle continuation of Pattern 3, so check the
-  // longest pattern first across both ordered windows before any triple can invert.
-  const primaryPattern5 = evaluatePattern5Lookback(byHour, [slotHour - 4, slotHour - 5, slotHour - 6, slotHour - 7]);
-  if (primaryPattern5.action === "keep-pattern5") return primaryPattern5;
-
-  const fallbackPattern5 = evaluatePattern5Lookback(byHour, [slotHour - 3, slotHour - 4, slotHour - 5, slotHour - 6]);
-  if (fallbackPattern5.action === "keep-pattern5") return fallbackPattern5;
-
-  // Lùi 3 is authoritative when it has an action. Lùi 2 is consulted only
-  // when the lùi-3 triple is present and has no action.
-  const primary = evaluateTripleLookback(byHour, [slotHour - 4, slotHour - 5, slotHour - 6]);
+  // Each window is authoritative as a unit. Lùi 3 must finish its H4-H3-H2-H1
+  // style four-candle classification (Pattern 5 vs isolated Pattern 3) and
+  // leading triple action before lùi 2 is allowed to participate.
+  const primary = evaluateOrderedLookbackWindow(
+    byHour,
+    [slotHour - 4, slotHour - 5, slotHour - 6, slotHour - 7],
+    [slotHour - 4, slotHour - 5, slotHour - 6],
+  );
   if (primary.pattern === null) return primary;
   if (primary.action !== "none") return primary;
-  return evaluateTripleLookback(byHour, [slotHour - 3, slotHour - 4, slotHour - 5]);
+
+  return evaluateOrderedLookbackWindow(
+    byHour,
+    [slotHour - 3, slotHour - 4, slotHour - 5, slotHour - 6],
+    [slotHour - 3, slotHour - 4, slotHour - 5],
+  );
 }
 
 function twoCandleMatch(bars: H1DirectionBar[], slotHour: 3 | 4): H1PatternMatch | null {
