@@ -2,6 +2,12 @@
 
 All notable changes to the dashboard are recorded here.
 
+## [Unreleased]
+
+### Fixed
+
+- H1 Pattern 5 (`TGTG` / `GTGT`) now keeps the calculated signal at the ordered lùi-3 or lùi-2 lookback before isolated Pattern 3 inversion is considered. XAUUSD H4 remains sourced from AUDUSD H3.
+
 ## [0.7.1] - 2026-08-27
 
 ### Fixed
