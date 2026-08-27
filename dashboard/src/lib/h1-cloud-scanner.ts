@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 41;
+export const H1_CLOUD_STATE_VERSION = 42;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 35;
+export const H1_SIGNAL_RULE_VERSION = 36;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v41";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v42";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -70,7 +70,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 41;
+  version: 42;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -79,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 35;
+  signalRuleVersion: 36;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -330,6 +330,18 @@ function twoCandleMatch(bars: H1DirectionBar[], slotHour: 3 | 4): H1PatternMatch
   };
 }
 
+function evaluateBoundaryOrderedLookback(
+  byHour: Map<number, H1DirectionBar>,
+  primaryTripleHours: [number, number, number],
+  fallbackFourHours: [number, number, number, number],
+  fallbackTripleHours: [number, number, number],
+): { pattern: string | null; action: H1LookbackAction } {
+  const primary = evaluateTripleLookback(byHour, primaryTripleHours);
+  if (primary.pattern === null) return primary;
+  if (primary.action !== "none") return primary;
+  return evaluateOrderedLookbackWindow(byHour, fallbackFourHours, fallbackTripleHours);
+}
+
 function targetLookbackGate(base: H1TargetBase, byHour: Map<number, H1DirectionBar>, slotHour: number): { pattern: string | null; action: H1LookbackAction } {
   if (base === "XAUUSD") {
     if (slotHour === 6) {
@@ -341,11 +353,22 @@ function targetLookbackGate(base: H1TargetBase, byHour: Map<number, H1DirectionB
     if (slotHour === 7) {
       return evaluateBoundaryLookback(byHour, [4, 3, 2]);
     }
+    if (slotHour === 8) {
+      // XAUUSD boundary: H4-H3-H2-H1 touches H1, so do not classify
+      // the four-candle window. Evaluate H4-H3-H2 first, then move to
+      // the valid lùi-2 H5-H4-H3-H2 window only when no action exists.
+      return evaluateBoundaryOrderedLookback(byHour, [4, 3, 2], [5, 4, 3, 2], [5, 4, 3]);
+    }
     return { pattern: null, action: "none" };
   }
 
-  if (slotHour !== 6) return { pattern: null, action: "none" };
-  return evaluateBoundaryLookback(byHour, [3, 2, 1]);
+  if (slotHour === 6) return evaluateBoundaryLookback(byHour, [3, 2, 1]);
+  if (slotHour === 7) {
+    // FX boundary: H3-H2-H1-H0 touches H0, even when a broker H0 bar
+    // exists. Skip the four-candle classification and start at H3-H2-H1.
+    return evaluateBoundaryOrderedLookback(byHour, [3, 2, 1], [4, 3, 2, 1], [4, 3, 2]);
+  }
+  return { pattern: null, action: "none" };
 }
 
 function mainPatternMatch(byHour: Map<number, H1DirectionBar>, slotHour: number): H1PatternMatch | null {

@@ -345,8 +345,8 @@ test("GBPUSD and XAUUSD keep configured base while AUDUSD USDCAD and USDJPY inve
 });
 
 test("target scanner/base mapping follows the five-symbol signal loop", () => {
-  assert.equal(H1_CLOUD_STATE_VERSION, 41);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 35);
+  assert.equal(H1_CLOUD_STATE_VERSION, 42);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 36);
   assert.deepEqual(H1_TARGET_BASES, ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"]);
   assert.deepEqual(H1_ALL_BASES, ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY", "EURUSD"]);
 
@@ -553,6 +553,24 @@ test("AUDUSD H8 2026-08-27 evaluates H4 H3 H2 H1 before the lùi-2 GTGT window",
   assert.deepEqual([alert.baseH1Signal, alert.lookbackAction, alert.postSignalRule, alert.symbolH1Signal], ["SELL", "invert-pattern3", "none", "SELL"]);
 });
 
+test("FX H7 skips the four-candle Pattern 5 window when it reaches broker H0", () => {
+  for (const base of ["GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const) {
+    const match = findH1PatternMatchesForTarget(base, bars("GTGTGGT", 0), 7).find((item) => item.slotHour === 7)!;
+    assert.deepEqual(
+      [match.pattern.join(""), match.lookbackPattern, match.lookbackAction, match.tradeAllowed],
+      ["TGG", "TGT", "invert-pattern3", true],
+    );
+  }
+});
+
+test("XAUUSD H8 skips the four-candle Pattern 5 window when it reaches broker H1", () => {
+  const match = findH1PatternMatchesForTarget("XAUUSD", bars("GTGTGGT", 1), 8).find((item) => item.slotHour === 8)!;
+  assert.deepEqual(
+    [match.pattern.join(""), match.lookbackPattern, match.lookbackAction, match.tradeAllowed],
+    ["TGG", "TGT", "invert-pattern3", true],
+  );
+});
+
 test("FX H7+ and XAU H8+ evaluate only the lùi-3 three-candle window first", () => {
   const blockedByPattern1 = findH1PatternMatches(bars("GGTGGT", 2), 8).find((item) => item.slotHour === 8)!;
   assert.deepEqual([blockedByPattern1.pattern.join(""), blockedByPattern1.lookbackPattern, blockedByPattern1.lookbackAction, blockedByPattern1.tradeAllowed], ["TGG", "TGG", "block-pattern1", false]);
@@ -754,7 +772,7 @@ test("suppressed migration slots backfill v7 history without replay state loss",
   assert.equal(backfillSuppressedHistory(state, "2026-08-21", market), 0);
 });
 
-test("older signal-rule feeds start a fresh v41 state instead of carrying stale H4/base semantics", () => {
+test("older signal-rule feeds start a fresh v42 state instead of carrying stale H4/base semantics", () => {
   const legacyV2 = {
     schemaVersion: 7,
     signalRuleVersion: 2,
@@ -789,7 +807,7 @@ test("older signal-rule feeds start a fresh v41 state instead of carrying stale 
     },
   };
   const state = seedCloudStateFromPublic(legacyV2, "2026-08-21", 7);
-  assert.equal(state.version, 41);
+  assert.equal(state.version, 42);
   assert.equal(state.days["2026-08-21"].suppressedThroughHour, 7);
   assert.deepEqual(state.days["2026-08-21"].symbols.XAUUSD?.alerts, []);
 });
@@ -804,11 +822,11 @@ test("older public schemas start a fresh suppressed v7 state instead of replayin
     days: {},
   };
   const state = seedCloudStateFromPublic(legacy, "2026-08-21", 5);
-  assert.equal(state.version, 41);
+  assert.equal(state.version, 42);
   assert.equal(state.days["2026-08-21"].suppressedThroughHour, 5);
 });
 
-test("public feed v7 excludes H5 under signal rule v35", () => {
+test("public feed v7 excludes H5 under signal rule v36", () => {
   const state = emptyCloudState();
   const match = findH1PatternMatches(bars("GGT", 3), 6).find((item) => item.slotHour === 6)!;
   const alert = buildStoredAlert({
@@ -823,7 +841,7 @@ test("public feed v7 excludes H5 under signal rule v35", () => {
   state.days["2026-08-21"] = { symbols: { XAUUSD: { alerts: [alert], blockedSlots: [] } } };
   const feed = buildPublicFeed(state, "2026-08-21T00:00:00Z");
   assert.equal(feed.schemaVersion, 7);
-  assert.equal(feed.signalRuleVersion, 35);
+  assert.equal(feed.signalRuleVersion, 36);
   assert.deepEqual(feed.hours, [3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
   const row = feed.days["2026-08-21"].symbols.XAUUSD?.alerts[0];
   assert.equal(row?.patternKind, "sw3Pure");
