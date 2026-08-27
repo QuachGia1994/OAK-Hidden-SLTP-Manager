@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 43;
+export const H1_CLOUD_STATE_VERSION = 44;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 37;
+export const H1_SIGNAL_RULE_VERSION = 38;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v43";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v44";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -30,7 +30,7 @@ export type H1Signal = "BUY" | "SELL";
 export type H1PatternKind = "sw2" | "sw3Pure" | "sw3Normal";
 export type H1TriplePatternKind = "pattern1" | "pattern3" | "pattern4" | "pattern6";
 export type H1TriplePatternEffect = "block" | "invert" | "keep";
-export type H1LookbackAction = "none" | "block-pair" | "block-pattern1" | "block-pattern2" | "block-pattern4" | "block-run5plus" | "block-repeat-pattern2" | "invert-pattern3" | "keep-pattern5" | "keep-pattern6";
+export type H1LookbackAction = "none" | "block-pair" | "block-pattern1" | "block-pattern2" | "block-pattern4" | "block-run5plus" | "block-repeat-pattern2" | "invert-pattern3" | "invert-pattern5-post" | "keep-pattern6";
 export type H1PostSignalRule = "none" | "mon-block" | "tue-block" | "wed-block" | "thu-cycle" | "fri-cycle";
 
 export type H1DirectionBar = {
@@ -72,7 +72,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 43;
+  version: 44;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -81,7 +81,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 37;
+  signalRuleVersion: 38;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -299,7 +299,7 @@ function evaluateOrderedLookbackWindow(
   if (!fourRows) return evaluateTripleLookback(byHour, tripleHours);
 
   const fullPattern = fourRows.map((row) => row.direction).join("");
-  if (ALTERNATING_SW_4.has(fullPattern)) return { pattern: fullPattern, action: "keep-pattern5" };
+  if (ALTERNATING_SW_4.has(fullPattern)) return { pattern: fullPattern, action: "invert-pattern5-post" };
   if (fourRows.every((row) => row.direction === fourRows[0].direction)) {
     const direction = fourRows[0].direction;
     const runLength = sameDirectionRunLength(byHour, fourHours, direction);
@@ -512,7 +512,9 @@ export function buildStoredAlert(args: {
     : patternSignal;
   const postSignal = args.inheritedSignal ? { inverted: false, rule: "none" as H1PostSignalRule } : postSignalDecision(args.baseBar.brokerDate, args.match.slotHour);
   const calculatedSignal = args.inheritedSignal ? allowTradeSignal : signalFromBaseAfterCalendar(allowTradeSignal, args.baseBar.brokerDate, args.match.slotHour);
-  const finalSignal = calculatedSignal;
+  const finalSignal = args.match.lookbackAction === "invert-pattern5-post"
+    ? (calculatedSignal === "BUY" ? "SELL" : "BUY")
+    : calculatedSignal;
   return {
     slotHour: args.match.slotHour,
     pattern: args.match.pattern.join(" "),
@@ -551,8 +553,8 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
   const pureLabel = alert.patternKind === "sw3Pure" ? `/!\\ ${PATTERN_LABELS[alert.patternKind]}` : PATTERN_LABELS[alert.patternKind];
   const lookbackLabel = alert.lookbackAction === "invert-pattern3"
     ? `Pattern 3 (${alert.lookbackPattern?.split("").join(" ")}) → đảo signal 1 lần`
-    : alert.lookbackAction === "keep-pattern5"
-      ? `Pattern 5 (${alert.lookbackPattern?.split("").join(" ")}) → giữ nguyên signal`
+    : alert.lookbackAction === "invert-pattern5-post"
+      ? `Pattern 5 (${alert.lookbackPattern?.split("").join(" ")}) → hậu signal đảo 1 lần`
     : alert.lookbackAction === "keep-pattern6"
       ? `Pattern 6 (${alert.lookbackPattern?.split("").join(" ")}) → giữ nguyên signal`
     : alert.lookbackAction === "block-run5plus"
@@ -614,7 +616,7 @@ function isPatternKind(value: unknown): value is H1PatternKind {
 }
 
 function isLookbackAction(value: unknown): value is H1LookbackAction {
-  return value === "none" || value === "block-pair" || value === "block-pattern1" || value === "block-pattern2" || value === "block-pattern4" || value === "block-run5plus" || value === "block-repeat-pattern2" || value === "invert-pattern3" || value === "keep-pattern5" || value === "keep-pattern6";
+  return value === "none" || value === "block-pair" || value === "block-pattern1" || value === "block-pattern2" || value === "block-pattern4" || value === "block-run5plus" || value === "block-repeat-pattern2" || value === "invert-pattern3" || value === "invert-pattern5-post" || value === "keep-pattern6";
 }
 
 function isSignal(value: unknown): value is H1Signal {

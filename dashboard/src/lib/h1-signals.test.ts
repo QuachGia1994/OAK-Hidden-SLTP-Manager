@@ -104,8 +104,8 @@ test("H1 detail stays compact while preserving target base and calendar evidence
   assert.match(boardSource, /AllowTrade lookback/);
   assert.match(boardSource, /block-repeat-pattern2/);
   assert.match(boardSource, /Pattern 2 lặp trong ngày/);
-  assert.match(boardSource, /keep-pattern5/);
-  assert.match(boardSource, /Pattern 5 \(\$\{pattern\}\) → giữ nguyên signal/);
+  assert.match(boardSource, /invert-pattern5-post/);
+  assert.match(boardSource, /Pattern 5 \(\$\{pattern\}\) → hậu signal đảo 1 lần/);
   assert.match(boardSource, /keep-pattern6/);
   assert.match(boardSource, /Pattern 6 \(\$\{pattern\}\) → giữ nguyên signal/);
   assert.match(boardSource, /block-run5plus/);

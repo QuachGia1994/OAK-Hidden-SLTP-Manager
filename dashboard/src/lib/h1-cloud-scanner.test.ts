@@ -348,8 +348,8 @@ test("GBPUSD and XAUUSD keep configured base while AUDUSD USDCAD and USDJPY inve
 });
 
 test("target scanner/base mapping follows the five-symbol signal loop", () => {
-  assert.equal(H1_CLOUD_STATE_VERSION, 43);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 37);
+  assert.equal(H1_CLOUD_STATE_VERSION, 44);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 38);
   assert.deepEqual(H1_TARGET_BASES, ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"]);
   assert.deepEqual(H1_ALL_BASES, ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY", "EURUSD"]);
 
@@ -517,11 +517,40 @@ test("lookback distinguishes Pattern 4, exact-four Pattern 2 and 5+ same-directi
   );
 });
 
-test("Pattern 5 keeps direction only when it belongs to the current authoritative lookback window", () => {
-  const primaryPattern5 = findH1PatternMatches(bars("GTGTGGT", 1), 8).find((item) => item.slotHour === 8)!;
+test("Pattern 5 applies one final post-signal inversion only in its authoritative lookback window", () => {
+  const mondayPattern5 = findH1PatternMatches(bars("GTGTGGT", 1, "2026-08-17"), 8).find((item) => item.slotHour === 8)!;
   assert.deepEqual(
-    [primaryPattern5.pattern.join(""), primaryPattern5.lookbackPattern, primaryPattern5.lookbackAction, primaryPattern5.tradeAllowed],
-    ["TGG", "TGTG", "keep-pattern5", true],
+    [mondayPattern5.pattern.join(""), mondayPattern5.lookbackPattern, mondayPattern5.lookbackAction, mondayPattern5.tradeAllowed],
+    ["TGG", "TGTG", "invert-pattern5-post", true],
+  );
+  const mondayAlert = buildStoredAlert({
+    base: "XAUUSD",
+    brokerSymbol: "XAUUSD",
+    scannerBase: "XAUUSD",
+    scannerSymbol: "XAUUSD",
+    match: mondayPattern5,
+    baseSymbol: "GBPUSD",
+    baseBar: bars("T", 7, "2026-08-17")[0],
+  });
+  assert.deepEqual(
+    [mondayAlert.baseH1Signal, mondayAlert.postSignalRule, mondayAlert.postSignalInverted, mondayAlert.symbolH1Signal],
+    ["BUY", "none", false, "SELL"],
+  );
+  assert.match(buildTelegramMessage("XAUUSD", "2026-08-17", mondayAlert), /Pattern 5 \(T G T G\) → hậu signal đảo 1 lần/);
+
+  const fridayPattern5 = findH1PatternMatches(bars("GTGTGGT", 1, "2026-08-21"), 8).find((item) => item.slotHour === 8)!;
+  const fridayAlert = buildStoredAlert({
+    base: "XAUUSD",
+    brokerSymbol: "XAUUSD",
+    scannerBase: "XAUUSD",
+    scannerSymbol: "XAUUSD",
+    match: fridayPattern5,
+    baseSymbol: "GBPUSD",
+    baseBar: bars("T", 7, "2026-08-21")[0],
+  });
+  assert.deepEqual(
+    [fridayAlert.baseH1Signal, fridayAlert.postSignalRule, fridayAlert.postSignalInverted, fridayAlert.symbolH1Signal],
+    ["BUY", "fri-cycle", true, "BUY"],
   );
 
   const fallbackPattern5MustNotMaskPrimaryPattern3 = findH1PatternMatches(bars("GGTGTTG", 1), 8).find((item) => item.slotHour === 8)!;
@@ -791,7 +820,7 @@ test("suppressed migration slots backfill v7 history without replay state loss",
   assert.equal(backfillSuppressedHistory(state, "2026-08-21", market), 0);
 });
 
-test("older signal-rule feeds start a fresh v43 state instead of carrying stale H4/base semantics", () => {
+test("older signal-rule feeds start a fresh v44 state instead of carrying stale H4/base semantics", () => {
   const legacyV2 = {
     schemaVersion: 7,
     signalRuleVersion: 2,
@@ -826,7 +855,7 @@ test("older signal-rule feeds start a fresh v43 state instead of carrying stale 
     },
   };
   const state = seedCloudStateFromPublic(legacyV2, "2026-08-21", 7);
-  assert.equal(state.version, 43);
+  assert.equal(state.version, 44);
   assert.equal(state.days["2026-08-21"].suppressedThroughHour, 7);
   assert.deepEqual(state.days["2026-08-21"].symbols.XAUUSD?.alerts, []);
 });
@@ -841,11 +870,11 @@ test("older public schemas start a fresh suppressed v7 state instead of replayin
     days: {},
   };
   const state = seedCloudStateFromPublic(legacy, "2026-08-21", 5);
-  assert.equal(state.version, 43);
+  assert.equal(state.version, 44);
   assert.equal(state.days["2026-08-21"].suppressedThroughHour, 5);
 });
 
-test("public feed v7 excludes H5 under signal rule v37", () => {
+test("public feed v7 excludes H5 under signal rule v38", () => {
   const state = emptyCloudState();
   const match = findH1PatternMatches(bars("GGT", 3), 6).find((item) => item.slotHour === 6)!;
   const alert = buildStoredAlert({
@@ -860,7 +889,7 @@ test("public feed v7 excludes H5 under signal rule v37", () => {
   state.days["2026-08-21"] = { symbols: { XAUUSD: { alerts: [alert], blockedSlots: [] } } };
   const feed = buildPublicFeed(state, "2026-08-21T00:00:00Z");
   assert.equal(feed.schemaVersion, 7);
-  assert.equal(feed.signalRuleVersion, 37);
+  assert.equal(feed.signalRuleVersion, 38);
   assert.deepEqual(feed.hours, [3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
   const row = feed.days["2026-08-21"].symbols.XAUUSD?.alerts[0];
   assert.equal(row?.patternKind, "sw3Pure");
