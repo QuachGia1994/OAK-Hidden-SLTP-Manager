@@ -181,6 +181,8 @@ test("GitHub scheduler is tertiary fallback for H:00, H:01 and H:30 phases and w
   assert.match(workflow, /Authorization: Bearer \$OIDC_TOKEN/);
   assert.match(workflow, /https:\/\/www\.oakgatekeeper\.uk\/api\/h1-scanner\/run/);
   assert.match(workflow, /Rebuild H1 history after scanner deploy/);
+  assert.match(workflow, /dashboard\/src\/lib\/ctrader-json\.ts/);
+  assert.match(workflow, /dashboard\/src\/lib\/h1-history-backfill\.ts/);
   assert.match(workflow, /if: github\.event_name == 'push'/);
   assert.match(workflow, /https:\/\/www\.oakgatekeeper\.uk\/api\/h1-scanner\/backfill/);
   assert.doesNotMatch(workflow, /secrets\.|CTRADER_CLIENT_SECRET|ACCESS_TOKEN|UPSTASH|TELEGRAM_TOKEN/);

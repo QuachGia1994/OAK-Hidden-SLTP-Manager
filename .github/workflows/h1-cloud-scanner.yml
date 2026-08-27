@@ -12,7 +12,9 @@ on:
       - ".github/workflows/h1-cloud-scanner.yml"
       - "dashboard/src/app/api/h1-scanner/**"
       - "dashboard/src/lib/github-oidc.ts"
+      - "dashboard/src/lib/ctrader-json.ts"
       - "dashboard/src/lib/h1-cloud-scanner.ts"
+      - "dashboard/src/lib/h1-history-backfill.ts"
       - "dashboard/src/lib/h1-signals.ts"
   workflow_dispatch:
 
