@@ -5,6 +5,10 @@ import { loadH1CloudConfig, type H1CloudConfig } from "@/lib/h1-cloud-config";
 import { verifyH1ScannerGitHubOidc } from "@/lib/github-oidc";
 import { brokerWallParts, fetchCurrentBrokerDayMarket, type CTraderScannerSession } from "@/lib/ctrader-json";
 import { loadH1CTraderSession } from "@/lib/h1-ctrader-session";
+import { cTraderProviderAccountId, providerProtectionPoints } from "@/lib/provider-account-domain";
+import { listProviderAccounts } from "@/lib/provider-accounts";
+import { TELEGRAM_CLOUD_EXECUTION_MODE } from "@/lib/telegram-cloud-domain";
+import { createCloudIntent } from "@/lib/telegram-cloud-store";
 import { acquireH1CloudLock, loadH1CloudState, publishH1CloudState, releaseH1CloudLock, saveH1CloudState } from "@/lib/h1-cloud-store";
 import {
   H1_FIRST_SCAN_HOUR,
@@ -12,6 +16,7 @@ import {
   H1_SCAN_HOURS,
   H1_TARGET_BASES,
   backfillSuppressedHistory,
+  brokerEntryDueAt,
   buildStoredAlert,
   buildTelegramMessage,
   ensureSymbolDay,
@@ -29,6 +34,7 @@ const CF_TIMEKEEPER_TOKEN_HASH_KEY = "robot-sltp:cloud:h1-scanner:cf-timekeeper:
 const CF_TIMEKEEPER_HEADER = "x-h1-timekeeper-key";
 const FINALIZE_RETRY_ATTEMPTS = 8;
 const FINALIZE_RETRY_DELAY_MS = 2_500;
+const H1_AUTO_ENTRY_LOT = 0.03;
 
 type RunSummary = {
   base: string;
@@ -39,6 +45,7 @@ type RunSummary = {
   entryTime: string;
   signal: string;
   postSignalRule: string;
+  intentId: number | null;
 };
 
 function safeHexEqual(left: string, right: string): boolean {
@@ -197,6 +204,13 @@ export async function POST(request: Request) {
       }, { headers: { "Cache-Control": "no-store, max-age=0" } });
     }
 
+    const providerTarget = dryRun
+      ? null
+      : (await listProviderAccounts()).find((account) => account.id === cTraderProviderAccountId(session.accountId) && account.enabled && account.provider === "ctrader") || null;
+    if (!dryRun && (!cloudConfig?.telegramControlEnabled || !providerTarget)) {
+      throw new Error("H1 scheduled intents require Telegram control and the enabled scanner cTrader account");
+    }
+
     const pending: RunSummary[] = [];
     let sent = 0;
 
@@ -206,6 +220,7 @@ export async function POST(request: Request) {
         market.symbols[base].bars,
         market.symbols[base].m15Bars,
         market.brokerHour,
+        market.brokerHour * 60 + market.brokerMinute,
       );
       const { symbol: symbolState } = ensureSymbolDay(state, market.brokerDate, base);
       const delivered = deliveredSlots(symbolState.alerts);
@@ -220,6 +235,44 @@ export async function POST(request: Request) {
           brokerSymbol: market.symbols[base].displayName || base,
           evaluation,
         });
+        let intentId: number | null = null;
+        let telegramMessage = buildTelegramMessage(base, market.brokerDate, alert);
+        if (!dryRun) {
+          if (!cloudConfig || !providerTarget) throw new Error("H1 scheduled-intent configuration is unavailable");
+          const protection = providerProtectionPoints(providerTarget, alert.symbol);
+          const dueAt = brokerEntryDueAt(market.brokerDate, alert.entryTime, market.brokerUtcOffsetHours);
+          const task = await createCloudIntent({
+            kind: "entry",
+            source: "H1 Scanner",
+            automationKey: `h1:${market.brokerDate}:${base}:H${alert.slotHour}`,
+            chatId: cloudConfig.telegramChatId,
+            rawText: `H1 ${base} H${alert.slotHour} ${alert.symbolH1Signal} ${alert.entryTime}`,
+            dueAt,
+            dueText: `${market.brokerDate} ${alert.entryTime}:00 broker UTC${market.brokerUtcOffsetHours >= 0 ? "+" : ""}${market.brokerUtcOffsetHours}`,
+            payload: {
+              side: alert.symbolH1Signal,
+              symbol: alert.symbol,
+              lot: H1_AUTO_ENTRY_LOT,
+              sl: 0,
+              tp: 0,
+              legacyProfile: providerTarget.label,
+              executionMode: TELEGRAM_CLOUD_EXECUTION_MODE,
+              strategy: "h1-m15-rule-41",
+              blockHour: alert.slotHour,
+              patternKind: alert.patternKind,
+            },
+            targetAccountIds: [providerTarget.id],
+            protectionPlan: {
+              [providerTarget.id]: { label: providerTarget.label, slPoints: protection.sl, tpPoints: protection.tp },
+            },
+          });
+          intentId = task.id;
+          telegramMessage = [telegramMessage,
+            `• Intent #${task.id}: ${alert.symbolH1Signal} ${alert.symbol} · ${H1_AUTO_ENTRY_LOT} lot · @${providerTarget.label}`,
+            `• Trạng thái: ${task.status} · /approve ${task.id}`,
+            "• Chưa /approve thì cloud tuyệt đối không execute.",
+          ].join("\n");
+        }
         pending.push({
           base,
           slotHour: alert.slotHour,
@@ -229,11 +282,12 @@ export async function POST(request: Request) {
           entryTime: alert.entryTime,
           signal: alert.symbolH1Signal,
           postSignalRule: alert.postSignalRule,
+          intentId,
         });
         if (dryRun) continue;
 
         if (!cloudConfig) throw new Error("H1 cloud scanner config is unavailable");
-        await sendTelegram(buildTelegramMessage(base, market.brokerDate, alert), cloudConfig);
+        await sendTelegram(telegramMessage, cloudConfig);
         sent += 1;
         symbolState.alerts.push(alert);
         symbolState.alerts.sort((left, right) => left.slotHour - right.slotHour);

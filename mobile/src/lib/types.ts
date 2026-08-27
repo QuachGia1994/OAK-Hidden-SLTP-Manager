@@ -12,6 +12,7 @@ export type H1SignalAlert = {
   baseSymbol: string;
   baseSignal: H1SignalSide | null;
   baseHour: number | null;
+  baseMinute: number | null;
   baseDirection: "T" | "G" | "";
   m15Pair: string;
   m15PairInverted?: boolean;

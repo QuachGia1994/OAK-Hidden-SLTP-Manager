@@ -1,6 +1,6 @@
 import "server-only";
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { pushTrimmedRedisList, redis, releaseOwnedRedisLock } from "@/lib/redis-core";
 import {
   TELEGRAM_CLOUD_PROFILE,
@@ -17,6 +17,7 @@ const TASK_SEQ_KEY = "oak:telegram:cloud:task-seq:v1";
 const AUDIT_KEY = "oak:telegram:cloud:audit:v1";
 const UPDATE_PREFIX = "oak:telegram:cloud:update:";
 const INTENT_BY_UPDATE_PREFIX = "oak:telegram:cloud:intent-by-update:";
+const INTENT_BY_AUTOMATION_PREFIX = "oak:telegram:cloud:intent-by-automation:";
 const EXECUTION_LOCK_PREFIX = "oak:telegram:cloud:execute:";
 const EXECUTION_LOCK_SECONDS = 120;
 
@@ -80,11 +81,17 @@ export async function createCloudIntent(args: {
   originKeys?: CloudIntent["originKeys"];
   sourceUpdateId?: number;
   sourceCommandIndex?: number;
+  source?: CloudIntent["source"];
+  automationKey?: string;
 }): Promise<CloudIntent> {
   const sourceCommandIndex = Number.isInteger(args.sourceCommandIndex) && Number(args.sourceCommandIndex) >= 0 ? Number(args.sourceCommandIndex) : 0;
-  const sourceKey = Number.isInteger(args.sourceUpdateId) && Number(args.sourceUpdateId) > 0
-    ? `${INTENT_BY_UPDATE_PREFIX}${args.sourceUpdateId}${sourceCommandIndex > 0 ? `:${sourceCommandIndex}` : ""}`
-    : "";
+  const automationKey = String(args.automationKey || "").trim();
+  if (automationKey && !/^[A-Za-z0-9:._-]{8,180}$/.test(automationKey)) throw new Error("invalid automation intent key");
+  const sourceKey = automationKey
+    ? `${INTENT_BY_AUTOMATION_PREFIX}${createHash("sha256").update(automationKey).digest("hex")}`
+    : Number.isInteger(args.sourceUpdateId) && Number(args.sourceUpdateId) > 0
+      ? `${INTENT_BY_UPDATE_PREFIX}${args.sourceUpdateId}${sourceCommandIndex > 0 ? `:${sourceCommandIndex}` : ""}`
+      : "";
   if (sourceKey) {
     const existingId = Number(await redis.get<number | string>(sourceKey));
     if (Number.isInteger(existingId) && existingId > 0) {
@@ -98,7 +105,8 @@ export async function createCloudIntent(args: {
     kind: args.kind,
     status: "approval_required",
     profile: TELEGRAM_CLOUD_PROFILE,
-    source: "Telegram Cloud",
+    source: args.source || "Telegram Cloud",
+    automationKey: automationKey || undefined,
     chatId: args.chatId,
     rawText: args.rawText,
     createdAt: Date.now(),
@@ -113,7 +121,7 @@ export async function createCloudIntent(args: {
   };
   await redis.hset(TASKS_KEY, { [String(id)]: JSON.stringify(task) });
   if (sourceKey) await redis.set(sourceKey, String(id), { ex: 7 * 24 * 3600 });
-  await appendTelegramAudit({ action: "intent_created", taskId: id, kind: args.kind, dueAt: args.dueAt, sourceUpdateId: args.sourceUpdateId, sourceCommandIndex });
+  await appendTelegramAudit({ action: "intent_created", taskId: id, kind: args.kind, dueAt: args.dueAt, sourceUpdateId: args.sourceUpdateId, sourceCommandIndex, source: task.source, automationKey: task.automationKey });
   return task;
 }
 

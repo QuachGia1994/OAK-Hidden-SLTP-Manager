@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 46;
-export const H1_PUBLIC_SCHEMA = 8;
-export const H1_SIGNAL_RULE_VERSION = 40;
+export const H1_CLOUD_STATE_VERSION = 47;
+export const H1_PUBLIC_SCHEMA = 9;
+export const H1_SIGNAL_RULE_VERSION = 41;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v46";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v47";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -35,11 +35,12 @@ export type H1M15Bar = {
   brokerTime: string;
   minuteOfDay: number;
   direction: H1Direction;
+  flat?: boolean;
 };
 
 export type H1BlockEvaluation = {
   slotHour: number;
-  baseBar: H1DirectionBar;
+  baseBar: H1M15Bar;
   baseDirection: H1Direction;
   refinedDirection: H1Direction;
   m15Pair: string;
@@ -59,6 +60,7 @@ export type H1StoredAlert = {
   baseSymbol: string;
   baseH1Signal: H1Signal;
   baseHour: number;
+  baseMinute: number;
   baseDirection: H1Direction;
   m15Pair: string;
   m15PairInverted: boolean;
@@ -71,7 +73,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 46;
+  version: 47;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[] }>>;
@@ -79,8 +81,8 @@ export type H1CloudState = {
 };
 
 export type H1PublicFeed = {
-  schemaVersion: 8;
-  signalRuleVersion: 40;
+  schemaVersion: 9;
+  signalRuleVersion: 41;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -96,6 +98,7 @@ export type H1PublicFeed = {
       baseSymbol: string;
       baseSignal: H1Signal | "";
       baseHour: number | null;
+      baseMinute: number | null;
       baseDirection: H1Direction | "";
       m15Pair: string;
       m15PairInverted: boolean;
@@ -125,8 +128,8 @@ const PATTERN_LABELS: Record<H1PatternKind, string> = {
 export const H1_PATTERN_ENTRY_OFFSET_MINUTES: Record<H1PatternKind, number> = {
   pattern1: 120,
   pattern2: 1,
-  pattern3: 95,
-  pattern4: 95,
+  pattern3: 85,
+  pattern4: 85,
   pattern5: 120,
 };
 
@@ -141,8 +144,8 @@ export function classifyH1Pattern(pattern: string): H1PatternKind | null {
 
 export function targetsForBlockHour(hour: number): readonly H1TargetBase[] {
   if (hour === 3) return H1_FX_BASES;
-  if (hour === 4) return ["XAUUSD"] as const;
-  return H1_TARGET_BASES;
+  if (hour === 4) return ["XAUUSD"];
+  return (H1_SCAN_HOURS as readonly number[]).includes(hour) ? H1_TARGET_BASES : [];
 }
 
 export function signalFromDirection(direction: H1Direction): H1Signal {
@@ -156,6 +159,16 @@ function invertSignal(signal: H1Signal): H1Signal {
 export function entryTimeFor(slotHour: number, offsetMinutes: number): string {
   const total = (((slotHour * 60 + offsetMinutes) % 1440) + 1440) % 1440;
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+export function brokerEntryDueAt(brokerDate: string, entryTime: string, brokerUtcOffsetHours: number): number {
+  if (!isValidBrokerDateKey(brokerDate) || !/^\d{2}:\d{2}$/.test(entryTime) || !Number.isFinite(brokerUtcOffsetHours)) {
+    throw new Error("invalid broker entry time");
+  }
+  const [year, month, day] = brokerDate.split("-").map(Number);
+  const [hour, minute] = entryTime.split(":").map(Number);
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) throw new Error("invalid broker entry time");
+  return Date.UTC(year, month - 1, day, hour, minute) - brokerUtcOffsetHours * 3_600_000;
 }
 
 // ---------------------------------------------------------------------------
@@ -238,12 +251,10 @@ export function evaluateH1Block(args: {
   slotHour: number;
   h1Bars: H1DirectionBar[];
   m15Bars: H1M15Bar[];
+  availableThroughMinute?: number;
 }): H1BlockEvaluation | null {
   const blockMinute = args.slotHour * 60;
   const closedThroughMinute = blockMinute - 15;
-  const baseBar = args.h1Bars.find((bar) => bar.hour === args.slotHour - 1);
-  if (!baseBar) return null;
-
   const byMinute = new Map(args.m15Bars.map((bar) => [bar.minuteOfDay, bar]));
   const pairBars = M15_PAIR_OFFSETS.map((offset) => byMinute.get(blockMinute - offset));
   if (pairBars.some((bar) => !bar)) return null;
@@ -260,9 +271,6 @@ export function evaluateH1Block(args: {
   let patternKind: H1PatternKind;
   let m15Window = windowText;
   if (windowDirections.every((direction) => direction === windowDirections[0])) {
-    // Pattern 5 always takes precedence over Pattern 2: a same-direction
-    // window extends to 4+ consecutive candles whenever adjacent closed
-    // M15 candles continue the run in either direction.
     const runLength = runLengthThroughWindow(
       byMinute,
       blockMinute - windowOffsets[0],
@@ -280,12 +288,21 @@ export function evaluateH1Block(args: {
     patternKind = classifyH1Pattern(windowText)!;
   }
 
+  const signalBaseMinute = patternKind === "pattern2" ? blockMinute : blockMinute + 15;
+  // Pattern 2 is sampled from the live H:00 bar so its approval intent can
+  // be announced before the H:01 due time. Other patterns wait until the
+  // post-block H:15 candle has closed at H:30.
+  const signalReadyMinute = patternKind === "pattern2" ? blockMinute : blockMinute + 30;
+  const availableThroughMinute = args.availableThroughMinute ?? Number.POSITIVE_INFINITY;
+  const baseBar = byMinute.get(signalBaseMinute);
+  if (!baseBar || baseBar.flat || availableThroughMinute < signalReadyMinute) return null;
+
   const considered = new Map<number, H1M15Bar>();
-  for (const bar of [...pairBars, ...windowBars]) considered.set(bar!.minuteOfDay, bar!);
+  for (const bar of [...pairBars, ...windowBars, baseBar]) considered.set(bar!.minuteOfDay, bar!);
   const bars = [...considered.values()].sort((left, right) => right.minuteOfDay - left.minuteOfDay);
 
   const baseDirection = baseBar.direction;
-  const m15PairInverted = groupA;
+  const m15PairInverted = patternKind === "pattern1" || patternKind === "pattern5";
   const refinedDirection: H1Direction = m15PairInverted ? (baseDirection === "T" ? "G" : "T") : baseDirection;
 
   return {
@@ -306,13 +323,14 @@ export function evaluateH1BlocksForTarget(
   h1Bars: H1DirectionBar[],
   m15Bars: H1M15Bar[],
   brokerHour: number,
+  availableThroughMinute = Number.POSITIVE_INFINITY,
 ): H1BlockEvaluation[] {
   if (brokerHour < H1_FIRST_SCAN_HOUR || brokerHour > 23) return [];
   const lastSlot = Math.min(brokerHour, H1_SCAN_END_HOUR);
   return H1_SCAN_HOURS
     .filter((slotHour) => slotHour <= lastSlot && (targetsForBlockHour(slotHour) as readonly string[]).includes(base))
     .flatMap((slotHour) => {
-      const evaluation = evaluateH1Block({ slotHour, h1Bars, m15Bars });
+      const evaluation = evaluateH1Block({ slotHour, h1Bars, m15Bars, availableThroughMinute });
       return evaluation ? [evaluation] : [];
     });
 }
@@ -337,7 +355,8 @@ export function buildStoredAlert(args: {
     profile: H1_CLOUD_PROFILE,
     baseSymbol: args.base,
     baseH1Signal: baseSignal,
-    baseHour: evaluation.baseBar.hour,
+    baseHour: Math.floor(evaluation.baseBar.minuteOfDay / 60),
+    baseMinute: evaluation.baseBar.minuteOfDay % 60,
     baseDirection: evaluation.baseDirection,
     m15Pair: evaluation.m15Pair,
     m15PairInverted: evaluation.m15PairInverted,
@@ -350,6 +369,10 @@ export function buildStoredAlert(args: {
   };
 }
 
+function evaluationBaseLabel(alert: H1StoredAlert): string {
+  return `H${String(alert.baseHour).padStart(2, "0")}:${String(alert.baseMinute).padStart(2, "0")}`;
+}
+
 export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, alert: H1StoredAlert): string {
   const postSignalLabels: Record<H1PostSignalRule, string> = {
     none: "không đảo",
@@ -357,7 +380,7 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
     "fri-cycle": "đảo theo chu kỳ Thứ 6 special",
     "mon-cycle": "đảo theo chu kỳ Thứ 2 (tuần sau T5 đặc biệt)",
   };
-  const pairVerdict = alert.m15PairInverted ? "đảo ngược base" : "giữ nguyên base";
+  const patternVerdict = alert.m15PairInverted ? "đảo base M15" : "giữ base M15";
   const cycleLine = base === "XAUUSD"
     ? `• Chu kỳ XAU: ${postSignalLabels[alert.postSignalRule]}`
     : null;
@@ -367,9 +390,9 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
     `• Profile: ${H1_CLOUD_PROFILE}`,
     `• Ngày broker: ${brokerDate}`,
     `• Mốc block: H${String(alert.slotHour).padStart(2, "0")} · Entry: ${alert.entryTime} (+${alert.entryOffsetMinutes}p)`,
-    `• Base H1: ${alert.baseSymbol} H${String(alert.baseHour).padStart(2, "0")}=${alert.baseDirection} → ${alert.baseH1Signal}`,
-    `• M15 cặp (mới→cũ): ${alert.m15Pair.replaceAll(" ", "")} → ${pairVerdict}`,
-    `• Cửa sổ pattern (mới→cũ): ${alert.m15Window.split("").join(" ")} · ${PATTERN_LABELS[alert.patternKind]}`,
+    `• Base signal M15: ${evaluationBaseLabel(alert)}=${alert.baseDirection} → ${alert.baseH1Signal}`,
+    `• M15 cặp trước block (mới→cũ): ${alert.m15Pair.replaceAll(" ", "")} · chỉ chọn cửa sổ pattern`,
+    `• Cửa sổ pattern (mới→cũ): ${alert.m15Window.split("").join(" ")} · ${PATTERN_LABELS[alert.patternKind]} → ${patternVerdict}`,
   ];
   if (cycleLine) rows.push(cycleLine);
   rows.push(`• Signal ${base} H1: ${alert.symbolH1Signal}`);
@@ -407,6 +430,7 @@ function isValidAlertShape(alert: H1StoredAlert): boolean {
     && isSignal(alert.baseH1Signal)
     && isDirection(alert.baseDirection)
     && Number.isInteger(alert.baseHour)
+    && Number.isInteger(alert.baseMinute)
     && typeof alert.m15Pair === "string" && alert.m15Pair.length === 2
     && typeof alert.m15PairInverted === "boolean"
     && typeof alert.m15Window === "string" && alert.m15Window.length >= 3
@@ -463,10 +487,12 @@ export function parsePublicFeedCloudState(raw: unknown): H1CloudState | null {
       const alerts: H1StoredAlert[] = [];
       for (const row of source.alerts) {
         const baseHour = row?.baseHour;
+        const baseMinute = row?.baseMinute;
         if (
           !row || !Number.isInteger(row.slotHour) || !isPatternKind(row.patternKind) || !isSignal(row.signal)
           || !isSignal(row.baseSignal) || !isDirection(row.baseDirection)
           || typeof baseHour !== "number" || !Number.isInteger(baseHour)
+          || typeof baseMinute !== "number" || !Number.isInteger(baseMinute)
           || typeof row.m15Pair !== "string" || row.m15Pair.length !== 2
           || typeof row.m15PairInverted !== "boolean"
           || typeof row.m15Window !== "string" || row.m15Window.length < 3
@@ -484,6 +510,7 @@ export function parsePublicFeedCloudState(raw: unknown): H1CloudState | null {
           baseSymbol: String(row.baseSymbol || base),
           baseH1Signal: row.baseSignal,
           baseHour,
+          baseMinute,
           baseDirection: row.baseDirection,
           m15Pair: row.m15Pair,
           m15PairInverted: row.m15PairInverted,
@@ -548,6 +575,7 @@ export function buildPublicFeed(state: H1CloudState, publishedAt = new Date().to
             baseSymbol: alert.baseSymbol,
             baseSignal: alert.baseH1Signal,
             baseHour: alert.baseHour,
+            baseMinute: alert.baseMinute,
             baseDirection: alert.baseDirection,
             m15Pair: alert.m15Pair,
             m15PairInverted: alert.m15PairInverted,

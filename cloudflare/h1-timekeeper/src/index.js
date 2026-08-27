@@ -2,6 +2,7 @@ const HOUR_MS = 60 * 60 * 1000;
 const SCANNER_URL = "https://www.oakgatekeeper.uk/api/h1-scanner/run";
 const TELEGRAM_TICK_URL = "https://www.oakgatekeeper.uk/api/telegram/tick";
 const TELEGRAM_CRON = "* * * * *";
+const SCANNER_FOLLOW_UP_CRONS = new Set(["1 * * * *", "30 * * * *"]);
 const INTERNAL_NAME = "primary";
 const RETRYABLE_SKIPS = new Set(["already-running", "awaiting-closed-h1", "disabled"]);
 
@@ -17,6 +18,12 @@ export function scannerOutcomeNeedsRetry(status, payload) {
   if (status < 200 || status >= 300) return true;
   if (!payload || payload.ok !== true) return true;
   return RETRYABLE_SKIPS.has(String(payload.skipped || ""));
+}
+
+export function scannerScheduleMode(cron) {
+  if (cron === TELEGRAM_CRON) return "telegram";
+  if (SCANNER_FOLLOW_UP_CRONS.has(cron)) return "follow-up";
+  return "watchdog";
 }
 
 function json(payload, status = 200) {
@@ -190,14 +197,16 @@ export default {
   },
 
   async scheduled(controller, env) {
-    if (controller.cron === TELEGRAM_CRON) {
+    const mode = scannerScheduleMode(controller.cron);
+    if (mode === "telegram") {
       await runTelegramTick(env);
       return;
     }
-    const response = await primaryStub(env).fetch(new Request("https://internal/watchdog", {
+    const operation = mode === "follow-up" ? "run" : "watchdog";
+    const response = await primaryStub(env).fetch(new Request(`https://internal/${operation}`, {
       method: "POST",
       headers: { authorization: `Bearer ${env.H1_SCANNER_TOKEN}` },
     }));
-    if (!response.ok) throw new Error(`H1 watchdog failed (${response.status})`);
+    if (!response.ok) throw new Error(`H1 ${mode} failed (${response.status})`);
   },
 };

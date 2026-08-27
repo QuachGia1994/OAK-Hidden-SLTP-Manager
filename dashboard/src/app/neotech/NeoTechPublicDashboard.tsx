@@ -153,12 +153,14 @@ export function NeoTechPublicDashboard() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState<ToastState | null>(null);
   const [pairing, setPairing] = useState<PairingState | null>(null);
+  const [masterConsentOpen, setMasterConsentOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
   const [shareUrl, setShareUrl] = useState("");
   const [shareBusy, setShareBusy] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
   const pairingDialogRef = useDialogFocusTrap<HTMLDivElement>(Boolean(pairing), () => setPairing(null));
+  const masterConsentDialogRef = useDialogFocusTrap<HTMLDivElement>(masterConsentOpen, () => setMasterConsentOpen(false));
   const shareDialogRef = useDialogFocusTrap<HTMLDivElement>(shareOpen, () => setShareOpen(false));
   const selectedRef = useRef(selectedId);
   selectedRef.current = selectedId;
@@ -229,12 +231,11 @@ export function NeoTechPublicDashboard() {
     } finally { setBusy(false); }
   };
 
-  const createMasterPairing = async () => {
-    const accepted = window.confirm(tr(
-      "MASTER PASSWORD WARNING\n\nThis MT5 session can trade. OAK never receives or stores your password and this connector contains no trading functions, but Investor Password remains safer.\n\nContinue and accept this risk?",
-      "CẢNH BÁO MASTER PASSWORD\n\nPhiên MT5 này có quyền giao dịch. OAK không nhận/lưu password và connector này không chứa chức năng đặt lệnh, nhưng Investor Password vẫn an toàn hơn.\n\nTiếp tục và chấp nhận rủi ro này?",
-    ));
-    if (accepted) await createPairing("TRADING_CAPABLE_ACCEPTED");
+  const createMasterPairing = () => setMasterConsentOpen(true);
+
+  const confirmMasterPairing = async () => {
+    setMasterConsentOpen(false);
+    await createPairing("TRADING_CAPABLE_ACCEPTED");
   };
 
   const revoke = async () => {
@@ -487,6 +488,18 @@ export function NeoTechPublicDashboard() {
               {shareUrl && <div className={styles.shareSecretBox}><small>{tr("This secret URL is shown only now. Copy it before closing; the server stores only its SHA-256 hash.", "URL bí mật này chỉ hiển thị lúc vừa tạo. Hãy copy trước khi đóng; server chỉ lưu SHA-256 hash.")}</small><div className={styles.codeBox}><div className={styles.shareUrlText}>{shareUrl}</div><button className={styles.secondaryButton} onClick={() => void copy(shareUrl, tr("Share link copied", "Đã copy share link"))}>Copy</button></div></div>}
               <div className={styles.shareListHeader}><b>{tr("Active share links", "Share link đang hoạt động")}</b><span>{shareLinks.length}</span></div>
               {shareBusy && shareLinks.length === 0 ? <div className={styles.waiting}><span className={styles.spinner} /> {tr("Loading links…", "Đang tải link…")}</div> : shareLinks.length === 0 ? <div className={styles.shareEmpty}>{tr("No active share links.", "Chưa có share link đang hoạt động.")}</div> : <div className={styles.shareList}>{shareLinks.map((link) => <div className={styles.shareRow} key={link.id}><div><b>#{link.id.slice(0, 8)}</b><span>{tr("Created", "Tạo")} {fmtDateTimeMs(link.createdAt, locale)} · {tr("Expires", "Hết hạn")} {fmtDateTimeMs(link.expiresAt, locale)}</span></div><button className={styles.dangerButton} onClick={() => void revokeShareLink(link.id)} disabled={shareBusy}>{tr("Revoke", "Revoke")}</button></div>)}</div>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {masterConsentOpen && (
+        <div className={styles.pairingOverlay} onMouseDown={(event) => event.target === event.currentTarget && setMasterConsentOpen(false)}>
+          <div ref={masterConsentDialogRef} className={styles.pairingModal} role="alertdialog" aria-modal="true" aria-labelledby="master-pairing-title" aria-describedby="master-pairing-description" tabIndex={-1}>
+            <div className={styles.pairingHeader}><div><h3 id="master-pairing-title">{tr("MASTER PASSWORD WARNING", "CẢNH BÁO MASTER PASSWORD")}</h3><p id="master-pairing-description">{tr("This MT5 session can trade. OAK never receives or stores your password and the connector has no trading functions, but Investor Password remains safer.", "Phiên MT5 này có quyền giao dịch. OAK không nhận hoặc lưu password và connector không có chức năng đặt lệnh, nhưng Investor Password vẫn an toàn hơn.")}</p></div><button type="button" className={styles.ghostButton} onClick={() => setMasterConsentOpen(false)}>{tr("Close", "Đóng")}</button></div>
+            <div className={styles.pairingBody}>
+              <div className={styles.masterWarning}><b>{tr("Explicit acceptance required", "Cần xác nhận rõ ràng")}</b><span>{tr("Continue only if you intentionally logged this terminal in with the Master Password.", "Chỉ tiếp tục nếu bạn chủ động đăng nhập terminal này bằng Master Password.")}</span></div>
+              <div className={styles.heroActions}><button type="button" className={styles.primaryButton} onClick={() => void confirmMasterPairing()} disabled={busy}>{busy ? tr("Working…", "Đang xử lý…") : tr("Accept risk and create code", "Chấp nhận rủi ro và tạo code")}</button><button type="button" className={styles.secondaryButton} onClick={() => setMasterConsentOpen(false)} disabled={busy}>{tr("Cancel", "Hủy")}</button></div>
             </div>
           </div>
         </div>

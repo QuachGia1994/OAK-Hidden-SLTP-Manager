@@ -58,7 +58,8 @@ function alert(slotHour, signal = "BUY") {
     profile: "cTrader IcMarkets",
     baseSymbol: "XAUUSD",
     baseSignal: "BUY",
-    baseHour: slotHour - 1,
+    baseHour: slotHour,
+    baseMinute: 15,
     baseDirection: "T",
     m15Pair: "TT",
     m15PairInverted: false,
@@ -74,8 +75,8 @@ function alert(slotHour, signal = "BUY") {
 function payload() {
   const dates = ["2025-12-29", "2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02", "2026-01-05", "2026-02-03"];
   return {
-    schemaVersion: 8,
-    signalRuleVersion: 40,
+    schemaVersion: 9,
+    signalRuleVersion: 41,
     profile: "cTrader IcMarkets",
     publishedAt: "2026-02-03T12:00:00.000Z",
     hours: [3, 4, 6, 9, 12, 14, 16],

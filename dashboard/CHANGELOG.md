@@ -6,13 +6,13 @@ All notable changes to the dashboard are recorded here.
 
 ### Added
 
-- Rewrote the H1 core engine as state v46 / public feed schema 8 / signal rule 40: per-symbol H-1 H1 base refined by the two M15 candles before each block (TT/GG keep, TG/GT invert), M15 pattern windows (group A `H-0:45/H-1:00/H-1:15`, group B `H-0:30/H-0:45/H-1:00`) classify Patterns 1-5 with Pattern 5 precedence for 4+ same-direction runs, and alerts carry pattern-driven entry times (`P1 +2:00`, `P2 +0:01`, `P3/P4 +1:35`, `P5 +2:00`). Added the XAUUSD-only H4 block (H3 = four FX pairs, later blocks = all five targets), removed cross-symbol base mapping and BLOCK/not-trade states, restricted the special calendar cycle to XAUUSD whole days (special Thursday inverts Thu, keeps Fri and inverts the next Monday; normal Thursday keeps Thu, inverts Fri and keeps Mon), and historical backfill now rebuilds through the same engine from H1+M15 history under a 45-second budget with partial-coverage reporting.
+- Reworked the H1 core as state v47 / public feed schema 9 / signal rule 41. Pre-block M15 pairs now select only the Pattern 1-5 classification window. P1/P3/P4/P5 take the post-block `H:15` M15 candle as base; P1/P5 invert it, P3/P4 keep it and enter at `H+1:25`. P2 takes and keeps `H:00` for entry at `H:01`. Routing remains H3 FX-only, H4 XAUUSD-only, then H6/H9/H12/H14/H16 for all targets. Cloudflare/GitHub phases cover `H:00/H:01/H:30` so live post-block candles are actually evaluated. Eligible live signals create one idempotent `approval_required` cTrader intent for the exact scanner account with fixed lot `0.03`; the Telegram alert exposes `/approve ID`, and the route never auto-approves or directly executes it.
 
 - Added revocable NeoTech profile share links. Owners can create 30-day read-only links, copy the secret URL once, list active links, revoke one or revoke all, while shared viewers receive live server-authoritative profile updates without workspace access, MT5 credentials, connector tokens, raw trades, ticket IDs or cash amounts. Share secrets stay in the URL fragment and are resolved through a bearer header; the server stores only SHA-256 hashes.
 
 ### Fixed
 
-- Replaced the accumulated H1 slot/lookback exceptions with a fixed `H3/H6/H9/H12/H14/H16` grid and five classification-only pattern families (`TGG/GTT`, `TTT/GGG`, `TGT/GTG`, `GGT/TTG`, 4+ same-direction). Scanner patterns no longer block, keep or invert signals; XAUUSD has no H4 inheritance path, and only the Thursday/Friday special calendar cycle remains as a post-base inversion.
+- Restored observable BUY/SELL output in the H1 table and synchronized its evidence labels with the post-block M15 base/action contract. NeoTech Master Password pairing now uses a keyboard-accessible in-page risk dialog with explicit accept/cancel actions, avoiding browser-native confirmation no-ops while preserving the server-side `TRADING_CAPABLE_ACCEPTED` requirement.
 
 
 ## [0.7.1] - 2026-08-27

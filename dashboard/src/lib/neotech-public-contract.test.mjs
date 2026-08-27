@@ -89,6 +89,10 @@ test("Master pairing is browser-authorized and NeoTech Copy actions expose visib
   assert.match(pairingRoute, /TRADING_CAPABLE_ACCEPTED/);
   assert.match(pairingRoute, /riskAccepted !== true/);
   assert.match(ui, /MASTER PASSWORD WARNING/);
+  assert.match(ui, /masterConsentOpen/);
+  assert.match(ui, /role="alertdialog"/);
+  assert.match(ui, /confirmMasterPairing/);
+  assert.match(ui, /Accept risk and create code/);
   assert.match(ui, /Master Password risk accepted/);
   assert.match(ui, /styles\.toast/);
   assert.match(ui, /createPortal/);

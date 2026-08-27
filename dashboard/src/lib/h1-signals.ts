@@ -17,6 +17,7 @@ export type H1SignalAlert = {
   baseSymbol: string;
   baseSignal: H1SignalSide | null;
   baseHour: number | null;
+  baseMinute: number | null;
   baseDirection: "T" | "G" | "";
   m15Pair: string;
   m15PairInverted?: boolean;
@@ -46,7 +47,7 @@ export type H1SignalPayload = {
   days: Record<string, H1SignalDay>;
 };
 
-export const H1_SIGNAL_PUBLIC_SCHEMA = 8;
+export const H1_SIGNAL_PUBLIC_SCHEMA = 9;
 const LATEST_KEY = "robot-sltp:public:h1-signals:latest";
 
 function vietnamDateKey(now = new Date()): string {

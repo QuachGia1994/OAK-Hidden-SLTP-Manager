@@ -76,7 +76,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   ctx.fillText(locale === "EN" ? "H1 Intraday Signals" : "Tín hiệu H1 trong ngày", padding + 22, padding + 66);
   ctx.fillStyle = colors.muted;
   ctx.font = `700 15px ${H1_SHARE_FONT}`;
-  ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  ${locale === "EN" ? "H1 base + M15 engine" : "Base H1 + M15"}`, padding + 22, padding + 96);
+  ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  ${locale === "EN" ? "Post-block M15 signal engine" : "Signal M15 sau block"}`, padding + 22, padding + 96);
 
   const tableX = padding;
   const tableY = padding + titleHeight;
@@ -199,11 +199,11 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
   const ref = useDialogFocusTrap(true, onClose);
   const { base, date, alert } = selection;
   const baseDetail = alert.baseSignal
-    ? `${alert.baseSignal}${alert.baseHour !== null ? ` · H${String(alert.baseHour).padStart(2, "0")}=${alert.baseDirection || "—"}` : ""}`
+    ? `${alert.baseSignal}${alert.baseHour !== null ? ` · H${String(alert.baseHour).padStart(2, "0")}:${String(alert.baseMinute ?? 0).padStart(2, "0")}=${alert.baseDirection || "—"}` : ""}`
     : "—";
-  const pairVerdict = alert.m15PairInverted
-    ? { EN: "reverse base", VN: "đảo ngược base" }
-    : { EN: "keep base", VN: "giữ nguyên base" };
+  const patternVerdict = alert.m15PairInverted
+    ? { EN: "pattern reverses M15 base", VN: "pattern đảo base M15" }
+    : { EN: "pattern keeps M15 base", VN: "pattern giữ base M15" };
 
   return (
     <div className="oak-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
@@ -219,8 +219,9 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
         </div>
         <div className="oak-h1-explain">
           <p><span>{locale === "EN" ? "Pattern group" : "Nhóm pattern"}</span><b>{patternLabel(alert.patternKind, locale)}</b></p>
-          <p><span>{`Base H1 · ${alert.baseSymbol}`}</span><b>{baseDetail}</b></p>
-          <p><span>{locale === "EN" ? `M15 pair ${alert.m15Pair || "—"}` : `Cặp M15 ${alert.m15Pair || "—"}`}</span><b>{pairVerdict[locale]}</b></p>
+          <p><span>{`${locale === "EN" ? "Post-block M15 base" : "Base M15 sau block"} · ${alert.baseSymbol}`}</span><b>{baseDetail}</b></p>
+          <p><span>{locale === "EN" ? `Pre-block M15 pair ${alert.m15Pair || "—"}` : `Cặp M15 trước block ${alert.m15Pair || "—"}`}</span><b>{locale === "EN" ? "selects pattern window only" : "chỉ chọn cửa sổ pattern"}</b></p>
+          <p><span>{locale === "EN" ? "Pattern action" : "Tác động pattern"}</span><b>{patternVerdict[locale]}</b></p>
           <p><span>{locale === "EN" ? "Entry time" : "Giờ entry"}</span><b>{alert.entryTime ? `${alert.entryTime} (+${alert.entryOffsetMinutes ?? "?"}p)` : "—"}</b></p>
           <p><span>{locale === "EN" ? "Post-signal" : "Hậu signal"}</span><b>{postSignalLabel(alert.postSignalRule, alert.postSignalInverted, locale)}</b></p>
           <p><span>{locale === "EN" ? `Signal ${base} H1` : `Signal ${base} H1`}</span><b data-side={alert.signal?.toLowerCase()}>{alert.signal}</b></p>
@@ -248,7 +249,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
   const copy = locale === "EN"
     ? {
         title: "H1 Intraday Signals",
-        sub: "H1 base + M15 refinement · entry time per pattern · XAUUSD special Thu/Fri/Mon cycle",
+        sub: "Post-block M15 base · P1/P5 reverse · P2/P3/P4 keep · XAUUSD special cycle",
         awaiting: "Awaiting H1 live feed",
         locked: "VIP weekday signals are locked",
         weekdayGroup: "Filter by weekday",
@@ -259,7 +260,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
       }
     : {
         title: "Tín hiệu H1 trong ngày",
-        sub: "Base H1 + tinh chỉnh M15 · giờ entry theo pattern · chu kỳ đặc biệt T5/T6/T2 riêng XAUUSD",
+        sub: "Base M15 sau block · P1/P5 đảo · P2/P3/P4 giữ · chu kỳ đặc biệt XAUUSD",
         awaiting: "Đang chờ feed H1 live",
         locked: "Tín hiệu H1 ngày thường đang khóa VIP",
         weekdayGroup: "Lọc theo thứ",

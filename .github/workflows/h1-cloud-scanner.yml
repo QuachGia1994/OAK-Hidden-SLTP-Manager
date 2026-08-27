@@ -2,6 +2,7 @@ name: H1 Cloud Scanner
 
 on:
   schedule:
+    - cron: "1 * * * *"
     - cron: "10 * * * *"
     - cron: "30 * * * *"
     - cron: "50 * * * *"
@@ -49,7 +50,7 @@ jobs:
           echo "Timed out waiting for Vercel deployment of ${GITHUB_SHA}." >&2
           exit 1
 
-      - name: Wait for H:00 boundary
+      - name: Align H1 scanner phase
         if: github.event_name == 'schedule'
         shell: bash
         env:
@@ -58,6 +59,9 @@ jobs:
           now="$(date -u +%s)"
           minute="$(date -u +%M)"
           scheduled_minute="${SCHEDULE_EXPR%% *}"
+          if [[ "$scheduled_minute" == "1" || "$scheduled_minute" == "30" ]]; then
+            exit 0
+          fi
           if (( 10#$minute < 10#$scheduled_minute )); then
             exit 0
           fi

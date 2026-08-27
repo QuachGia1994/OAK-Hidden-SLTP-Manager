@@ -10,7 +10,8 @@ export type CloudIntent = {
   kind: CloudIntentKind;
   status: CloudIntentStatus;
   profile: typeof TELEGRAM_CLOUD_PROFILE;
-  source: "Telegram Cloud";
+  source: "Telegram Cloud" | "H1 Scanner";
+  automationKey?: string;
   chatId: string;
   rawText: string;
   createdAt: number;

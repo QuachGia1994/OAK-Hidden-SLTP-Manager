@@ -29,9 +29,11 @@ H1 public feed key:
 
 `robot-sltp:public:h1-signals:latest`
 
-Current public schema: v7. Cloud state is v45 and signal-rule version is v39.
+Current public schema: v9. Cloud state is v47 and signal-rule version is v41.
 
-The H1 engine scans per-symbol blocks: `H3` covers the four FX pairs (`GBPUSD/AUDUSD/USDCAD/USDJPY`), `H4` covers `XAUUSD` only, and `H6/H9/H12/H14/H16` cover all five targets. Each signal starts from the symbol's own H-1 H1 candle, refined by the two M15 candles before the block (TT/GG keeps, TG/GT inverts). The M15 pattern window then classifies Pattern 1-5 (`TGG/GTT`, `TTT/GGG`, `TGT/GTG`, `GGT/TTG`, 4+ same-direction with precedence over Pattern 2) and sets the entry time: `P1 +2:00`, `P2 +0:01`, `P3/P4 +1:35`, `P5 +2:00`. Signals are never blocked; only XAUUSD participates in the special calendar cycle, which inverts whole days — a special Thursday (first Friday of that month-start on day 3/4/7, or prior Wednesday on day 30/1) inverts Thursday, keeps Friday and inverts the next Monday, while a normal Thursday keeps Thursday, inverts Friday and keeps Monday.
+The H1 engine routes `H3` to the four FX targets (`GBPUSD/AUDUSD/USDCAD/USDJPY`), `H4` to `XAUUSD` only, and `H6/H9/H12/H14/H16` to all five targets. The two M15 candles before a block route the Pattern 1-5 classification window only. P1/P3/P4/P5 use the block's post-block `H:15` M15 candle as signal base: P1/P5 invert it, while P3/P4 keep it and enter at `H+1:25`. P2 uses and keeps the block's `H:00` candle and enters at `H:01`. Pattern 5 has precedence when the same-direction run reaches four candles. The retained XAUUSD Thursday/Friday special calendar cycle remains a final independent post-signal adjustment.
+
+Cloudflare is the primary phase scheduler: H:00 samples P2 early enough to announce its H:01 approval deadline, H:01 is the recovery sample when H:00 was still flat, and H:30 evaluates the closed H:15 base for P1/P3/P4/P5. GitHub provides the same phase-aware fallback. On a live eligible signal, the scanner creates one idempotent cTrader intent for the exact enabled scanner account with fixed lot `0.03` and status `approval_required`. Telegram shows the intent ID, BUY/SELL, symbol, entry time, account and `/approve ID`. The scanner route does not approve or execute the intent; broker execution remains impossible until the operator explicitly approves it.
 
 The H1 feed retains broker-date records inside the latest 90 calendar days relative to the newest valid stored broker date. `/engine` defaults to the newest date and can filter retained dates by Monday-Friday. Mobile intentionally continues to consume only the latest retained date.
 

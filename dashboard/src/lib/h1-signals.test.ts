@@ -10,12 +10,13 @@ const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.m
 const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
 const mobileH1RouteSource = readFileSync(new URL("../app/api/mobile/h1/route.ts", import.meta.url), "utf8");
 
-test("H1 web feed has independent schema-8 H1+M15 Upstash contract", () => {
-  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 8/);
+test("H1 web feed has independent schema-9 M15 signal-base contract", () => {
+  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 9/);
   assert.match(readerSource, /postSignalInverted/);
   assert.match(readerSource, /postSignalRule/);
   assert.match(readerSource, /entryTime/);
   assert.match(readerSource, /m15Pair/);
+  assert.match(readerSource, /baseMinute/);
   assert.match(readerSource, /robot-sltp:public:h1-signals:latest/);
   assert.match(readerSource, /payload\.schemaVersion !== H1_SIGNAL_PUBLIC_SCHEMA/);
   assert.match(readerSource, /maskFutureH1Signals\(parsePayload/);
@@ -82,10 +83,13 @@ test("H1 board exports the selected scanner day as a shareable PNG with download
 
 test("H1 detail stays compact with M15 evidence, entry time and XAU cycle labels", () => {
   assert.doesNotMatch(boardSource, /<small>SYMBOL<\/small>|<small>PROFILE<\/small>|<small>SCAN<\/small>|SCANNER PATTERN|PATTERN SCANNER|Nguồn scanner|Pattern source/);
-  assert.match(boardSource, /Base H1 · \$\{alert\.baseSymbol\}/);
+  assert.match(boardSource, /Post-block M15 base/);
+  assert.match(boardSource, /Base M15 sau block/);
   assert.match(boardSource, /Nhóm pattern/);
   assert.match(boardSource, /Cặp M15/);
   assert.match(boardSource, /m15PairInverted/);
+  assert.match(boardSource, /Pattern action|Tác động pattern/);
+  assert.match(boardSource, /baseMinute/);
   assert.match(boardSource, /Giờ entry|Entry time/);
   assert.match(boardSource, /entryOffsetMinutes/);
   for (const label of ["Pattern 1 · TGG / GTT", "Pattern 2 · TTT / GGG", "Pattern 3 · TGT / GTG", "Pattern 4 · GGT / TTG", "Pattern 5 · 4+ same-direction candles"]) {

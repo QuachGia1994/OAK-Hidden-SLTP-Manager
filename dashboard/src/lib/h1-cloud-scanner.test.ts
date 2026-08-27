@@ -11,6 +11,7 @@ import {
   buildPublicFeed,
   buildStoredAlert,
   buildTelegramMessage,
+  brokerEntryDueAt,
   cycleDecisionFor,
   emptyCloudState,
   entryTimeFor,
@@ -37,7 +38,7 @@ function h1Bars(sequenceNewestFirst: string, newestHour: number, date = "2026-07
 }
 
 function m15Bars(sequenceNewestFirst: string, newestMinuteOfDay: number, date = "2026-07-06"): H1M15Bar[] {
-  return [...sequenceNewestFirst].map((direction, index) => {
+  const rows = [...sequenceNewestFirst].map((direction, index) => {
     const minuteOfDay = newestMinuteOfDay - index * 15;
     const hour = Math.floor(minuteOfDay / 60);
     const minute = minuteOfDay % 60;
@@ -48,55 +49,74 @@ function m15Bars(sequenceNewestFirst: string, newestMinuteOfDay: number, date = 
       direction: direction as H1Direction,
     };
   });
+  const blockMinute = newestMinuteOfDay + 15;
+  for (const minuteOfDay of [blockMinute, blockMinute + 15]) {
+    rows.push({
+      brokerDate: date,
+      brokerTime: `${date}T${String(Math.floor(minuteOfDay / 60)).padStart(2, "0")}:${String(minuteOfDay % 60).padStart(2, "0")}`,
+      minuteOfDay,
+      direction: "T",
+    });
+  }
+  return rows;
 }
 
 // H3 block fixtures: pair opens 02:45/02:30 (minutes 165/150); group A window
 // 02:15/02:00/01:45 (135/120/105); group B window 02:30/02:15/02:00 (150/135/120).
 const H3_PAIR_NEWEST_MINUTE = 165;
 
-test("rule versions bump to state v46 / feed v8 / rule 40 with the seven-block grid", () => {
-  assert.equal(H1_CLOUD_STATE_VERSION, 46);
-  assert.equal(H1_PUBLIC_SCHEMA, 8);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 40);
+test("rule versions bump to state v47 / feed v9 / rule 41 with the seven-block grid", () => {
+  assert.equal(H1_CLOUD_STATE_VERSION, 47);
+  assert.equal(H1_PUBLIC_SCHEMA, 9);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 41);
   assert.deepEqual(H1_SCAN_HOURS, [3, 4, 6, 9, 12, 14, 16]);
 });
 
-test("H3 scans FX pairs only, H4 scans XAUUSD only, later blocks scan everything", () => {
+test("H3 belongs to FX, H4 to XAUUSD, and later blocks scan all five targets", () => {
   assert.deepEqual(targetsForBlockHour(3), ["GBPUSD", "AUDUSD", "USDCAD", "USDJPY"]);
   assert.deepEqual(targetsForBlockHour(4), ["XAUUSD"]);
-  for (const hour of [6, 9, 12, 14, 16]) {
-    assert.deepEqual(targetsForBlockHour(hour), [...H1_TARGET_BASES]);
+  for (const hour of [6, 9, 12, 14, 16]) assert.deepEqual(targetsForBlockHour(hour), [...H1_TARGET_BASES]);
+});
+
+test("signal base comes after the block and pattern action alone keeps or inverts it", () => {
+  const postBlock = (sequence: string, signalDirection: H1Direction, signalMinute: number) => [
+    ...m15Bars(sequence, H3_PAIR_NEWEST_MINUTE),
+    {
+      brokerDate: "2026-07-06",
+      brokerTime: `2026-07-06T${String(Math.floor(signalMinute / 60)).padStart(2, "0")}:${String(signalMinute % 60).padStart(2, "0")}`,
+      minuteOfDay: signalMinute,
+      direction: signalDirection,
+    },
+  ];
+  const cases = [
+    ["TGTGG", "pattern1", "G", 3 * 60 + 15, "BUY"],
+    ["TGTTTG", "pattern2", "T", 3 * 60, "BUY"],
+    ["TGTGT", "pattern3", "G", 3 * 60 + 15, "SELL"],
+    ["TGGGT", "pattern4", "T", 3 * 60 + 15, "BUY"],
+    ["TGTTTT", "pattern5", "T", 3 * 60 + 15, "SELL"],
+  ] as const;
+  for (const [sequence, patternKind, baseDirection, signalMinute, signal] of cases) {
+    const evaluation = evaluateH1Block({
+      slotHour: 3,
+      h1Bars: [],
+      m15Bars: postBlock(sequence, baseDirection, signalMinute),
+      availableThroughMinute: patternKind === "pattern2" ? 181 : 210,
+    });
+    assert.ok(evaluation, patternKind);
+    assert.equal(evaluation.patternKind, patternKind);
+    const alert = buildStoredAlert({ base: "GBPUSD", brokerSymbol: "GBPUSD", evaluation });
+    assert.deepEqual([alert.baseDirection, alert.baseHour, alert.symbolH1Signal], [baseDirection, 3, signal]);
   }
 });
 
-test("base comes from the symbol's own H-1 candle and the M15 pair keeps or inverts it", () => {
-  // Own H1 candle H2=T -> BUY base; pair TT keeps it; group B window TTG
-  // (reuses the 02:30 pair candle) classifies as Pattern 4.
-  const kept = evaluateH1Block({
-    slotHour: 3,
-    h1Bars: h1Bars("T", 2),
-    m15Bars: m15Bars("TTTGG", H3_PAIR_NEWEST_MINUTE),
-  });
-  assert.ok(kept);
-  assert.deepEqual(
-    [kept.baseDirection, kept.m15Pair, kept.m15PairInverted, kept.refinedDirection, kept.patternKind],
-    ["T", "TT", false, "T", "pattern4"],
-  );
-  assert.equal(kept.m15Window, "TTG");
+test("signal waits for the correct post-block candle boundary", () => {
+  const pattern1Bars = m15Bars("TGTGG", H3_PAIR_NEWEST_MINUTE);
+  assert.equal(evaluateH1Block({ slotHour: 3, h1Bars: [], m15Bars: pattern1Bars, availableThroughMinute: 209 }), null);
+  assert.ok(evaluateH1Block({ slotHour: 3, h1Bars: [], m15Bars: pattern1Bars, availableThroughMinute: 210 }));
 
-  // Pair TG inverts the base; group A window TTT with a G neighbour on both
-  // sides stays an exact triple -> Pattern 2.
-  const inverted = evaluateH1Block({
-    slotHour: 3,
-    h1Bars: h1Bars("T", 2),
-    m15Bars: m15Bars("TGTTTG", H3_PAIR_NEWEST_MINUTE),
-  });
-  assert.ok(inverted);
-  assert.deepEqual(
-    [inverted.m15Pair, inverted.m15PairInverted, inverted.refinedDirection, inverted.patternKind],
-    ["TG", true, "G", "pattern2"],
-  );
-  assert.equal(inverted.m15Window, "TTT");
+  const pattern2Bars = m15Bars("TGTTTG", H3_PAIR_NEWEST_MINUTE);
+  assert.equal(evaluateH1Block({ slotHour: 3, h1Bars: [], m15Bars: pattern2Bars, availableThroughMinute: 179 }), null);
+  assert.ok(evaluateH1Block({ slotHour: 3, h1Bars: [], m15Bars: pattern2Bars, availableThroughMinute: 180 }));
 });
 
 test("group A uses the 02:15 02:00 01:45 window while group B reuses 02:30", () => {
@@ -107,7 +127,7 @@ test("group A uses the 02:15 02:00 01:45 window while group B reuses 02:30", () 
   });
   assert.ok(groupA);
   assert.equal(groupA.m15Window, "TGG"); // window 02:15 02:00 01:45
-  assert.deepEqual(groupA.bars.map((bar) => bar.minuteOfDay), [165, 150, 135, 120, 105]);
+  assert.deepEqual(groupA.bars.map((bar) => bar.minuteOfDay), [195, 165, 150, 135, 120, 105]);
 
   const groupB = evaluateH1Block({
     slotHour: 3,
@@ -116,7 +136,7 @@ test("group A uses the 02:15 02:00 01:45 window while group B reuses 02:30", () 
   });
   assert.ok(groupB);
   assert.equal(groupB.m15Window, "TGG"); // window 02:30 02:15 02:00 reuses the pair candle
-  assert.deepEqual(groupB.bars.map((bar) => bar.minuteOfDay), [165, 150, 135, 120]);
+  assert.deepEqual(groupB.bars.map((bar) => bar.minuteOfDay), [195, 165, 150, 135, 120]);
 });
 
 test("Pattern 5 takes precedence over Pattern 2 in both extension directions", () => {
@@ -155,8 +175,8 @@ test("all five patterns map to their confirmed entry offsets", () => {
   assert.deepEqual(H1_PATTERN_ENTRY_OFFSET_MINUTES, {
     pattern1: 120,
     pattern2: 1,
-    pattern3: 95,
-    pattern4: 95,
+    pattern3: 85,
+    pattern4: 85,
     pattern5: 120,
   });
 
@@ -164,8 +184,8 @@ test("all five patterns map to their confirmed entry offsets", () => {
     // [m15 sequence newest->oldest, expected kind, expected entry time]
     ["TGTGG", "pattern1", "05:00"],
     ["TGTTTG", "pattern2", "03:01"],
-    ["TGTGT", "pattern3", "04:35"],
-    ["TGGGT", "pattern4", "04:35"],
+    ["TGTGT", "pattern3", "04:25"],
+    ["TGGGT", "pattern4", "04:25"],
     ["TGTTTT", "pattern5", "05:00"],
   ];
   for (const [sequence, kind, entry] of cases) {
@@ -180,10 +200,11 @@ test("all five patterns map to their confirmed entry offsets", () => {
     assert.deepEqual([alert.entryOffsetMinutes, alert.entryTime], [H1_PATTERN_ENTRY_OFFSET_MINUTES[kind as keyof typeof H1_PATTERN_ENTRY_OFFSET_MINUTES], entry]);
   }
   assert.equal(entryTimeFor(16, 120), "18:00");
+  assert.equal(brokerEntryDueAt("2026-08-27", "18:00", 3), Date.UTC(2026, 7, 27, 15, 0));
 });
 
-test("blocks with incomplete H1 or M15 data are skipped silently", () => {
-  assert.equal(evaluateH1Block({ slotHour: 3, h1Bars: [], m15Bars: m15Bars("TTTGG", H3_PAIR_NEWEST_MINUTE) }), null);
+test("blocks require pattern M15 and the post-block signal base, not a legacy H1 candle", () => {
+  assert.ok(evaluateH1Block({ slotHour: 3, h1Bars: [], m15Bars: m15Bars("TTTGG", H3_PAIR_NEWEST_MINUTE) }));
   assert.equal(evaluateH1Block({ slotHour: 3, h1Bars: h1Bars("T", 2), m15Bars: [] }), null);
   // Missing oldest group-A candle (01:45).
   assert.equal(evaluateH1Block({ slotHour: 3, h1Bars: h1Bars("T", 2), m15Bars: m15Bars("TGTT", H3_PAIR_NEWEST_MINUTE) }), null);
@@ -196,7 +217,7 @@ test("evaluateH1BlocksForTarget honours the block schedule and broker-hour cutof
     brokerTime: `2026-07-06T${String(index).padStart(2, "0")}:00`,
     direction: "T" as H1Direction,
   }));
-  const m15 = Array.from({ length: 64 }, (_, index) => {
+  const m15 = Array.from({ length: 68 }, (_, index) => {
     const minuteOfDay = 15 * index;
     return {
       brokerDate: "2026-07-06",
@@ -205,12 +226,10 @@ test("evaluateH1BlocksForTarget honours the block schedule and broker-hour cutof
       direction: "T" as H1Direction,
     };
   });
-  // XAUUSD owns H4 alone and joins every later block.
   assert.deepEqual(
     evaluateH1BlocksForTarget("XAUUSD", h1, m15, 16).map((item) => item.slotHour),
     [4, 6, 9, 12, 14, 16],
   );
-  // FX starts at H3 and skips H4.
   assert.deepEqual(
     evaluateH1BlocksForTarget("GBPUSD", h1, m15, 16).map((item) => item.slotHour),
     [3, 6, 9, 12, 14, 16],
@@ -264,12 +283,11 @@ test("stored alerts compose base, M15 refinement and the XAU cycle in order", ()
   })!;
   assert.ok(evaluation);
   const alert = buildStoredAlert({ base: "XAUUSD", brokerSymbol: "XAUUSD", evaluation });
-  // Base T -> BUY; pair TG flips to SELL; Mon 2026-07-06 follows special Thu
-  // 2026-07-02 -> mon-cycle flips back to BUY. The unextended TTT window stays
-  // Pattern 2, so the entry lands one minute after the block.
+  // Pattern 2 uses H04:00=T as BUY and keeps it; the XAU Monday cycle then
+  // inverts to SELL. Entry lands one minute after the block.
   assert.deepEqual(
     [alert.baseH1Signal, alert.m15PairInverted, alert.patternKind, alert.postSignalRule, alert.symbolH1Signal, alert.entryOffsetMinutes, alert.entryTime],
-    ["BUY", true, "pattern2", "mon-cycle", "BUY", 1, "04:01"],
+    ["BUY", false, "pattern2", "mon-cycle", "SELL", 1, "04:01"],
  );
 
   const fxAlert = buildStoredAlert({
@@ -281,16 +299,16 @@ test("stored alerts compose base, M15 refinement and the XAU cycle in order", ()
       m15Bars: m15Bars("TGTTT", H3_PAIR_NEWEST_MINUTE, "2026-10-09"),
     })!,
   });
-  // Base T -> BUY; pair TG flips to SELL; FX never touches the cycle.
-  assert.deepEqual([fxAlert.postSignalRule, fxAlert.symbolH1Signal], ["none", "SELL"]);
+  // Pattern 2 keeps the H03:00=T base; FX never touches the cycle.
+  assert.deepEqual([fxAlert.postSignalRule, fxAlert.symbolH1Signal], ["none", "BUY"]);
 
   const message = buildTelegramMessage("XAUUSD", "2026-07-06", alert);
   assert.match(message, /Mốc block: H04 · Entry: 04:01 \(\+1p\)/);
   assert.match(message, /đảo theo chu kỳ Thứ 2/);
-  assert.match(message, /Signal XAUUSD H1: BUY/);
+  assert.match(message, /Signal XAUUSD H1: SELL/);
 });
 
-test("state v46 round-trips into a rule-40 public feed with the seven-block grid", () => {
+test("state v47 round-trips into a rule-41 public feed with the seven-block grid", () => {
   const evaluation = evaluateH1Block({
     slotHour: 3,
     h1Bars: h1Bars("T", 2),
@@ -302,7 +320,7 @@ test("state v46 round-trips into a rule-40 public feed with the seven-block grid
 
   const parsed = parseCloudState(JSON.stringify(state));
   const feed = buildPublicFeed(parsed, "2026-07-06T17:00:00.000Z");
-  assert.deepEqual([parsed.version, feed.schemaVersion, feed.signalRuleVersion, feed.hours], [46, 8, 40, [3, 4, 6, 9, 12, 14, 16]]);
+  assert.deepEqual([parsed.version, feed.schemaVersion, feed.signalRuleVersion, feed.hours], [47, 9, 41, [3, 4, 6, 9, 12, 14, 16]]);
   const feedAlert = feed.days["2026-07-06"].symbols.GBPUSD?.alerts[0];
   assert.deepEqual(
     [feedAlert?.patternKind, feedAlert?.entryTime, feedAlert?.m15Pair, feedAlert?.postSignalRule],

@@ -52,6 +52,17 @@ test("cloud scanner sends and persists every classified five-pattern alert", () 
   assert.doesNotMatch(route, /if \(alert\.tradeAllowed\)|if \(!alert\.tradeAllowed\)|blockedTradeSlots|reconcileTradeState/);
 });
 
+test("live H1 alerts create idempotent scheduled intents but never auto-approve or execute", () => {
+  assert.match(route, /createCloudIntent/);
+  assert.match(route, /source: "H1 Scanner"/);
+  assert.match(route, /automationKey: `h1:/);
+  assert.match(route, /H1_AUTO_ENTRY_LOT = 0\.03/);
+  assert.match(route, /brokerEntryDueAt/);
+  assert.match(route, /status.*\/approve/);
+  assert.match(route, /Chưa \/approve thì cloud tuyệt đối không execute/);
+  assert.doesNotMatch(route, /approveCloudIntent|runCloudIntentExecution|executeClaimedCloudIntent/);
+});
+
 test("cTrader cloud scanner remains read-only even when shared OAuth has trading scope", () => {
   assert.match(client, /wss:\/\/\$\{host\}:5036/);
   assert.match(client, /GET_TRENDBARS_REQ: 2137/);
@@ -127,6 +138,7 @@ test("Cloudflare Durable Object is primary H:00 timekeeper with retry-aware watc
   assert.match(timekeeperConfig, /"new_sqlite_classes": \["H1Timekeeper"\]/);
   assert.match(timekeeperConfig, /"required": \["H1_SCANNER_TOKEN", "TELEGRAM_TICK_TOKEN"\]/);
   assert.match(timekeeperConfig, /"\* \* \* \* \*"/);
+  assert.match(timekeeperConfig, /"1 \* \* \* \*"/);
   assert.match(timekeeperConfig, /"10 \* \* \* \*"/);
   assert.match(timekeeperConfig, /"30 \* \* \* \*"/);
   assert.match(timekeeperConfig, /"50 \* \* \* \*"/);
@@ -136,11 +148,14 @@ test("Cloudflare Durable Object is primary H:00 timekeeper with retry-aware watc
   assert.match(timekeeper, /already-running/);
   assert.match(timekeeper, /awaiting-closed-h1/);
   assert.match(timekeeper, /lastSuccessBoundary < boundary/);
+  assert.match(timekeeper, /SCANNER_FOLLOW_UP_CRONS/);
+  assert.match(timekeeper, /mode === "follow-up" \? "run" : "watchdog"/);
   assert.match(timekeeper, /x-h1-timekeeper-key/);
   assert.doesNotMatch(timekeeper, /DASHBOARD_API_KEY|UPSTASH_REDIS_REST_TOKEN|CTRADER_CLIENT_SECRET|TELEGRAM_TOKEN/);
 });
 
-test("GitHub scheduler is tertiary fallback and warms feed after scanner-related deploys", () => {
+test("GitHub scheduler is tertiary fallback for H:00, H:01 and H:30 phases and warms deploys", () => {
+  assert.match(workflow, /cron: "1 \* \* \* \*"/);
   assert.match(workflow, /cron: "10 \* \* \* \*"/);
   assert.match(workflow, /cron: "30 \* \* \* \*"/);
   assert.match(workflow, /cron: "50 \* \* \* \*"/);
@@ -149,7 +164,7 @@ test("GitHub scheduler is tertiary fallback and warms feed after scanner-related
   assert.match(workflow, /Wait for Vercel deployment/);
   assert.match(workflow, /commits\/\$\{GITHUB_SHA\}\/status/);
   assert.match(workflow, /context[\s\S]*Vercel|Vercel[\s\S]*context/);
-  assert.match(workflow, /Wait for H:00 boundary/);
+  assert.match(workflow, /Align H1 scanner phase/);
   assert.match(workflow, /github\.event\.schedule/);
   assert.match(workflow, /scheduled_minute/);
   assert.match(workflow, /sleep "\$delay"/);
@@ -162,7 +177,7 @@ test("GitHub scheduler is tertiary fallback and warms feed after scanner-related
   assert.match(workflow, /id-token: write/);
   assert.match(workflow, /ACTIONS_ID_TOKEN_REQUEST_URL/);
   assert.match(workflow, /audience=oak-h1-cloud-scanner/);
-  assert.ok(workflow.indexOf("Wait for H:00 boundary") < workflow.indexOf("Request GitHub OIDC token"));
+  assert.ok(workflow.indexOf("Align H1 scanner phase") < workflow.indexOf("Request GitHub OIDC token"));
   assert.match(workflow, /Authorization: Bearer \$OIDC_TOKEN/);
   assert.match(workflow, /https:\/\/www\.oakgatekeeper\.uk\/api\/h1-scanner\/run/);
   assert.match(workflow, /Rebuild H1 history after scanner deploy/);

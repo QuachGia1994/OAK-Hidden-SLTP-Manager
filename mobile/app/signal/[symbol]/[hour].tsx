@@ -27,7 +27,7 @@ export default function SignalDetailScreen() {
   const hour = Number(params.hour || 0);
   const alert = findAlert(h1, symbol, hour);
   const date = latestH1Date(h1);
-  const pairVerdict = alert?.m15PairInverted ? "Reverse base" : "Keep base";
+  const patternVerdict = alert?.m15PairInverted ? "Pattern reverses M15 base" : "Pattern keeps M15 base";
 
   return (
     <LinearGradient colors={[theme.canvas, theme.raised]} style={styles.flex}>
@@ -64,9 +64,10 @@ export default function SignalDetailScreen() {
 
               <GlassCard>
                 <Row label="Pattern (M15)" value={alert.m15Window?.split("").join(" · ") || alert.pattern.replaceAll(" ", " · ")} />
-                <Row label="M15 pair" value={`${alert.m15Pair || "—"} · ${pairVerdict}`} />
+                <Row label="Pre-block M15 pair" value={`${alert.m15Pair || "—"} · window only`} />
+                <Row label="Pattern action" value={patternVerdict} />
                 <Row label="Entry time" value={alert.entryTime ? `${alert.entryTime} (+${alert.entryOffsetMinutes ?? "?"}p)` : "—"} />
-                <Row label="Base H1" value={`${alert.baseSymbol} · H${String(alert.baseHour || 0).padStart(2, "0")} · ${alert.baseDirection || "—"}`} />
+                <Row label="Post-block M15 base" value={`${alert.baseSymbol} · H${String(alert.baseHour || 0).padStart(2, "0")}:${String(alert.baseMinute ?? 0).padStart(2, "0")} · ${alert.baseDirection || "—"}`} />
                 <Row label="Base signal" value={alert.baseSignal || "—"} tone={alert.baseSignal === "SELL" ? "sell" : "buy"} />
                 <Row label="Post-signal" value={alert.postSignalRule || "none"} />
                 <Row label="Final signal" value={alert.signal || "—"} tone={alert.signal === "SELL" ? "sell" : "buy"} />
