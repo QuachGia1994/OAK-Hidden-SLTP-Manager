@@ -192,6 +192,15 @@ function postSignalLabel(rule: H1SignalAlert["postSignalRule"], inverted: boolea
   return labels[rule][locale];
 }
 
+function specialCycleRuleForDay(day: H1SignalPayload["days"][string] | undefined) {
+  for (const symbolState of Object.values(day?.symbols ?? {})) {
+    for (const alert of symbolState?.alerts ?? []) {
+      if (alert.postSignalRule === "thu-cycle" || alert.postSignalRule === "fri-cycle") return alert.postSignalRule;
+    }
+  }
+  return null;
+}
+
 function allowTradeLookbackLabel(alert: H1SignalAlert, locale: Locale) {
   const pattern = alert.lookbackPattern ? alert.lookbackPattern.split("").join(" ") : "—";
   if (alert.lookbackAction === "block-pair") return locale === "EN" ? `Pair ${pattern} → BLOCK` : `Cặp ${pattern} → BLOCK`;
@@ -255,6 +264,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
   const matchingDates = data ? historyDatesForWeekday(data.days, weekdayFilter) : [];
   const date = data ? selectHistoryDate(data.days, weekdayFilter, selectedDate) : "";
   const day = date && data ? data.days[date] : undefined;
+  const specialCycleRule = specialCycleRuleForDay(day);
   const earliestDate = allDates.at(-1) || "";
   const latestDate = allDates[0] || "";
   const copy = locale === "EN"
@@ -378,7 +388,8 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
               const symbolState = day?.symbols?.[base];
               const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
               const blockedSlots = new Set(symbolState?.blockedSlots ?? []);
-              return <tr key={base}><th className="oak-h1-symbol-sticky"><b>{base}</b></th>{data.hours.map((hour) => {
+              const specialCycleRow = Boolean(specialCycleRule && (base === "XAUUSD" || base === "USDCAD"));
+              return <tr key={base} className={specialCycleRow ? "oak-h1-special-cycle-row" : undefined} data-cycle-rule={specialCycleRow ? specialCycleRule : undefined}><th className="oak-h1-symbol-sticky"><b>{base}</b>{specialCycleRow && <small className="oak-h1-cycle-badge">{specialCycleRule === "thu-cycle" ? "T5 CYCLE" : "T6 CYCLE"}</small>}</th>{data.hours.map((hour) => {
                 const alert = byHour.get(hour);
                 const blocked = blockedSlots.has(hour) || alert?.tradeAllowed === false;
                 const pure = alert?.patternKind === "sw3Pure";

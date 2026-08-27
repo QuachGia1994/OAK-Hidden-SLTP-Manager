@@ -45,6 +45,19 @@ test("H1 cells render tradable BUY/SELL and explicit allowTrade BLOCK cells", ()
   assert.doesNotMatch(boardSource, /data-warning|repeatedPure|previousPureSlot|entryTime|postCheckApplied|sourceSignal|targetPattern|STOP H17/);
 });
 
+test("special Thursday Friday cycle highlights only XAUUSD and USDCAD table rows", () => {
+  assert.match(boardSource, /specialCycleRuleForDay/);
+  assert.match(boardSource, /postSignalRule === "thu-cycle" \|\| alert\.postSignalRule === "fri-cycle"/);
+  assert.match(boardSource, /base === "XAUUSD" \|\| base === "USDCAD"/);
+  assert.match(boardSource, /oak-h1-special-cycle-row/);
+  assert.match(boardSource, /data-cycle-rule/);
+  assert.match(boardSource, /T5 CYCLE/);
+  assert.match(boardSource, /T6 CYCLE/);
+  assert.match(redesignCss, /\.oak-h1-special-cycle-row > th/);
+  assert.match(redesignCss, /\.oak-h1-special-cycle-row > \.oak-h1-symbol-sticky/);
+  assert.match(redesignCss, /\.oak-h1-cycle-badge/);
+});
+
 test("mobile H1 adapter preserves admin auth and normalized cloud feed semantics", () => {
   assert.match(mobileH1RouteSource, /requireAdminOrApiAuth/);
   assert.match(mobileH1RouteSource, /getLatestH1Signals/);
