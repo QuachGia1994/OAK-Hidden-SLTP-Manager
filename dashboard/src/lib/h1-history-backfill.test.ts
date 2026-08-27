@@ -68,15 +68,12 @@ test("historical reconstruction reuses live pattern/base/calendar rules and skip
     scannerBase: "GBPUSD",
     scannerSymbol: "GBPUSD",
     match: gbpH3Match,
-    baseSymbol: "AUDUSD",
-    baseBar: market.AUDUSD.bars.find((bar) => bar.hour === 2)!,
-    baseHourOverride: 3,
-    inheritedSignal: audusdH3Signal,
-    inheritedSignalMode: "inverse",
+    baseSymbol: "XAUUSD",
+    baseBar: market.XAUUSD.bars.find((bar) => bar.hour === 2)!,
   });
   const historicalGbpH3 = history["2026-08-21"].symbols.GBPUSD?.alerts.find((alert) => alert.slotHour === 3);
   assert.deepEqual(historicalGbpH3, gbpH3Expected);
-  assert.deepEqual([historicalGbpH3?.baseSymbol, historicalGbpH3?.baseHour, historicalGbpH3?.baseH1Signal, historicalGbpH3?.symbolH1Signal], ["AUDUSD", 3, audusdH3Signal, audusdH3Signal === "BUY" ? "SELL" : "BUY"]);
+  assert.deepEqual([historicalGbpH3?.baseSymbol, historicalGbpH3?.baseHour, historicalGbpH3?.baseH1Signal, historicalGbpH3?.symbolH1Signal], ["XAUUSD", 2, "BUY", "SELL"]);
 
   const audH3Match = findH1PatternMatchesForTarget("AUDUSD", market.AUDUSD.bars, 3).find((item) => item.slotHour === 3)!;
   const audH3Expected = buildStoredAlert({

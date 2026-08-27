@@ -76,6 +76,7 @@ test("live route scans H3, XAU-only H4 and H06-H16 while H5 remains recovery-onl
   assert.doesNotMatch(route, /hour === 3[^\n]*NZDUSD/);
   assert.match(route, /hour === 4[\s\S]*XAUUSD[\s\S]*AUDUSD/);
   assert.match(route, /baseSymbolForTargetSlot/);
+  assert.doesNotMatch(route, /base === "GBPUSD" && match\.slotHour === 3/);
   assert.match(route, /market\.brokerHour === 4 && base !== "XAUUSD"/);
   assert.match(route, /return H1_ALL_BASES/);
   assert.match(route, /findH1PatternMatchesForTarget/);

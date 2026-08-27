@@ -6,6 +6,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- GBPUSD now uses the corresponding closed XAUUSD H1 candle with direct base polarity at every signal slot, including H3; Pattern 3/lookback and Thursday/Friday inversions still apply afterward. The old GBPUSD H3 AUDUSD-H3 exception was removed without changing XAUUSD H4 inheritance.
 - H1 Pattern 5 (`TGTG` / `GTGT`) now keeps the calculated signal at the ordered lùi-3 or lùi-2 lookback before isolated Pattern 3 inversion is considered. XAUUSD H4 remains sourced from AUDUSD H3.
 
 ## [0.7.1] - 2026-08-27

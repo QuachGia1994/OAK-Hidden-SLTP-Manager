@@ -29,7 +29,7 @@ H1 public feed key:
 
 `robot-sltp:public:h1-signals:latest`
 
-Current public schema: v7. Cloud state remains v10 and signal-rule version remains v4.
+Current public schema: v7. Cloud state is v40 and signal-rule version is v34.
 
 The H1 feed retains broker-date records inside the latest 90 calendar days relative to the newest valid stored broker date. `/engine` defaults to the newest date and can filter retained dates by Monday-Friday. Mobile intentionally continues to consume only the latest retained date.
 

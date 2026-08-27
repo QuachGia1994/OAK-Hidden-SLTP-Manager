@@ -78,13 +78,14 @@ test("H1 detail stays compact while preserving target base and calendar evidence
   assert.doesNotMatch(boardSource, /<small>SYMBOL<\/small>|<small>PROFILE<\/small>|<small>SCAN<\/small>|SCANNER PATTERN|PATTERN SCANNER|Nguồn scanner|Pattern source/);
   assert.match(boardSource, /Base H1 · \$\{alert\.baseSymbol\}/);
   assert.match(boardSource, /Source signal · AUDUSD H3/);
-  assert.match(boardSource, /base === "GBPUSD" && alert\.slotHour === 3 && alert\.baseSymbol === "AUDUSD"/);
+  assert.doesNotMatch(boardSource, /base === "GBPUSD" && alert\.slotHour === 3 && alert\.baseSymbol === "AUDUSD"/);
   assert.match(boardSource, /lấy signal AUDUSD H3/);
-  assert.match(boardSource, /đảo ngược signal AUDUSD H3/);
+  assert.doesNotMatch(boardSource, /đảo ngược signal AUDUSD H3/);
   assert.match(boardSource, /Nhóm pattern/);
   assert.match(boardSource, /Logic base/);
   assert.match(boardSource, /baseInverted/);
-  assert.match(boardSource, /base === "GBPUSD"[\s\S]*base === "AUDUSD"[\s\S]*base === "USDCAD"[\s\S]*base === "USDJPY"/);
+  assert.match(boardSource, /base === "AUDUSD"[\s\S]*base === "USDCAD"[\s\S]*base === "USDJPY"/);
+  assert.doesNotMatch(boardSource, /const baseInverted = base === "GBPUSD"/);
   assert.doesNotMatch(boardSource, /base === "EURUSD"/);
   assert.match(boardSource, /đảo ngược/);
   assert.match(boardSource, /AllowTrade lookback/);

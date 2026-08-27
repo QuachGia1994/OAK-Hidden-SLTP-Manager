@@ -41,7 +41,7 @@ export function reconstructHistoricalDays(market: H1HistoricalMarket): H1Histori
         const baseByHour = new Map(perBase[baseSymbol].map((bar) => [bar.hour, bar]));
         const baseBar = baseByHour.get(baseHourForTargetSlot(base, match.slotHour));
         if (!baseBar) return [];
-        const inheritsAudusdH3 = (base === "XAUUSD" && match.slotHour === 4) || (base === "GBPUSD" && match.slotHour === 3);
+        const inheritsAudusdH3 = base === "XAUUSD" && match.slotHour === 4;
         const inheritedSignal = inheritsAudusdH3
           ? audusdH3Signal(perBase.AUDUSD, perBase.XAUUSD)
           : null;
@@ -54,9 +54,7 @@ export function reconstructHistoricalDays(market: H1HistoricalMarket): H1Histori
           match,
           baseSymbol,
           baseBar,
-          baseHourOverride: base === "GBPUSD" && match.slotHour === 3 ? 3 : undefined,
           inheritedSignal: inheritedSignal || undefined,
-          inheritedSignalMode: base === "GBPUSD" && match.slotHour === 3 ? "inverse" : "direct",
         })];
       });
       const symbolState = {
