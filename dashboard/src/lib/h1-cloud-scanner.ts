@@ -28,6 +28,8 @@ export type H1ScannerBase = typeof H1_SCANNER_BASES[number];
 export type H1Direction = "T" | "G";
 export type H1Signal = "BUY" | "SELL";
 export type H1PatternKind = "sw2" | "sw3Pure" | "sw3Normal";
+export type H1TriplePatternKind = "pattern1" | "pattern3" | "pattern4" | "pattern6";
+export type H1TriplePatternEffect = "block" | "invert" | "keep";
 export type H1LookbackAction = "none" | "block-pair" | "block-pattern1" | "block-pattern2" | "block-pattern4" | "block-repeat-pattern2" | "invert-pattern3" | "keep-pattern5";
 export type H1PostSignalRule = "none" | "mon-block" | "tue-block" | "wed-block" | "thu-cycle" | "fri-cycle";
 
@@ -112,12 +114,27 @@ const PURE_SW_3 = new Set(["TGG", "GTT"]);
 const PATTERN_4_TRIPLES = new Set(["TTT", "GGG"]);
 const ALTERNATING_SW_3 = new Set(["GTG", "TGT"]);
 const ALTERNATING_SW_4 = new Set(["GTGT", "TGTG"]);
+const PATTERN_6_TRIPLES = new Set(["GGT", "TTG"]);
 const BLOCK_PAIR_2 = new Set(["TG", "GT"]);
 const PATTERN_LABELS: Record<H1PatternKind, string> = {
   sw2: "SW 2 cây",
   sw3Pure: "SW 3 cây thuần",
   sw3Normal: "Pattern 2 · 4+ cây cùng hướng",
 };
+
+export function classifyH1TriplePattern(pattern: string): H1TriplePatternKind | null {
+  if (PURE_SW_3.has(pattern)) return "pattern1";
+  if (ALTERNATING_SW_3.has(pattern)) return "pattern3";
+  if (PATTERN_4_TRIPLES.has(pattern)) return "pattern4";
+  if (PATTERN_6_TRIPLES.has(pattern)) return "pattern6";
+  return null;
+}
+
+export function h1TriplePatternEffect(kind: H1TriplePatternKind): H1TriplePatternEffect {
+  if (kind === "pattern1" || kind === "pattern4") return "block";
+  if (kind === "pattern3") return "invert";
+  return "keep";
+}
 
 export function signalFromDirection(direction: H1Direction): H1Signal {
   return direction === "T" ? "BUY" : "SELL";
@@ -252,16 +269,21 @@ function evaluateTripleLookback(byHour: Map<number, H1DirectionBar>, hours: [num
   if (!rows) return { pattern: null, action: "none" };
 
   const triplePattern = rows.map((row) => row.direction).join("");
-  if (PURE_SW_3.has(triplePattern)) return { pattern: triplePattern, action: "block-pattern1" };
-  if (ALTERNATING_SW_3.has(triplePattern)) return { pattern: triplePattern, action: "invert-pattern3" };
+  const tripleKind = classifyH1TriplePattern(triplePattern);
+  if (tripleKind === "pattern1") return { pattern: triplePattern, action: "block-pattern1" };
+  if (tripleKind === "pattern3") return { pattern: triplePattern, action: "invert-pattern3" };
 
-  if (PATTERN_4_TRIPLES.has(triplePattern)) {
+  if (tripleKind === "pattern4") {
     const direction = rows[0].direction;
     const runLength = sameDirectionRunLength(byHour, hours, direction);
     if (runLength >= 4) return { pattern: direction.repeat(runLength), action: "block-pattern2" };
     return { pattern: triplePattern, action: "block-pattern4" };
   }
 
+  // Pattern 6 (GGT / TTG) is now an explicit reusable classification with
+  // semantic effect "keep". H1 intentionally preserves its existing action
+  // contract as none here so the ordered fallback window keeps working exactly
+  // as before; M15 can consume the exported classification/effect directly.
   return { pattern: triplePattern, action: "none" };
 }
 

@@ -18,10 +18,12 @@ import {
   buildPublicFeed,
   buildStoredAlert,
   buildTelegramMessage,
+  classifyH1TriplePattern,
   configuredPostSignalDecision,
   emptyCloudState,
   findH1PatternMatches,
   findH1PatternMatchesForTarget,
+  h1TriplePatternEffect,
   postSignalDecision,
   reconcileTradeState,
   scannerBaseForTarget,
@@ -532,6 +534,19 @@ test("Pattern 5 keeps direction only when it belongs to the current authoritativ
     [isolatedPattern3.pattern.join(""), isolatedPattern3.lookbackPattern, isolatedPattern3.lookbackAction, isolatedPattern3.tradeAllowed],
     ["GTT", "TGTT", "invert-pattern3", true],
   );
+});
+
+test("Pattern 6 has an explicit reusable GGT TTG classification with keep semantics", () => {
+  assert.equal(classifyH1TriplePattern("GGT"), "pattern6");
+  assert.equal(classifyH1TriplePattern("TTG"), "pattern6");
+  assert.equal(h1TriplePatternEffect("pattern6"), "keep");
+  assert.equal(classifyH1TriplePattern("TGG"), "pattern1");
+  assert.equal(classifyH1TriplePattern("TGT"), "pattern3");
+  assert.equal(classifyH1TriplePattern("TTT"), "pattern4");
+
+  // Pattern 6 remains lookback-only in H1. Main scanner semantics are unchanged.
+  assert.equal(findH1PatternMatches(bars("TGG", 3), 6).some((item) => item.slotHour === 6), false);
+  assert.equal(findH1PatternMatches(bars("GTT", 3), 6).some((item) => item.slotHour === 6), false);
 });
 
 test("AUDUSD H8 2026-08-27 evaluates H4 H3 H2 H1 before the lùi-2 GTGT window", () => {
