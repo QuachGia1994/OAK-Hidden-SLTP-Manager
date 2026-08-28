@@ -168,7 +168,7 @@ function patternLabel(kind: H1PatternKind, locale: Locale) {
     pattern3: { EN: "Pattern 3 · TGT / GTG", VN: "Pattern 3 · TGT / GTG" },
     pattern4: { EN: "Pattern 4 · GGT / TTG", VN: "Pattern 4 · GGT / TTG" },
     pattern5: { EN: "Pattern 5 · 4+ same-direction candles", VN: "Pattern 5 · 4+ cây cùng hướng" },
-    pattern6: { EN: "Pattern 6 · TGTG / GTGT", VN: "Pattern 6 · TGTG / GTGT" },
+    pattern6: { EN: "Pattern 6 · TGTG/GTGT + pair 5–6", VN: "Pattern 6 · TGTG/GTGT + cặp 5–6" },
   };
   return labels[kind][locale];
 }
@@ -222,8 +222,14 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
         </div>
         <div className="oak-h1-explain">
           <p><span>{locale === "EN" ? "Pattern group" : "Nhóm pattern"}</span><b>{patternLabel(alert.patternKind, locale)}</b></p>
-          <p><span>{`${locale === "EN" ? "Post-block M15 base" : "Base M15 sau block"} · ${alert.baseSymbol}`}</span><b>{baseDetail}</b></p>
-          <p><span>{locale === "EN" ? `Pre-block M15 pair ${alert.m15Pair || "—"}` : `Cặp M15 trước block ${alert.m15Pair || "—"}`}</span><b>{locale === "EN" ? "selects pattern window only" : "chỉ chọn cửa sổ pattern"}</b></p>
+          <p><span>{alert.patternKind === "pattern6"
+            ? `${locale === "EN" ? "P6 candle 5 base" : "Base cây thứ 5 P6"} · ${alert.baseSymbol}`
+            : `${locale === "EN" ? "Post-block M15 base" : "Base M15 sau block"} · ${alert.baseSymbol}`}</span><b>{baseDetail}</b></p>
+          <p><span>{alert.patternKind === "pattern6"
+            ? (locale === "EN" ? `M15 pair candles 5–6 ${alert.m15Pair || "—"}` : `Cặp M15 cây 5–6 ${alert.m15Pair || "—"}`)
+            : (locale === "EN" ? `Pre-block M15 pair ${alert.m15Pair || "—"}` : `Cặp M15 trước block ${alert.m15Pair || "—"}`)}</span><b>{alert.patternKind === "pattern6"
+            ? (locale === "EN" ? "selects H+2:00 or H+1:25 entry" : "chọn entry H+2:00 hoặc H+1:25")
+            : (locale === "EN" ? "selects pattern window only" : "chỉ chọn cửa sổ pattern")}</b></p>
           <p><span>{locale === "EN" ? "Pattern action" : "Tác động pattern"}</span><b>{patternVerdict[locale]}</b></p>
           <p><span>{locale === "EN" ? "Entry time" : "Giờ entry"}</span><b>{alert.entryTime ? `${alert.entryTime} (+${alert.entryOffsetMinutes ?? "?"}p)` : "—"}</b></p>
           <p><span>{locale === "EN" ? "Post-signal" : "Hậu signal"}</span><b>{postSignalLabel(alert.postSignalRule, alert.postSignalInverted, locale)}</b></p>
@@ -252,7 +258,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
   const copy = locale === "EN"
     ? {
         title: "H1 Intraday Signals",
-        sub: "Post-block M15 base · P1/P5/P6 reverse · P2/P3/P4 keep · weekday post-signal rules · XAU cycle marker",
+        sub: "M15 signal base · P1/P5 reverse · P6 keeps candle 5 · P2/P3/P4 keep · weekday post-signal rules · XAU cycle marker",
         awaiting: "Awaiting H1 live feed",
         locked: "VIP weekday signals are locked",
         weekdayGroup: "Filter by weekday",
@@ -263,7 +269,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
       }
     : {
         title: "Tín hiệu H1 trong ngày",
-        sub: "Base M15 sau block · P1/P5/P6 đảo · P2/P3/P4 giữ · hậu signal theo cặp/thứ · XAU chỉ tô chu kỳ",
+        sub: "Base M15 · P1/P5 đảo · P6 giữ cây thứ 5 · P2/P3/P4 giữ · hậu signal theo cặp/thứ · XAU chỉ tô chu kỳ",
         awaiting: "Đang chờ feed H1 live",
         locked: "Tín hiệu H1 ngày thường đang khóa VIP",
         weekdayGroup: "Lọc theo thứ",
@@ -374,7 +380,8 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
               return <tr key={base} className={specialCycleRow ? "oak-h1-special-cycle-row" : undefined} data-cycle-rule={specialCycleRow ? specialCycleRule : undefined}><th className="oak-h1-symbol-sticky"><b>{base}</b>{specialCycleRow && <small className="oak-h1-cycle-badge">{cycleBadge}</small>}</th>{data.hours.map((hour) => {
                 const alert = byHour.get(hour);
                 if (!alert?.signal) return <td key={hour}><span className="oak-h1-cell-empty">—</span></td>;
-                return <td key={hour} data-pattern-kind={alert.patternKind}><button className="oak-h1-signal-button" type="button" data-side={alert.signal.toLowerCase()} onClick={() => setSelection({ base, date, alert })}><small className="oak-h1-pattern-badge">P{alert.patternKind.slice(-1)}</small><b>{alert.signal}</b><small className="oak-h1-entry-badge">{alert.entryTime}</small></button></td>;
+                const pattern6Warning = alert.patternKind === "pattern6";
+                return <td key={hour} data-pattern-kind={alert.patternKind}><button className="oak-h1-signal-button" type="button" data-side={alert.signal.toLowerCase()} onClick={() => setSelection({ base, date, alert })}>{pattern6Warning && <small className="oak-h1-pattern6-warning">{locale === "EN" ? "⚠ DECIDE" : "⚠ TỰ QUYẾT"}</small>}<small className="oak-h1-pattern-badge">P{alert.patternKind.slice(-1)}</small><b>{alert.signal}</b><small className="oak-h1-entry-badge">{alert.entryTime}</small></button></td>;
               })}</tr>;
             })}</tbody>
           </table>

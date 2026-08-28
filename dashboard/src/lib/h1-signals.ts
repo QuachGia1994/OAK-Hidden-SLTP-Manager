@@ -47,7 +47,7 @@ export type H1SignalPayload = {
   days: Record<string, H1SignalDay>;
 };
 
-export const H1_SIGNAL_PUBLIC_SCHEMA = 10;
+export const H1_SIGNAL_PUBLIC_SCHEMA = 11;
 const LATEST_KEY = "robot-sltp:public:h1-signals:latest";
 
 function vietnamDateKey(now = new Date()): string {

@@ -262,7 +262,7 @@ export async function POST(request: Request) {
               tp: 0,
               legacyProfile: providerTarget.label,
               executionMode: TELEGRAM_CLOUD_EXECUTION_MODE,
-              strategy: "h1-m15-rule-42",
+              strategy: "h1-m15-rule-43",
               blockHour: alert.slotHour,
               patternKind: alert.patternKind,
             },

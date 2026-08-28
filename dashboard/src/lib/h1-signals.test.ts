@@ -10,8 +10,8 @@ const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.m
 const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
 const mobileH1RouteSource = readFileSync(new URL("../app/api/mobile/h1/route.ts", import.meta.url), "utf8");
 
-test("H1 web feed has independent schema-10 M15 signal-base contract", () => {
-  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 10/);
+test("H1 web feed has independent schema-11 M15 signal-base contract", () => {
+  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 11/);
   assert.match(readerSource, /postSignalInverted/);
   assert.match(readerSource, /postSignalRule/);
   assert.match(readerSource, /entryTime/);
@@ -34,6 +34,10 @@ test("H1 cells render BUY SELL with pattern badges, entry times and no BLOCK pat
   assert.match(boardSource, /\{alert\.entryTime\}/);
   assert.match(redesignCss, /\.oak-h1-pattern-badge \{[^}]*oak-accent/);
   assert.match(redesignCss, /\.oak-h1-entry-badge \{/);
+  assert.match(boardSource, /alert\.patternKind === "pattern6"/);
+  assert.match(boardSource, /oak-h1-pattern6-warning/);
+  assert.match(boardSource, /⚠ DECIDE|⚠ TỰ QUYẾT/);
+  assert.match(redesignCss, /\.oak-h1-pattern6-warning/);
   assert.doesNotMatch(boardSource, /BLOCK|NOT TRADE|blockedSlots|oak-h1-cell-blocked|oak-h1-blocked-cell|⚠ PURE/);
 });
 
@@ -92,7 +96,7 @@ test("H1 detail stays compact with M15 evidence, entry time and XAU cycle labels
   assert.match(boardSource, /baseMinute/);
   assert.match(boardSource, /Giờ entry|Entry time/);
   assert.match(boardSource, /entryOffsetMinutes/);
-  for (const label of ["Pattern 1 · TGG / GTT", "Pattern 2 · TTT / GGG", "Pattern 3 · TGT / GTG", "Pattern 4 · GGT / TTG", "Pattern 5 · 4+ same-direction candles", "Pattern 6 · TGTG / GTGT"]) {
+  for (const label of ["Pattern 1 · TGG / GTT", "Pattern 2 · TTT / GGG", "Pattern 3 · TGT / GTG", "Pattern 4 · GGT / TTG", "Pattern 5 · 4+ same-direction candles", "Pattern 6 · TGTG/GTGT + pair 5–6"]) {
     assert.ok(boardSource.includes(label));
   }
   assert.match(boardSource, /Hậu signal/);
@@ -101,8 +105,8 @@ test("H1 detail stays compact with M15 evidence, entry time and XAU cycle labels
   assert.match(boardSource, /mon-cycle/);
   assert.match(boardSource, /thu-gbpusd/);
   assert.match(boardSource, /tue-audusd/);
-  assert.match(boardSource, /P1\/P5\/P6 reverse/);
-  assert.match(boardSource, /P1\/P5\/P6 đảo/);
+  assert.match(boardSource, /P1\/P5 reverse · P6 keeps candle 5/);
+  assert.match(boardSource, /P1\/P5 đảo · P6 giữ cây thứ 5/);
   assert.doesNotMatch(boardSource, /AllowTrade lookback|BLOCK|sw2|sw3Pure|sw3Normal|audusdH3|mon-block|tue-block|wed-block|invert-pattern|keep-pattern|Logic base|baseInverted/);
   assert.match(vipSource, /redactH1Signals/);
   assert.match(vipSource, /\{ \.\.\.symbol, alerts: \[\] \}/);

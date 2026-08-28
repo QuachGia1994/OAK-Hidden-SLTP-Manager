@@ -6,7 +6,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Added
 
-- Reworked the H1 core as state v48 / public feed schema 10 / signal rule 42. Pattern 6 `TGTG/GTGT` has priority over Pattern 3, inverts the post-block `H:15` base and enters at `H+2:00`. P1/P5 also invert, P2 keeps `H:00` for `H:01`, and P3/P4 keep `H:15` for `H+1:25`. Thursday GBPUSD and Tuesday AUDUSD invert after the pattern result; the XAU special-cycle badge remains visual metadata only. Routing and explicit `/approve ID` safety are unchanged.
+- Reworked the H1 core as state v49 / public feed schema 11 / signal rule 43. Pattern 6 requires six M15 candles with a `TGTG/GTGT` prefix, keeps candle 5 as its base, uses pair 5-6 `TG/GT` for `H+2:00` and `TT/GG` for `H+1:25`, and renders a manual-decision warning in its cell. P1/P5 still invert; P2/P3/P4 and weekday/XAU rules are unchanged. Explicit `/approve ID` remains the broker-mutation boundary.
 
 - Added revocable NeoTech profile share links. Owners can create 30-day read-only links, copy the secret URL once, list active links, revoke one or revoke all, while shared viewers receive live server-authoritative profile updates without workspace access, MT5 credentials, connector tokens, raw trades, ticket IDs or cash amounts. Share secrets stay in the URL fragment and are resolved through a bearer header; the server stores only SHA-256 hashes.
 

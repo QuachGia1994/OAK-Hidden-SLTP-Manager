@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 48;
-export const H1_PUBLIC_SCHEMA = 10;
-export const H1_SIGNAL_RULE_VERSION = 42;
+export const H1_CLOUD_STATE_VERSION = 49;
+export const H1_PUBLIC_SCHEMA = 11;
+export const H1_SIGNAL_RULE_VERSION = 43;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v48";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v49";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -47,6 +47,7 @@ export type H1BlockEvaluation = {
   m15PairInverted: boolean;
   m15Window: string;
   patternKind: H1PatternKind;
+  entryOffsetMinutes: number;
   bars: H1M15Bar[];
 };
 
@@ -73,7 +74,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 48;
+  version: 49;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[] }>>;
@@ -81,8 +82,8 @@ export type H1CloudState = {
 };
 
 export type H1PublicFeed = {
-  schemaVersion: 10;
-  signalRuleVersion: 42;
+  schemaVersion: 11;
+  signalRuleVersion: 43;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -116,14 +117,14 @@ const PATTERN_1_TRIPLES = new Set(["TGG", "GTT"]);
 const PATTERN_2_TRIPLES = new Set(["TTT", "GGG"]);
 const PATTERN_3_TRIPLES = new Set(["TGT", "GTG"]);
 const PATTERN_4_TRIPLES = new Set(["GGT", "TTG"]);
-const PATTERN_6_WINDOWS = new Set(["TGTG", "GTGT"]);
+const PATTERN_6_PREFIXES = new Set(["TGTG", "GTGT"]);
 const PATTERN_LABELS: Record<H1PatternKind, string> = {
   pattern1: "Pattern 1 · TGG/GTT",
   pattern2: "Pattern 2 · TTT/GGG",
   pattern3: "Pattern 3 · TGT/GTG",
   pattern4: "Pattern 4 · GGT/TTG",
   pattern5: "Pattern 5 · 4+ cây cùng hướng",
-  pattern6: "Pattern 6 · TGTG/GTGT",
+  pattern6: "Pattern 6 · TGTG/GTGT + cặp 5-6",
 };
 
 // Entry offsets are measured in minutes from the block hour H:00 (broker time).
@@ -138,7 +139,7 @@ export const H1_PATTERN_ENTRY_OFFSET_MINUTES: Record<H1PatternKind, number> = {
 
 export function classifyH1Pattern(pattern: string): H1PatternKind | null {
   if (pattern.length >= 4 && [...pattern].every((direction) => direction === pattern[0])) return "pattern5";
-  if (PATTERN_6_WINDOWS.has(pattern)) return "pattern6";
+  if (pattern.length === 6 && PATTERN_6_PREFIXES.has(pattern.slice(0, 4))) return "pattern6";
   if (PATTERN_1_TRIPLES.has(pattern)) return "pattern1";
   if (PATTERN_2_TRIPLES.has(pattern)) return "pattern2";
   if (PATTERN_3_TRIPLES.has(pattern)) return "pattern3";
@@ -266,7 +267,7 @@ export function evaluateH1Block(args: {
   const pairBars = M15_PAIR_OFFSETS.map((offset) => byMinute.get(blockMinute - offset));
   if (pairBars.some((bar) => !bar)) return null;
   const pairDirections = pairBars.map((bar) => bar!.direction);
-  const m15Pair = pairDirections.join("");
+  let m15Pair = pairDirections.join("");
   const groupA = pairDirections[0] !== pairDirections[1];
 
   const windowOffsets = groupA ? M15_WINDOW_GROUP_A_OFFSETS : M15_WINDOW_GROUP_B_OFFSETS;
@@ -293,24 +294,30 @@ export function evaluateH1Block(args: {
       patternKind = classifyH1Pattern(windowText)!;
     }
   } else {
-    const olderBar = byMinute.get(blockMinute - windowOffsets[2] - 15);
-    const extendedWindow = olderBar ? windowText + olderBar.direction : windowText;
-    if (classifyH1Pattern(extendedWindow) === "pattern6") {
+    const olderWindowBars = [1, 2, 3].map((step) => byMinute.get(blockMinute - windowOffsets[2] - step * 15));
+    const pattern6Bars = olderWindowBars.every(Boolean)
+      ? [...selectedWindowBars, ...olderWindowBars.map((bar) => bar!)]
+      : [];
+    const pattern6Window = pattern6Bars.map((bar) => bar.direction).join("");
+    if (classifyH1Pattern(pattern6Window) === "pattern6") {
       patternKind = "pattern6";
-      m15Window = extendedWindow;
-      selectedWindowBars = [...selectedWindowBars, olderBar!];
+      m15Window = pattern6Window;
+      selectedWindowBars = pattern6Bars;
+      m15Pair = pattern6Window.slice(4, 6);
     } else {
       patternKind = classifyH1Pattern(windowText)!;
     }
   }
 
+  // P6 uses candle 5 of its six-candle window as the signal base. P2 uses
+  // the live H:00 bar; other patterns use the post-block H:15 candle.
+  const pattern6BaseBar = patternKind === "pattern6" ? selectedWindowBars[4] : null;
   const signalBaseMinute = patternKind === "pattern2" ? blockMinute : blockMinute + 15;
-  // Pattern 2 is sampled from the live H:00 bar so its approval intent can
-  // be announced before the H:01 due time. Other patterns wait until the
-  // post-block H:15 candle has closed at H:30.
-  const signalReadyMinute = patternKind === "pattern2" ? blockMinute : blockMinute + 30;
+  const signalReadyMinute = patternKind === "pattern2" || patternKind === "pattern6"
+    ? blockMinute
+    : blockMinute + 30;
   const availableThroughMinute = args.availableThroughMinute ?? Number.POSITIVE_INFINITY;
-  const baseBar = byMinute.get(signalBaseMinute);
+  const baseBar = pattern6BaseBar || byMinute.get(signalBaseMinute);
   if (!baseBar || baseBar.flat || availableThroughMinute < signalReadyMinute) return null;
 
   const considered = new Map<number, H1M15Bar>();
@@ -318,8 +325,11 @@ export function evaluateH1Block(args: {
   const bars = [...considered.values()].sort((left, right) => right.minuteOfDay - left.minuteOfDay);
 
   const baseDirection = baseBar.direction;
-  const m15PairInverted = patternKind === "pattern1" || patternKind === "pattern5" || patternKind === "pattern6";
+  const m15PairInverted = patternKind === "pattern1" || patternKind === "pattern5";
   const refinedDirection: H1Direction = m15PairInverted ? (baseDirection === "T" ? "G" : "T") : baseDirection;
+  const entryOffsetMinutes = patternKind === "pattern6" && (m15Pair === "TT" || m15Pair === "GG")
+    ? 85
+    : H1_PATTERN_ENTRY_OFFSET_MINUTES[patternKind];
 
   return {
     slotHour: args.slotHour,
@@ -330,6 +340,7 @@ export function evaluateH1Block(args: {
     m15PairInverted,
     m15Window,
     patternKind,
+    entryOffsetMinutes,
     bars,
   };
 }
@@ -361,7 +372,7 @@ export function buildStoredAlert(args: {
   const refinedSignal = evaluation.m15PairInverted ? invertSignal(baseSignal) : baseSignal;
   const cycle = cycleDecisionFor(args.base, evaluation.baseBar.brokerDate);
   const finalSignal = cycle.inverted ? invertSignal(refinedSignal) : refinedSignal;
-  const entryOffsetMinutes = H1_PATTERN_ENTRY_OFFSET_MINUTES[evaluation.patternKind];
+  const entryOffsetMinutes = evaluation.entryOffsetMinutes;
   return {
     slotHour: evaluation.slotHour,
     pattern: evaluation.m15Window.split("").join(" "),
@@ -399,6 +410,9 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
     "tue-audusd": "đảo AUDUSD Thứ 3",
   };
   const patternVerdict = alert.m15PairInverted ? "đảo base M15" : "giữ base M15";
+  const pairEvidence = alert.patternKind === "pattern6"
+    ? `• Cặp M15 cây 5-6 (mới→cũ): ${alert.m15Pair} · quyết định giờ entry`
+    : `• M15 cặp trước block (mới→cũ): ${alert.m15Pair.replaceAll(" ", "")} · chỉ chọn cửa sổ pattern`;
   const cycleLine = alert.postSignalRule === "none"
     ? null
     : `• Hậu signal: ${postSignalLabels[alert.postSignalRule]}`;
@@ -409,7 +423,7 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
     `• Ngày broker: ${brokerDate}`,
     `• Mốc block: H${String(alert.slotHour).padStart(2, "0")} · Entry: ${alert.entryTime} (+${alert.entryOffsetMinutes}p)`,
     `• Base signal M15: ${evaluationBaseLabel(alert)}=${alert.baseDirection} → ${alert.baseH1Signal}`,
-    `• M15 cặp trước block (mới→cũ): ${alert.m15Pair.replaceAll(" ", "")} · chỉ chọn cửa sổ pattern`,
+    pairEvidence,
     `• Cửa sổ pattern (mới→cũ): ${alert.m15Window.split("").join(" ")} · ${PATTERN_LABELS[alert.patternKind]} → ${patternVerdict}`,
   ];
   if (cycleLine) rows.push(cycleLine);
