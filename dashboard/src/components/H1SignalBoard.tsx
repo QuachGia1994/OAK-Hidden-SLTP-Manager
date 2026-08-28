@@ -15,6 +15,7 @@ const H1_SHARE_SYMBOL_WIDTH = 172;
 const H1_SHARE_HOUR_WIDTH = 88;
 const H1_SHARE_ROW_HEIGHT = 82;
 const H1_SHARE_FONT = '"Cascadia Mono", "SFMono-Regular", Consolas, monospace';
+const VIP_SIGNAL_SYMBOL = "XAUUSD";
 
 function canvasPngBlob(canvas: HTMLCanvasElement) {
   return new Promise<Blob>((resolve, reject) => {
@@ -252,7 +253,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
         title: "H1 Block Schedule",
         sub: "Pattern entry · H1 candle one hour before entry · six-block weekday phases",
         awaiting: "Awaiting H1 live feed",
-        locked: "VIP weekday H1 blocks are locked",
+        locked: "XAUUSD BUY/SELL signals require VIP · FX remains free",
         dateGroup: "Broker date",
         noMatch: "No retained broker dates available.",
         coverage: `${allDates.length} trading days · ${earliestDate || "—"} → ${latestDate || "—"}`,
@@ -261,7 +262,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
         title: "Lịch block H1 trong ngày",
         sub: "Entry theo pattern · lấy cây H1 trước entry một giờ · hậu signal theo 6 block/thứ",
         awaiting: "Đang chờ feed H1 live",
-        locked: "Block H1 ngày thường đang khóa VIP",
+        locked: "Tín hiệu BUY/SELL XAUUSD cần VIP · các cặp FX vẫn free",
         dateGroup: "Ngày broker",
         noMatch: "Không có ngày broker trong khoảng lưu trữ.",
         coverage: `${allDates.length} ngày giao dịch · ${earliestDate || "—"} → ${latestDate || "—"}`,
@@ -350,7 +351,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
           </div>
           <p className="oak-h1-history-coverage">{copy.coverage}</p>
         </div>
-        {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : !unlocked ? <div className="oak-h1-locked-preview"><span className="oak-h1-locked-preview-icon">◈</span><div><b>{locale === "EN" ? "H1 blocks hidden behind VIP" : "Block H1 đang ẩn sau VIP"}</b><p>{locale === "EN" ? "Use the VIP control above to reveal H1 blocks, entry times and post-signal rules." : "Dùng nút Mở VIP phía trên để xem block H1, entry time và hậu signal."}</p></div></div> : <div className="oak-h1-table-scroll lux-scroll">
+        {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : <div className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
             <thead><tr><th className="oak-h1-symbol-sticky">SYMBOL</th>{data.hours.map((hour) => {
               const postSignalInverted = cycleDecisionFor("XAUUSD", date, hour).inverted;
@@ -361,6 +362,9 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
               const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
               return <tr key={base}><th className="oak-h1-symbol-sticky"><b>{base}</b></th>{data.hours.map((hour) => {
                 const postSignalInverted = cycleDecisionFor("XAUUSD", date, hour).inverted;
+                if (base.toUpperCase() === VIP_SIGNAL_SYMBOL && !unlocked) {
+                  return <td key={hour} data-post-signal-inverted={postSignalInverted ? "true" : undefined}><span className="oak-h1-cell-locked">VIP</span></td>;
+                }
                 const alert = byHour.get(hour);
                 if (!alert?.scheduledSignal) return <td key={hour} data-post-signal-inverted={postSignalInverted ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>;
                 const side = alert.scheduledSignal;

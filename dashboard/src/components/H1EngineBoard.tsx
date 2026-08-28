@@ -76,12 +76,12 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
   };
 
   const modeCopy = access.mode === "free"
-    ? { title: isEn ? "FREE ACCESS" : "FREE ACCESS", detail: isEn ? "H1 block prep is open for everyone" : "Đã mở block H1 miễn phí cho mọi user", action: "" }
+    ? { title: isEn ? "FREE ACCESS" : "FREE ACCESS", detail: isEn ? "FX BUY/SELL is open for everyone" : "BUY/SELL các cặp FX mở cho mọi user", action: "" }
     : access.mode === "vip"
-      ? { title: "VIP UNLOCKED", detail: isEn ? "Weekday H1 block prep active" : "Đã mở chuẩn bị block H1 ngày thường", action: isEn ? "Exit VIP" : "Thoát VIP" }
+      ? { title: "VIP UNLOCKED", detail: isEn ? "XAUUSD BUY/SELL signals unlocked" : "Đã mở BUY/SELL XAUUSD", action: isEn ? "Exit VIP" : "Thoát VIP" }
       : access.mode === "weekend"
-        ? { title: isEn ? "FREE WEEKEND" : "CUỐI TUẦN FREE", detail: isEn ? "Weekend H1 blocks are open" : "Block H1 cuối tuần đang mở", action: "" }
-        : { title: "VIP LOCKED", detail: isEn ? "Weekday H1 blocks are masked" : "Block H1 ngày thường đang ẩn", action: isEn ? "Unlock" : "Mở VIP" };
+        ? { title: isEn ? "FREE WEEKEND" : "CUỐI TUẦN FREE", detail: isEn ? "Weekend XAUUSD BUY/SELL is open" : "BUY/SELL XAUUSD cuối tuần đang mở", action: "" }
+        : { title: "VIP LOCKED", detail: isEn ? "XAUUSD BUY/SELL signals require VIP" : "BUY/SELL XAUUSD cần VIP", action: isEn ? "Unlock" : "Mở VIP" };
 
   return <>
     <section className="oak-access-panel" data-mode={access.mode}>
@@ -94,7 +94,7 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
     {!open && error && <p className="oak-form-error" role="alert">{error}</p>}
     {open && <div className="oak-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
       <section ref={dialogRef} className="oak-vip-modal" role="dialog" aria-modal="true" aria-label="VIP Unlock">
-        <header className="oak-modal-header"><div><span className="oak-eyebrow">PRIVATE ACCESS</span><h2>VIP UNLOCK</h2><p>{isEn ? "Enter your access code to reveal weekday H1 blocks." : "Nhập mã truy cập để mở block H1 ngày thường."}</p></div><button type="button" onClick={() => setOpen(false)} aria-label="Close">×</button></header>
+        <header className="oak-modal-header"><div><span className="oak-eyebrow">PRIVATE ACCESS</span><h2>VIP UNLOCK</h2><p>{isEn ? "Enter your access code to reveal XAUUSD BUY/SELL signals." : "Nhập mã truy cập để mở BUY/SELL XAUUSD."}</p></div><button type="button" onClick={() => setOpen(false)} aria-label="Close">×</button></header>
         <label className="oak-vip-field"><span>{isEn ? "ACCESS CODE" : "MÃ VIP"}</span><input type="password" value={token} onChange={(event) => setToken(event.target.value)} onKeyDown={(event) => event.key === "Enter" && void unlock()} autoFocus autoComplete="current-password" /></label>
         {error && <p className="oak-form-error">{error}</p>}
         <button className="oak-primary-action" type="button" disabled={loading || !token.trim()} onClick={() => void unlock()}>{loading ? (isEn ? "UNLOCKING" : "ĐANG MỞ") : "UNLOCK BLOCKS"}</button>

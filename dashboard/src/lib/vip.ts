@@ -5,8 +5,9 @@ import type { H1SignalPayload } from "@/lib/h1-signals";
 
 export const VIP_COOKIE = "sltp_vip_access";
 const VIP_PURPOSE = "oakgatekeeper-vip-v1";
-// Temporary product-wide preview: every visitor can inspect H1 preparation blocks.
-export const VIP_FREE_ACCESS = true;
+// XAUUSD signal sides are VIP-only. FX signal sides remain public/free.
+export const VIP_FREE_ACCESS = false;
+export const VIP_SIGNAL_SYMBOL = "XAUUSD";
 
 export type VipAccessState = {
   unlocked: boolean;
@@ -71,7 +72,7 @@ export function redactH1Signals(payload: H1SignalPayload | null): H1SignalPayloa
       {
         symbols: Object.fromEntries(Object.entries(day.symbols).map(([base, symbol]) => [
           base,
-          { ...symbol, alerts: [] },
+          base.toUpperCase() === VIP_SIGNAL_SYMBOL ? { ...symbol, alerts: [] } : symbol,
         ])),
       },
     ])),

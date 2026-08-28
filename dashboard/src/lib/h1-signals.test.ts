@@ -56,11 +56,15 @@ test("H1 board omits the separate Entry Focus panel", () => {
   assert.doesNotMatch(redesignCss, /\.oak-entry-focus/);
 });
 
-test("temporary free VIP exposes H1 blocks to every visitor", () => {
-  assert.match(vipSource, /VIP_FREE_ACCESS = true/);
+test("XAUUSD signal sides are VIP-only while FX remains free", () => {
+  assert.match(vipSource, /VIP_FREE_ACCESS = false/);
+  assert.match(vipSource, /VIP_SIGNAL_SYMBOL = "XAUUSD"/);
+  assert.match(vipSource, /base\.toUpperCase\(\) === VIP_SIGNAL_SYMBOL/);
   assert.match(vipSource, /const unlocked = freeAccess \|\| weekendFree \|\| vipAuthenticated/);
   assert.match(vipSource, /mode: freeAccess \? "free"/);
-  assert.match(engineBoardSource, /FREE ACCESS/);
+  assert.match(boardSource, /VIP_SIGNAL_SYMBOL/);
+  assert.match(boardSource, /oak-h1-cell-locked/);
+  assert.match(engineBoardSource, /XAUUSD BUY\/SELL/);
   assert.match(engineBoardSource, /freeAccess: boolean/);
 });
 
@@ -99,7 +103,7 @@ test("engine web surface is H1-only with the compact command header", () => {
   assert.doesNotMatch(enginePageSource, /getLatestPattern5|filterActivePattern5|maskFuturePattern5|redactPattern5Signals/);
   assert.doesNotMatch(engineBoardSource, /Pattern5Payload|Pattern5Table|ENGINE 05|Pattern Matrix|Trạng thái tín hiệu hiện tại|<small>PROFILE<\/small>|h1Data\?\.profile/);
   assert.match(engineBoardSource, /TRADING \/ H1 CLOUD/);
-  assert.doesNotMatch(engineBoardSource, /BUY\/SELL|UNLOCK SIGNALS/);
+  assert.doesNotMatch(engineBoardSource, /UNLOCK SIGNALS/);
 });
 
 test("H1 board exports the selected scanner day as a shareable PNG with download fallback", () => {
@@ -141,5 +145,6 @@ test("H1 detail shows authoritative entry H1 candle evidence while preserving pa
   assert.match(boardSource, /lấy cây H1 trước entry một giờ/);
   assert.doesNotMatch(boardSource, /xau-cycle|thu-gbpusd|tue-audusd|AllowTrade lookback|NOT TRADE|sw2|sw3Pure|sw3Normal|audusdH3|mon-block|tue-block|wed-block|invert-pattern|keep-pattern|Logic base|baseInverted/);
   assert.match(vipSource, /redactH1Signals/);
-  assert.match(vipSource, /\{ \.\.\.symbol, alerts: \[\] \}/);
+  assert.match(vipSource, /base\.toUpperCase\(\) === VIP_SIGNAL_SYMBOL/);
+  assert.match(vipSource, /alerts: \[\]/);
 });
