@@ -10,13 +10,17 @@ const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.m
 const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
 const mobileH1RouteSource = readFileSync(new URL("../app/api/mobile/h1/route.ts", import.meta.url), "utf8");
 
-test("H1 web feed has independent schema-14 XAU cycle-phase contract", () => {
-  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 14/);
+test("H1 web feed has schema-15 M5 Bollinger and net weekday contract", () => {
+  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 15/);
   assert.match(readerSource, /postSignalInverted/);
   assert.match(readerSource, /postSignalRule/);
   assert.match(readerSource, /entryTime/);
   assert.match(readerSource, /m15Pair/);
   assert.match(readerSource, /baseMinute/);
+  assert.match(readerSource, /m5Open/);
+  assert.match(readerSource, /m5Middle/);
+  assert.match(readerSource, /m5Position/);
+  assert.match(readerSource, /m5WindowCount/);
   assert.match(readerSource, /robot-sltp:public:h1-signals:latest/);
   assert.match(readerSource, /payload\.schemaVersion !== H1_SIGNAL_PUBLIC_SCHEMA/);
   assert.match(readerSource, /maskFutureH1Signals\(parsePayload/);
@@ -41,11 +45,11 @@ test("H1 cells render BUY SELL with pattern badges, entry times and no BLOCK pat
   assert.doesNotMatch(boardSource, /BLOCK|NOT TRADE|blockedSlots|oak-h1-cell-blocked|oak-h1-blocked-cell|⚠ PURE/);
 });
 
-test("post-signal reversal highlights only the XAUUSD row on inverted XAU dates", () => {
-  assert.match(boardSource, /xauPostSignalDecisionForDay/);
-  assert.match(boardSource, /base === "XAUUSD"/);
+test("net post-signal reversal highlights each inverted symbol row", () => {
+  assert.match(boardSource, /postSignalDecisionForSymbol/);
+  assert.match(boardSource, /day\?\.symbols\?\.\[base\]/);
   assert.match(boardSource, /postSignalInverted/);
-  assert.doesNotMatch(boardSource, /base === "USDCAD"/);
+  assert.doesNotMatch(boardSource, /base === "XAUUSD"/);
   assert.match(boardSource, /oak-h1-post-invert-row/);
   assert.match(boardSource, /data-post-signal-rule/);
   assert.match(boardSource, /HẬU ĐẢO|POST REVERSE/);
@@ -83,34 +87,30 @@ test("H1 board exports the selected scanner day as a shareable PNG with download
   assert.match(redesignCss, /\.oak-h1-share-png \{/);
 });
 
-test("H1 detail stays compact with M15 evidence, entry time and XAU cycle labels", () => {
+test("H1 detail shows authoritative M5 Bollinger evidence while preserving pattern and entry metadata", () => {
   assert.doesNotMatch(boardSource, /<small>SYMBOL<\/small>|<small>PROFILE<\/small>|<small>SCAN<\/small>|SCANNER PATTERN|PATTERN SCANNER|Nguồn scanner|Pattern source/);
-  assert.match(boardSource, /Entry-relative M15 base/);
-  assert.match(boardSource, /Base M15 trước entry/);
-  assert.match(boardSource, /Entry signal pair/);
-  assert.match(boardSource, /Cặp signal trước entry/);
+  assert.match(boardSource, /Entry M5 Bollinger base/);
+  assert.match(boardSource, /Base Bollinger M5 tại entry/);
+  assert.match(boardSource, /m5Open/);
+  assert.match(boardSource, /m5Middle/);
+  assert.match(boardSource, /m5Position/);
+  assert.match(boardSource, /pattern\/entry evidence only|chỉ là bằng chứng pattern\/entry/);
   assert.match(boardSource, /patternPair/);
   assert.match(boardSource, /Nhóm pattern/);
   assert.match(boardSource, /Cặp chọn pattern/);
-  assert.match(boardSource, /m15PairInverted/);
-  assert.match(boardSource, /different directions, reverse candle 1|khác hướng, đảo cây 1/);
-  assert.match(boardSource, /same direction, keep candle 1|cùng hướng, giữ cây 1/);
-  assert.match(boardSource, /baseMinute/);
   assert.match(boardSource, /Giờ entry|Entry time/);
   assert.match(boardSource, /entryOffsetMinutes/);
   for (const label of ["Pattern 1 · TGG / GTT", "Pattern 2 · TTT / GGG", "Pattern 3 · TGT / GTG", "Pattern 4 · GGT / TTG", "Pattern 5 · 4+ same-direction candles", "Pattern 6 · TGTG/GTGT + pair 5–6"]) {
     assert.ok(boardSource.includes(label));
   }
   assert.match(boardSource, /Hậu signal/);
-  assert.match(boardSource, /xau-cycle-invert/);
-  assert.match(boardSource, /xau-cycle-keep/);
-  assert.match(boardSource, /xau-regular-invert/);
-  assert.match(boardSource, /xau-regular-keep/);
-  assert.match(boardSource, /thu-gbpusd/);
-  assert.match(boardSource, /tue-audusd/);
-  assert.match(boardSource, /Entry :00\/:25 · same M15 pair keeps candle 1 · alternating pair reverses candle 1/);
-  assert.match(boardSource, /Entry :00\/:25 · cặp M15 cùng hướng giữ cây 1 · khác hướng đảo cây 1/);
-  assert.doesNotMatch(boardSource, /AllowTrade lookback|BLOCK|sw2|sw3Pure|sw3Normal|audusdH3|mon-block|tue-block|wed-block|invert-pattern|keep-pattern|Logic base|baseInverted/);
+  assert.match(boardSource, /cycle-net-invert/);
+  assert.match(boardSource, /cycle-net-keep/);
+  assert.match(boardSource, /regular-net-invert/);
+  assert.match(boardSource, /regular-net-keep/);
+  assert.match(boardSource, /M5 Open vs Middle\(20\)/);
+  assert.match(boardSource, /M5 Open so với Middle\(20\)/);
+  assert.doesNotMatch(boardSource, /xau-cycle|thu-gbpusd|tue-audusd|AllowTrade lookback|BLOCK|sw2|sw3Pure|sw3Normal|audusdH3|mon-block|tue-block|wed-block|invert-pattern|keep-pattern|Logic base|baseInverted/);
   assert.match(vipSource, /redactH1Signals/);
   assert.match(vipSource, /\{ \.\.\.symbol, alerts: \[\] \}/);
 });

@@ -68,7 +68,7 @@ test("missing automation account never blocks signal persistence or the public t
   assert.match(route, /automationSkippedReason/);
   assert.doesNotMatch(route, /H1 scheduled intents require Telegram control and the enabled scanner cTrader account/);
   assert.ok(route.indexOf("if (automationReady)") < route.indexOf("symbolState.alerts.push(alert)"));
-  assert.match(route, /strategy: "h1-m15-rule-46"/);
+  assert.match(route, /strategy: "h1-m5-bollinger-rule-47"/);
 });
 
 test("cTrader cloud scanner remains read-only even when shared OAuth has trading scope", () => {
@@ -76,7 +76,9 @@ test("cTrader cloud scanner remains read-only even when shared OAuth has trading
   assert.match(client, /GET_TRENDBARS_REQ: 2137/);
   assert.match(client, /period: H1_PERIOD/);
   assert.match(client, /period: M15_PERIOD/);
+  assert.match(client, /period: M5_PERIOD/);
   assert.match(client, /normalizeM15Trendbars/);
+  assert.match(client, /normalizeM5Trendbars/);
   assert.match(client, /fetchCurrentBrokerDayMarket/);
   assert.match(client, /session\.scope !== "accounts" && session\.scope !== "trading"/);
   assert.doesNotMatch(route, /placeCTraderMarketOrder|closeCTraderPositions|amendCTraderPositionProtection|NEW_ORDER_REQ|CLOSE_POSITION_REQ/);
@@ -95,6 +97,7 @@ test("live route scans H3 H4 H6 H9 H12 H14 H16 and keeps entry refinements alive
   assert.match(route, /targetsForBlockHour\(brokerHour\)\.every/);
   assert.match(route, /for \(const base of H1_TARGET_BASES\)/);
   assert.match(route, /m15Counts/);
+  assert.match(route, /m5Counts/);
   assert.match(route, /brokerUtcOffsetHours/);
   assert.doesNotMatch(route, /audusdH3|baseSymbolForTargetSlot|scannerBaseForTarget/i);
 });
@@ -127,8 +130,12 @@ test("historical cTrader H1 reads are sequential, throttled and bounded with has
   assert.match(client, /trendPayload\.hasMore !== true/);
   assert.match(client, /await throttle\(\)/);
   assert.match(client, /m15Complete/);
-  assert.match(backfillRoute, /deadlineMs: startedAt \+ 45_000/);
+  assert.match(client, /m5Complete/);
+  assert.match(backfillRoute, /deadlineMs: startedAt \+ 150_000/);
   assert.match(backfillRoute, /m15HistoryComplete/);
+  assert.match(backfillRoute, /m5HistoryComplete/);
+  assert.match(backfillRoute, /providerM5RequestCount/);
+  assert.match(workflow, /--max-time 200/);
   assert.doesNotMatch(client, /Promise\.all\([^)]*GET_TRENDBARS_REQ/);
 });
 
@@ -188,6 +195,8 @@ test("GitHub scheduler is tertiary fallback for H:00, H:01, H:15 and H:30 phases
   assert.match(route, /marketReadyForSlot/);
   assert.match(route, /expectedClosedM15Minute/);
   assert.match(route, /market\.symbols\[base\]\.m15Bars/);
+  assert.match(route, /market\.symbols\[base\]\.m5Bars/);
+  assert.match(route, /expectedEntryMinute/);
   assert.match(route, /brokerMinute/);
   assert.match(route, /awaiting-closed-h1/);
   assert.match(route, /after-last-signal/);

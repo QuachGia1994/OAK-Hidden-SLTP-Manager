@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 52;
-export const H1_PUBLIC_SCHEMA = 14;
-export const H1_SIGNAL_RULE_VERSION = 46;
+export const H1_CLOUD_STATE_VERSION = 53;
+export const H1_PUBLIC_SCHEMA = 15;
+export const H1_SIGNAL_RULE_VERSION = 47;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v52";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v53";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -22,7 +22,7 @@ export type H1Base = typeof H1_ALL_BASES[number];
 export type H1Direction = "T" | "G";
 export type H1Signal = "BUY" | "SELL";
 export type H1PatternKind = "pattern1" | "pattern2" | "pattern3" | "pattern4" | "pattern5" | "pattern6";
-export type H1PostSignalRule = "none" | "xau-cycle-invert" | "xau-cycle-keep" | "xau-regular-invert" | "xau-regular-keep" | "thu-gbpusd" | "tue-audusd";
+export type H1PostSignalRule = "none" | "cycle-net-invert" | "cycle-net-keep" | "regular-net-invert" | "regular-net-keep";
 
 export type H1DirectionBar = {
   hour: number;
@@ -37,6 +37,14 @@ export type H1M15Bar = {
   minuteOfDay: number;
   direction: H1Direction;
   flat?: boolean;
+};
+
+export type H1M5Bar = {
+  brokerDate: string;
+  brokerTime: string;
+  minuteOfDay: number;
+  open: number;
+  close: number;
 };
 
 export type H1BlockEvaluation = {
@@ -65,6 +73,10 @@ export type H1StoredAlert = {
   baseHour: number;
   baseMinute: number;
   baseDirection: H1Direction;
+  m5Open: number;
+  m5Middle: number;
+  m5Position: "above" | "below";
+  m5WindowCount: 20;
   patternPair: string;
   m15Pair: string;
   m15PairInverted: boolean;
@@ -77,7 +89,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 52;
+  version: 53;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[] }>>;
@@ -85,8 +97,8 @@ export type H1CloudState = {
 };
 
 export type H1PublicFeed = {
-  schemaVersion: 14;
-  signalRuleVersion: 46;
+  schemaVersion: 15;
+  signalRuleVersion: 47;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -104,6 +116,10 @@ export type H1PublicFeed = {
       baseHour: number | null;
       baseMinute: number | null;
       baseDirection: H1Direction | "";
+      m5Open: number;
+      m5Middle: number;
+      m5Position: "above" | "below";
+      m5WindowCount: 20;
       patternPair: string;
       m15Pair: string;
       m15PairInverted: boolean;
@@ -165,6 +181,42 @@ function invertSignal(signal: H1Signal): H1Signal {
   return signal === "BUY" ? "SELL" : "BUY";
 }
 
+export type H1M5BollingerEntry = {
+  baseSignal: H1Signal;
+  open: number;
+  middle: number;
+  position: "above" | "below";
+  windowCount: 20;
+};
+
+export function evaluateM5BollingerEntry(
+  base: H1TargetBase,
+  brokerDate: string,
+  entryTime: string,
+  m5Bars: H1M5Bar[],
+): H1M5BollingerEntry | null {
+  if (!/^\d{2}:\d{2}$/.test(entryTime)) return null;
+  const [hour, minute] = entryTime.split(":").map(Number);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || minute % 5 !== 0) return null;
+  const entryMinute = hour * 60 + minute;
+  const byMinute = new Map(
+    m5Bars
+      .filter((bar) => bar.brokerDate === brokerDate)
+      .map((bar) => [bar.minuteOfDay, bar]),
+  );
+  const current = byMinute.get(entryMinute);
+  if (!current || !Number.isFinite(current.open)) return null;
+  const prior = Array.from({ length: 19 }, (_, index) => byMinute.get(entryMinute - (index + 1) * 5));
+  if (prior.some((bar) => !bar || !Number.isFinite(bar.close))) return null;
+  const values = [current.open, ...prior.map((bar) => bar!.close)];
+  const middle = values.reduce((sum, value) => sum + value, 0) / 20;
+  if (!Number.isFinite(middle) || current.open === middle) return null;
+  const position = current.open > middle ? "above" as const : "below" as const;
+  const buysAbove = base === "XAUUSD" || base === "AUDUSD";
+  const baseSignal: H1Signal = (position === "above") === buysAbove ? "BUY" : "SELL";
+  return { baseSignal, open: current.open, middle, position, windowCount: 20 };
+}
+
 export function entryTimeFor(slotHour: number, offsetMinutes: number): string {
   const total = (((slotHour * 60 + offsetMinutes) % 1440) + 1440) % 1440;
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
@@ -181,12 +233,12 @@ export function brokerEntryDueAt(brokerDate: string, entryTime: string, brokerUt
 }
 
 // ---------------------------------------------------------------------------
-// XAUUSD-only monthly post-signal phase.
+// All-symbol monthly post-signal phase.
 //
-// The first Thursday of each calendar month anchors the phase for every week
-// in that month. A cycle-first-Thursday month reverses Fri/Tue and keeps
-// Thu/Mon/Wed. A regular-first-Thursday month reverses Thu/Mon/Wed and keeps
-// Fri/Tue. Weekends have no XAU post-signal rule.
+// The first Thursday of each calendar month anchors the phase for every week.
+// A cycle month reverses Fri/Tue; a regular month reverses Thu/Mon/Wed.
+// AUDUSD Tuesday and GBPUSD Thursday each add one XOR toggle. Weekends have
+// no post-signal rule.
 // ---------------------------------------------------------------------------
 const SPECIAL_FIRST_FRIDAY_DAYS = new Set([3, 4, 7]);
 const MONTH_BOUNDARY_WEDNESDAY_DAYS = new Set([30, 1]);
@@ -221,33 +273,33 @@ function firstThursdayBrokerDate(brokerDate: string): string {
   throw new Error("calendar month has no Thursday");
 }
 
-export function isXauCycleMonth(brokerDate: string): boolean {
+export function isCycleMonth(brokerDate: string): boolean {
   return isSpecialThursdayBrokerDate(firstThursdayBrokerDate(brokerDate));
 }
 
-const XAU_CYCLE_INVERT_WEEKDAYS = new Set([2, 5]);
-const XAU_REGULAR_INVERT_WEEKDAYS = new Set([1, 3, 4]);
+const CYCLE_INVERT_WEEKDAYS = new Set([2, 5]);
+const REGULAR_INVERT_WEEKDAYS = new Set([1, 3, 4]);
 
 export function cycleDecisionFor(base: H1TargetBase, brokerDate: string): { inverted: boolean; rule: H1PostSignalRule } {
   const none = { inverted: false, rule: "none" as H1PostSignalRule };
   const weekday = parseBrokerDateKeyUtc(brokerDate).getUTCDay();
-  if (base === "GBPUSD" && weekday === 4) return { inverted: true, rule: "thu-gbpusd" };
-  if (base === "AUDUSD" && weekday === 2) return { inverted: true, rule: "tue-audusd" };
-  if (base !== "XAUUSD" || weekday === 0 || weekday === 6) return none;
+  if (weekday === 0 || weekday === 6) return none;
 
-  const cycleMonth = isXauCycleMonth(brokerDate);
-  const inverted = (cycleMonth ? XAU_CYCLE_INVERT_WEEKDAYS : XAU_REGULAR_INVERT_WEEKDAYS).has(weekday);
+  const cycleMonth = isCycleMonth(brokerDate);
+  const phaseInverted = (cycleMonth ? CYCLE_INVERT_WEEKDAYS : REGULAR_INVERT_WEEKDAYS).has(weekday);
+  const symbolDayInverted = (base === "AUDUSD" && weekday === 2) || (base === "GBPUSD" && weekday === 4);
+  const inverted = phaseInverted !== symbolDayInverted;
   return {
     inverted,
     rule: cycleMonth
-      ? (inverted ? "xau-cycle-invert" : "xau-cycle-keep")
-      : (inverted ? "xau-regular-invert" : "xau-regular-keep"),
+      ? (inverted ? "cycle-net-invert" : "cycle-net-keep")
+      : (inverted ? "regular-net-invert" : "regular-net-keep"),
   };
 }
 
 // ---------------------------------------------------------------------------
-// Block evaluation: own-symbol H1 base refined by the M15 pair, then the M15
-// pattern window decides the entry offset. Missing candles skip the block.
+// Block evaluation: M15 windows classify patterns and entry offsets only.
+// Exact entry M5 Bollinger evidence determines signal direction later.
 // ---------------------------------------------------------------------------
 const M15_PAIR_OFFSETS = [15, 30] as const;
 const M15_WINDOW_GROUP_A_OFFSETS = [45, 60, 75] as const;
@@ -393,13 +445,16 @@ export function buildStoredAlert(args: {
   base: H1TargetBase;
   brokerSymbol: string;
   evaluation: H1BlockEvaluation;
-}): H1StoredAlert {
+  m5Bars: H1M5Bar[];
+}): H1StoredAlert | null {
   const { evaluation } = args;
-  const baseSignal = signalFromDirection(evaluation.baseDirection);
-  const refinedSignal = evaluation.m15PairInverted ? invertSignal(baseSignal) : baseSignal;
-  const cycle = cycleDecisionFor(args.base, evaluation.baseBar.brokerDate);
-  const finalSignal = cycle.inverted ? invertSignal(refinedSignal) : refinedSignal;
   const entryOffsetMinutes = evaluation.entryOffsetMinutes;
+  const entryTime = entryTimeFor(evaluation.slotHour, entryOffsetMinutes);
+  const m5 = evaluateM5BollingerEntry(args.base, evaluation.baseBar.brokerDate, entryTime, args.m5Bars);
+  if (!m5) return null;
+  const cycle = cycleDecisionFor(args.base, evaluation.baseBar.brokerDate);
+  const finalSignal = cycle.inverted ? invertSignal(m5.baseSignal) : m5.baseSignal;
+  const [baseHour, baseMinute] = entryTime.split(":").map(Number);
   return {
     slotHour: evaluation.slotHour,
     pattern: evaluation.m15Window.split("").join(" "),
@@ -408,16 +463,20 @@ export function buildStoredAlert(args: {
     symbol: args.brokerSymbol,
     profile: H1_CLOUD_PROFILE,
     baseSymbol: args.base,
-    baseH1Signal: baseSignal,
-    baseHour: Math.floor(evaluation.baseBar.minuteOfDay / 60),
-    baseMinute: evaluation.baseBar.minuteOfDay % 60,
+    baseH1Signal: m5.baseSignal,
+    baseHour,
+    baseMinute,
     baseDirection: evaluation.baseDirection,
+    m5Open: m5.open,
+    m5Middle: m5.middle,
+    m5Position: m5.position,
+    m5WindowCount: m5.windowCount,
     patternPair: evaluation.patternPair,
     m15Pair: evaluation.m15Pair,
     m15PairInverted: evaluation.m15PairInverted,
     m15Window: evaluation.m15Window,
     entryOffsetMinutes,
-    entryTime: entryTimeFor(evaluation.slotHour, entryOffsetMinutes),
+    entryTime,
     symbolH1Signal: finalSignal,
     postSignalInverted: cycle.inverted,
     postSignalRule: cycle.rule,
@@ -431,14 +490,11 @@ function evaluationBaseLabel(alert: H1StoredAlert): string {
 export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, alert: H1StoredAlert): string {
   const postSignalLabels: Record<H1PostSignalRule, string> = {
     none: "không đảo",
-    "xau-cycle-invert": "pha chu kỳ tháng, đảo hậu signal XAUUSD",
-    "xau-cycle-keep": "pha chu kỳ tháng, giữ hậu signal XAUUSD",
-    "xau-regular-invert": "pha thường tháng, đảo hậu signal XAUUSD",
-    "xau-regular-keep": "pha thường tháng, giữ hậu signal XAUUSD",
-    "thu-gbpusd": "đảo GBPUSD Thứ 5",
-    "tue-audusd": "đảo AUDUSD Thứ 3",
+    "cycle-net-invert": "pha chu kỳ tháng, đảo hậu signal sau cộng dồn",
+    "cycle-net-keep": "pha chu kỳ tháng, giữ hậu signal sau cộng dồn",
+    "regular-net-invert": "pha thường tháng, đảo hậu signal sau cộng dồn",
+    "regular-net-keep": "pha thường tháng, giữ hậu signal sau cộng dồn",
   };
-  const signalVerdict = alert.m15PairInverted ? "khác hướng, đảo cây 1" : "cùng hướng, giữ cây 1";
   const patternEvidence = alert.patternKind === "pattern6"
     ? `• Cặp pattern P6 cây 5-6 (mới→cũ): ${alert.patternPair} · quyết định entry H+2:00/H+1:25`
     : `• Cặp chọn pattern trước block (mới→cũ): ${alert.patternPair} · chỉ chọn cửa sổ pattern`;
@@ -451,8 +507,8 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
     `• Profile: ${H1_CLOUD_PROFILE}`,
     `• Ngày broker: ${brokerDate}`,
     `• Mốc block: H${String(alert.slotHour).padStart(2, "0")} · Entry: ${alert.entryTime} (+${alert.entryOffsetMinutes}p)`,
-    `• Base signal M15: ${evaluationBaseLabel(alert)}=${alert.baseDirection} → ${alert.baseH1Signal}`,
-    `• Cặp signal trước entry (mới→cũ): ${alert.m15Pair} · ${signalVerdict}`,
+    `• Base M5 Bollinger: ${evaluationBaseLabel(alert)} Open=${alert.m5Open} · Middle20=${alert.m5Middle} · ${alert.m5Position} → ${alert.baseH1Signal}`,
+    `• Cặp M15 evidence trước entry (mới→cũ): ${alert.m15Pair}`,
     patternEvidence,
     `• Cửa sổ pattern (mới→cũ): ${alert.m15Window.split("").join(" ")} · ${PATTERN_LABELS[alert.patternKind]}`,
   ];
@@ -478,9 +534,8 @@ function isSignal(value: unknown): value is H1Signal {
 }
 
 function isPostSignalRule(value: unknown): value is H1PostSignalRule {
-  return value === "none" || value === "xau-cycle-invert" || value === "xau-cycle-keep"
-    || value === "xau-regular-invert" || value === "xau-regular-keep"
-    || value === "thu-gbpusd" || value === "tue-audusd";
+  return value === "none" || value === "cycle-net-invert" || value === "cycle-net-keep"
+    || value === "regular-net-invert" || value === "regular-net-keep";
 }
 
 function isDirection(value: unknown): value is H1Direction {
@@ -495,6 +550,10 @@ function isValidAlertShape(alert: H1StoredAlert): boolean {
     && isDirection(alert.baseDirection)
     && Number.isInteger(alert.baseHour)
     && Number.isInteger(alert.baseMinute)
+    && Number.isFinite(alert.m5Open)
+    && Number.isFinite(alert.m5Middle)
+    && (alert.m5Position === "above" || alert.m5Position === "below")
+    && alert.m5WindowCount === 20
     && typeof alert.patternPair === "string" && alert.patternPair.length === 2
     && typeof alert.m15Pair === "string" && alert.m15Pair.length === 2
     && typeof alert.m15PairInverted === "boolean"
@@ -558,6 +617,9 @@ export function parsePublicFeedCloudState(raw: unknown): H1CloudState | null {
           || !isSignal(row.baseSignal) || !isDirection(row.baseDirection)
           || typeof baseHour !== "number" || !Number.isInteger(baseHour)
           || typeof baseMinute !== "number" || !Number.isInteger(baseMinute)
+          || !Number.isFinite(row.m5Open) || !Number.isFinite(row.m5Middle)
+          || (row.m5Position !== "above" && row.m5Position !== "below")
+          || row.m5WindowCount !== 20
           || typeof row.patternPair !== "string" || row.patternPair.length !== 2
           || typeof row.m15Pair !== "string" || row.m15Pair.length !== 2
           || typeof row.m15PairInverted !== "boolean"
@@ -578,6 +640,10 @@ export function parsePublicFeedCloudState(raw: unknown): H1CloudState | null {
           baseHour,
           baseMinute,
           baseDirection: row.baseDirection,
+          m5Open: row.m5Open,
+          m5Middle: row.m5Middle,
+          m5Position: row.m5Position,
+          m5WindowCount: 20,
           patternPair: row.patternPair,
           m15Pair: row.m15Pair,
           m15PairInverted: row.m15PairInverted,
@@ -644,6 +710,10 @@ export function buildPublicFeed(state: H1CloudState, publishedAt = new Date().to
             baseHour: alert.baseHour,
             baseMinute: alert.baseMinute,
             baseDirection: alert.baseDirection,
+            m5Open: alert.m5Open,
+            m5Middle: alert.m5Middle,
+            m5Position: alert.m5Position,
+            m5WindowCount: alert.m5WindowCount,
             patternPair: alert.patternPair,
             m15Pair: alert.m15Pair,
             m15PairInverted: alert.m15PairInverted,
@@ -675,7 +745,7 @@ export function ensureSymbolDay(state: H1CloudState, brokerDate: string, base: H
   return { day, symbol };
 }
 
-export type H1MarketSnapshot = Record<H1Base, { displayName: string; bars: H1DirectionBar[]; m15Bars?: H1M15Bar[] }>;
+export type H1MarketSnapshot = Record<H1Base, { displayName: string; bars: H1DirectionBar[]; m15Bars?: H1M15Bar[]; m5Bars?: H1M5Bar[] }>;
 
 export function backfillSuppressedHistory(
   state: H1CloudState,
@@ -693,6 +763,9 @@ export function backfillSuppressedHistory(
   const m15ByBase = Object.fromEntries(
     Object.entries(market).map(([base, item]) => [base, item.m15Bars || []]),
   ) as Record<H1Base, H1M15Bar[]>;
+  const m5ByBase = Object.fromEntries(
+    Object.entries(market).map(([base, item]) => [base, item.m5Bars || []]),
+  ) as Record<H1Base, H1M5Bar[]>;
   let added = 0;
 
   for (const base of H1_TARGET_BASES) {
@@ -708,11 +781,14 @@ export function backfillSuppressedHistory(
 
     for (const evaluation of matches) {
       if (evaluation.slotHour > suppressedThrough || delivered.has(evaluation.slotHour)) continue;
-      symbol.alerts.push(buildStoredAlert({
+      const alert = buildStoredAlert({
         base,
         brokerSymbol: market[base].displayName || base,
         evaluation,
-      }));
+        m5Bars: m5ByBase[base],
+      });
+      if (!alert) continue;
+      symbol.alerts.push(alert);
       delivered.add(evaluation.slotHour);
       added += 1;
     }

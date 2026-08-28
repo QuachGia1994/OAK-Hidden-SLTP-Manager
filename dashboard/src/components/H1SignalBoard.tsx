@@ -76,7 +76,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   ctx.fillText(locale === "EN" ? "H1 Intraday Signals" : "Tín hiệu H1 trong ngày", padding + 22, padding + 66);
   ctx.fillStyle = colors.muted;
   ctx.font = `700 15px ${H1_SHARE_FONT}`;
-  ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  ${locale === "EN" ? "Entry-time M15 pair signal" : "Signal theo cặp M15 trước entry"}`, padding + 22, padding + 96);
+  ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  ${locale === "EN" ? "Entry M5 Open vs Middle(20)" : "M5 Open tại entry so với Middle(20)"}`, padding + 22, padding + 96);
 
   const tableX = padding;
   const tableY = padding + titleHeight;
@@ -111,9 +111,8 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   data.symbols.forEach((base, rowIndex) => {
     const y = tableY + headerHeight + rowIndex * H1_SHARE_ROW_HEIGHT;
     const symbolState = day.symbols?.[base];
-    const xauPostSignalInverted = base === "XAUUSD"
-      && (symbolState?.alerts ?? []).some((alert) => alert.postSignalInverted === true);
-    ctx.fillStyle = xauPostSignalInverted ? colors.raised : (rowIndex % 2 === 0 ? colors.panel : colors.bg);
+    const postSignalInverted = (symbolState?.alerts ?? []).some((alert) => alert.postSignalInverted === true);
+    ctx.fillStyle = postSignalInverted ? colors.raised : (rowIndex % 2 === 0 ? colors.panel : colors.bg);
     ctx.fillRect(tableX, y, tableWidth, H1_SHARE_ROW_HEIGHT);
     ctx.beginPath();
     ctx.moveTo(tableX, y);
@@ -179,23 +178,21 @@ function postSignalLabel(rule: H1SignalAlert["postSignalRule"], inverted: boolea
   if (!rule) return "—";
   const labels = {
     none: { EN: "no inversion", VN: "không đảo" },
-    "xau-cycle-invert": { EN: "cycle-month phase, reverse XAUUSD post-signal", VN: "pha chu kỳ tháng, đảo hậu signal XAUUSD" },
-    "xau-cycle-keep": { EN: "cycle-month phase, keep XAUUSD post-signal", VN: "pha chu kỳ tháng, giữ hậu signal XAUUSD" },
-    "xau-regular-invert": { EN: "regular-month phase, reverse XAUUSD post-signal", VN: "pha thường tháng, đảo hậu signal XAUUSD" },
-    "xau-regular-keep": { EN: "regular-month phase, keep XAUUSD post-signal", VN: "pha thường tháng, giữ hậu signal XAUUSD" },
-    "thu-gbpusd": { EN: "reverse GBPUSD on Thursday", VN: "đảo GBPUSD Thứ 5" },
-    "tue-audusd": { EN: "reverse AUDUSD on Tuesday", VN: "đảo AUDUSD Thứ 3" },
+    "cycle-net-invert": { EN: "cycle-month phase, net post-signal reverse", VN: "pha chu kỳ tháng, hậu signal đảo ròng" },
+    "cycle-net-keep": { EN: "cycle-month phase, net post-signal keep", VN: "pha chu kỳ tháng, hậu signal giữ ròng" },
+    "regular-net-invert": { EN: "regular-month phase, net post-signal reverse", VN: "pha thường tháng, hậu signal đảo ròng" },
+    "regular-net-keep": { EN: "regular-month phase, net post-signal keep", VN: "pha thường tháng, hậu signal giữ ròng" },
   } as const;
   if (!inverted && rule === "none") return labels.none[locale];
   return labels[rule][locale];
 }
 
-function xauPostSignalDecisionForDay(day: H1SignalPayload["days"][string] | undefined) {
-  const alert = (day?.symbols?.XAUUSD?.alerts ?? []).find((candidate) =>
-    candidate.postSignalRule === "xau-cycle-invert"
-    || candidate.postSignalRule === "xau-cycle-keep"
-    || candidate.postSignalRule === "xau-regular-invert"
-    || candidate.postSignalRule === "xau-regular-keep"
+function postSignalDecisionForSymbol(day: H1SignalPayload["days"][string] | undefined, base: string) {
+  const alert = (day?.symbols?.[base]?.alerts ?? []).find((candidate) =>
+    candidate.postSignalRule === "cycle-net-invert"
+    || candidate.postSignalRule === "cycle-net-keep"
+    || candidate.postSignalRule === "regular-net-invert"
+    || candidate.postSignalRule === "regular-net-keep"
   );
   return alert ? { rule: alert.postSignalRule, inverted: alert.postSignalInverted === true } : null;
 }
@@ -203,12 +200,9 @@ function xauPostSignalDecisionForDay(day: H1SignalPayload["days"][string] | unde
 function DetailModal({ selection, locale, onClose }: { selection: Selection; locale: Locale; onClose: () => void }) {
   const ref = useDialogFocusTrap(true, onClose);
   const { base, date, alert } = selection;
-  const baseDetail = alert.baseSignal
-    ? `${alert.baseSignal}${alert.baseHour !== null ? ` · H${String(alert.baseHour).padStart(2, "0")}:${String(alert.baseMinute ?? 0).padStart(2, "0")}=${alert.baseDirection || "—"}` : ""}`
+  const bollingerDetail = Number.isFinite(alert.m5Open) && Number.isFinite(alert.m5Middle)
+    ? `${alert.baseSignal || "—"} · Open ${alert.m5Open} ${alert.m5Position === "above" ? ">" : "<"} Middle(20) ${alert.m5Middle}`
     : "—";
-  const signalPairVerdict = alert.m15PairInverted
-    ? { EN: "different directions, reverse candle 1", VN: "khác hướng, đảo cây 1" }
-    : { EN: "same direction, keep candle 1", VN: "cùng hướng, giữ cây 1" };
 
   return (
     <div className="oak-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
@@ -224,8 +218,8 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
         </div>
         <div className="oak-h1-explain">
           <p><span>{locale === "EN" ? "Pattern group" : "Nhóm pattern"}</span><b>{patternLabel(alert.patternKind, locale)}</b></p>
-          <p><span>{`${locale === "EN" ? "Entry-relative M15 base" : "Base M15 trước entry"} · ${alert.baseSymbol}`}</span><b>{baseDetail}</b></p>
-          <p><span>{locale === "EN" ? `Entry signal pair ${alert.m15Pair || "—"}` : `Cặp signal trước entry ${alert.m15Pair || "—"}`}</span><b>{signalPairVerdict[locale]}</b></p>
+          <p><span>{`${locale === "EN" ? "Entry M5 Bollinger base" : "Base Bollinger M5 tại entry"} · ${alert.baseSymbol}`}</span><b>{bollingerDetail}</b></p>
+          <p><span>{locale === "EN" ? `Pattern M15 pair ${alert.m15Pair || "—"}` : `Cặp M15 chọn pattern ${alert.m15Pair || "—"}`}</span><b>{locale === "EN" ? "pattern/entry evidence only" : "chỉ là bằng chứng pattern/entry"}</b></p>
           <p><span>{alert.patternKind === "pattern6"
             ? (locale === "EN" ? `P6 entry pair 5–6 ${alert.patternPair || "—"}` : `Cặp entry P6 cây 5–6 ${alert.patternPair || "—"}`)
             : (locale === "EN" ? `Pattern selector pair ${alert.patternPair || "—"}` : `Cặp chọn pattern ${alert.patternPair || "—"}`)}</span><b>{alert.patternKind === "pattern6"
@@ -252,13 +246,12 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
   const matchingDates = data ? historyDatesForWeekday(data.days, weekdayFilter) : [];
   const date = data ? selectHistoryDate(data.days, weekdayFilter, selectedDate) : "";
   const day = date && data ? data.days[date] : undefined;
-  const xauPostSignalDecision = xauPostSignalDecisionForDay(day);
   const earliestDate = allDates.at(-1) || "";
   const latestDate = allDates[0] || "";
   const copy = locale === "EN"
     ? {
         title: "H1 Intraday Signals",
-        sub: "Entry :00/:25 · same M15 pair keeps candle 1 · alternating pair reverses candle 1 · weekday rules",
+        sub: "Pattern entry · M5 Open vs Middle(20) · net weekday reversals",
         awaiting: "Awaiting H1 live feed",
         locked: "VIP weekday signals are locked",
         weekdayGroup: "Filter by weekday",
@@ -269,7 +262,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
       }
     : {
         title: "Tín hiệu H1 trong ngày",
-        sub: "Entry :00/:25 · cặp M15 cùng hướng giữ cây 1 · khác hướng đảo cây 1 · hậu signal theo thứ",
+        sub: "Entry theo pattern · M5 Open so với Middle(20) · hậu signal đảo ròng theo thứ",
         awaiting: "Đang chờ feed H1 live",
         locked: "Tín hiệu H1 ngày thường đang khóa VIP",
         weekdayGroup: "Lọc theo thứ",
@@ -375,9 +368,10 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
             <tbody>{data.symbols.map((base) => {
               const symbolState = day?.symbols?.[base];
               const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
-              const postSignalInvertedRow = Boolean(base === "XAUUSD" && xauPostSignalDecision?.inverted);
+              const postSignalDecision = postSignalDecisionForSymbol(day, base);
+              const postSignalInvertedRow = Boolean(postSignalDecision?.inverted);
               const postSignalBadge = locale === "EN" ? "POST REVERSE" : "HẬU ĐẢO";
-              return <tr key={base} className={postSignalInvertedRow ? "oak-h1-post-invert-row" : undefined} data-post-signal-rule={postSignalInvertedRow ? xauPostSignalDecision?.rule : undefined}><th className="oak-h1-symbol-sticky"><b>{base}</b>{postSignalInvertedRow && <small className="oak-h1-post-invert-badge">{postSignalBadge}</small>}</th>{data.hours.map((hour) => {
+              return <tr key={base} className={postSignalInvertedRow ? "oak-h1-post-invert-row" : undefined} data-post-signal-rule={postSignalInvertedRow ? postSignalDecision?.rule : undefined}><th className="oak-h1-symbol-sticky"><b>{base}</b>{postSignalInvertedRow && <small className="oak-h1-post-invert-badge">{postSignalBadge}</small>}</th>{data.hours.map((hour) => {
                 const alert = byHour.get(hour);
                 if (!alert?.signal) return <td key={hour}><span className="oak-h1-cell-empty">—</span></td>;
                 const pattern6Warning = alert.patternKind === "pattern6";

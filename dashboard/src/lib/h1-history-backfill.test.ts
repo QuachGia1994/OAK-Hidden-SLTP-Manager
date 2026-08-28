@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { emptyCloudState, type H1Base, type H1Direction, type H1DirectionBar, type H1M15Bar } from "./h1-cloud-scanner.ts";
+import { emptyCloudState, type H1Base, type H1Direction, type H1DirectionBar, type H1M15Bar, type H1M5Bar } from "./h1-cloud-scanner.ts";
 import { mergeHistoricalBackfill, reconstructHistoricalDays } from "./h1-history-backfill.ts";
 
 function h1Bars(date: string): H1DirectionBar[] {
@@ -24,13 +24,27 @@ function m15Bars(date: string, direction: H1Direction = "T"): H1M15Bar[] {
   });
 }
 
+function m5Bars(date: string): H1M5Bar[] {
+  return Array.from({ length: 217 }, (_, index) => {
+    const minuteOfDay = 5 * index;
+    return {
+      brokerDate: date,
+      brokerTime: `${date}T${String(Math.floor(minuteOfDay / 60)).padStart(2, "0")}:${String(minuteOfDay % 60).padStart(2, "0")}`,
+      minuteOfDay,
+      open: 101,
+      close: 100,
+    };
+  });
+}
+
 function marketForDates(...dates: string[]) {
   const bases: H1Base[] = ["GBPUSD", "XAUUSD", "AUDUSD", "USDCAD", "USDJPY", "EURUSD"];
   return Object.fromEntries(bases.map((base) => [base, {
     displayName: base,
     bars: dates.flatMap((date) => h1Bars(date)),
     m15Bars: dates.flatMap((date) => m15Bars(date)),
-  }])) as Record<H1Base, { displayName: string; bars: H1DirectionBar[]; m15Bars: H1M15Bar[] }>;
+    m5Bars: dates.flatMap((date) => m5Bars(date)),
+  }])) as Record<H1Base, { displayName: string; bars: H1DirectionBar[]; m15Bars: H1M15Bar[]; m5Bars: H1M5Bar[] }>;
 }
 
 test("historical reconstruction applies the block schedule, M15 engine and XAU cycle", () => {
@@ -56,10 +70,10 @@ test("historical reconstruction applies the block schedule, M15 engine and XAU c
   }
   assert.deepEqual(gold.map((alert) => alert.entryTime), ["06:00", "08:00", "11:00", "14:00", "16:00", "18:00"]);
 
-  // Entry-relative TT keeps BUY. July is a cycle-first-Thursday month,
-  // so Monday keeps the XAU post-signal while FX remains unaffected.
-  assert.ok(gold.every((alert) => alert.postSignalRule === "xau-cycle-keep" && !alert.postSignalInverted && alert.symbolH1Signal === "BUY"));
-  assert.ok(fx.every((alert) => alert.postSignalRule === "none" && alert.symbolH1Signal === "BUY"));
+  // Entry M5 Open is above Middle(20). XAUUSD maps above to BUY while
+  // GBPUSD maps above to SELL. July cycle Monday keeps both net signals.
+  assert.ok(gold.every((alert) => alert.postSignalRule === "cycle-net-keep" && !alert.postSignalInverted && alert.symbolH1Signal === "BUY"));
+  assert.ok(fx.every((alert) => alert.postSignalRule === "cycle-net-keep" && !alert.postSignalInverted && alert.symbolH1Signal === "SELL"));
 });
 
 test("historical days without M15 coverage yield no alerts instead of wrong signals", () => {
@@ -68,6 +82,7 @@ test("historical days without M15 coverage yield no alerts instead of wrong sign
     displayName: item.displayName,
     bars: item.bars,
     m15Bars: [],
+    m5Bars: item.m5Bars,
   }])) as unknown as typeof market;
   const history = reconstructHistoricalDays(withoutM15);
   for (const symbolState of Object.values(history["2026-07-06"].symbols)) {

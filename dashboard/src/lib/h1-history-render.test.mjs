@@ -45,7 +45,7 @@ registerHooks({
 
 const { H1SignalBoard } = await import(pathToFileURL(resolvePath(srcRoot, "components/H1SignalBoard.tsx")).href);
 const { redactH1Signals } = await import(pathToFileURL(resolvePath(srcRoot, "lib/vip.ts")).href);
-const { brokerWallParts, icMarketsServerOffsetSeconds, normalizeHistoricalTrendbars, normalizeM15Trendbars } = await import(pathToFileURL(resolvePath(srcRoot, "lib/ctrader-json.ts")).href);
+const { brokerWallParts, icMarketsServerOffsetSeconds, normalizeHistoricalTrendbars, normalizeM15Trendbars, normalizeM5Trendbars } = await import(pathToFileURL(resolvePath(srcRoot, "lib/ctrader-json.ts")).href);
 const { latestH1Date, alertsForSymbol } = await import(pathToFileURL(resolvePath(repoRoot, "mobile/src/lib/h1.ts")).href);
 
 function alert(slotHour, signal = "BUY") {
@@ -66,6 +66,10 @@ function alert(slotHour, signal = "BUY") {
     m15Window: "TTTT",
     entryOffsetMinutes: 120,
     entryTime: `${String((slotHour + 2) % 24).padStart(2, "0")}:00`,
+    m5Open: 101,
+    m5Middle: 100.05,
+    m5Position: "above",
+    m5WindowCount: 20,
     signal,
     postSignalInverted: false,
     postSignalRule: "none",
@@ -75,8 +79,8 @@ function alert(slotHour, signal = "BUY") {
 function payload() {
   const dates = ["2025-12-29", "2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02", "2026-01-05", "2026-02-03"];
   return {
-    schemaVersion: 14,
-    signalRuleVersion: 46,
+    schemaVersion: 15,
+    signalRuleVersion: 47,
     profile: "cTrader IcMarkets",
     publishedAt: "2026-02-03T12:00:00.000Z",
     hours: [3, 4, 6, 9, 12, 14, 16],
@@ -120,6 +124,16 @@ test("M15 normalization keeps candles with the same minute across different hour
   assert.deepEqual(rows.map((row) => [row.brokerDate, row.minuteOfDay, row.direction]), [
     ["2026-08-27", 135, "T"],
     ["2026-08-27", 195, "G"],
+  ]);
+});
+
+test("M5 normalization reconstructs cTrader Open and Close prices", () => {
+  const minute = (iso) => Math.trunc(new Date(iso).getTime() / 60_000);
+  const rows = normalizeM5Trendbars([
+    { utcTimestampInMinutes: minute("2026-08-27T06:00:00Z"), low: 10_000_000, deltaOpen: 5_000, deltaClose: 7_000 },
+  ]);
+  assert.deepEqual(rows.map((row) => [row.brokerDate, row.minuteOfDay, row.open, row.close]), [
+    ["2026-08-27", 540, 100.05, 100.07],
   ]);
 });
 

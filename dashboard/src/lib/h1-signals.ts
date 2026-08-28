@@ -5,7 +5,7 @@ import { H1_SIGNAL_RULE_VERSION } from "./h1-cloud-scanner";
 
 export type H1SignalSide = "BUY" | "SELL";
 export type H1PatternKind = "pattern1" | "pattern2" | "pattern3" | "pattern4" | "pattern5" | "pattern6";
-export type H1PostSignalRule = "none" | "xau-cycle-invert" | "xau-cycle-keep" | "xau-regular-invert" | "xau-regular-keep" | "thu-gbpusd" | "tue-audusd";
+export type H1PostSignalRule = "none" | "cycle-net-invert" | "cycle-net-keep" | "regular-net-invert" | "regular-net-keep";
 
 export type H1SignalAlert = {
   slotHour: number;
@@ -25,6 +25,10 @@ export type H1SignalAlert = {
   m15Window: string;
   entryOffsetMinutes?: number;
   entryTime: string;
+  m5Open: number;
+  m5Middle: number;
+  m5Position: "above" | "below";
+  m5WindowCount: 20;
   signal: H1SignalSide | null;
   postSignalInverted?: boolean;
   postSignalRule?: H1PostSignalRule;
@@ -48,7 +52,7 @@ export type H1SignalPayload = {
   days: Record<string, H1SignalDay>;
 };
 
-export const H1_SIGNAL_PUBLIC_SCHEMA = 14;
+export const H1_SIGNAL_PUBLIC_SCHEMA = 15;
 const LATEST_KEY = "robot-sltp:public:h1-signals:latest";
 
 function vietnamDateKey(now = new Date()): string {

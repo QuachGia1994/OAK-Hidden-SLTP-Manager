@@ -115,7 +115,13 @@ function marketReadyForSlot(
   const signalPairReady = targetsForBlockHour(signalSlotHour).every((base) =>
     market.symbols[base].m15Bars.some((bar) => bar.minuteOfDay === expectedClosedM15Minute),
   );
-  return blockReady && signalPairReady;
+  const expectedEntryMinute = brokerMinute < 15
+    ? brokerHour * 60
+    : brokerHour * 60 + 25;
+  const entryM5Ready = targetsForBlockHour(signalSlotHour).every((base) =>
+    market.symbols[base].m5Bars.some((bar) => bar.minuteOfDay === expectedEntryMinute),
+  );
+  return blockReady && signalPairReady && entryM5Ready;
 }
 
 async function fetchReadyMarket(session: CTraderScannerSession, nowMs: number, brokerHour: number, brokerMinute: number) {
@@ -232,7 +238,9 @@ export async function POST(request: Request) {
           base,
           brokerSymbol: market.symbols[base].displayName || base,
           evaluation,
+          m5Bars: market.symbols[base].m5Bars,
         });
+        if (!alert) continue;
         let intentId: number | null = null;
         let telegramMessage = buildTelegramMessage(base, market.brokerDate, alert);
         if (automationReady) {
@@ -255,7 +263,7 @@ export async function POST(request: Request) {
               tp: 0,
               legacyProfile: providerTarget.label,
               executionMode: TELEGRAM_CLOUD_EXECUTION_MODE,
-              strategy: "h1-m15-rule-46",
+              strategy: "h1-m5-bollinger-rule-47",
               blockHour: alert.slotHour,
               patternKind: alert.patternKind,
             },
@@ -320,6 +328,7 @@ export async function POST(request: Request) {
       pending,
       h1Counts: Object.fromEntries(Object.entries(market.symbols).map(([base, item]) => [base, item.bars.length])),
       m15Counts: Object.fromEntries(Object.entries(market.symbols).map(([base, item]) => [base, item.m15Bars.length])),
+      m5Counts: Object.fromEntries(Object.entries(market.symbols).map(([base, item]) => [base, item.m5Bars.length])),
     }, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error) {
     console.error("[H1 CLOUD SCANNER]", error instanceof Error ? error.message : String(error));
