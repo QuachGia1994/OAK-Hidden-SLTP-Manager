@@ -8,10 +8,11 @@ import type { H1SignalPayload } from "@/lib/h1-signals";
 type Locale = "EN" | "VN";
 type VipAccessView = {
   unlocked: boolean;
+  freeAccess: boolean;
   weekendFree: boolean;
   vipAuthenticated: boolean;
   weekday: string;
-  mode: "vip" | "weekend" | "locked";
+  mode: "free" | "vip" | "weekend" | "locked";
 };
 
 const ACCESS_WEEKDAY_LABELS: Record<Locale, Record<string, string>> = {
@@ -74,15 +75,17 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
     }
   };
 
-  const modeCopy = access.mode === "vip"
-    ? { title: "VIP UNLOCKED", detail: isEn ? "Weekday H1 block prep active" : "Đã mở chuẩn bị block H1 ngày thường", action: isEn ? "Exit VIP" : "Thoát VIP" }
-    : access.mode === "weekend"
-      ? { title: isEn ? "FREE WEEKEND" : "CUỐI TUẦN FREE", detail: isEn ? "Weekend H1 blocks are open" : "Block H1 cuối tuần đang mở", action: "" }
-      : { title: "VIP LOCKED", detail: isEn ? "Weekday H1 blocks are masked" : "Block H1 ngày thường đang ẩn", action: isEn ? "Unlock" : "Mở VIP" };
+  const modeCopy = access.mode === "free"
+    ? { title: isEn ? "FREE ACCESS" : "FREE ACCESS", detail: isEn ? "H1 block prep is open for everyone" : "Đã mở block H1 miễn phí cho mọi user", action: "" }
+    : access.mode === "vip"
+      ? { title: "VIP UNLOCKED", detail: isEn ? "Weekday H1 block prep active" : "Đã mở chuẩn bị block H1 ngày thường", action: isEn ? "Exit VIP" : "Thoát VIP" }
+      : access.mode === "weekend"
+        ? { title: isEn ? "FREE WEEKEND" : "CUỐI TUẦN FREE", detail: isEn ? "Weekend H1 blocks are open" : "Block H1 cuối tuần đang mở", action: "" }
+        : { title: "VIP LOCKED", detail: isEn ? "Weekday H1 blocks are masked" : "Block H1 ngày thường đang ẩn", action: isEn ? "Unlock" : "Mở VIP" };
 
   return <>
     <section className="oak-access-panel" data-mode={access.mode}>
-      <div className="oak-access-symbol"><span>{access.mode === "vip" ? "◆" : access.mode === "weekend" ? "◇" : "◈"}</span></div>
+      <div className="oak-access-symbol"><span>{access.mode === "vip" ? "◆" : access.mode === "free" || access.mode === "weekend" ? "◇" : "◈"}</span></div>
       <div className="oak-access-copy"><small>ACCESS</small><b>{modeCopy.title}</b><p>{modeCopy.detail}</p></div>
       <div className="oak-access-state"><span>{ACCESS_WEEKDAY_LABELS[locale][access.weekday] ?? access.weekday}</span><i /></div>
       {access.mode === "vip" && <button type="button" disabled={loading} onClick={() => void logout()}>{loading ? "…" : modeCopy.action}</button>}

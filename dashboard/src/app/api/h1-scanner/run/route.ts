@@ -7,8 +7,8 @@ import { brokerWallParts, fetchCurrentBrokerDayMarket, type CTraderScannerSessio
 import { loadH1CTraderSession } from "@/lib/h1-ctrader-session";
 import { cTraderProviderAccountId, providerProtectionPoints } from "@/lib/provider-account-domain";
 import { listProviderAccounts } from "@/lib/provider-accounts";
-import { TELEGRAM_CLOUD_EXECUTION_MODE } from "@/lib/telegram-cloud-domain";
-import { claimH1BlockReminder, createCloudIntent, markScheduledNotification, normalizeCloudIntentLot, releaseH1BlockReminder } from "@/lib/telegram-cloud-store";
+import { TELEGRAM_CLOUD_EXECUTION_MODE, type CloudIntent } from "@/lib/telegram-cloud-domain";
+import { claimH1BlockReminder, createCloudIntent, listCloudIntents, markScheduledNotification, normalizeCloudIntentLot, releaseH1BlockReminder } from "@/lib/telegram-cloud-store";
 import { acquireH1CloudLock, loadH1CloudState, publishH1CloudState, releaseH1CloudLock, saveH1CloudState } from "@/lib/h1-cloud-store";
 import {
   H1_FIRST_SCAN_HOUR,
@@ -24,6 +24,7 @@ import {
   ensureSymbolDay,
   evaluateH1BlocksForTarget,
   targetsForBlockHour,
+  type H1Signal,
   type H1StoredAlert,
 } from "@/lib/h1-cloud-scanner";
 
@@ -133,6 +134,43 @@ function deliveredSlots(alerts: H1StoredAlert[]): Set<number> {
   return new Set(alerts.filter((item) => Number.isInteger(item.slotHour)).map((item) => item.slotHour));
 }
 
+const SCHEDULED_ENTRY_STATUSES = new Set<CloudIntent["status"]>([
+  "approval_required",
+  "scheduled",
+  "approved",
+  "executing",
+]);
+
+function canonicalOrderSymbol(value: unknown): string {
+  const text = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return H1_TARGET_BASES.find((base) => text === base || text.startsWith(base)) || text;
+}
+
+function intentSignal(value: unknown): H1Signal | null {
+  const side = String(value || "").toUpperCase();
+  return side === "BUY" || side === "SELL" ? side : null;
+}
+
+function scheduledSignalFor(
+  intents: CloudIntent[],
+  brokerDate: string,
+  brokerUtcOffsetHours: number,
+  alert: H1StoredAlert,
+): H1Signal | null {
+  const dueAt = brokerEntryDueAt(brokerDate, alert.entryTime, brokerUtcOffsetHours);
+  const symbol = canonicalOrderSymbol(alert.symbol);
+  const task = intents
+    .filter((item) => item.kind === "entry" && SCHEDULED_ENTRY_STATUSES.has(item.status))
+    .filter((item) => item.dueAt === dueAt)
+    .filter((item) => canonicalOrderSymbol(item.payload.symbol) === symbol)
+    .filter((item) => {
+      const blockHour = Number(item.payload.blockHour);
+      return !Number.isInteger(blockHour) || blockHour === alert.slotHour;
+    })
+    .sort((left, right) => right.id - left.id)[0];
+  return intentSignal(task?.payload.side);
+}
+
 export async function POST(request: Request) {
   const denied = await authorize(request);
   if (denied) return denied;
@@ -230,6 +268,7 @@ export async function POST(request: Request) {
         : !providerTarget
           ? "enabled-scanner-account-missing"
           : null;
+    const knownScheduledIntents = dryRun ? [] : await listCloudIntents();
 
     const pending: RunSummary[] = [];
     let sent = 0;
@@ -249,40 +288,50 @@ export async function POST(request: Request) {
       for (let hour = 3; hour <= suppressedThrough; hour += 1) delivered.add(hour);
 
       for (const evaluation of evaluations) {
-        const storedAlert = symbolState.alerts.find((item) => item.slotHour === evaluation.slotHour);
-        const alert = buildStoredAlert({
+        const computedAlert = buildStoredAlert({
           base,
           brokerSymbol: market.symbols[base].displayName || base,
           evaluation,
           h1Bars: market.symbols[base].bars,
         });
-        if (!alert) continue;
+        if (!computedAlert) continue;
+        let alert: H1StoredAlert = {
+          ...computedAlert,
+          scheduledSignal: scheduledSignalFor(
+            knownScheduledIntents,
+            market.brokerDate,
+            market.brokerUtcOffsetHours,
+            computedAlert,
+          ),
+        };
         let intentId: number | null = null;
-        let telegramMessage = buildTelegramMessage(base, market.brokerDate, alert);
-        if (automationReady) {
+        let telegramMessage = buildTelegramMessage(base, market.brokerDate, computedAlert);
+        // A pending alert already has its pattern and entry time. Arm/send the
+        // scheduled entry only after the authoritative H1 base is closed.
+        if (automationReady && computedAlert.symbolH1Signal && !alert.scheduledSignal) {
           if (!cloudConfig || !providerTarget) throw new Error("H1 automation readiness invariant failed");
           const lot = h1AutoEntryLot(base);
-          const protection = providerProtectionPoints(providerTarget, alert.symbol);
-          const dueAt = brokerEntryDueAt(market.brokerDate, alert.entryTime, market.brokerUtcOffsetHours);
+          const protection = providerProtectionPoints(providerTarget, computedAlert.symbol);
+          const dueAt = brokerEntryDueAt(market.brokerDate, computedAlert.entryTime, market.brokerUtcOffsetHours);
           const task = await createCloudIntent({
             kind: "entry",
             source: "H1 Scanner",
-            automationKey: `h1:${market.brokerDate}:${base}:H${alert.slotHour}`,
+            automationKey: `h1:${market.brokerDate}:${base}:H${computedAlert.slotHour}`,
             chatId: cloudConfig.telegramChatId,
-            rawText: `H1 ${base} H${alert.slotHour} ${alert.symbolH1Signal} ${alert.entryTime}`,
+            rawText: `H1 ${base} H${computedAlert.slotHour} ${computedAlert.symbolH1Signal} ${computedAlert.entryTime}`,
             dueAt,
-            dueText: `${market.brokerDate} ${alert.entryTime}:00 broker UTC${market.brokerUtcOffsetHours >= 0 ? "+" : ""}${market.brokerUtcOffsetHours}`,
+            dueText: `${market.brokerDate} ${computedAlert.entryTime}:00 broker UTC${market.brokerUtcOffsetHours >= 0 ? "+" : ""}${market.brokerUtcOffsetHours}`,
             payload: {
-              side: alert.symbolH1Signal,
-              symbol: alert.symbol,
+              side: computedAlert.symbolH1Signal,
+              symbol: computedAlert.symbol,
               lot,
               sl: 0,
               tp: 0,
               legacyProfile: providerTarget.label,
               executionMode: TELEGRAM_CLOUD_EXECUTION_MODE,
               strategy: "h1-entry-h1-rule-49",
-              blockHour: alert.slotHour,
-              patternKind: alert.patternKind,
+              blockHour: computedAlert.slotHour,
+              patternKind: computedAlert.patternKind,
             },
             targetAccountIds: [providerTarget.id],
             protectionPlan: {
@@ -291,11 +340,14 @@ export async function POST(request: Request) {
           });
           const normalizedTask = await normalizeCloudIntentLot(task, lot);
           intentId = normalizedTask.id;
+          const scheduledSide = intentSignal(normalizedTask.payload.side);
+          alert = { ...alert, scheduledSignal: scheduledSide };
+          if (scheduledSide) knownScheduledIntents.push(normalizedTask);
           const approvalLine = normalizedTask.status === "approval_required"
             ? `• Xác nhận: /approve ${normalizedTask.id}`
             : `• Trạng thái: ${normalizedTask.status} · đã arm`;
           telegramMessage = [telegramMessage,
-            `⏰ ĐẶT LỆNH HẸN GIỜ: ${alert.symbolH1Signal} ${alert.symbol} · ${lot} lot · ${normalizedTask.dueText}`,
+            `⏰ ĐẶT LỆNH HẸN GIỜ: ${computedAlert.symbolH1Signal} ${computedAlert.symbol} · ${lot} lot · ${normalizedTask.dueText}`,
             `• Intent #${normalizedTask.id} · @${providerTarget.label}`,
             approvalLine,
             normalizedTask.status === "approval_required"
@@ -319,11 +371,27 @@ export async function POST(request: Request) {
           m15Pair: alert.m15Pair,
           m15Window: alert.m15Window,
           entryTime: alert.entryTime,
-          signal: alert.symbolH1Signal,
+          signal: alert.scheduledSignal || "PENDING_SCHEDULED_ENTRY",
           postSignalRule: alert.postSignalRule,
           intentId,
         });
-        if (dryRun || storedAlert || delivered.has(evaluation.slotHour)) continue;
+        if (dryRun) continue;
+
+        const storedIndex = symbolState.alerts.findIndex((item) => item.slotHour === evaluation.slotHour);
+        if (storedIndex >= 0) {
+          const current = symbolState.alerts[storedIndex];
+          const enriched = current.baseH1Signal !== alert.baseH1Signal
+            || current.baseHour !== alert.baseHour
+            || current.baseDirection !== alert.baseDirection
+            || current.symbolH1Signal !== alert.symbolH1Signal
+            || current.scheduledSignal !== alert.scheduledSignal;
+          if (enriched) {
+            symbolState.alerts[storedIndex] = alert;
+            changed = true;
+          }
+          continue;
+        }
+        if (delivered.has(evaluation.slotHour)) continue;
 
         symbolState.alerts.push(alert);
         symbolState.alerts.sort((left, right) => left.slotHour - right.slotHour);

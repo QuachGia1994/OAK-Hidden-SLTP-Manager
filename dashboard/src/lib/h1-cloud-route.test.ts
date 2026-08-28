@@ -79,11 +79,21 @@ test("live H1 alerts create idempotent scheduled intents but never auto-approve 
   assert.doesNotMatch(route, /approveCloudIntent|runCloudIntentExecution|executeClaimedCloudIntent/);
 });
 
+test("scheduled entry intent is the only source of published BUY/SELL sides", () => {
+  assert.match(route, /listCloudIntents/);
+  assert.match(route, /scheduledSignalFor/);
+  assert.match(route, /scheduledSignal: scheduledSignalFor/);
+  assert.match(route, /signal: alert\.scheduledSignal \|\| "PENDING_SCHEDULED_ENTRY"/);
+  assert.match(route, /if \(automationReady && computedAlert\.symbolH1Signal && !alert\.scheduledSignal\)/);
+  assert.match(scannerSource, /scheduledSignal: null/);
+  assert.match(scannerSource, /scheduledSignal: alert\.scheduledSignal \?\? null/);
+});
+
 test("missing automation account never blocks signal persistence or the public table", () => {
   assert.match(route, /automationReady/);
   assert.match(route, /automationSkippedReason/);
   assert.doesNotMatch(route, /H1 scheduled intents require Telegram control and the enabled scanner cTrader account/);
-  assert.ok(route.indexOf("if (automationReady)") < route.indexOf("symbolState.alerts.push(alert)"));
+  assert.ok(route.indexOf("if (automationReady && computedAlert.symbolH1Signal") < route.indexOf("symbolState.alerts.push(alert)"));
   assert.match(route, /strategy: "h1-entry-h1-rule-49"/);
 });
 

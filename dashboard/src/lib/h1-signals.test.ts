@@ -16,6 +16,7 @@ test("H1 web feed has schema-16 H1 entry-base and six-block weekday contract", (
   assert.match(readerSource, /postSignalInverted/);
   assert.match(readerSource, /postSignalRule/);
   assert.match(readerSource, /entryTime/);
+  assert.match(readerSource, /scheduledSignal/);
   assert.match(readerSource, /m15Pair/);
   assert.match(readerSource, /baseMinute/);
   assert.doesNotMatch(readerSource, /m5Open|m5Middle|m5Position|m5WindowCount/);
@@ -27,25 +28,20 @@ test("H1 web feed has schema-16 H1 entry-base and six-block weekday contract", (
   assert.doesNotMatch(readerSource, /sw2|sw3Pure|sw3Normal|mon-block|tue-block|wed-block|tradeAllowed|blockedSlots|reconcileTradeState/);
 });
 
-test("H1 cells render block and entry time without exposing signal direction", () => {
+test("H1 cells publish only the scheduled BUY/SELL side", () => {
   assert.match(boardSource, /oak-h1-block-button/);
   assert.match(boardSource, /oak-h1-block-invert-badge/);
   assert.match(boardSource, /data-post-signal-inverted/);
-  assert.match(boardSource, /ENTRY \{alert\.entryTime\}/);
+  assert.match(boardSource, /scheduledSignal/);
+  assert.match(boardSource, /data-scheduled-signal/);
+  assert.match(boardSource, /oak-h1-cell-signal/);
+  assert.match(boardSource, /data-side=\{side\.toLowerCase\(\)\}/);
   assert.match(boardSource, /cycleDecisionFor\("XAUUSD", date, hour\)/);
   assert.match(entryFocusSource, /oak-entry-focus-block/);
-  assert.doesNotMatch(boardSource, /alert\.signal|alert\.baseSignal|data-side=/);
-  assert.doesNotMatch(entryFocusSource, /alert\.signal/);
-  assert.match(boardSource, /oak-h1-pattern-badge/);
-  assert.match(boardSource, /P\{alert\.patternKind\.slice\(-1\)\}/);
-  assert.match(boardSource, /oak-h1-entry-badge/);
-  assert.match(boardSource, /\{alert\.entryTime\}/);
-  assert.match(redesignCss, /\.oak-h1-pattern-badge \{[^}]*oak-accent/);
-  assert.match(redesignCss, /\.oak-h1-entry-badge \{/);
-  assert.match(boardSource, /alert\.patternKind === "pattern6"/);
-  assert.match(boardSource, /oak-h1-pattern6-warning/);
-  assert.match(boardSource, /⚠ DECIDE|⚠ TỰ QUYẾT/);
-  assert.match(redesignCss, /\.oak-h1-pattern6-warning/);
+  assert.doesNotMatch(boardSource, /alert\.signal|alert\.baseSignal/);
+  assert.doesNotMatch(boardSource, /P\{alert\.patternKind\.slice\(-1\)\}|ENTRY \{alert\.entryTime\}/);
+  assert.match(redesignCss, /\.oak-h1-cell-signal\[data-side="buy"\]/);
+  assert.match(redesignCss, /\.oak-h1-cell-signal\[data-side="sell"\]/);
   assert.doesNotMatch(boardSource, /NOT TRADE|blockedSlots|oak-h1-cell-blocked|oak-h1-blocked-cell|⚠ PURE/);
 });
 
@@ -61,6 +57,14 @@ test("H1 entry focus keeps the active workspace compact and makes locked state u
   assert.match(redesignCss, /\.oak-engine-screen \{[\s\S]*width: min\(100%, 1080px\)/);
   assert.match(redesignCss, /\.oak-entry-focus-grid \{[\s\S]*repeat\(4, minmax\(0, 1fr\)\)/);
   assert.match(redesignCss, /\.oak-entry-focus-card \{[\s\S]*min-height/);
+});
+
+test("temporary free VIP exposes H1 blocks to every visitor", () => {
+  assert.match(vipSource, /VIP_FREE_ACCESS = true/);
+  assert.match(vipSource, /const unlocked = freeAccess \|\| weekendFree \|\| vipAuthenticated/);
+  assert.match(vipSource, /mode: freeAccess \? "free"/);
+  assert.match(engineBoardSource, /FREE ACCESS/);
+  assert.match(engineBoardSource, /freeAccess: boolean/);
 });
 
 test("H1 history uses a native calendar picker while preserving weekday filtering", () => {

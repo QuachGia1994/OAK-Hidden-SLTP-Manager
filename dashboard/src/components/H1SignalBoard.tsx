@@ -61,6 +61,8 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     text: "#f4f7fb",
     muted: "#8fa2b8",
     accent: "#4b8cff",
+    buy: "#39d98a",
+    sell: "#ff6b6b",
     warning: "#e6a648",
     warningSurface: "#2d2417",
   };
@@ -137,9 +139,8 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
         ctx.fillStyle = colors.warningSurface;
         ctx.fillRect(x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT);
       }
-      if (alert) {
-        drawCentered(`P${alert.patternKind.slice(-1)}`, x, y + 4, H1_SHARE_HOUR_WIDTH, 34, colors.accent, `950 16px ${H1_SHARE_FONT}`);
-        drawCentered(`ENTRY ${alert.entryTime}`, x, y + 43, H1_SHARE_HOUR_WIDTH, 26, colors.muted, `800 10px ${H1_SHARE_FONT}`);
+      if (alert?.scheduledSignal) {
+        drawCentered(alert.scheduledSignal, x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT, alert.scheduledSignal === "BUY" ? colors.buy : colors.sell, `950 16px ${H1_SHARE_FONT}`);
       } else {
         drawCentered("—", x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT, colors.muted, `700 16px ${H1_SHARE_FONT}`);
       }
@@ -386,9 +387,9 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
               return <tr key={base}><th className="oak-h1-symbol-sticky"><b>{base}</b></th>{data.hours.map((hour) => {
                 const postSignalInverted = cycleDecisionFor("XAUUSD", date, hour).inverted;
                 const alert = byHour.get(hour);
-                if (!alert) return <td key={hour} data-post-signal-inverted={postSignalInverted ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>;
-                const pattern6Warning = alert.patternKind === "pattern6";
-                return <td key={hour} data-pattern-kind={alert.patternKind} data-post-signal-inverted={postSignalInverted ? "true" : undefined}><button className="oak-h1-block-button" type="button" onClick={() => setSelection({ base, date, alert })} aria-label={`${base} H${String(hour).padStart(2, "0")} ${alert.entryTime}`}>{pattern6Warning && <small className="oak-h1-pattern6-warning">{locale === "EN" ? "⚠ DECIDE" : "⚠ TỰ QUYẾT"}</small>}<small className="oak-h1-pattern-badge">P{alert.patternKind.slice(-1)}</small><b className="oak-h1-block-label">H{String(hour).padStart(2, "0")}</b><small className="oak-h1-entry-badge">ENTRY {alert.entryTime}</small></button></td>;
+                if (!alert?.scheduledSignal) return <td key={hour} data-post-signal-inverted={postSignalInverted ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>;
+                const side = alert.scheduledSignal;
+                return <td key={hour} data-scheduled-signal={side} data-post-signal-inverted={postSignalInverted ? "true" : undefined}><button className="oak-h1-block-button" type="button" onClick={() => setSelection({ base, date, alert })} aria-label={`${base} H${String(hour).padStart(2, "0")} ${side}`}><b className="oak-h1-cell-signal" data-side={side.toLowerCase()}>{side}</b></button></td>;
               })}</tr>;
             })}</tbody>
           </table>

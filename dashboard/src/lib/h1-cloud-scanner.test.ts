@@ -137,6 +137,25 @@ test("entry times 08:00 and 08:25 both use the H07:00 candle as H1 base", () => 
   assert.equal(entryH1BaseFor("2026-08-28", "09:00", h1)?.hour, 8);
 });
 
+test("H12 publishes its pattern and 14:00 entry before the H13 base candle closes", () => {
+  const evaluation = evaluateH1Block({
+    slotHour: 12,
+    h1Bars: [],
+    m15Bars: m15Bars("TGTGG", 11 * 60 + 45, "2026-08-28"),
+    availableThroughMinute: 12 * 60 + 5,
+  });
+  assert.ok(evaluation);
+  assert.equal(evaluation.entryOffsetMinutes, 120);
+  const pending = buildStoredAlertCore({
+    base: "XAUUSD",
+    brokerSymbol: "XAUUSD",
+    evaluation,
+    h1Bars: [],
+  });
+  assert.ok(pending);
+  assert.deepEqual([pending.entryTime, pending.baseHour, pending.baseH1Signal, pending.symbolH1Signal], ["14:00", 13, null, null]);
+});
+
 test("legacy M5 Bollinger helper remains isolated from the H1 entry decision", () => {
   const above = m5BandBars(9 * 60, 101);
   const below = m5BandBars(9 * 60, 99);
@@ -301,33 +320,37 @@ test("entry-minute signal refinement uses two M15 candles for :00 and :25 entrie
   }
 });
 
-test("entry-relative M15 base must be closed before the signal is emitted", () => {
+test("entry time is classified before the future entry candles close", () => {
   const minute00Bars = [
     ...m15Bars("TGTGG", H3_PAIR_NEWEST_MINUTE),
     { brokerDate: "2026-07-06", brokerTime: "2026-07-06T04:45", minuteOfDay: 285, direction: "T" as H1Direction },
     { brokerDate: "2026-07-06", brokerTime: "2026-07-06T04:30", minuteOfDay: 270, direction: "T" as H1Direction },
   ];
-  assert.equal(evaluateH1Block({ slotHour: 3, h1Bars: [], m15Bars: minute00Bars, availableThroughMinute: 299 }), null);
+  const evaluation = evaluateH1Block({ slotHour: 3, h1Bars: [], m15Bars: minute00Bars, availableThroughMinute: 299 });
+  assert.ok(evaluation);
+  const pending = buildStoredAlertCore({ base: "GBPUSD", brokerSymbol: "GBPUSD", evaluation, h1Bars: [] });
+  assert.ok(pending);
+  assert.deepEqual([pending.entryTime, pending.baseHour, pending.baseH1Signal, pending.symbolH1Signal], ["05:00", 4, null, null]);
 
   const minute25Bars = [
     ...m15Bars("TGGGT", H3_PAIR_NEWEST_MINUTE),
     { brokerDate: "2026-07-06", brokerTime: "2026-07-06T04:00", minuteOfDay: 240, direction: "T" as H1Direction },
     { brokerDate: "2026-07-06", brokerTime: "2026-07-06T03:45", minuteOfDay: 225, direction: "T" as H1Direction },
   ];
-  assert.equal(evaluateH1Block({ slotHour: 3, h1Bars: [], m15Bars: minute25Bars, availableThroughMinute: 254 }), null);
+  assert.ok(evaluateH1Block({ slotHour: 3, h1Bars: [], m15Bars: minute25Bars, availableThroughMinute: 254 }));
 });
 
-test(":00 and :25 signals wait for both closed entry-relative candles", () => {
+test(":00 and :25 entry times are available from the closed block pattern", () => {
   const pattern2Bars = m15Bars("TGTTTG", H3_PAIR_NEWEST_MINUTE);
-  assert.equal(evaluateH1Block({ slotHour: 3, h1Bars: [], m15Bars: pattern2Bars, availableThroughMinute: 299 }), null);
+  assert.ok(evaluateH1Block({ slotHour: 3, h1Bars: [], m15Bars: pattern2Bars, availableThroughMinute: 299 }));
   assert.ok(evaluateH1Block({ slotHour: 3, h1Bars: [], m15Bars: pattern2Bars, availableThroughMinute: 300 }));
 
   const minute25Bars = m15Bars("TGTGT", H3_PAIR_NEWEST_MINUTE);
-  assert.equal(evaluateH1Block({ slotHour: 3, h1Bars: [], m15Bars: minute25Bars, availableThroughMinute: 254 }), null);
+  assert.ok(evaluateH1Block({ slotHour: 3, h1Bars: [], m15Bars: minute25Bars, availableThroughMinute: 254 }));
   assert.ok(evaluateH1Block({ slotHour: 3, h1Bars: [], m15Bars: minute25Bars, availableThroughMinute: 255 }));
 
   const minute00Bars = m15Bars("TGTTTT", H3_PAIR_NEWEST_MINUTE);
-  assert.equal(evaluateH1Block({ slotHour: 3, h1Bars: [], m15Bars: minute00Bars, availableThroughMinute: 299 }), null);
+  assert.ok(evaluateH1Block({ slotHour: 3, h1Bars: [], m15Bars: minute00Bars, availableThroughMinute: 299 }));
   assert.ok(evaluateH1Block({ slotHour: 3, h1Bars: [], m15Bars: minute00Bars, availableThroughMinute: 300 }));
 });
 

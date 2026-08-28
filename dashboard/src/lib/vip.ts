@@ -5,13 +5,16 @@ import type { H1SignalPayload } from "@/lib/h1-signals";
 
 export const VIP_COOKIE = "sltp_vip_access";
 const VIP_PURPOSE = "oakgatekeeper-vip-v1";
+// Temporary product-wide preview: every visitor can inspect H1 preparation blocks.
+export const VIP_FREE_ACCESS = true;
 
 export type VipAccessState = {
   unlocked: boolean;
+  freeAccess: boolean;
   weekendFree: boolean;
   vipAuthenticated: boolean;
   weekday: string;
-  mode: "vip" | "weekend" | "locked";
+  mode: "free" | "vip" | "weekend" | "locked";
 };
 
 function signedValue(secret: string): string {
@@ -47,13 +50,15 @@ export function getVipAccessState(cookieHeader: string, now = new Date()): VipAc
   const weekendFree = weekday === "Sat" || weekday === "Sun";
   const secret = process.env.VIP_TOKEN || "";
   const vipAuthenticated = isValidVipCookie(cookieHeader, secret);
-  const unlocked = weekendFree || vipAuthenticated;
+  const freeAccess = VIP_FREE_ACCESS;
+  const unlocked = freeAccess || weekendFree || vipAuthenticated;
   return {
     unlocked,
+    freeAccess,
     weekendFree,
     vipAuthenticated,
     weekday,
-    mode: vipAuthenticated ? "vip" : weekendFree ? "weekend" : "locked",
+    mode: freeAccess ? "free" : vipAuthenticated ? "vip" : weekendFree ? "weekend" : "locked",
   };
 }
 

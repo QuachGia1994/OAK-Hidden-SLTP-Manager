@@ -26,6 +26,7 @@ export type H1SignalAlert = {
   entryOffsetMinutes?: number;
   entryTime: string;
   signal: H1SignalSide | null;
+  scheduledSignal: H1SignalSide | null;
   postSignalInverted?: boolean;
   postSignalRule?: H1PostSignalRule;
 };
