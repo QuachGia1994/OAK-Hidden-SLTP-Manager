@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixed H1 table publication so a missing/disabled cTrader automation target no longer aborts signal persistence. Analytics and history continue to publish, while Telegram intent creation remains fail-closed until the exact scanner account and Telegram control are enabled; skipped slots are not replayed as trades.
 - Fixed H1 M15 candle identity so candles at the same minute in different hours no longer overwrite each other. Live scans and the 90-day backfill now retain the complete intraday M15 sequence and can restore BUY/SELL rows instead of publishing empty history.
 - Fixed missing broker-day rollover when the Durable Object alarm is absent. The existing minute Cloudflare trigger now runs the Telegram tick and an independent H1 watchdog together, so H3 can self-heal without waiting for delayed GitHub cron delivery.
 - Reworked the H1 signal engine as state v48 / feed schema 10 / rule 42. Pattern 6 `TGTG/GTGT` is checked before Pattern 3, inverts the post-block `H:15` base and enters at `H+2:00`; P1/P5 also invert, P2 keeps `H:00` for `H:01`, and P3/P4 keep `H:15` for `H+1:25`. Thursday GBPUSD and Tuesday AUDUSD invert once after the pattern result. The XAU Thursday/Friday/Monday special cycle is visual metadata only and no longer changes BUY/SELL. Routing remains H3 FX-only, H4 XAUUSD-only and H6/H9/H12/H14/H16 for all targets. Eligible live signals still create one idempotent `approval_required` cTrader intent and never execute before explicit `/approve ID`.

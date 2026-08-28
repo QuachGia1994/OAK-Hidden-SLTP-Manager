@@ -63,6 +63,14 @@ test("live H1 alerts create idempotent scheduled intents but never auto-approve 
   assert.doesNotMatch(route, /approveCloudIntent|runCloudIntentExecution|executeClaimedCloudIntent/);
 });
 
+test("missing automation account never blocks signal persistence or the public table", () => {
+  assert.match(route, /automationReady/);
+  assert.match(route, /automationSkippedReason/);
+  assert.doesNotMatch(route, /H1 scheduled intents require Telegram control and the enabled scanner cTrader account/);
+  assert.ok(route.indexOf("if (automationReady)") < route.indexOf("symbolState.alerts.push(alert)"));
+  assert.match(route, /strategy: "h1-m15-rule-42"/);
+});
+
 test("cTrader cloud scanner remains read-only even when shared OAuth has trading scope", () => {
   assert.match(client, /wss:\/\/\$\{host\}:5036/);
   assert.match(client, /GET_TRENDBARS_REQ: 2137/);

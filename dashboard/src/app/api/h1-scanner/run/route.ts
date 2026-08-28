@@ -207,9 +207,14 @@ export async function POST(request: Request) {
     const providerTarget = dryRun
       ? null
       : (await listProviderAccounts()).find((account) => account.id === cTraderProviderAccountId(session.accountId) && account.enabled && account.provider === "ctrader") || null;
-    if (!dryRun && (!cloudConfig?.telegramControlEnabled || !providerTarget)) {
-      throw new Error("H1 scheduled intents require Telegram control and the enabled scanner cTrader account");
-    }
+    const automationReady = !dryRun && Boolean(cloudConfig?.telegramControlEnabled && providerTarget);
+    const automationSkippedReason = dryRun
+      ? "dry-run"
+      : !cloudConfig?.telegramControlEnabled
+        ? "telegram-control-disabled"
+        : !providerTarget
+          ? "enabled-scanner-account-missing"
+          : null;
 
     const pending: RunSummary[] = [];
     let sent = 0;
@@ -237,8 +242,8 @@ export async function POST(request: Request) {
         });
         let intentId: number | null = null;
         let telegramMessage = buildTelegramMessage(base, market.brokerDate, alert);
-        if (!dryRun) {
-          if (!cloudConfig || !providerTarget) throw new Error("H1 scheduled-intent configuration is unavailable");
+        if (automationReady) {
+          if (!cloudConfig || !providerTarget) throw new Error("H1 automation readiness invariant failed");
           const protection = providerProtectionPoints(providerTarget, alert.symbol);
           const dueAt = brokerEntryDueAt(market.brokerDate, alert.entryTime, market.brokerUtcOffsetHours);
           const task = await createCloudIntent({
@@ -257,7 +262,7 @@ export async function POST(request: Request) {
               tp: 0,
               legacyProfile: providerTarget.label,
               executionMode: TELEGRAM_CLOUD_EXECUTION_MODE,
-              strategy: "h1-m15-rule-41",
+              strategy: "h1-m15-rule-42",
               blockHour: alert.slotHour,
               patternKind: alert.patternKind,
             },
@@ -286,15 +291,18 @@ export async function POST(request: Request) {
         });
         if (dryRun) continue;
 
-        if (!cloudConfig) throw new Error("H1 cloud scanner config is unavailable");
-        await sendTelegram(telegramMessage, cloudConfig);
-        sent += 1;
+        if (automationReady) {
+          if (!cloudConfig) throw new Error("H1 automation readiness invariant failed");
+          await sendTelegram(telegramMessage, cloudConfig);
+          sent += 1;
+        }
         symbolState.alerts.push(alert);
         symbolState.alerts.sort((left, right) => left.slotHour - right.slotHour);
         delivered.add(alert.slotHour);
         changed = true;
-        // Persist immediately after Telegram success so retries cannot
-        // reinterpret or redeliver the slot.
+        // Persist every classified slot for the public table. When automation
+        // is ready this still happens only after Telegram succeeds, preserving
+        // retry ordering without making analytics depend on trading readiness.
         await saveH1CloudState(state);
       }
     }
@@ -308,6 +316,8 @@ export async function POST(request: Request) {
       ok: true,
       enabled,
       dryRun,
+      automationReady,
+      automationSkippedReason,
       stateSource: source,
       brokerDate: market.brokerDate,
       brokerHour: market.brokerHour,

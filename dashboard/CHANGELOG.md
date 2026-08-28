@@ -12,6 +12,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Decoupled H1 signal/history persistence from trading-automation readiness. The public table now advances even when the exact cTrader scanner account or Telegram control is unavailable, while intent creation and Telegram delivery remain fail-closed and the route reports the skipped reason.
 - Fixed cTrader M15 normalization to key candles by broker date, hour and minute. This prevents cross-hour `:00/:15/:30/:45` collisions that reduced every historical day to four M15 candles and left the H1 table empty; deployment backfill now reconstructs BUY/SELL from the complete provider history.
 - Fixed missing broker-day rollover when the Durable Object alarm is absent. Every minute Cloudflare trigger now preserves the Telegram tick and concurrently runs the H1 watchdog, allowing H3 to self-heal independently of delayed GitHub cron delivery.
 - Restored observable BUY/SELL output in the H1 table and synchronized its evidence labels with the post-block M15 base/action contract. NeoTech Master Password pairing now uses a keyboard-accessible in-page risk dialog with explicit accept/cancel actions, avoiding browser-native confirmation no-ops while preserving the server-side `TRADING_CAPABLE_ACCEPTED` requirement.
