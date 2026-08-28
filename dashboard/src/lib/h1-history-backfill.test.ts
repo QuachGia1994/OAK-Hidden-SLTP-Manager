@@ -55,9 +55,9 @@ test("historical reconstruction applies the block schedule, M15 engine and XAU c
   }
   assert.deepEqual(gold.map((alert) => alert.entryTime), ["06:00", "08:00", "11:00", "14:00", "16:00", "18:00"]);
 
-  // Pattern 5 first flips BUY to SELL. Mon 2026-07-06 then applies the XAU
-  // special-cycle inversion once more, while FX stays at SELL.
-  assert.ok(gold.every((alert) => alert.postSignalRule === "mon-cycle" && alert.symbolH1Signal === "BUY"));
+  // Pattern 5 flips BUY to SELL. The Monday XAU cycle remains visual
+  // metadata only, so gold and FX both stay SELL.
+  assert.ok(gold.every((alert) => alert.postSignalRule === "mon-cycle" && !alert.postSignalInverted && alert.symbolH1Signal === "SELL"));
   assert.ok(fx.every((alert) => alert.postSignalRule === "none" && alert.symbolH1Signal === "SELL"));
 });
 

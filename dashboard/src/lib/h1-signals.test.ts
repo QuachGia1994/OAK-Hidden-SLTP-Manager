@@ -10,8 +10,8 @@ const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.m
 const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
 const mobileH1RouteSource = readFileSync(new URL("../app/api/mobile/h1/route.ts", import.meta.url), "utf8");
 
-test("H1 web feed has independent schema-9 M15 signal-base contract", () => {
-  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 9/);
+test("H1 web feed has independent schema-10 M15 signal-base contract", () => {
+  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 10/);
   assert.match(readerSource, /postSignalInverted/);
   assert.match(readerSource, /postSignalRule/);
   assert.match(readerSource, /entryTime/);
@@ -21,7 +21,7 @@ test("H1 web feed has independent schema-9 M15 signal-base contract", () => {
   assert.match(readerSource, /payload\.schemaVersion !== H1_SIGNAL_PUBLIC_SCHEMA/);
   assert.match(readerSource, /maskFutureH1Signals\(parsePayload/);
   assert.match(readerSource, /payload\.signalRuleVersion !== H1_SIGNAL_RULE_VERSION/);
-  for (const kind of ["pattern1", "pattern2", "pattern3", "pattern4", "pattern5"]) assert.match(readerSource, new RegExp(kind));
+  for (const kind of ["pattern1", "pattern2", "pattern3", "pattern4", "pattern5", "pattern6"]) assert.match(readerSource, new RegExp(kind));
   assert.doesNotMatch(readerSource, /sw2|sw3Pure|sw3Normal|mon-block|tue-block|wed-block|tradeAllowed|blockedSlots|reconcileTradeState/);
 });
 
@@ -92,13 +92,17 @@ test("H1 detail stays compact with M15 evidence, entry time and XAU cycle labels
   assert.match(boardSource, /baseMinute/);
   assert.match(boardSource, /Giờ entry|Entry time/);
   assert.match(boardSource, /entryOffsetMinutes/);
-  for (const label of ["Pattern 1 · TGG / GTT", "Pattern 2 · TTT / GGG", "Pattern 3 · TGT / GTG", "Pattern 4 · GGT / TTG", "Pattern 5 · 4+ same-direction candles"]) {
+  for (const label of ["Pattern 1 · TGG / GTT", "Pattern 2 · TTT / GGG", "Pattern 3 · TGT / GTG", "Pattern 4 · GGT / TTG", "Pattern 5 · 4+ same-direction candles", "Pattern 6 · TGTG / GTGT"]) {
     assert.ok(boardSource.includes(label));
   }
   assert.match(boardSource, /Hậu signal/);
   assert.match(boardSource, /thu-cycle/);
   assert.match(boardSource, /fri-cycle/);
   assert.match(boardSource, /mon-cycle/);
+  assert.match(boardSource, /thu-gbpusd/);
+  assert.match(boardSource, /tue-audusd/);
+  assert.match(boardSource, /P1\/P5\/P6 reverse/);
+  assert.match(boardSource, /P1\/P5\/P6 đảo/);
   assert.doesNotMatch(boardSource, /AllowTrade lookback|BLOCK|sw2|sw3Pure|sw3Normal|audusdH3|mon-block|tue-block|wed-block|invert-pattern|keep-pattern|Logic base|baseInverted/);
   assert.match(vipSource, /redactH1Signals/);
   assert.match(vipSource, /\{ \.\.\.symbol, alerts: \[\] \}/);

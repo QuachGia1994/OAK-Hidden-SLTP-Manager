@@ -168,6 +168,7 @@ function patternLabel(kind: H1PatternKind, locale: Locale) {
     pattern3: { EN: "Pattern 3 · TGT / GTG", VN: "Pattern 3 · TGT / GTG" },
     pattern4: { EN: "Pattern 4 · GGT / TTG", VN: "Pattern 4 · GGT / TTG" },
     pattern5: { EN: "Pattern 5 · 4+ same-direction candles", VN: "Pattern 5 · 4+ cây cùng hướng" },
+    pattern6: { EN: "Pattern 6 · TGTG / GTGT", VN: "Pattern 6 · TGTG / GTGT" },
   };
   return labels[kind][locale];
 }
@@ -176,9 +177,11 @@ function postSignalLabel(rule: H1SignalAlert["postSignalRule"], inverted: boolea
   if (!rule) return "—";
   const labels = {
     none: { EN: "no inversion", VN: "không đảo" },
-    "thu-cycle": { EN: "reverse by Thursday special cycle", VN: "đảo theo chu kỳ Thứ 5 special" },
-    "fri-cycle": { EN: "reverse by Friday special cycle", VN: "đảo theo chu kỳ Thứ 6 special" },
-    "mon-cycle": { EN: "reverse by Monday cycle (prior special Thursday)", VN: "đảo theo chu kỳ Thứ 2 (tuần sau T5 đặc biệt)" },
+    "thu-cycle": { EN: "Thursday special-cycle marker, no inversion", VN: "đánh dấu chu kỳ Thứ 5 special, không đảo" },
+    "fri-cycle": { EN: "Friday special-cycle marker, no inversion", VN: "đánh dấu chu kỳ Thứ 6 special, không đảo" },
+    "mon-cycle": { EN: "Monday cycle marker after special Thursday, no inversion", VN: "đánh dấu chu kỳ Thứ 2 sau T5 đặc biệt, không đảo" },
+    "thu-gbpusd": { EN: "reverse GBPUSD on Thursday", VN: "đảo GBPUSD Thứ 5" },
+    "tue-audusd": { EN: "reverse AUDUSD on Tuesday", VN: "đảo AUDUSD Thứ 3" },
   } as const;
   if (!inverted && rule === "none") return labels.none[locale];
   return labels[rule][locale];
@@ -249,7 +252,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
   const copy = locale === "EN"
     ? {
         title: "H1 Intraday Signals",
-        sub: "Post-block M15 base · P1/P5 reverse · P2/P3/P4 keep · XAUUSD special cycle",
+        sub: "Post-block M15 base · P1/P5/P6 reverse · P2/P3/P4 keep · weekday post-signal rules · XAU cycle marker",
         awaiting: "Awaiting H1 live feed",
         locked: "VIP weekday signals are locked",
         weekdayGroup: "Filter by weekday",
@@ -260,7 +263,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
       }
     : {
         title: "Tín hiệu H1 trong ngày",
-        sub: "Base M15 sau block · P1/P5 đảo · P2/P3/P4 giữ · chu kỳ đặc biệt XAUUSD",
+        sub: "Base M15 sau block · P1/P5/P6 đảo · P2/P3/P4 giữ · hậu signal theo cặp/thứ · XAU chỉ tô chu kỳ",
         awaiting: "Đang chờ feed H1 live",
         locked: "Tín hiệu H1 ngày thường đang khóa VIP",
         weekdayGroup: "Lọc theo thứ",

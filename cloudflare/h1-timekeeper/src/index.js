@@ -21,7 +21,7 @@ export function scannerOutcomeNeedsRetry(status, payload) {
 }
 
 export function scannerScheduleMode(cron) {
-  if (cron === TELEGRAM_CRON) return "telegram";
+  if (cron === TELEGRAM_CRON) return "telegram-watchdog";
   if (SCANNER_FOLLOW_UP_CRONS.has(cron)) return "follow-up";
   return "watchdog";
 }
@@ -198,8 +198,17 @@ export default {
 
   async scheduled(controller, env) {
     const mode = scannerScheduleMode(controller.cron);
-    if (mode === "telegram") {
-      await runTelegramTick(env);
+    if (mode === "telegram-watchdog") {
+      const [telegramResult, watchdogResult] = await Promise.allSettled([
+        runTelegramTick(env),
+        primaryStub(env).fetch(new Request("https://internal/watchdog", {
+          method: "POST",
+          headers: { authorization: `Bearer ${env.H1_SCANNER_TOKEN}` },
+        })),
+      ]);
+      if (telegramResult.status === "rejected") throw telegramResult.reason;
+      if (watchdogResult.status === "rejected") throw watchdogResult.reason;
+      if (!watchdogResult.value.ok) throw new Error(`H1 watchdog failed (${watchdogResult.value.status})`);
       return;
     }
     const operation = mode === "follow-up" ? "run" : "watchdog";

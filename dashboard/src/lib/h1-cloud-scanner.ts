@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 47;
-export const H1_PUBLIC_SCHEMA = 9;
-export const H1_SIGNAL_RULE_VERSION = 41;
+export const H1_CLOUD_STATE_VERSION = 48;
+export const H1_PUBLIC_SCHEMA = 10;
+export const H1_SIGNAL_RULE_VERSION = 42;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v47";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v48";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -20,8 +20,8 @@ export type H1TargetBase = typeof H1_TARGET_BASES[number];
 export type H1Base = typeof H1_ALL_BASES[number];
 export type H1Direction = "T" | "G";
 export type H1Signal = "BUY" | "SELL";
-export type H1PatternKind = "pattern1" | "pattern2" | "pattern3" | "pattern4" | "pattern5";
-export type H1PostSignalRule = "none" | "thu-cycle" | "fri-cycle" | "mon-cycle";
+export type H1PatternKind = "pattern1" | "pattern2" | "pattern3" | "pattern4" | "pattern5" | "pattern6";
+export type H1PostSignalRule = "none" | "thu-cycle" | "fri-cycle" | "mon-cycle" | "thu-gbpusd" | "tue-audusd";
 
 export type H1DirectionBar = {
   hour: number;
@@ -73,7 +73,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 47;
+  version: 48;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[] }>>;
@@ -81,8 +81,8 @@ export type H1CloudState = {
 };
 
 export type H1PublicFeed = {
-  schemaVersion: 9;
-  signalRuleVersion: 41;
+  schemaVersion: 10;
+  signalRuleVersion: 42;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -116,12 +116,14 @@ const PATTERN_1_TRIPLES = new Set(["TGG", "GTT"]);
 const PATTERN_2_TRIPLES = new Set(["TTT", "GGG"]);
 const PATTERN_3_TRIPLES = new Set(["TGT", "GTG"]);
 const PATTERN_4_TRIPLES = new Set(["GGT", "TTG"]);
+const PATTERN_6_WINDOWS = new Set(["TGTG", "GTGT"]);
 const PATTERN_LABELS: Record<H1PatternKind, string> = {
   pattern1: "Pattern 1 · TGG/GTT",
   pattern2: "Pattern 2 · TTT/GGG",
   pattern3: "Pattern 3 · TGT/GTG",
   pattern4: "Pattern 4 · GGT/TTG",
   pattern5: "Pattern 5 · 4+ cây cùng hướng",
+  pattern6: "Pattern 6 · TGTG/GTGT",
 };
 
 // Entry offsets are measured in minutes from the block hour H:00 (broker time).
@@ -131,10 +133,12 @@ export const H1_PATTERN_ENTRY_OFFSET_MINUTES: Record<H1PatternKind, number> = {
   pattern3: 85,
   pattern4: 85,
   pattern5: 120,
+  pattern6: 120,
 };
 
 export function classifyH1Pattern(pattern: string): H1PatternKind | null {
   if (pattern.length >= 4 && [...pattern].every((direction) => direction === pattern[0])) return "pattern5";
+  if (PATTERN_6_WINDOWS.has(pattern)) return "pattern6";
   if (PATTERN_1_TRIPLES.has(pattern)) return "pattern1";
   if (PATTERN_2_TRIPLES.has(pattern)) return "pattern2";
   if (PATTERN_3_TRIPLES.has(pattern)) return "pattern3";
@@ -179,9 +183,10 @@ export function brokerEntryDueAt(brokerDate: string, entryTime: string, brokerUt
 //       3, 4 or 7; or
 //   (b) the Wednesday immediately before D falls on day 30 or 1.
 //
-// Effects (XAUUSD only, whole day, every XAUUSD block):
-//   special Thursday week -> Thu inverted, Fri kept, NEXT Monday inverted
-//   normal Thursday week  -> Thu kept, Fri inverted, next Monday kept
+// Visual effects only (XAUUSD whole-day row metadata):
+//   special Thursday week -> mark Thu and NEXT Monday
+//   normal Thursday week  -> mark Fri
+// These markers never change the computed signal.
 // ---------------------------------------------------------------------------
 const SPECIAL_FIRST_FRIDAY_DAYS = new Set([3, 4, 7]);
 const MONTH_BOUNDARY_WEDNESDAY_DAYS = new Set([30, 1]);
@@ -206,19 +211,21 @@ export function isSpecialThursdayBrokerDate(brokerDate: string): boolean {
 
 export function cycleDecisionFor(base: H1TargetBase, brokerDate: string): { inverted: boolean; rule: H1PostSignalRule } {
   const none = { inverted: false, rule: "none" as H1PostSignalRule };
-  if (base !== "XAUUSD") return none;
   const weekday = parseBrokerDateKeyUtc(brokerDate).getUTCDay();
+  if (base === "GBPUSD" && weekday === 4) return { inverted: true, rule: "thu-gbpusd" };
+  if (base === "AUDUSD" && weekday === 2) return { inverted: true, rule: "tue-audusd" };
+  if (base !== "XAUUSD") return none;
   if (weekday === 4) {
-    return isSpecialThursdayBrokerDate(brokerDate) ? { inverted: true, rule: "thu-cycle" } : none;
+    return isSpecialThursdayBrokerDate(brokerDate) ? { inverted: false, rule: "thu-cycle" } : none;
   }
   if (weekday === 5) {
     return !isSpecialThursdayBrokerDate(addBrokerCalendarDays(brokerDate, -1))
-      ? { inverted: true, rule: "fri-cycle" }
+      ? { inverted: false, rule: "fri-cycle" }
       : none;
   }
   if (weekday === 1) {
     return isSpecialThursdayBrokerDate(addBrokerCalendarDays(brokerDate, -4))
-      ? { inverted: true, rule: "mon-cycle" }
+      ? { inverted: false, rule: "mon-cycle" }
       : none;
   }
   return none;
@@ -270,6 +277,7 @@ export function evaluateH1Block(args: {
 
   let patternKind: H1PatternKind;
   let m15Window = windowText;
+  let selectedWindowBars = windowBars.map((bar) => bar!);
   if (windowDirections.every((direction) => direction === windowDirections[0])) {
     const runLength = runLengthThroughWindow(
       byMinute,
@@ -285,7 +293,15 @@ export function evaluateH1Block(args: {
       patternKind = classifyH1Pattern(windowText)!;
     }
   } else {
-    patternKind = classifyH1Pattern(windowText)!;
+    const olderBar = byMinute.get(blockMinute - windowOffsets[2] - 15);
+    const extendedWindow = olderBar ? windowText + olderBar.direction : windowText;
+    if (classifyH1Pattern(extendedWindow) === "pattern6") {
+      patternKind = "pattern6";
+      m15Window = extendedWindow;
+      selectedWindowBars = [...selectedWindowBars, olderBar!];
+    } else {
+      patternKind = classifyH1Pattern(windowText)!;
+    }
   }
 
   const signalBaseMinute = patternKind === "pattern2" ? blockMinute : blockMinute + 15;
@@ -298,11 +314,11 @@ export function evaluateH1Block(args: {
   if (!baseBar || baseBar.flat || availableThroughMinute < signalReadyMinute) return null;
 
   const considered = new Map<number, H1M15Bar>();
-  for (const bar of [...pairBars, ...windowBars, baseBar]) considered.set(bar!.minuteOfDay, bar!);
+  for (const bar of [...pairBars, ...selectedWindowBars, baseBar]) considered.set(bar!.minuteOfDay, bar!);
   const bars = [...considered.values()].sort((left, right) => right.minuteOfDay - left.minuteOfDay);
 
   const baseDirection = baseBar.direction;
-  const m15PairInverted = patternKind === "pattern1" || patternKind === "pattern5";
+  const m15PairInverted = patternKind === "pattern1" || patternKind === "pattern5" || patternKind === "pattern6";
   const refinedDirection: H1Direction = m15PairInverted ? (baseDirection === "T" ? "G" : "T") : baseDirection;
 
   return {
@@ -376,14 +392,16 @@ function evaluationBaseLabel(alert: H1StoredAlert): string {
 export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, alert: H1StoredAlert): string {
   const postSignalLabels: Record<H1PostSignalRule, string> = {
     none: "không đảo",
-    "thu-cycle": "đảo theo chu kỳ Thứ 5 special",
-    "fri-cycle": "đảo theo chu kỳ Thứ 6 special",
-    "mon-cycle": "đảo theo chu kỳ Thứ 2 (tuần sau T5 đặc biệt)",
+    "thu-cycle": "đánh dấu chu kỳ Thứ 5 special, không đảo",
+    "fri-cycle": "đánh dấu chu kỳ Thứ 6 special, không đảo",
+    "mon-cycle": "đánh dấu chu kỳ Thứ 2 sau T5 đặc biệt, không đảo",
+    "thu-gbpusd": "đảo GBPUSD Thứ 5",
+    "tue-audusd": "đảo AUDUSD Thứ 3",
   };
   const patternVerdict = alert.m15PairInverted ? "đảo base M15" : "giữ base M15";
-  const cycleLine = base === "XAUUSD"
-    ? `• Chu kỳ XAU: ${postSignalLabels[alert.postSignalRule]}`
-    : null;
+  const cycleLine = alert.postSignalRule === "none"
+    ? null
+    : `• Hậu signal: ${postSignalLabels[alert.postSignalRule]}`;
   const rows = [
     `🔔 ${base} H1 SIGNAL`,
     `• Symbol: ${alert.symbol}`,
@@ -408,7 +426,7 @@ function isTargetBase(value: string): value is H1TargetBase {
 }
 
 function isPatternKind(value: unknown): value is H1PatternKind {
-  return value === "pattern1" || value === "pattern2" || value === "pattern3" || value === "pattern4" || value === "pattern5";
+  return value === "pattern1" || value === "pattern2" || value === "pattern3" || value === "pattern4" || value === "pattern5" || value === "pattern6";
 }
 
 function isSignal(value: unknown): value is H1Signal {
@@ -416,7 +434,8 @@ function isSignal(value: unknown): value is H1Signal {
 }
 
 function isPostSignalRule(value: unknown): value is H1PostSignalRule {
-  return value === "none" || value === "thu-cycle" || value === "fri-cycle" || value === "mon-cycle";
+  return value === "none" || value === "thu-cycle" || value === "fri-cycle" || value === "mon-cycle"
+    || value === "thu-gbpusd" || value === "tue-audusd";
 }
 
 function isDirection(value: unknown): value is H1Direction {

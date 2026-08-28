@@ -17,8 +17,8 @@ test("scanner retry policy retries concurrency and unfinalized H1 outcomes", () 
   assert.equal(scannerOutcomeNeedsRetry(200, { ok: true, skipped: "broker-weekend" }), false);
 });
 
-test("scanner phases preserve minute Telegram ticks and run M15 follow-ups at H:01 and H:30", () => {
-  assert.equal(scannerScheduleMode("* * * * *"), "telegram");
+test("scanner phases make every minute tick also heal a missed H1 alarm", () => {
+  assert.equal(scannerScheduleMode("* * * * *"), "telegram-watchdog");
   assert.equal(scannerScheduleMode("1 * * * *"), "follow-up");
   assert.equal(scannerScheduleMode("30 * * * *"), "follow-up");
   assert.equal(scannerScheduleMode("10 * * * *"), "watchdog");

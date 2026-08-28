@@ -7,7 +7,7 @@ import { latestH1Date, recentAlerts } from "@/lib/h1";
 import { radius, spacing, useOakTheme } from "@/lib/theme";
 import { useOakData } from "@/state/data";
 
-type Filter = "all" | "pattern1" | "pattern2" | "pattern3" | "pattern4" | "pattern5";
+type Filter = "all" | "pattern1" | "pattern2" | "pattern3" | "pattern4" | "pattern5" | "pattern6";
 
 export default function AlertsScreen() {
   const theme = useOakTheme();
@@ -27,7 +27,7 @@ export default function AlertsScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.accent} />}
     >
       <View style={[styles.filters, { borderColor: theme.border, backgroundColor: theme.raised }]}>
-        {(["all", "pattern1", "pattern2", "pattern3", "pattern4", "pattern5"] as const).map((item) => {
+        {(["all", "pattern1", "pattern2", "pattern3", "pattern4", "pattern5", "pattern6"] as const).map((item) => {
           const active = filter === item;
           return (
             <Pressable

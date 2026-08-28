@@ -39,7 +39,7 @@ test("cloud scanner setup uses one-time tickets and encrypted server-side Telegr
   assert.match(setupRoute, /NextResponse\.json\(\{ ok: true, \.\.\.safeH1CloudConfigStatus\(saved\) \}/);
 });
 
-test("cloud scanner sends and persists every classified five-pattern alert", () => {
+test("cloud scanner sends and persists every classified six-pattern alert", () => {
   assert.match(route, /loadH1CloudState/);
   assert.match(cloudStore, /seedCloudStateFromPublic/);
   assert.match(route, /x-h1-run-ticket/);
@@ -149,6 +149,8 @@ test("Cloudflare Durable Object is primary H:00 timekeeper with retry-aware watc
   assert.match(timekeeper, /awaiting-closed-h1/);
   assert.match(timekeeper, /lastSuccessBoundary < boundary/);
   assert.match(timekeeper, /SCANNER_FOLLOW_UP_CRONS/);
+  assert.match(timekeeper, /telegram-watchdog/);
+  assert.match(timekeeper, /Promise\.allSettled/);
   assert.match(timekeeper, /mode === "follow-up" \? "run" : "watchdog"/);
   assert.match(timekeeper, /x-h1-timekeeper-key/);
   assert.doesNotMatch(timekeeper, /DASHBOARD_API_KEY|UPSTASH_REDIS_REST_TOKEN|CTRADER_CLIENT_SECRET|TELEGRAM_TOKEN/);

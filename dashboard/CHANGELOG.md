@@ -6,13 +6,14 @@ All notable changes to the dashboard are recorded here.
 
 ### Added
 
-- Reworked the H1 core as state v47 / public feed schema 9 / signal rule 41. Pre-block M15 pairs now select only the Pattern 1-5 classification window. P1/P3/P4/P5 take the post-block `H:15` M15 candle as base; P1/P5 invert it, P3/P4 keep it and enter at `H+1:25`. P2 takes and keeps `H:00` for entry at `H:01`. Routing remains H3 FX-only, H4 XAUUSD-only, then H6/H9/H12/H14/H16 for all targets. Cloudflare/GitHub phases cover `H:00/H:01/H:30` so live post-block candles are actually evaluated. Eligible live signals create one idempotent `approval_required` cTrader intent for the exact scanner account with fixed lot `0.03`; the Telegram alert exposes `/approve ID`, and the route never auto-approves or directly executes it.
+- Reworked the H1 core as state v48 / public feed schema 10 / signal rule 42. Pattern 6 `TGTG/GTGT` has priority over Pattern 3, inverts the post-block `H:15` base and enters at `H+2:00`. P1/P5 also invert, P2 keeps `H:00` for `H:01`, and P3/P4 keep `H:15` for `H+1:25`. Thursday GBPUSD and Tuesday AUDUSD invert after the pattern result; the XAU special-cycle badge remains visual metadata only. Routing and explicit `/approve ID` safety are unchanged.
 
 - Added revocable NeoTech profile share links. Owners can create 30-day read-only links, copy the secret URL once, list active links, revoke one or revoke all, while shared viewers receive live server-authoritative profile updates without workspace access, MT5 credentials, connector tokens, raw trades, ticket IDs or cash amounts. Share secrets stay in the URL fragment and are resolved through a bearer header; the server stores only SHA-256 hashes.
 
 ### Fixed
 
 - Fixed cTrader M15 normalization to key candles by broker date, hour and minute. This prevents cross-hour `:00/:15/:30/:45` collisions that reduced every historical day to four M15 candles and left the H1 table empty; deployment backfill now reconstructs BUY/SELL from the complete provider history.
+- Fixed missing broker-day rollover when the Durable Object alarm is absent. Every minute Cloudflare trigger now preserves the Telegram tick and concurrently runs the H1 watchdog, allowing H3 to self-heal independently of delayed GitHub cron delivery.
 - Restored observable BUY/SELL output in the H1 table and synchronized its evidence labels with the post-block M15 base/action contract. NeoTech Master Password pairing now uses a keyboard-accessible in-page risk dialog with explicit accept/cancel actions, avoiding browser-native confirmation no-ops while preserving the server-side `TRADING_CAPABLE_ACCEPTED` requirement.
 
 
