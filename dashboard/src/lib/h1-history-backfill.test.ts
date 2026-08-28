@@ -70,15 +70,15 @@ test("historical reconstruction applies the block schedule, M15 engine and XAU c
   }
   assert.deepEqual(gold.map((alert) => alert.entryTime), ["06:00", "08:00", "11:00", "14:00", "16:00", "18:00"]);
 
-  // All symbols use the H1 base direction directly. July cycle Monday
-  // inverts early/mid groups and keeps the late group.
+  // All symbols use the H1 base direction directly. July cycle Monday row
+  // is C N N C C C: keep H3/H4, invert H6/H9, keep H12/H14/H16.
   assert.deepEqual(gold.map((alert) => [alert.postSignalRule, alert.symbolH1Signal]), [
-    ["cycle-net-invert", "SELL"], ["cycle-net-invert", "SELL"], ["cycle-net-invert", "SELL"],
-    ["cycle-net-keep", "BUY"], ["cycle-net-invert", "SELL"], ["cycle-net-keep", "BUY"],
+    ["cycle-net-keep", "BUY"], ["cycle-net-invert", "SELL"], ["cycle-net-invert", "SELL"],
+    ["cycle-net-keep", "BUY"], ["cycle-net-keep", "BUY"], ["cycle-net-keep", "BUY"],
   ]);
   assert.deepEqual(fx.map((alert) => [alert.postSignalRule, alert.symbolH1Signal]), [
-    ["cycle-net-invert", "SELL"], ["cycle-net-invert", "SELL"], ["cycle-net-invert", "SELL"],
-    ["cycle-net-keep", "BUY"], ["cycle-net-invert", "SELL"], ["cycle-net-keep", "BUY"],
+    ["cycle-net-keep", "BUY"], ["cycle-net-invert", "SELL"], ["cycle-net-invert", "SELL"],
+    ["cycle-net-keep", "BUY"], ["cycle-net-keep", "BUY"], ["cycle-net-keep", "BUY"],
   ]);
 });
 

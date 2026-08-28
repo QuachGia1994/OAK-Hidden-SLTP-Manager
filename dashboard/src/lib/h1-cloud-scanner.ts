@@ -2,7 +2,7 @@ import { addBrokerCalendarDays, brokerDateWeekdayIndex, isValidBrokerDateKey, pa
 
 export const H1_CLOUD_STATE_VERSION = 54;
 export const H1_PUBLIC_SCHEMA = 16;
-export const H1_SIGNAL_RULE_VERSION = 49;
+export const H1_SIGNAL_RULE_VERSION = 50;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
 export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v54";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
@@ -103,7 +103,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 16;
-  signalRuleVersion: 49;
+  signalRuleVersion: 50;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -251,7 +251,9 @@ export function brokerEntryDueAt(brokerDate: string, entryTime: string, brokerUt
 //
 // The first Thursday of each calendar month anchors whether that month is a
 // cycle month. The weekday map is shared by FX and XAUUSD and is intentionally
-// independent of symbol. Slots are grouped as H3/H4, H6/H9/H14 and H12/H16.
+// independent of symbol. Six blocks, each with its own decision (N = invert,
+// C = keep): [H3/H4], [H6], [H9], [H12], [H14], [H16]. A non-cycle (regular)
+// month uses the exact inverse of the weekday row.
 // ---------------------------------------------------------------------------
 const SPECIAL_FIRST_FRIDAY_DAYS = new Set([3, 4, 7]);
 const MONTH_BOUNDARY_WEDNESDAY_DAYS = new Set([30, 1]);
@@ -290,32 +292,39 @@ export function isCycleMonth(brokerDate: string): boolean {
   return isSpecialThursdayBrokerDate(firstThursdayBrokerDate(brokerDate));
 }
 
-type H1PostSignalGroup = "early" | "mid" | "late";
+type H1PostSignalBlock = 0 | 1 | 2 | 3 | 4 | 5;
 
-function postSignalGroupForSlot(slotHour: number): H1PostSignalGroup | null {
-  if (slotHour === 3 || slotHour === 4) return "early";
-  if (slotHour === 6 || slotHour === 9 || slotHour === 14) return "mid";
-  if (slotHour === 12 || slotHour === 16) return "late";
+function postSignalBlockForSlot(slotHour: number): H1PostSignalBlock | null {
+  if (slotHour === 3 || slotHour === 4) return 0;
+  if (slotHour === 6) return 1;
+  if (slotHour === 9) return 2;
+  if (slotHour === 12) return 3;
+  if (slotHour === 14) return 4;
+  if (slotHour === 16) return 5;
   return null;
 }
 
-const CYCLE_GROUP_INVERSION: Record<number, Record<H1PostSignalGroup, boolean>> = {
-  1: { early: true, mid: true, late: false },
-  2: { early: false, mid: true, late: false },
-  3: { early: false, mid: true, late: false },
-  4: { early: true, mid: false, late: true },
-  5: { early: true, mid: false, late: true },
+// Cycle-month rows, ordered as [H3/H4, H6, H9, H12, H14, H16].
+// N (true) = invert, C (false) = keep.
+const CYCLE_DAY_INVERSION: Record<number, readonly [boolean, boolean, boolean, boolean, boolean, boolean]> = {
+  1: [false, true, true, false, false, false],  // Mon: C N N C C C
+  2: [true, false, true, false, true, false],   // Tue: N C N C N C
+  3: [true, false, false, false, true, false],  // Wed: N C C C N C
+  4: [true, false, false, true, false, true],   // Thu: N C C N C N
+  5: [true, false, false, true, false, false],  // Fri: N C C N C C
 };
 
 export function cycleDecisionFor(base: H1TargetBase, brokerDate: string, slotHour = 3): { inverted: boolean; rule: H1PostSignalRule } {
   void base;
   const none = { inverted: false, rule: "none" as H1PostSignalRule };
   const weekday = brokerDateWeekdayIndex(brokerDate);
-  const group = postSignalGroupForSlot(slotHour);
-  if (weekday === 0 || weekday === 6 || !group) return none;
+  const block = postSignalBlockForSlot(slotHour);
+  if (weekday === 0 || weekday === 6 || block === null) return none;
 
+  const dayRow = CYCLE_DAY_INVERSION[weekday];
+  if (!dayRow) return none;
   const cycleMonth = isCycleMonth(brokerDate);
-  const cycleInverted = CYCLE_GROUP_INVERSION[weekday]?.[group] ?? false;
+  const cycleInverted = dayRow[block];
   const inverted = cycleMonth ? cycleInverted : !cycleInverted;
   return {
     inverted,
@@ -514,15 +523,13 @@ function brokerWeekdayLabel(brokerDate: string): string {
 export function buildTelegramBlockReminder(brokerDate: string, slotHour: number): string {
   const decision = cycleDecisionFor(H1_TARGET_BASES[0], brokerDate, slotHour);
   const phase = decision.rule.startsWith("cycle-") ? "pha chu kỳ tháng" : "pha tháng thường";
-  const group = slotHour === 3 || slotHour === 4
+  const blockLabel = slotHour === 3 || slotHour === 4
     ? "H3/H4"
-    : slotHour === 6 || slotHour === 9 || slotHour === 14
-      ? "H6/H9/H14"
-      : "H12/H16";
+    : `H${String(slotHour).padStart(2, "0")}`;
   return [
     `⏰ BLOCK ĐÃ ĐẾN · ${brokerWeekdayLabel(brokerDate)} · HIỆN TẠI H${String(slotHour).padStart(2, "0")}`,
     `• Hậu signal: ${decision.inverted ? "ĐẢO" : "GIỮ NGUYÊN"}`,
-    `• Nhóm: ${group} · ${phase}`,
+    `• Block: ${blockLabel} · ${phase}`,
     "• Chỉ lưu ý hậu signal; entry time chỉ gửi khi pattern đạt.",
   ].join("\n");
 }

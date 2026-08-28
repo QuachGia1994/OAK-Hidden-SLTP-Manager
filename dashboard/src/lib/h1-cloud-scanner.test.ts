@@ -119,10 +119,10 @@ function buildStoredAlert(args: {
 // 02:15/02:00/01:45 (135/120/105); group B window 02:30/02:15/02:00 (150/135/120).
 const H3_PAIR_NEWEST_MINUTE = 165;
 
-test("rule versions stay on state v54 / feed v16 and advance to rule 49", () => {
+test("rule versions stay on state v54 / feed v16 and advance to rule 50", () => {
   assert.equal(H1_CLOUD_STATE_VERSION, 54);
   assert.equal(H1_PUBLIC_SCHEMA, 16);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 49);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 50);
   assert.deepEqual(H1_SCAN_HOURS, [3, 4, 6, 9, 12, 14, 16]);
 });
 
@@ -180,17 +180,17 @@ test("M5 Bollinger base fails closed for missing, equal or non-finite evidence",
 });
 
 test("monthly phase applies to all symbols before AUD Tuesday and GBP Thursday extra inversions", () => {
-  // July is a cycle month: phase keeps Thursday and reverses Tuesday.
+  // July is a cycle month: H3/H4 (first block) is N for both Thursday and Tuesday.
   assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-07-02"), { inverted: true, rule: "cycle-net-invert" });
   assert.deepEqual(cycleDecisionFor("GBPUSD", "2026-07-02"), { inverted: true, rule: "cycle-net-invert" });
-  assert.deepEqual(cycleDecisionFor("USDCAD", "2026-07-07"), { inverted: false, rule: "cycle-net-keep" });
-  assert.deepEqual(cycleDecisionFor("AUDUSD", "2026-07-07"), { inverted: false, rule: "cycle-net-keep" });
+  assert.deepEqual(cycleDecisionFor("USDCAD", "2026-07-07"), { inverted: true, rule: "cycle-net-invert" });
+  assert.deepEqual(cycleDecisionFor("AUDUSD", "2026-07-07"), { inverted: true, rule: "cycle-net-invert" });
 
-  // June is a regular month: phase reverses Thursday and keeps Tuesday.
+  // June is a regular month: the inverse rows keep H3/H4 on Thursday and Tuesday.
   assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-06-04"), { inverted: false, rule: "regular-net-keep" });
   assert.deepEqual(cycleDecisionFor("GBPUSD", "2026-06-04"), { inverted: false, rule: "regular-net-keep" });
-  assert.deepEqual(cycleDecisionFor("USDCAD", "2026-06-09"), { inverted: true, rule: "regular-net-invert" });
-  assert.deepEqual(cycleDecisionFor("AUDUSD", "2026-06-09"), { inverted: true, rule: "regular-net-invert" });
+  assert.deepEqual(cycleDecisionFor("USDCAD", "2026-06-09"), { inverted: false, rule: "regular-net-keep" });
+  assert.deepEqual(cycleDecisionFor("AUDUSD", "2026-06-09"), { inverted: false, rule: "regular-net-keep" });
 });
 
 test("six-block cycle and regular tables map each slot group for every symbol", () => {
@@ -199,10 +199,10 @@ test("six-block cycle and regular tables map each slot group for every symbol", 
       assert.deepEqual([3, 6, 12].map((hour) => cycleDecisionFor(base, date, hour).inverted), expected);
     }
   };
-  check("2026-07-09", [true, false, true]);  // cycle Thursday
-  check("2026-07-07", [false, true, false]); // cycle Tuesday
-  check("2026-07-06", [true, true, false]);  // cycle Monday
-  check("2026-06-04", [false, true, false]); // regular Thursday is inverse
+  check("2026-07-09", [true, false, true]);  // cycle Thursday: H3/H4 N, H6 C, H12 N
+  check("2026-07-07", [true, false, false]); // cycle Tuesday: H3/H4 N, H6 C, H12 C
+  check("2026-07-06", [false, true, false]); // cycle Monday: H3/H4 C, H6 N, H12 C
+  check("2026-06-04", [false, true, false]); // regular Thursday is the inverse row
 });
 
 test("H3 belongs to FX, H4 to XAUUSD, and later blocks scan all five targets", () => {
@@ -235,7 +235,8 @@ test("P2 and P5 both follow the H+2:00 entry-relative pair", () => {
     assert.ok(evaluation, patternKind);
     assert.equal(evaluation.patternKind, patternKind);
     const alert = buildStoredAlert({ base: "GBPUSD", brokerSymbol: "GBPUSD", evaluation });
-    assert.deepEqual([alert.baseDirection, alert.baseHour, alert.baseH1Signal, alert.symbolH1Signal], [baseDirection, 4, baseDirection === "T" ? "BUY" : "SELL", baseDirection === "T" ? "SELL" : "BUY"]);
+    // 2026-07-06 is a cycle Monday whose first block (H3/H4) is C (keep).
+    assert.deepEqual([alert.baseDirection, alert.baseHour, alert.baseH1Signal, alert.symbolH1Signal], [baseDirection, 4, baseDirection === "T" ? "BUY" : "SELL", baseDirection === "T" ? "BUY" : "SELL"]);
   }
 });
 
@@ -316,7 +317,8 @@ test("entry-minute signal refinement uses two M15 candles for :00 and :25 entrie
       [baseMinute, pair, inverted, baseDirection],
     );
     const alert = buildStoredAlert({ base: "GBPUSD", brokerSymbol: "GBPUSD", evaluation });
-    assert.deepEqual([alert.entryTime, alert.baseDirection, alert.baseH1Signal, alert.symbolH1Signal], [entryTime, baseDirection, baseDirection === "T" ? "BUY" : "SELL", baseDirection === "T" ? "SELL" : "BUY"]);
+    // 2026-07-06 is a cycle Monday whose first block (H3/H4) is C (keep).
+    assert.deepEqual([alert.entryTime, alert.baseDirection, alert.baseH1Signal, alert.symbolH1Signal], [entryTime, baseDirection, baseDirection === "T" ? "BUY" : "SELL", baseDirection === "T" ? "BUY" : "SELL"]);
   }
 });
 
@@ -399,7 +401,8 @@ test("Pattern 6 keeps six-candle entry evidence while signal uses the entry-rela
     assert.equal(evaluation.m15PairInverted, false);
     assert.equal(evaluation.entryOffsetMinutes, entryOffset);
     const alert = buildStoredAlert({ base: "GBPUSD", brokerSymbol: "GBPUSD", evaluation });
-    assert.deepEqual([alert.patternPair, alert.baseMinute, alert.symbolH1Signal, alert.entryTime], [expectedPatternPair, 0, "SELL", entryTime]);
+    // 2026-07-06 is a cycle Monday whose first block (H3/H4) is C (keep).
+    assert.deepEqual([alert.patternPair, alert.baseMinute, alert.symbolH1Signal, alert.entryTime], [expectedPatternPair, 0, "BUY", entryTime]);
   }
 
   const fourOnly = evaluateH1Block({
@@ -531,11 +534,11 @@ test("special Thursday definition covers both calendar branches", () => {
 
 test("monthly weekday phase applies to every symbol and composes extra AUD/GBP toggles by XOR", () => {
   assert.deepEqual(cycleDecisionFor("GBPUSD", "2026-08-27"), { inverted: true, rule: "cycle-net-invert" });
-  assert.deepEqual(cycleDecisionFor("GBPUSD", "2026-08-25"), { inverted: false, rule: "cycle-net-keep" });
-  assert.deepEqual(cycleDecisionFor("AUDUSD", "2026-08-25"), { inverted: false, rule: "cycle-net-keep" });
+  assert.deepEqual(cycleDecisionFor("GBPUSD", "2026-08-25"), { inverted: true, rule: "cycle-net-invert" });
+  assert.deepEqual(cycleDecisionFor("AUDUSD", "2026-08-25"), { inverted: true, rule: "cycle-net-invert" });
   assert.deepEqual(cycleDecisionFor("AUDUSD", "2026-08-27"), { inverted: true, rule: "cycle-net-invert" });
   for (const base of ["USDCAD", "USDJPY"] as const) {
-    assert.deepEqual(cycleDecisionFor(base, "2026-08-25"), { inverted: false, rule: "cycle-net-keep" });
+    assert.deepEqual(cycleDecisionFor(base, "2026-08-25"), { inverted: true, rule: "cycle-net-invert" });
     assert.deepEqual(cycleDecisionFor(base, "2026-08-27"), { inverted: true, rule: "cycle-net-invert" });
   }
 });
@@ -558,7 +561,7 @@ test("weekday post-signal inversion is applied after the pattern decision", () =
   );
   assert.deepEqual(
     [tuesdayAud.baseH1Signal, tuesdayAud.patternKind, tuesdayAud.postSignalRule, tuesdayAud.postSignalInverted, tuesdayAud.symbolH1Signal],
-    ["BUY", "pattern2", "cycle-net-keep", false, "BUY"],
+    ["BUY", "pattern2", "cycle-net-invert", true, "SELL"],
   );
 });
 
@@ -566,9 +569,9 @@ test("XAUUSD cycle month applies the six-block weekday phase across weeks", () =
   const expected = [
     ["2026-07-02", true, "cycle-net-invert"],
     ["2026-07-03", true, "cycle-net-invert"],
-    ["2026-07-06", true, "cycle-net-invert"],
-    ["2026-07-07", false, "cycle-net-keep"],
-    ["2026-07-08", false, "cycle-net-keep"],
+    ["2026-07-06", false, "cycle-net-keep"],
+    ["2026-07-07", true, "cycle-net-invert"],
+    ["2026-07-08", true, "cycle-net-invert"],
     ["2026-07-09", true, "cycle-net-invert"],
     ["2026-07-10", true, "cycle-net-invert"],
   ] as const;
@@ -582,11 +585,11 @@ test("XAUUSD regular month flips the six-block weekday phase across weeks", () =
   const expected = [
     ["2026-06-04", false, "regular-net-keep"],
     ["2026-06-05", false, "regular-net-keep"],
-    ["2026-06-08", false, "regular-net-keep"],
-    ["2026-06-09", true, "regular-net-invert"],
-    ["2026-06-10", true, "regular-net-invert"],
+    ["2026-06-08", true, "regular-net-invert"],
+    ["2026-06-09", false, "regular-net-keep"],
+    ["2026-06-10", false, "regular-net-keep"],
     ["2026-06-11", false, "regular-net-keep"],
-    ["2026-06-16", true, "regular-net-invert"],
+    ["2026-06-16", false, "regular-net-keep"],
   ] as const;
   for (const [date, inverted, rule] of expected) {
     assert.deepEqual(cycleDecisionFor("XAUUSD", date), { inverted, rule });
@@ -603,10 +606,10 @@ test("stored alerts compose H1 entry candle base and net weekday phase in order"
   assert.ok(evaluation);
   const alert = buildStoredAlert({ base: "XAUUSD", brokerSymbol: "XAUUSD", evaluation });
   // Pattern 2 uses the H+2:00 entry-relative pair. July is a cycle
-  // month, so Monday's early block is inverted.
+  // month, so Monday's first block (H3/H4) is C (keep).
   assert.deepEqual(
   [alert.baseH1Signal, alert.m15PairInverted, alert.patternKind, alert.postSignalRule, alert.postSignalInverted, alert.symbolH1Signal, alert.entryOffsetMinutes, alert.entryTime],
-  ["BUY", false, "pattern2", "cycle-net-invert", true, "SELL", 120, "06:00"],
+  ["BUY", false, "pattern2", "cycle-net-keep", false, "BUY", 120, "06:00"],
   );
 
   const fxAlert = buildStoredAlert({
@@ -625,18 +628,18 @@ test("stored alerts compose H1 entry candle base and net weekday phase in order"
   assert.match(message, /BLOCK ĐÃ ĐẾN · Thứ 2 · HIỆN TẠI H04/);
   assert.match(message, /Mốc block: H04 · Entry: 06:00 \(\+120p\)/);
   assert.match(message, /Entry time: 06:00 · chuẩn bị vào lệnh/);
-  assert.match(message, /Hậu signal: ĐẢO · pha chu kỳ tháng/);
+  assert.match(message, /Hậu signal: GIỮ NGUYÊN · pha chu kỳ tháng/);
   assert.match(message, /Base H1 candle: H05:00 T → BUY/);
   assert.match(message, /Cặp M15 evidence trước entry \(mới→cũ\): TT/);
-  assert.match(message, /pha chu kỳ tháng, đảo hậu signal/);
-  assert.match(message, /Signal XAUUSD H1: SELL/);
+  assert.match(message, /pha chu kỳ tháng, giữ hậu signal/);
+  assert.match(message, /Signal XAUUSD H1: BUY/);
 });
 
 test("block reminders announce weekday phase even when no pattern alert exists", () => {
   const message = buildTelegramBlockReminder("2026-07-10", 12);
   assert.match(message, /BLOCK ĐÃ ĐẾN · Thứ 6 · HIỆN TẠI H12/);
   assert.match(message, /Hậu signal: ĐẢO/);
-  assert.match(message, /Nhóm: H12\/H16 · pha chu kỳ tháng/);
+  assert.match(message, /Block: H12 · pha chu kỳ tháng/);
   assert.match(message, /entry time chỉ gửi khi pattern đạt/);
 });
 
@@ -652,11 +655,11 @@ test("state v54 round-trips into a rule-49 schema-16 public feed with the seven-
 
   const parsed = parseCloudState(JSON.stringify(state));
   const feed = buildPublicFeed(parsed, "2026-07-06T17:00:00.000Z");
-  assert.deepEqual([parsed.version, feed.schemaVersion, feed.signalRuleVersion, feed.hours], [54, 16, 49, [3, 4, 6, 9, 12, 14, 16]]);
+  assert.deepEqual([parsed.version, feed.schemaVersion, feed.signalRuleVersion, feed.hours], [54, 16, 50, [3, 4, 6, 9, 12, 14, 16]]);
   const feedAlert = feed.days["2026-07-06"].symbols.GBPUSD?.alerts[0];
   assert.deepEqual(
     [feedAlert?.patternKind, feedAlert?.entryTime, feedAlert?.patternPair, feedAlert?.m15Pair, feedAlert?.postSignalRule],
-    ["pattern1", "05:00", "TG", "TT", "cycle-net-invert"],
+    ["pattern1", "05:00", "TG", "TT", "cycle-net-keep"],
   );
   assert.throws(() => parseCloudState({ ...state, version: 45 }), /schema/);
 });

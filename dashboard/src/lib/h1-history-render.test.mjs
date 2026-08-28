@@ -76,7 +76,7 @@ function payload() {
   const dates = ["2025-12-29", "2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02", "2026-01-05", "2026-02-03"];
   return {
     schemaVersion: 16,
-    signalRuleVersion: 49,
+    signalRuleVersion: 50,
     profile: "cTrader IcMarkets",
     publishedAt: "2026-02-03T12:00:00.000Z",
     hours: [3, 4, 6, 9, 12, 14, 16],
