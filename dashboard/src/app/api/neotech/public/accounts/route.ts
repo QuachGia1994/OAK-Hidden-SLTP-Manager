@@ -35,29 +35,42 @@ function publicAccount(row: Awaited<ReturnType<typeof listWorkspaceAccounts>>[nu
   };
 }
 
+function storageUnavailable(error: unknown) {
+  console.error("[NEOTECH ACCOUNTS UNAVAILABLE]", error instanceof Error ? error.message : String(error));
+  return secureJson({ ok: false, error: "NeoTech data storage is temporarily unavailable.", retryAfterSeconds: 60 }, 503);
+}
+
 export async function GET(request: Request) {
   if (!neoTechPublicEnabled()) return secureJson({ ok: false, error: "NeoTech public analytics is disabled." }, 503);
-  const limited = await enforceServerRateLimit(request, { namespace: "oak:neotech:public:accounts", perMinute: 60, perDay: 3000 });
-  if (limited) return secureJson({ ok: false, error: "rate limit exceeded", retryAfterSeconds: limited.retryAfterSeconds }, 429);
-  const workspace = await resolvePrivateWorkspaceSession(neoTechPublicStore, sessionTokenFromRequest(request));
-  if (!workspace) return secureJson({ ok: false, error: "private workspace session required" }, 401);
-  const rows = await listWorkspaceAccounts(neoTechPublicStore, workspace.id);
-  return secureJson({ ok: true, accounts: rows.map(publicAccount) });
+  try {
+    const limited = await enforceServerRateLimit(request, { namespace: "oak:neotech:public:accounts", perMinute: 60, perDay: 3000 });
+    if (limited) return secureJson({ ok: false, error: "rate limit exceeded", retryAfterSeconds: limited.retryAfterSeconds }, 429);
+    const workspace = await resolvePrivateWorkspaceSession(neoTechPublicStore, sessionTokenFromRequest(request));
+    if (!workspace) return secureJson({ ok: false, error: "private workspace session required" }, 401);
+    const rows = await listWorkspaceAccounts(neoTechPublicStore, workspace.id);
+    return secureJson({ ok: true, accounts: rows.map(publicAccount) });
+  } catch (error) {
+    return storageUnavailable(error);
+  }
 }
 
 export async function DELETE(request: Request) {
   if (!neoTechPublicEnabled()) return secureJson({ ok: false, error: "NeoTech public analytics is disabled." }, 503);
   if (!isSameOriginMutation(request)) return secureJson({ ok: false, error: "same-origin request required" }, 403);
-  const limited = await enforceServerRateLimit(request, { namespace: "oak:neotech:public:revoke", perMinute: 10, perDay: 100 });
-  if (limited) return secureJson({ ok: false, error: "rate limit exceeded", retryAfterSeconds: limited.retryAfterSeconds }, 429);
-  const workspace = await resolvePrivateWorkspaceSession(neoTechPublicStore, sessionTokenFromRequest(request));
-  if (!workspace) return secureJson({ ok: false, error: "private workspace session required" }, 401);
-  const url = new URL(request.url);
-  const accountId = url.searchParams.get("accountId") || "";
-  if (url.searchParams.get("purge") === "1") {
-    const purged = await purgeWorkspaceAccount(neoTechPublicStore, workspace.id, accountId);
-    return purged ? secureJson({ ok: true, purged: true }) : secureJson({ ok: false, error: "account not found" }, 404);
+  try {
+    const limited = await enforceServerRateLimit(request, { namespace: "oak:neotech:public:revoke", perMinute: 10, perDay: 100 });
+    if (limited) return secureJson({ ok: false, error: "rate limit exceeded", retryAfterSeconds: limited.retryAfterSeconds }, 429);
+    const workspace = await resolvePrivateWorkspaceSession(neoTechPublicStore, sessionTokenFromRequest(request));
+    if (!workspace) return secureJson({ ok: false, error: "private workspace session required" }, 401);
+    const url = new URL(request.url);
+    const accountId = url.searchParams.get("accountId") || "";
+    if (url.searchParams.get("purge") === "1") {
+      const purged = await purgeWorkspaceAccount(neoTechPublicStore, workspace.id, accountId);
+      return purged ? secureJson({ ok: true, purged: true }) : secureJson({ ok: false, error: "account not found" }, 404);
+    }
+    const revoked = await revokeWorkspaceAccount(neoTechPublicStore, workspace.id, accountId);
+    return revoked ? secureJson({ ok: true, revoked: true }) : secureJson({ ok: false, error: "account not found" }, 404);
+  } catch (error) {
+    return storageUnavailable(error);
   }
-  const revoked = await revokeWorkspaceAccount(neoTechPublicStore, workspace.id, accountId);
-  return revoked ? secureJson({ ok: true, revoked: true }) : secureJson({ ok: false, error: "account not found" }, 404);
 }

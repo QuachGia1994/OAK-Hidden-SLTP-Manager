@@ -159,19 +159,22 @@ export function NeoTechPublicDashboard() {
   const [shareUrl, setShareUrl] = useState("");
   const [shareBusy, setShareBusy] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
+  const [bootRetryIn, setBootRetryIn] = useState(0);
+  const bootAttemptRef = useRef(0);
+  const bootSucceededRef = useRef(false);
   const pairingDialogRef = useDialogFocusTrap<HTMLDivElement>(Boolean(pairing), () => setPairing(null));
   const masterConsentDialogRef = useDialogFocusTrap<HTMLDivElement>(masterConsentOpen, () => setMasterConsentOpen(false));
   const shareDialogRef = useDialogFocusTrap<HTMLDivElement>(shareOpen, () => setShareOpen(false));
   const selectedRef = useRef(selectedId);
   selectedRef.current = selectedId;
 
-  const refreshAccounts = useCallback(async (silent = false) => {
+  const refreshAccounts = useCallback(async (silent = false): Promise<boolean> => {
     try {
       const response = await fetch("/api/neotech/public/accounts", { cache: "no-store" });
       const body = await readJson(response);
       if (!response.ok || body.ok !== true) {
         if (!silent) setError(String(body.error || (locale === "EN" ? "Cannot load NeoTech accounts." : "Không đọc được tài khoản NeoTech.")));
-        return;
+        return false;
       }
       const rows = Array.isArray(body.accounts) ? body.accounts as AccountRow[] : [];
       setAccounts(rows);
@@ -185,35 +188,79 @@ export function NeoTechPublicDashboard() {
         }
         return current;
       });
+      return true;
     } catch {
       if (!silent) setError(locale === "EN" ? "Cannot connect to the NeoTech workspace." : "Không thể kết nối NeoTech workspace.");
+      return false;
     }
   }, [locale]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const response = await fetch("/api/neotech/public/session", { cache: "no-store" });
-        const body = await readJson(response);
-        if (!response.ok || body.ok !== true) throw new Error(String(body.error || "workspace unavailable"));
-        if (!cancelled) setWorkspaceRef(String(body.workspaceRef || "private"));
-        await refreshAccounts(true);
-      } catch (cause) {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : (locale === "EN" ? "Cannot create the private workspace." : "Không thể tạo private workspace."));
-      } finally {
-        if (!cancelled) setLoading(false);
+  const bootstrap = useCallback(async () => {
+    try {
+      const response = await fetch("/api/neotech/public/session", { cache: "no-store" });
+      const body = await readJson(response);
+      if (!response.ok || body.ok !== true) throw new Error(String(body.error || "workspace unavailable"));
+      const recovered = bootAttemptRef.current > 0;
+      bootAttemptRef.current = 0;
+      setWorkspaceRef(String(body.workspaceRef || "private"));
+      setBootRetryIn(0);
+      if (recovered) setError("");
+      bootSucceededRef.current = true;
+      await refreshAccounts(true);
+    } catch {
+      bootAttemptRef.current += 1;
+      const delay = Math.min(60, 15 * 2 ** Math.min(2, bootAttemptRef.current - 1));
+      setBootRetryIn(delay);
+      if (!bootSucceededRef.current) {
+        setError(locale === "EN" ? "NeoTech data storage is temporarily unavailable. Retrying automatically…" : "Kho dữ liệu NeoTech tạm không khả dụng. Đang tự động thử lại…");
       }
-    })();
-    return () => { cancelled = true; };
-  }, [refreshAccounts]);
+    }
+  }, [locale, refreshAccounts]);
 
   useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      await bootstrap();
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [bootstrap]);
+
+  useEffect(() => {
+    if (bootRetryIn <= 0) return;
     const timer = window.setInterval(() => {
-      setNowMs(Date.now());
-      void refreshAccounts(true);
-    }, pairing ? 4000 : 15000);
+      if (document.visibilityState === "visible") {
+        setBootRetryIn((seconds) => Math.max(0, seconds - 1));
+      }
+    }, 1000);
     return () => window.clearInterval(timer);
+  }, [bootRetryIn > 0]);
+
+  useEffect(() => {
+    if (bootRetryIn === 0 && bootAttemptRef.current > 0 && !bootSucceededRef.current) {
+      void bootstrap();
+    }
+  }, [bootRetryIn, bootstrap]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: number | undefined;
+    const loop = async () => {
+      if (cancelled) return;
+      let ok = true;
+      if (document.visibilityState === "visible") {
+        ok = await refreshAccounts(true);
+        if (cancelled) return;
+        setNowMs(Date.now());
+      }
+      const delay = pairing ? 4000 : ok ? 30000 : 60000;
+      timer = window.setTimeout(() => void loop(), delay);
+    };
+    void loop();
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
   }, [pairing, refreshAccounts]);
 
   const selected = useMemo(() => accounts.find((row) => row.account.id === selectedId) || accounts[0] || null, [accounts, selectedId]);
@@ -359,8 +406,8 @@ export function NeoTechPublicDashboard() {
           <h1>{tr("Visual profile for", "Visual profile cho")} <span>{tr("account discipline.", "kỷ luật tài khoản.")}</span></h1>
           <p>{tr("Investor Password is recommended. Master Password is also supported after an explicit risk warning; OAK never receives or stores either MT5 password.", "Investor Password là lựa chọn khuyến nghị. Master Password cũng được hỗ trợ sau cảnh báo rủi ro rõ ràng; OAK không bao giờ nhận hoặc lưu password MT5.")}</p>
           <div className={styles.heroActions}>
-            <button className={styles.primaryButton} onClick={() => void createPairing("READ_ONLY")} disabled={busy}>{accounts.length ? tr("+ Connect account", "+ Kết nối tài khoản") : tr("Connect with Investor Password", "Kết nối bằng Investor Password")}</button>
-            <button className={styles.secondaryButton} onClick={() => void createMasterPairing()} disabled={busy}>{tr("Use Master Password", "Dùng Master Password")}</button>
+            {accounts.length > 0 && <button className={styles.primaryButton} onClick={() => void createPairing("READ_ONLY")} disabled={busy}>{tr("+ Connect account", "+ Kết nối tài khoản")}</button>}
+            {accounts.length > 0 && <button className={styles.secondaryButton} onClick={() => void createMasterPairing()} disabled={busy}>{tr("Use Master Password", "Dùng Master Password")}</button>}
             <a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_ReadOnly_Connector.ex5" download>{tr("Download connector", "Tải connector")}</a>
             <a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_ReadOnly_Connector.mq5" download>{tr("Source for audit", "Source để audit")}</a>
           </div>
@@ -373,13 +420,13 @@ export function NeoTechPublicDashboard() {
       </section>
 
       <section className={styles.securityStrip} aria-label="Security guarantees">
-        <div className={styles.securityItem} data-good="true"><small>MT5 credential</small><b>{tr("Stays in terminal", "Không rời terminal")}</b></div>
-        <div className={styles.securityItem} data-good="true"><small>Trading capability</small><b>{tr("Read-only by default", "Read-only mặc định")}</b></div>
-        <div className={styles.securityItem}><small>Private workspace</small><b>{workspaceRef ? `#${workspaceRef}` : tr("Creating…", "Đang tạo…")}</b></div>
-        <div className={styles.securityItem}><small>Rule authority</small><b>Server-side only</b></div>
+        <div className={styles.securityItem} data-good="true"><small>{tr("MT5 credential", "Credential MT5")}</small><b>{tr("Stays in terminal", "Không rời terminal")}</b></div>
+        <div className={styles.securityItem} data-good="true"><small>{tr("Trading capability", "Khả năng giao dịch")}</small><b>{tr("Read-only by default", "Read-only mặc định")}</b></div>
+        <div className={styles.securityItem}><small>{tr("Private workspace", "Workspace riêng")}</small><b>{workspaceRef ? `#${workspaceRef}` : bootRetryIn > 0 ? tr("Unavailable", "Không khả dụng") : tr("Creating…", "Đang tạo…")}</b></div>
+        <div className={styles.securityItem}><small>{tr("Rule authority", "Thẩm quyền rule")}</small><b>{tr("Server-side only", "Chỉ ở phía server")}</b></div>
       </section>
 
-      {error && <div className={styles.error}>{error}</div>}
+      {error && <div className={styles.error} role="alert">{error}{bootRetryIn > 0 && ` · ${tr("retrying in", "thử lại sau")} ${bootRetryIn}s`}</div>}
       {toastPortal}
 
       {loading ? <div className={styles.loading}><span className={styles.waiting}><span className={styles.spinner} /> {tr("Opening private workspace…", "Đang mở private workspace…")}</span></div> : accounts.length === 0 ? (

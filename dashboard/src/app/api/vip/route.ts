@@ -35,7 +35,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "VIP_TOKEN is not configured." }, { status: 503 });
   }
 
-  if (!await allowAttempt(request)) {
+  let allowed = false;
+  try {
+    allowed = await allowAttempt(request);
+  } catch (error) {
+    console.error("[VIP SERVICE UNAVAILABLE]", error instanceof Error ? error.message : String(error));
+    return NextResponse.json({ ok: false, error: "VIP service is temporarily unavailable. Please try again in a minute." }, { status: 503 });
+  }
+  if (!allowed) {
     return NextResponse.json({ ok: false, error: "Too many VIP unlock attempts. Try again later." }, { status: 429 });
   }
 

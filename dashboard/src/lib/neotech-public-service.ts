@@ -129,21 +129,18 @@ export async function createPrivateWorkspaceSession(store: NeoTechPublicStore, n
   const tokenHash = sha256Hex(sessionToken);
   await store.putWorkspace(workspace);
   await store.putSession(tokenHash, workspace.id, NEOTECH_PUBLIC_SESSION_TTL_SECONDS);
-  await store.appendAudit(`workspace:${workspace.id}`, { action: "workspace_created", at: nowMs });
   return { workspace, sessionToken, tokenHash };
 }
 
-export async function resolvePrivateWorkspaceSession(store: NeoTechPublicStore, sessionToken: string, nowMs = Date.now()): Promise<NeoTechPublicWorkspace | null> {
+export async function resolvePrivateWorkspaceSession(store: NeoTechPublicStore, sessionToken: string): Promise<NeoTechPublicWorkspace | null> {
   if (!sessionToken || sessionToken.length < 32 || sessionToken.length > 128) return null;
   const tokenHash = sha256Hex(sessionToken);
   const workspaceId = await store.getSession(tokenHash);
   if (!workspaceId) return null;
   const workspace = await store.getWorkspace(workspaceId);
   if (!workspace) return null;
-  const touched = { ...workspace, lastSeenAt: nowMs };
-  await store.putWorkspace(touched);
   await store.touchSession(tokenHash, workspaceId, NEOTECH_PUBLIC_SESSION_TTL_SECONDS);
-  return touched;
+  return workspace;
 }
 
 export async function createPairing(store: NeoTechPublicStore, workspaceId: string, nowMs = Date.now(), accessMode: NeoTechConnectorAccessMode = "READ_ONLY"): Promise<PairingCreated> {
