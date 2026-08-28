@@ -6,7 +6,6 @@ import { useLocale } from "@/components/LocaleProvider";
 import { useDialogFocusTrap } from "@/hooks/useDialogFocusTrap";
 import type { NeoTechPublicProfile, NeoTechPublicRule, NeoTechPublicStatus } from "@/lib/neotech-public-domain";
 import styles from "./neotech.module.css";
-import { NeoTechProfileLinkInspector } from "./NeoTechProfileLinkInspector";
 
 type PublicAccount = {
   id: string;
@@ -354,8 +353,6 @@ export function NeoTechPublicDashboard() {
 
   return (
     <div className={styles.page}>
-      <NeoTechProfileLinkInspector />
-
       <section className={styles.hero}>
         <div className={styles.heroCopy}>
           <span className={styles.eyebrow}>◉ NeoTech · Read-only intelligence</span>
