@@ -22,8 +22,10 @@ import {
   buildTelegramBlockReminder,
   buildTelegramMessage,
   ensureSymbolDay,
+  entryTimeFor,
   evaluateH1BlocksForTarget,
   targetsForBlockHour,
+  type H1CloudState,
   type H1Signal,
   type H1StoredAlert,
 } from "@/lib/h1-cloud-scanner";
@@ -134,11 +136,18 @@ function deliveredSlots(alerts: H1StoredAlert[]): Set<number> {
   return new Set(alerts.filter((item) => Number.isInteger(item.slotHour)).map((item) => item.slotHour));
 }
 
+// A scheduled intent is a published signal until the user explicitly cancels
+// or it expires. Terminal execution states stay visible for the broker day so
+// the public table remains a signal ledger even if the bridge was offline.
 const SCHEDULED_ENTRY_STATUSES = new Set<CloudIntent["status"]>([
   "approval_required",
   "scheduled",
   "approved",
   "executing",
+  "executed",
+  "partial",
+  "failed",
+  "uncertain",
 ]);
 
 function canonicalOrderSymbol(value: unknown): string {
@@ -151,17 +160,45 @@ function intentSignal(value: unknown): H1Signal | null {
   return side === "BUY" || side === "SELL" ? side : null;
 }
 
+function clockAtOffset(dueAt: number, offsetHours: number): { date: string; time: string } | null {
+  if (!Number.isFinite(dueAt) || !Number.isFinite(offsetHours)) return null;
+  const value = new Date(dueAt + offsetHours * 3_600_000);
+  if (Number.isNaN(value.getTime())) return null;
+  return {
+    date: `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}-${String(value.getUTCDate()).padStart(2, "0")}`,
+    time: `${String(value.getUTCHours()).padStart(2, "0")}:${String(value.getUTCMinutes()).padStart(2, "0")}`,
+  };
+}
+
+function vietnamEntryDueAt(brokerDate: string, entryTime: string): number {
+  const [year, month, day] = brokerDate.split("-").map(Number);
+  const [hour, minute] = entryTime.split(":").map(Number);
+  return Date.UTC(year, month - 1, day, hour, minute) - 7 * 3_600_000;
+}
+
+function scheduledIntentDueAtMatches(
+  item: CloudIntent,
+  brokerDate: string,
+  entryTime: string,
+  brokerUtcOffsetHours: number,
+): boolean {
+  if (item.dueAt === null) return false;
+  const expected = item.source === "H1 Scanner"
+    ? brokerEntryDueAt(brokerDate, entryTime, brokerUtcOffsetHours)
+    : vietnamEntryDueAt(brokerDate, entryTime);
+  return item.dueAt === expected;
+}
+
 function scheduledSignalFor(
   intents: CloudIntent[],
   brokerDate: string,
   brokerUtcOffsetHours: number,
   alert: H1StoredAlert,
 ): H1Signal | null {
-  const dueAt = brokerEntryDueAt(brokerDate, alert.entryTime, brokerUtcOffsetHours);
   const symbol = canonicalOrderSymbol(alert.symbol);
   const task = intents
     .filter((item) => item.kind === "entry" && SCHEDULED_ENTRY_STATUSES.has(item.status))
-    .filter((item) => item.dueAt === dueAt)
+    .filter((item) => scheduledIntentDueAtMatches(item, brokerDate, alert.entryTime, brokerUtcOffsetHours))
     .filter((item) => canonicalOrderSymbol(item.payload.symbol) === symbol)
     .filter((item) => {
       const blockHour = Number(item.payload.blockHour);
@@ -169,6 +206,138 @@ function scheduledSignalFor(
     })
     .sort((left, right) => right.id - left.id)[0];
   return intentSignal(task?.payload.side);
+}
+
+function scheduledBlockFor(
+  item: CloudIntent,
+  base: (typeof H1_TARGET_BASES)[number],
+  brokerDate: string,
+  brokerUtcOffsetHours: number,
+): { slotHour: number; entryTime: string } | null {
+  const side = intentSignal(item.payload.side);
+  if (item.kind !== "entry" || !side || !SCHEDULED_ENTRY_STATUSES.has(item.status)) return null;
+  const hintedHour = Number(item.payload.blockHour);
+  const clockOffset = item.source === "H1 Scanner" ? brokerUtcOffsetHours : 7;
+  const clock = item.dueAt === null ? null : clockAtOffset(item.dueAt, clockOffset);
+  const hinted = Number.isInteger(hintedHour)
+    && (H1_SCAN_HOURS as readonly number[]).includes(hintedHour)
+    && (targetsForBlockHour(hintedHour) as readonly string[]).includes(base);
+  if (hinted) {
+    return { slotHour: hintedHour, entryTime: clock?.date === brokerDate ? clock.time : entryTimeFor(hintedHour, 120) };
+  }
+  if (!clock || clock.date !== brokerDate) return null;
+  const slotHour = H1_SCAN_HOURS.find((hour) =>
+    (targetsForBlockHour(hour) as readonly string[]).includes(base)
+    && [85, 120].some((offset) => entryTimeFor(hour, offset) === clock.time),
+  );
+  return slotHour === undefined ? null : { slotHour, entryTime: clock.time };
+}
+
+function scheduledOnlyAlert(
+  base: (typeof H1_TARGET_BASES)[number],
+  slotHour: number,
+  entryTime: string,
+  side: H1Signal,
+): H1StoredAlert {
+  const [entryHour, entryMinute] = entryTime.split(":").map(Number);
+  const entryOffsetMinutes = (entryHour * 60 + entryMinute - slotHour * 60 + 1440) % 1440;
+  return {
+    slotHour,
+    pattern: "Scheduled entry",
+    patternKind: "pattern1",
+    bars: [],
+    symbol: base,
+    profile: "cTrader IcMarkets",
+    baseSymbol: base,
+    baseH1Signal: null,
+    baseHour: (entryHour + 23) % 24,
+    baseMinute: 0,
+    baseDirection: "",
+    patternPair: "--",
+    m15Pair: "--",
+    m15PairInverted: false,
+    m15Window: "SCHEDULED",
+    entryOffsetMinutes,
+    entryTime,
+    symbolH1Signal: null,
+    scheduledSignal: side,
+    scheduledOnly: true,
+    postSignalInverted: false,
+    postSignalRule: "none",
+  };
+}
+
+function isScheduledOverlayAlert(alert: H1StoredAlert): boolean {
+  return Boolean(alert.scheduledOnly) || alert.pattern === "Scheduled entry" || alert.m15Window === "SCHEDULED";
+}
+
+function applyScheduledIntentOverlay(
+  state: H1CloudState,
+  intents: CloudIntent[],
+  brokerDate: string,
+  brokerUtcOffsetHours: number,
+): boolean {
+  const day = state.days[brokerDate];
+  if (!day) return false;
+
+  const desired = new Map<string, {
+    base: (typeof H1_TARGET_BASES)[number];
+    slotHour: number;
+    entryTime: string;
+    side: H1Signal;
+    id: number;
+  }>();
+  for (const item of intents) {
+    const base = canonicalOrderSymbol(item.payload.symbol) as (typeof H1_TARGET_BASES)[number];
+    if (!(H1_TARGET_BASES as readonly string[]).includes(base)) continue;
+    const block = scheduledBlockFor(item, base, brokerDate, brokerUtcOffsetHours);
+    const side = intentSignal(item.payload.side);
+    if (!block || !side) continue;
+    const key = `${base}:${block.slotHour}`;
+    const previous = desired.get(key);
+    if (!previous || item.id > previous.id) {
+      desired.set(key, { base, slotHour: block.slotHour, entryTime: block.entryTime, side, id: item.id });
+    }
+  }
+
+  let changed = false;
+  for (const base of H1_TARGET_BASES) {
+    const symbol = day.symbols[base];
+    if (!symbol) continue;
+    const retained = symbol.alerts.filter((alert) => {
+      if (!isScheduledOverlayAlert(alert)) return true;
+      const alertBase = canonicalOrderSymbol(alert.baseSymbol || alert.symbol);
+      return desired.has(`${alertBase}:${alert.slotHour}`);
+    });
+    if (retained.length !== symbol.alerts.length) {
+      symbol.alerts = retained;
+      changed = true;
+    }
+    for (const alert of symbol.alerts) {
+      const alertBase = canonicalOrderSymbol(alert.baseSymbol || alert.symbol);
+      const wanted = desired.get(`${alertBase}:${alert.slotHour}`);
+      if (isScheduledOverlayAlert(alert)) {
+        if (!wanted) continue;
+        if (alert.scheduledSignal !== wanted.side || alert.entryTime !== wanted.entryTime) {
+          alert.scheduledSignal = wanted.side;
+          alert.entryTime = wanted.entryTime;
+          changed = true;
+        }
+      } else if (alert.scheduledSignal !== (wanted?.side ?? null)) {
+        alert.scheduledSignal = wanted?.side ?? null;
+        changed = true;
+      }
+    }
+  }
+
+  for (const wanted of desired.values()) {
+    const { symbol } = ensureSymbolDay(state, brokerDate, wanted.base);
+    if (symbol.alerts.some((alert) => alert.slotHour === wanted.slotHour)) continue;
+    symbol.alerts.push(scheduledOnlyAlert(wanted.base, wanted.slotHour, wanted.entryTime, wanted.side));
+    symbol.alerts.sort((left, right) => left.slotHour - right.slotHour);
+    changed = true;
+  }
+  return changed;
 }
 
 export async function POST(request: Request) {
@@ -404,6 +573,12 @@ export async function POST(request: Request) {
     }
 
     if (!dryRun) {
+      changed = applyScheduledIntentOverlay(
+        state,
+        knownScheduledIntents,
+        market.brokerDate,
+        market.brokerUtcOffsetHours,
+      ) || changed;
       if (changed || source === "public-seed") await saveH1CloudState(state);
       await publishH1CloudState(state);
     }

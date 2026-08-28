@@ -88,6 +88,7 @@ export type H1StoredAlert = {
   symbolH1Signal: H1Signal | null;
   // Set only when a matching scheduled entry intent has been detected.
   scheduledSignal: H1Signal | null;
+  scheduledOnly?: boolean;
   postSignalInverted: boolean;
   postSignalRule: H1PostSignalRule;
 };

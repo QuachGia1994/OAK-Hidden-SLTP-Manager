@@ -83,6 +83,11 @@ test("scheduled entry intent is the only source of published BUY/SELL sides", ()
   assert.match(route, /listCloudIntents/);
   assert.match(route, /scheduledSignalFor/);
   assert.match(route, /scheduledSignal: scheduledSignalFor/);
+  assert.match(route, /vietnamEntryDueAt/);
+  assert.match(route, /scheduledIntentDueAtMatches/);
+  assert.match(route, /scheduledBlockFor/);
+  assert.match(route, /scheduledOnly/);
+  assert.match(route, /changed = applyScheduledIntentOverlay/);
   assert.match(route, /signal: alert\.scheduledSignal \|\| "PENDING_SCHEDULED_ENTRY"/);
   assert.match(route, /if \(automationReady && computedAlert\.symbolH1Signal && !alert\.scheduledSignal\)/);
   assert.match(scannerSource, /scheduledSignal: null/);
