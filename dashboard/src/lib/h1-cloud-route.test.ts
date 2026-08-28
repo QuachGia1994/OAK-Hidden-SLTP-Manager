@@ -148,7 +148,7 @@ test("Cloudflare Durable Object is primary H:00 timekeeper with retry-aware watc
   assert.match(timekeeperConfig, /"required": \["H1_SCANNER_TOKEN", "TELEGRAM_TICK_TOKEN"\]/);
   assert.match(timekeeperConfig, /"\* \* \* \* \*"/);
   assert.match(timekeeperConfig, /"1 \* \* \* \*"/);
-  assert.match(timekeeperConfig, /"10 \* \* \* \*"/);
+  assert.doesNotMatch(timekeeperConfig, /"10 \* \* \* \*"/);
   assert.match(timekeeperConfig, /"15 \* \* \* \*"/);
   assert.match(timekeeperConfig, /"30 \* \* \* \*"/);
   assert.match(timekeeperConfig, /"50 \* \* \* \*"/);
