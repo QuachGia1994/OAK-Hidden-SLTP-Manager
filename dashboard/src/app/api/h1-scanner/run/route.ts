@@ -5,28 +5,21 @@ import { loadH1CloudConfig, type H1CloudConfig } from "@/lib/h1-cloud-config";
 import { verifyH1ScannerGitHubOidc } from "@/lib/github-oidc";
 import { brokerWallParts, fetchCurrentBrokerDayMarket, type CTraderScannerSession } from "@/lib/ctrader-json";
 import { loadH1CTraderSession } from "@/lib/h1-ctrader-session";
-import { cTraderProviderAccountId, providerProtectionPoints } from "@/lib/provider-account-domain";
-import { listProviderAccounts } from "@/lib/provider-accounts";
-import { TELEGRAM_CLOUD_EXECUTION_MODE, type CloudIntent } from "@/lib/telegram-cloud-domain";
-import { claimH1BlockReminder, createCloudIntent, listCloudIntents, markScheduledNotification, normalizeCloudIntentLot, releaseH1BlockReminder } from "@/lib/telegram-cloud-store";
+import { claimH1BlockReminder, releaseH1BlockReminder } from "@/lib/telegram-cloud-store";
 import { acquireH1CloudLock, loadH1CloudState, publishH1CloudState, releaseH1CloudLock, saveH1CloudState } from "@/lib/h1-cloud-store";
 import {
   H1_FIRST_SCAN_HOUR,
   H1_SCAN_HOURS,
   H1_SIGNAL_END_HOUR,
   H1_TARGET_BASES,
-  h1AutoEntryLot,
   backfillSuppressedHistory,
-  brokerEntryDueAt,
   buildStoredAlert,
   buildTelegramBlockReminder,
   buildTelegramMessage,
   ensureSymbolDay,
-  entryTimeFor,
-  evaluateH1BlocksForTarget,
+  evaluateH1SignalsForTarget,
   targetsForBlockHour,
   type H1CloudState,
-  type H1Signal,
   type H1StoredAlert,
 } from "@/lib/h1-cloud-scanner";
 
@@ -43,13 +36,8 @@ const FINALIZE_RETRY_DELAY_MS = 2_500;
 type RunSummary = {
   base: string;
   slotHour: number;
-  patternKind: string;
-  m15Pair: string;
-  m15Window: string;
-  entryTime: string;
   signal: string;
   postSignalRule: string;
-  intentId: number | null;
 };
 
 function safeHexEqual(left: string, right: string): boolean {
@@ -106,26 +94,18 @@ function delay(ms: number) {
 function marketReadyForSlot(
   market: Awaited<ReturnType<typeof fetchCurrentBrokerDayMarket>>,
   brokerHour: number,
-  brokerMinute: number,
 ) {
-  const expectedClosedHour = brokerHour - 1;
-  const blockReady = targetsForBlockHour(brokerHour).every((base) =>
-    market.symbols[base].bars.some((bar) => bar.hour === expectedClosedHour),
+  // The signal for slot S needs the S:00 H1 candle closed, i.e. broker hour S+1.
+  const slotHour = brokerHour - 1;
+  if (!(targetsForBlockHour(slotHour) as readonly string[]).length) return false;
+  return targetsForBlockHour(slotHour).every((base) =>
+    market.symbols[base].bars.some((bar) => bar.hour === slotHour),
   );
-
-  // H+2:00 signals need the candle opened at H-1:45; H+1:25 signals
-  // become decidable at H+1:15 and need the candle opened at H+1:00.
-  const signalSlotHour = brokerMinute < 15 ? brokerHour - 2 : brokerHour - 1;
-  const expectedClosedM15Minute = brokerHour * 60 + (brokerMinute < 15 ? -15 : 0);
-  const signalPairReady = targetsForBlockHour(signalSlotHour).every((base) =>
-    market.symbols[base].m15Bars.some((bar) => bar.minuteOfDay === expectedClosedM15Minute),
-  );
-  return blockReady && signalPairReady;
 }
 
-async function fetchReadyMarket(session: CTraderScannerSession, nowMs: number, brokerHour: number, brokerMinute: number) {
+async function fetchReadyMarket(session: CTraderScannerSession, nowMs: number, brokerHour: number) {
   let market = await fetchCurrentBrokerDayMarket(session, nowMs);
-  for (let attempt = 1; attempt < FINALIZE_RETRY_ATTEMPTS && !marketReadyForSlot(market, brokerHour, brokerMinute); attempt += 1) {
+  for (let attempt = 1; attempt < FINALIZE_RETRY_ATTEMPTS && !marketReadyForSlot(market, brokerHour); attempt += 1) {
     await delay(FINALIZE_RETRY_DELAY_MS);
     market = await fetchCurrentBrokerDayMarket(session, Date.now());
   }
@@ -134,210 +114,6 @@ async function fetchReadyMarket(session: CTraderScannerSession, nowMs: number, b
 
 function deliveredSlots(alerts: H1StoredAlert[]): Set<number> {
   return new Set(alerts.filter((item) => Number.isInteger(item.slotHour)).map((item) => item.slotHour));
-}
-
-// A scheduled intent is a published signal until the user explicitly cancels
-// or it expires. Terminal execution states stay visible for the broker day so
-// the public table remains a signal ledger even if the bridge was offline.
-const SCHEDULED_ENTRY_STATUSES = new Set<CloudIntent["status"]>([
-  "approval_required",
-  "scheduled",
-  "approved",
-  "executing",
-  "executed",
-  "partial",
-  "failed",
-  "uncertain",
-]);
-
-function canonicalOrderSymbol(value: unknown): string {
-  const text = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return H1_TARGET_BASES.find((base) => text === base || text.startsWith(base)) || text;
-}
-
-function intentSignal(value: unknown): H1Signal | null {
-  const side = String(value || "").toUpperCase();
-  return side === "BUY" || side === "SELL" ? side : null;
-}
-
-function clockAtOffset(dueAt: number, offsetHours: number): { date: string; time: string } | null {
-  if (!Number.isFinite(dueAt) || !Number.isFinite(offsetHours)) return null;
-  const value = new Date(dueAt + offsetHours * 3_600_000);
-  if (Number.isNaN(value.getTime())) return null;
-  return {
-    date: `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}-${String(value.getUTCDate()).padStart(2, "0")}`,
-    time: `${String(value.getUTCHours()).padStart(2, "0")}:${String(value.getUTCMinutes()).padStart(2, "0")}`,
-  };
-}
-
-function vietnamEntryDueAt(brokerDate: string, entryTime: string): number {
-  const [year, month, day] = brokerDate.split("-").map(Number);
-  const [hour, minute] = entryTime.split(":").map(Number);
-  return Date.UTC(year, month - 1, day, hour, minute) - 7 * 3_600_000;
-}
-
-function scheduledIntentDueAtMatches(
-  item: CloudIntent,
-  brokerDate: string,
-  entryTime: string,
-  brokerUtcOffsetHours: number,
-): boolean {
-  if (item.dueAt === null) return false;
-  const expected = item.source === "H1 Scanner"
-    ? brokerEntryDueAt(brokerDate, entryTime, brokerUtcOffsetHours)
-    : vietnamEntryDueAt(brokerDate, entryTime);
-  return item.dueAt === expected;
-}
-
-function scheduledSignalFor(
-  intents: CloudIntent[],
-  brokerDate: string,
-  brokerUtcOffsetHours: number,
-  alert: H1StoredAlert,
-): H1Signal | null {
-  const symbol = canonicalOrderSymbol(alert.symbol);
-  const task = intents
-    .filter((item) => item.kind === "entry" && SCHEDULED_ENTRY_STATUSES.has(item.status))
-    .filter((item) => scheduledIntentDueAtMatches(item, brokerDate, alert.entryTime, brokerUtcOffsetHours))
-    .filter((item) => canonicalOrderSymbol(item.payload.symbol) === symbol)
-    .filter((item) => {
-      const blockHour = Number(item.payload.blockHour);
-      return !Number.isInteger(blockHour) || blockHour === alert.slotHour;
-    })
-    .sort((left, right) => right.id - left.id)[0];
-  return intentSignal(task?.payload.side);
-}
-
-function scheduledBlockFor(
-  item: CloudIntent,
-  base: (typeof H1_TARGET_BASES)[number],
-  brokerDate: string,
-  brokerUtcOffsetHours: number,
-): { slotHour: number; entryTime: string } | null {
-  const side = intentSignal(item.payload.side);
-  if (item.kind !== "entry" || !side || !SCHEDULED_ENTRY_STATUSES.has(item.status)) return null;
-  const hintedHour = Number(item.payload.blockHour);
-  const clockOffset = item.source === "H1 Scanner" ? brokerUtcOffsetHours : 7;
-  const clock = item.dueAt === null ? null : clockAtOffset(item.dueAt, clockOffset);
-  const hinted = Number.isInteger(hintedHour)
-    && (H1_SCAN_HOURS as readonly number[]).includes(hintedHour)
-    && (targetsForBlockHour(hintedHour) as readonly string[]).includes(base);
-  if (hinted) {
-    return { slotHour: hintedHour, entryTime: clock?.date === brokerDate ? clock.time : entryTimeFor(hintedHour, 120) };
-  }
-  if (!clock || clock.date !== brokerDate) return null;
-  const slotHour = H1_SCAN_HOURS.find((hour) =>
-    (targetsForBlockHour(hour) as readonly string[]).includes(base)
-    && [85, 120].some((offset) => entryTimeFor(hour, offset) === clock.time),
-  );
-  return slotHour === undefined ? null : { slotHour, entryTime: clock.time };
-}
-
-function scheduledOnlyAlert(
-  base: (typeof H1_TARGET_BASES)[number],
-  slotHour: number,
-  entryTime: string,
-  side: H1Signal,
-): H1StoredAlert {
-  const [entryHour, entryMinute] = entryTime.split(":").map(Number);
-  const entryOffsetMinutes = (entryHour * 60 + entryMinute - slotHour * 60 + 1440) % 1440;
-  return {
-    slotHour,
-    pattern: "Scheduled entry",
-    patternKind: "pattern1",
-    bars: [],
-    symbol: base,
-    profile: "cTrader IcMarkets",
-    baseSymbol: base,
-    baseH1Signal: null,
-    baseHour: (entryHour + 23) % 24,
-    baseMinute: 0,
-    baseDirection: "",
-    patternPair: "--",
-    m15Pair: "--",
-    m15PairInverted: false,
-    m15Window: "SCHEDULED",
-    entryOffsetMinutes,
-    entryTime,
-    symbolH1Signal: null,
-    scheduledSignal: side,
-    scheduledOnly: true,
-    postSignalInverted: false,
-    postSignalRule: "none",
-  };
-}
-
-function isScheduledOverlayAlert(alert: H1StoredAlert): boolean {
-  return Boolean(alert.scheduledOnly) || alert.pattern === "Scheduled entry" || alert.m15Window === "SCHEDULED";
-}
-
-function applyScheduledIntentOverlay(
-  state: H1CloudState,
-  intents: CloudIntent[],
-  brokerDate: string,
-  brokerUtcOffsetHours: number,
-): boolean {
-  const day = state.days[brokerDate];
-  if (!day) return false;
-
-  const desired = new Map<string, {
-    base: (typeof H1_TARGET_BASES)[number];
-    slotHour: number;
-    entryTime: string;
-    side: H1Signal;
-    id: number;
-  }>();
-  for (const item of intents) {
-    const base = canonicalOrderSymbol(item.payload.symbol) as (typeof H1_TARGET_BASES)[number];
-    if (!(H1_TARGET_BASES as readonly string[]).includes(base)) continue;
-    const block = scheduledBlockFor(item, base, brokerDate, brokerUtcOffsetHours);
-    const side = intentSignal(item.payload.side);
-    if (!block || !side) continue;
-    const key = `${base}:${block.slotHour}`;
-    const previous = desired.get(key);
-    if (!previous || item.id > previous.id) {
-      desired.set(key, { base, slotHour: block.slotHour, entryTime: block.entryTime, side, id: item.id });
-    }
-  }
-
-  let changed = false;
-  for (const base of H1_TARGET_BASES) {
-    const symbol = day.symbols[base];
-    if (!symbol) continue;
-    const retained = symbol.alerts.filter((alert) => {
-      if (!isScheduledOverlayAlert(alert)) return true;
-      const alertBase = canonicalOrderSymbol(alert.baseSymbol || alert.symbol);
-      return desired.has(`${alertBase}:${alert.slotHour}`);
-    });
-    if (retained.length !== symbol.alerts.length) {
-      symbol.alerts = retained;
-      changed = true;
-    }
-    for (const alert of symbol.alerts) {
-      const alertBase = canonicalOrderSymbol(alert.baseSymbol || alert.symbol);
-      const wanted = desired.get(`${alertBase}:${alert.slotHour}`);
-      if (isScheduledOverlayAlert(alert)) {
-        if (!wanted) continue;
-        if (alert.scheduledSignal !== wanted.side || alert.entryTime !== wanted.entryTime) {
-          alert.scheduledSignal = wanted.side;
-          alert.entryTime = wanted.entryTime;
-          changed = true;
-        }
-      } else if (alert.scheduledSignal !== (wanted?.side ?? null)) {
-        alert.scheduledSignal = wanted?.side ?? null;
-        changed = true;
-      }
-    }
-  }
-
-  for (const wanted of desired.values()) {
-    const { symbol } = ensureSymbolDay(state, brokerDate, wanted.base);
-    if (symbol.alerts.some((alert) => alert.slotHour === wanted.slotHour)) continue;
-    symbol.alerts.push(scheduledOnlyAlert(wanted.base, wanted.slotHour, wanted.entryTime, wanted.side));
-    symbol.alerts.sort((left, right) => left.slotHour - right.slotHour);
-    changed = true;
-  }
-  return changed;
 }
 
 export async function POST(request: Request) {
@@ -378,8 +154,8 @@ export async function POST(request: Request) {
 
   try {
     const session = await loadH1CTraderSession();
-    const market = await fetchReadyMarket(session, nowMs, wall.hour, wall.minute);
-    if (!marketReadyForSlot(market, wall.hour, wall.minute)) {
+    const market = await fetchReadyMarket(session, nowMs, wall.hour);
+    if (!marketReadyForSlot(market, wall.hour)) {
       return NextResponse.json({
         ok: true,
         enabled,
@@ -397,18 +173,16 @@ export async function POST(request: Request) {
       state.days[market.brokerDate] = { suppressedThroughHour: market.brokerHour, symbols: {} };
       recoveryDaySeeded = true;
     }
-    const availableThroughMinute = market.brokerHour * 60 + market.brokerMinute;
     const recoveredSuppressedHistory = backfillSuppressedHistory(
       state,
       market.brokerDate,
       market.symbols,
-      availableThroughMinute,
     ) > 0;
     let changed = recoveryDaySeeded || recoveredSuppressedHistory;
 
-    // Block reminders are deliberately independent from provider-account automation.
-    // A missing cTrader account may skip hẹn giờ entries, but must not suppress
-    // the human-readable hậu-signal reminder.
+    // Block reminders announce the deterministic six-block phase for the
+    // block hour ahead of its closed candle; they are independent from any
+    // user-scheduled entry/close appointments.
     let blockReminderSent = false;
     const telegramConfigured = Boolean(!dryRun && cloudConfig?.telegramToken && cloudConfig?.telegramChatId);
     const isScheduledBlock = (H1_SCAN_HOURS as readonly number[]).includes(market.brokerHour);
@@ -426,29 +200,18 @@ export async function POST(request: Request) {
       }
     }
 
-    const providerTarget = dryRun
-      ? null
-      : (await listProviderAccounts()).find((account) => account.id === cTraderProviderAccountId(session.accountId) && account.enabled && account.provider === "ctrader") || null;
-    const automationReady = !dryRun && Boolean(cloudConfig?.telegramControlEnabled && providerTarget);
-    const automationSkippedReason = dryRun
-      ? "dry-run"
-      : !cloudConfig?.telegramControlEnabled
-        ? "telegram-control-disabled"
-        : !providerTarget
-          ? "enabled-scanner-account-missing"
-          : null;
-    const knownScheduledIntents = dryRun ? [] : await listCloudIntents();
-
     const pending: RunSummary[] = [];
     let sent = 0;
 
+    // The slot whose candle just closed is slotHour = brokerHour - 1.
+    const closedSlotHour = market.brokerHour - 1;
     for (const base of H1_TARGET_BASES) {
-      const evaluations = evaluateH1BlocksForTarget(
+      const signals = evaluateH1SignalsForTarget(
         base,
+        market.brokerDate,
         market.symbols[base].bars,
-        market.symbols[base].m15Bars,
-        market.brokerHour,
-        availableThroughMinute,
+        H1_SCAN_HOURS,
+        closedSlotHour,
       );
       const { symbol: symbolState } = ensureSymbolDay(state, market.brokerDate, base);
       const delivered = deliveredSlots(symbolState.alerts);
@@ -456,129 +219,47 @@ export async function POST(request: Request) {
       const suppressedThrough = Number(day?.suppressedThroughHour || 0);
       for (let hour = 3; hour <= suppressedThrough; hour += 1) delivered.add(hour);
 
-      for (const evaluation of evaluations) {
-        const computedAlert = buildStoredAlert({
-          base,
-          brokerSymbol: market.symbols[base].displayName || base,
-          evaluation,
-          h1Bars: market.symbols[base].bars,
-        });
-        if (!computedAlert) continue;
-        let alert: H1StoredAlert = {
-          ...computedAlert,
-          scheduledSignal: scheduledSignalFor(
-            knownScheduledIntents,
-            market.brokerDate,
-            market.brokerUtcOffsetHours,
-            computedAlert,
-          ),
+      for (const signal of signals) {
+        const alert: H1StoredAlert = {
+          ...signal,
+          symbol: market.symbols[base].displayName || base,
         };
-        let intentId: number | null = null;
-        let telegramMessage = buildTelegramMessage(base, market.brokerDate, computedAlert);
-        // A pending alert already has its pattern and entry time. Arm/send the
-        // scheduled entry only after the authoritative H1 base is closed.
-        if (automationReady && computedAlert.symbolH1Signal && !alert.scheduledSignal) {
-          if (!cloudConfig || !providerTarget) throw new Error("H1 automation readiness invariant failed");
-          const lot = h1AutoEntryLot(base);
-          const protection = providerProtectionPoints(providerTarget, computedAlert.symbol);
-          const dueAt = brokerEntryDueAt(market.brokerDate, computedAlert.entryTime, market.brokerUtcOffsetHours);
-          const task = await createCloudIntent({
-            kind: "entry",
-            source: "H1 Scanner",
-            automationKey: `h1:${market.brokerDate}:${base}:H${computedAlert.slotHour}`,
-            chatId: cloudConfig.telegramChatId,
-            rawText: `H1 ${base} H${computedAlert.slotHour} ${computedAlert.symbolH1Signal} ${computedAlert.entryTime}`,
-            dueAt,
-            dueText: `${market.brokerDate} ${computedAlert.entryTime}:00 broker UTC${market.brokerUtcOffsetHours >= 0 ? "+" : ""}${market.brokerUtcOffsetHours}`,
-            payload: {
-              side: computedAlert.symbolH1Signal,
-              symbol: computedAlert.symbol,
-              lot,
-              sl: 0,
-              tp: 0,
-              legacyProfile: providerTarget.label,
-              executionMode: TELEGRAM_CLOUD_EXECUTION_MODE,
-              strategy: "h1-entry-h1-rule-49",
-              blockHour: computedAlert.slotHour,
-              patternKind: computedAlert.patternKind,
-            },
-            targetAccountIds: [providerTarget.id],
-            protectionPlan: {
-              [providerTarget.id]: { label: providerTarget.label, slPoints: protection.sl, tpPoints: protection.tp },
-            },
-          });
-          const normalizedTask = await normalizeCloudIntentLot(task, lot);
-          intentId = normalizedTask.id;
-          const scheduledSide = intentSignal(normalizedTask.payload.side);
-          alert = { ...alert, scheduledSignal: scheduledSide };
-          if (scheduledSide) knownScheduledIntents.push(normalizedTask);
-          const approvalLine = normalizedTask.status === "approval_required"
-            ? `• Xác nhận: /approve ${normalizedTask.id}`
-            : `• Trạng thái: ${normalizedTask.status} · đã arm`;
-          telegramMessage = [telegramMessage,
-            `⏰ ĐẶT LỆNH HẸN GIỜ: ${computedAlert.symbolH1Signal} ${computedAlert.symbol} · ${lot} lot · ${normalizedTask.dueText}`,
-            `• Intent #${normalizedTask.id} · @${providerTarget.label}`,
-            approvalLine,
-            normalizedTask.status === "approval_required"
-              ? "• Chưa /approve thì cloud tuyệt đối không execute."
-              : "• Đến entry time cloud sẽ tự execute.",
-          ].join("\n");
-          const activeTask = normalizedTask.status === "approval_required"
-            || normalizedTask.status === "scheduled"
-            || normalizedTask.status === "approved";
-          const withinReminderWindow = dueAt >= nowMs - 15 * 60 * 1000;
-          if (activeTask && !normalizedTask.scheduledNotifiedAt && withinReminderWindow) {
-            await sendTelegram(telegramMessage, cloudConfig);
-            await markScheduledNotification(normalizedTask);
-            sent += 1;
-          }
-        }
         pending.push({
           base,
           slotHour: alert.slotHour,
-          patternKind: alert.patternKind,
-          m15Pair: alert.m15Pair,
-          m15Window: alert.m15Window,
-          entryTime: alert.entryTime,
-          signal: alert.scheduledSignal || "PENDING_SCHEDULED_ENTRY",
+          signal: alert.symbolH1Signal || "PENDING",
           postSignalRule: alert.postSignalRule,
-          intentId,
         });
         if (dryRun) continue;
 
-        const storedIndex = symbolState.alerts.findIndex((item) => item.slotHour === evaluation.slotHour);
+        const storedIndex = symbolState.alerts.findIndex((item) => item.slotHour === alert.slotHour);
+        const sameStored = storedIndex >= 0 && symbolState.alerts[storedIndex].symbolH1Signal === alert.symbolH1Signal;
+        if (storedIndex >= 0 && sameStored) continue;
+        let deliveredNow = false;
         if (storedIndex >= 0) {
-          const current = symbolState.alerts[storedIndex];
-          const enriched = current.baseH1Signal !== alert.baseH1Signal
-            || current.baseHour !== alert.baseHour
-            || current.baseDirection !== alert.baseDirection
-            || current.symbolH1Signal !== alert.symbolH1Signal
-            || current.scheduledSignal !== alert.scheduledSignal;
-          if (enriched) {
-            symbolState.alerts[storedIndex] = alert;
-            changed = true;
-          }
-          continue;
+          symbolState.alerts[storedIndex] = alert;
+          changed = true;
+        } else {
+          if (delivered.has(alert.slotHour)) continue;
+          symbolState.alerts.push(alert);
+          symbolState.alerts.sort((left, right) => left.slotHour - right.slotHour);
+          delivered.add(alert.slotHour);
+          changed = true;
+          deliveredNow = true;
         }
-        if (delivered.has(evaluation.slotHour)) continue;
 
-        symbolState.alerts.push(alert);
-        symbolState.alerts.sort((left, right) => left.slotHour - right.slotHour);
-        delivered.add(alert.slotHour);
-        changed = true;
         // Persist every classified slot for the public table. Telegram
-        // notification is idempotent and independent from this analytics write.
+        // notification is sent once when the slot is first delivered.
         await saveH1CloudState(state);
+
+        if (deliveredNow && telegramConfigured && cloudConfig && alert.symbolH1Signal) {
+          await sendTelegram(buildTelegramMessage(base, market.brokerDate, alert), cloudConfig);
+          sent += 1;
+        }
       }
     }
 
     if (!dryRun) {
-      changed = applyScheduledIntentOverlay(
-        state,
-        knownScheduledIntents,
-        market.brokerDate,
-        market.brokerUtcOffsetHours,
-      ) || changed;
       if (changed || source === "public-seed") await saveH1CloudState(state);
       await publishH1CloudState(state);
     }
@@ -587,8 +268,6 @@ export async function POST(request: Request) {
       ok: true,
       enabled,
       dryRun,
-      automationReady,
-      automationSkippedReason,
       stateSource: source,
       brokerDate: market.brokerDate,
       brokerHour: market.brokerHour,
@@ -598,8 +277,6 @@ export async function POST(request: Request) {
       blockReminderSent,
       pending,
       h1Counts: Object.fromEntries(Object.entries(market.symbols).map(([base, item]) => [base, item.bars.length])),
-      m15Counts: Object.fromEntries(Object.entries(market.symbols).map(([base, item]) => [base, item.m15Bars.length])),
-      m5Counts: Object.fromEntries(Object.entries(market.symbols).map(([base, item]) => [base, item.m5Bars.length])),
     }, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error) {
     console.error("[H1 CLOUD SCANNER]", error instanceof Error ? error.message : String(error));

@@ -2,25 +2,22 @@ import { brokerDateWeekdayIndex, isValidBrokerDateKey } from "./h1-broker-date.t
 import {
   H1_SCAN_HOURS,
   H1_TARGET_BASES,
-  buildStoredAlert,
-  evaluateH1Block,
+  evaluateH1SignalsForTarget,
   targetsForBlockHour,
   type H1CloudState,
-  type H1DirectionBar,
   type H1MarketSnapshot,
-  type H1M15Bar,
   type H1TargetBase,
 } from "./h1-cloud-scanner.ts";
 
 export type H1HistoricalMarket = H1MarketSnapshot;
 export type H1HistoricalDays = Record<string, H1CloudState["days"][string]>;
 
-function barsForDate<T extends { brokerDate: string }>(rows: T[], date: string): T[] {
-  return rows.filter((row) => row.brokerDate === date);
-}
-
 export function reconstructHistoricalDays(market: H1HistoricalMarket): H1HistoricalDays {
-  const dateKeys = [...new Set(Object.values(market).flatMap((item) => item.bars.map((bar) => bar.brokerDate)))]
+  const relevant = H1_TARGET_BASES as readonly string[];
+  const dateKeys = [...new Set(
+    Object.values(market)
+      .flatMap((item) => item.bars.filter((bar) => relevant.includes(bar.brokerDate) || true).map((bar) => bar.brokerDate)),
+  )]
     .filter(isValidBrokerDateKey)
     .sort();
   const output: H1HistoricalDays = {};
@@ -28,27 +25,19 @@ export function reconstructHistoricalDays(market: H1HistoricalMarket): H1Histori
   for (const date of dateKeys) {
     const weekday = brokerDateWeekdayIndex(date);
     if (weekday === 0 || weekday === 6) continue;
-    const perBase = Object.fromEntries((Object.keys(market) as H1TargetBase[]).map((base) => [base, {
-      bars: barsForDate(market[base].bars as H1DirectionBar[], date),
-      m15Bars: barsForDate((market[base].m15Bars || []) as H1M15Bar[], date),
-    }])) as Record<H1TargetBase, { bars: H1DirectionBar[]; m15Bars: H1M15Bar[] }>;
-    if (!Object.values(perBase).some((item) => item.bars.length > 0)) continue;
+    if (!Object.values(market).some((item) => item.bars.some((bar) => bar.brokerDate === date))) continue;
 
     const symbols: H1CloudState["days"][string]["symbols"] = {};
     for (const base of H1_TARGET_BASES) {
+      const perBase = market[base];
+      if (!perBase) continue;
+      const dayBars = perBase.bars.filter((bar) => bar.brokerDate === date);
+      if (!dayBars.length) continue;
       const blocks = H1_SCAN_HOURS.filter((hour) => (targetsForBlockHour(hour) as readonly string[]).includes(base));
-      const alerts = blocks.flatMap((slotHour) => {
-        const evaluation = evaluateH1Block({ slotHour, h1Bars: perBase[base].bars, m15Bars: perBase[base].m15Bars });
-        if (!evaluation) return [];
-        const alert = buildStoredAlert({
-          base,
-          brokerSymbol: market[base].displayName || base,
-          evaluation,
-          h1Bars: perBase[base].bars,
-        });
-        return alert ? [alert] : [];
-      });
-      symbols[base] = { alerts };
+      symbols[base] = {
+        alerts: evaluateH1SignalsForTarget(base, date, dayBars, H1_SCAN_HOURS)
+          .filter((alert) => blocks.includes(alert.slotHour as (typeof blocks)[number])),
+      };
     }
     output[date] = { symbols };
   }
@@ -56,7 +45,7 @@ export function reconstructHistoricalDays(market: H1HistoricalMarket): H1Histori
 }
 
 function cloneSymbolState(source: NonNullable<H1CloudState["days"][string]["symbols"][H1TargetBase]>) {
-  return { alerts: source.alerts.map((alert) => ({ ...alert, bars: [...alert.bars] })) };
+  return { alerts: source.alerts.map((alert) => ({ ...alert })) };
 }
 
 export function mergeHistoricalBackfill(
@@ -91,7 +80,7 @@ export function mergeHistoricalBackfill(
       const existingSlots = new Set(target.alerts.map((alert) => alert.slotHour));
       for (const alert of source.alerts) {
         if (existingSlots.has(alert.slotHour)) continue;
-        target.alerts.push({ ...alert, bars: [...alert.bars] });
+        target.alerts.push({ ...alert });
         existingSlots.add(alert.slotHour);
         addedAlerts += 1;
       }

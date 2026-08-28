@@ -49,7 +49,6 @@ test("H1 signal cells stay centered and use an explicit compact type scale", () 
 
 test("all custom trading and NeoTech dialogs use the shared keyboard focus trap", () => {
   assert.match(h1EngineSource, /useDialogFocusTrap\(open/);
-  assert.match(h1SignalSource, /useDialogFocusTrap\(true/);
   assert.match(neoTechSource, /useDialogFocusTrap(?:<[^>]+>)?\(Boolean\(pairing\)/);
   assert.match(dialogHookSource, /event\.key === "Escape"/);
   assert.match(dialogHookSource, /event\.key !== "Tab"/);

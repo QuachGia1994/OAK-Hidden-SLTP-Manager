@@ -45,15 +45,12 @@ registerHooks({
 
 const { H1SignalBoard } = await import(pathToFileURL(resolvePath(srcRoot, "components/H1SignalBoard.tsx")).href);
 const { redactH1Signals } = await import(pathToFileURL(resolvePath(srcRoot, "lib/vip.ts")).href);
-const { brokerWallParts, icMarketsServerOffsetSeconds, normalizeHistoricalTrendbars, normalizeM15Trendbars, normalizeM5Trendbars } = await import(pathToFileURL(resolvePath(srcRoot, "lib/ctrader-json.ts")).href);
+const { brokerWallParts, icMarketsServerOffsetSeconds, normalizeHistoricalTrendbars } = await import(pathToFileURL(resolvePath(srcRoot, "lib/ctrader-json.ts")).href);
 const { latestH1Date, alertsForSymbol } = await import(pathToFileURL(resolvePath(repoRoot, "mobile/src/lib/h1.ts")).href);
 
 function alert(slotHour, signal = "BUY") {
   return {
     slotHour,
-    pattern: "T T T T",
-    patternKind: "pattern5",
-    bars: [],
     symbol: "XAUUSD",
     profile: "cTrader IcMarkets",
     baseSymbol: "XAUUSD",
@@ -61,11 +58,6 @@ function alert(slotHour, signal = "BUY") {
     baseHour: slotHour + 1,
     baseMinute: 0,
     baseDirection: "T",
-    m15Pair: "TT",
-    m15PairInverted: false,
-    m15Window: "TTTT",
-    entryOffsetMinutes: 120,
-    entryTime: `${String((slotHour + 2) % 24).padStart(2, "0")}:00`,
     signal,
     postSignalInverted: false,
     postSignalRule: "none",
@@ -75,8 +67,8 @@ function alert(slotHour, signal = "BUY") {
 function payload() {
   const dates = ["2025-12-29", "2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02", "2026-01-05", "2026-02-03"];
   return {
-    schemaVersion: 16,
-    signalRuleVersion: 50,
+    schemaVersion: 17,
+    signalRuleVersion: 51,
     profile: "cTrader IcMarkets",
     publishedAt: "2026-02-03T12:00:00.000Z",
     hours: [3, 4, 6, 9, 12, 14, 16],
@@ -110,28 +102,6 @@ test("historical cTrader trendbars use DST-aware broker dates and hours", () => 
     { utcTimestampInMinutes: minute("2026-07-14T22:00:00Z"), deltaOpen: 1, deltaClose: 0 },
   ]);
   assert.deepEqual(rows.map((row) => [row.brokerDate, row.hour, row.direction]), [["2026-01-15", 1, "T"], ["2026-07-15", 1, "G"]]);
-});
-
-test("M15 normalization keeps candles with the same minute across different hours", () => {
-  const minute = (iso) => Math.trunc(new Date(iso).getTime() / 60_000);
-  const rows = normalizeM15Trendbars([
-    { utcTimestampInMinutes: minute("2026-08-26T23:15:00Z"), deltaOpen: 0, deltaClose: 1 },
-    { utcTimestampInMinutes: minute("2026-08-27T00:15:00Z"), deltaOpen: 1, deltaClose: 0 },
-  ]);
-  assert.deepEqual(rows.map((row) => [row.brokerDate, row.minuteOfDay, row.direction]), [
-    ["2026-08-27", 135, "T"],
-    ["2026-08-27", 195, "G"],
-  ]);
-});
-
-test("M5 normalization reconstructs cTrader Open and Close prices", () => {
-  const minute = (iso) => Math.trunc(new Date(iso).getTime() / 60_000);
-  const rows = normalizeM5Trendbars([
-    { utcTimestampInMinutes: minute("2026-08-27T06:00:00Z"), low: 10_000_000, deltaOpen: 5_000, deltaClose: 7_000 },
-  ]);
-  assert.deepEqual(rows.map((row) => [row.brokerDate, row.minuteOfDay, row.open, row.close]), [
-    ["2026-08-27", 540, 100.05, 100.07],
-  ]);
 });
 
 test("IC Markets broker wall clock switches UTC+2 and UTC+3 exactly with US DST", () => {

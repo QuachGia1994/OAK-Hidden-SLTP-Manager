@@ -1,12 +1,8 @@
 export type H1SignalSide = "BUY" | "SELL";
-export type H1PatternKind = "pattern1" | "pattern2" | "pattern3" | "pattern4" | "pattern5" | "pattern6";
 export type H1PostSignalRule = "none" | "cycle-net-invert" | "cycle-net-keep" | "regular-net-invert" | "regular-net-keep";
 
 export type H1SignalAlert = {
   slotHour: number;
-  pattern: string;
-  patternKind: H1PatternKind;
-  bars: string[];
   symbol: string;
   profile: string;
   baseSymbol: string;
@@ -14,11 +10,6 @@ export type H1SignalAlert = {
   baseHour: number | null;
   baseMinute: number | null;
   baseDirection: "T" | "G" | "";
-  m15Pair: string;
-  m15PairInverted?: boolean;
-  m15Window: string;
-  entryOffsetMinutes?: number;
-  entryTime: string;
   signal: H1SignalSide | null;
   postSignalInverted?: boolean;
   postSignalRule?: H1PostSignalRule;

@@ -56,9 +56,6 @@ export async function POST(request: Request) {
     const session = await loadH1CTraderSession();
     const startedAt = Date.now();
     const historical = await fetchHistoricalBrokerH1(session, utcHistoryEnvelopeStart(requestedFrom), nowMs, {
-      // H1, M15, and exact-entry M5 history are all required for rule 47.
-      // The workflow grants a matching client budget; partial coverage remains
-      // observable and never fabricates a signal.
       deadlineMs: startedAt + 150_000,
     });
     const reconstructedAll = reconstructHistoricalDays(historical.symbols);
@@ -84,17 +81,7 @@ export async function POST(request: Request) {
       recoveredMissingCurrentDay: recoverMissingCurrentDay && Boolean(state.days[current.dateKey]),
       stateSource: source,
       providerRequestCount: historical.requestCount,
-      providerM15RequestCount: historical.m15RequestCount,
-      providerM5RequestCount: historical.m5RequestCount,
-      m15HistoryComplete: historical.m15Complete,
-      m5HistoryComplete: historical.m5Complete,
       providerBarCounts: Object.fromEntries(Object.entries(historical.symbols).map(([base, item]) => [base, item.bars.filter((bar) =>
-        bar.brokerDate >= requestedFrom && (bar.brokerDate < current.dateKey || (recoverMissingCurrentDay && bar.brokerDate === current.dateKey)),
-      ).length])),
-      providerM15BarCounts: Object.fromEntries(Object.entries(historical.symbols).map(([base, item]) => [base, (item.m15Bars || []).filter((bar) =>
-        bar.brokerDate >= requestedFrom && (bar.brokerDate < current.dateKey || (recoverMissingCurrentDay && bar.brokerDate === current.dateKey)),
-      ).length])),
-      providerM5BarCounts: Object.fromEntries(Object.entries(historical.symbols).map(([base, item]) => [base, (item.m5Bars || []).filter((bar) =>
         bar.brokerDate >= requestedFrom && (bar.brokerDate < current.dateKey || (recoverMissingCurrentDay && bar.brokerDate === current.dateKey)),
       ).length])),
       availableTradingDays: coverageDates.length,

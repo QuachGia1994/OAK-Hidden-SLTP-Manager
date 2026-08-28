@@ -27,7 +27,6 @@ export default function SignalDetailScreen() {
   const hour = Number(params.hour || 0);
   const alert = findAlert(h1, symbol, hour);
   const date = latestH1Date(h1);
-  const patternVerdict = alert?.m15PairInverted ? "Pattern reverses M15 base" : "Pattern keeps M15 base";
 
   return (
     <LinearGradient colors={[theme.canvas, theme.raised]} style={styles.flex}>
@@ -54,7 +53,8 @@ export default function SignalDetailScreen() {
               <GlassCard>
                 <View style={styles.heroState}>
                   <View style={styles.badges}>
-                    <Pill label={alert.patternKind.toUpperCase()} />
+                    {alert.postSignalInverted ? <Pill label="REVERSE" tone="warning" /> : null}
+                    {alert.baseDirection ? <Pill label={`BASE ${alert.baseDirection}`} /> : null}
                   </View>
                   <Text style={[styles.heroSignal, { color: alert.signal === "SELL" ? theme.sell : theme.buy }]}>
                     {alert.signal}
@@ -63,19 +63,15 @@ export default function SignalDetailScreen() {
               </GlassCard>
 
               <GlassCard>
-                <Row label="Pattern (M15)" value={alert.m15Window?.split("").join(" · ") || alert.pattern.replaceAll(" ", " · ")} />
-                <Row label="Pre-block M15 pair" value={`${alert.m15Pair || "—"} · window only`} />
-                <Row label="Pattern action" value={patternVerdict} />
-                <Row label="Entry time" value={alert.entryTime ? `${alert.entryTime} (+${alert.entryOffsetMinutes ?? "?"}p)` : "—"} />
                 <Row label="Entry H1 base" value={`${alert.baseSymbol} · H${String(alert.baseHour || 0).padStart(2, "0")}:00 · ${alert.baseDirection || "—"}`} />
                 <Row label="Base signal" value={alert.baseSignal || "—"} tone={alert.baseSignal === "SELL" ? "sell" : "buy"} />
-                <Row label="Post-signal" value={alert.postSignalRule || "none"} />
+                <Row label="Post-signal" value={`${alert.postSignalInverted ? "ĐẢO" : "GIỮ NGUYÊN"} · ${alert.postSignalRule || "none"}`} tone={alert.postSignalInverted ? "warning" : undefined} />
                 <Row label="Final signal" value={alert.signal || "—"} tone={alert.signal === "SELL" ? "sell" : "buy"} />
               </GlassCard>
 
               <GlassCard>
-                <Text style={[styles.sectionLabel, { color: theme.muted }]}>M15 CANDLES NEW → OLD</Text>
-                <Text style={[styles.bars, { color: theme.text }]}>{alert.bars.join("  →  ") || "—"}</Text>
+                <Text style={[styles.sectionLabel, { color: theme.muted }]}>GIỜ VÀO/ĐÓNG LỆNH</Text>
+                <Text style={[styles.bars, { color: theme.text }]}>Do bạn tự đặt qua lệnh Telegram (hẹn giờ).</Text>
               </GlassCard>
             </>
           )}

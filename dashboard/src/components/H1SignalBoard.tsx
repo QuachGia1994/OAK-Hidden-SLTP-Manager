@@ -1,13 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useDialogFocusTrap } from "@/hooks/useDialogFocusTrap";
 import { historyDatesForWeekday, selectHistoryDate } from "@/lib/h1-history-navigation";
 import { cycleDecisionFor, H1_SCAN_HOURS, H1_TARGET_BASES } from "@/lib/h1-cloud-scanner";
-import type { H1PatternKind, H1SignalAlert, H1SignalPayload } from "@/lib/h1-signals";
+import type { H1SignalAlert, H1SignalPayload } from "@/lib/h1-signals";
 
 type Locale = "EN" | "VN";
-type Selection = { base: string; date: string; alert: H1SignalAlert };
 type ShareArtifact = { date: string; blob: Blob };
 
 const H1_SHARE_SCALE = 2;
@@ -169,77 +167,7 @@ function formatPublished(value: string, locale: Locale) {
   });
 }
 
-function barsLabel(values: string[]) {
-  return values.map((value) => {
-    const match = value.match(/T(\d{2}):/);
-    return match ? `H${match[1]}` : value;
-  }).join("→");
-}
-
-function patternLabel(kind: H1PatternKind, locale: Locale) {
-  const labels: Record<H1PatternKind, { EN: string; VN: string }> = {
-    pattern1: { EN: "Pattern 1 · TGG / GTT", VN: "Pattern 1 · TGG / GTT" },
-    pattern2: { EN: "Pattern 2 · TTT / GGG", VN: "Pattern 2 · TTT / GGG" },
-    pattern3: { EN: "Pattern 3 · TGT / GTG", VN: "Pattern 3 · TGT / GTG" },
-    pattern4: { EN: "Pattern 4 · GGT / TTG", VN: "Pattern 4 · GGT / TTG" },
-    pattern5: { EN: "Pattern 5 · 4+ same-direction candles", VN: "Pattern 5 · 4+ cây cùng hướng" },
-    pattern6: { EN: "Pattern 6 · TGTG/GTGT + pair 5–6", VN: "Pattern 6 · TGTG/GTGT + cặp 5–6" },
-  };
-  return labels[kind][locale];
-}
-
-function postSignalLabel(rule: H1SignalAlert["postSignalRule"], inverted: boolean | undefined, locale: Locale) {
-  if (!rule) return "—";
-  const labels = {
-    none: { EN: "no inversion", VN: "không đảo" },
-    "cycle-net-invert": { EN: "cycle-month phase, net post-signal reverse", VN: "pha chu kỳ tháng, hậu signal đảo ròng" },
-    "cycle-net-keep": { EN: "cycle-month phase, net post-signal keep", VN: "pha chu kỳ tháng, hậu signal giữ ròng" },
-    "regular-net-invert": { EN: "regular-month phase, net post-signal reverse", VN: "pha thường tháng, hậu signal đảo ròng" },
-    "regular-net-keep": { EN: "regular-month phase, net post-signal keep", VN: "pha thường tháng, hậu signal giữ ròng" },
-  } as const;
-  if (!inverted && rule === "none") return labels.none[locale];
-  return labels[rule][locale];
-}
-
-
-function DetailModal({ selection, locale, onClose }: { selection: Selection; locale: Locale; onClose: () => void }) {
-  const ref = useDialogFocusTrap(true, onClose);
-  const { base, date, alert } = selection;
-  const entryH1Detail = alert.baseDirection
-    ? `H${String(alert.baseHour ?? "?").padStart(2, "0")}:00 · ${locale === "EN" ? "base candle captured" : "đã chốt cây base"}`
-    : "—";
-
-  return (
-    <div className="oak-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section ref={ref} className="oak-h1-detail-modal" role="dialog" aria-modal="true" aria-label={`${base} H1 block detail`}>
-        <header className="oak-modal-header">
-          <div><span className="oak-eyebrow">H1 BLOCK DETAIL</span><h2>{base} · H{String(alert.slotHour).padStart(2, "0")}</h2><p>{locale === "EN" ? "Intraday pattern block" : "Block pattern H1 trong ngày"}</p></div>
-          <button type="button" onClick={onClose} aria-label="Close">×</button>
-        </header>
-        <div className="oak-h1-detail-grid">
-          <div><small>{locale === "EN" ? "BROKER DAY" : "NGÀY BROKER"}</small><b>{date}</b></div>
-          <div><small>{locale === "EN" ? "M15 CANDLES NEW→OLD" : "NẾN M15 MỚI→CŨ"}</small><b>{barsLabel(alert.bars) || "—"}</b></div>
-          <div><small>PATTERN</small><b>{alert.m15Window?.split("").join(" ") || alert.pattern || "—"}</b></div>
-        </div>
-        <div className="oak-h1-explain">
-          <p><span>{locale === "EN" ? "Pattern group" : "Nhóm pattern"}</span><b>{patternLabel(alert.patternKind, locale)}</b></p>
-          <p><span>{`${locale === "EN" ? "Entry H1 base candle" : "Cây H1 base tại entry"} · ${alert.baseSymbol}`}</span><b>{entryH1Detail}</b></p>
-          <p><span>{locale === "EN" ? `Pattern M15 pair ${alert.m15Pair || "—"}` : `Cặp M15 chọn pattern ${alert.m15Pair || "—"}`}</span><b>{locale === "EN" ? "pattern/entry evidence only" : "chỉ là bằng chứng pattern/entry"}</b></p>
-          <p><span>{alert.patternKind === "pattern6"
-            ? (locale === "EN" ? `P6 entry pair 5–6 ${alert.patternPair || "—"}` : `Cặp entry P6 cây 5–6 ${alert.patternPair || "—"}`)
-            : (locale === "EN" ? `Pattern selector pair ${alert.patternPair || "—"}` : `Cặp chọn pattern ${alert.patternPair || "—"}`)}</span><b>{alert.patternKind === "pattern6"
-            ? (locale === "EN" ? "selects H+2:00 or H+1:25 entry" : "chọn entry H+2:00 hoặc H+1:25")
-            : (locale === "EN" ? "selects pattern window only" : "chỉ chọn cửa sổ pattern")}</b></p>
-          <p><span>{locale === "EN" ? "Entry time" : "Giờ entry"}</span><b>{alert.entryTime ? `${alert.entryTime} (+${alert.entryOffsetMinutes ?? "?"}p)` : "—"}</b></p>
-          <p><span>{locale === "EN" ? "Post-signal" : "Hậu signal"}</span><b>{postSignalLabel(alert.postSignalRule, alert.postSignalInverted, locale)}</b></p>
-        </div>
-      </section>
-    </div>
-  );
-}
-
 export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1SignalPayload | null; degraded?: boolean; locale: Locale; unlocked: boolean }) {
-  const [selection, setSelection] = useState<Selection | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => data ? selectHistoryDate(data.days, "all", "") : "");
   const [shareArtifact, setShareArtifact] = useState<ShareArtifact | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
@@ -271,7 +199,6 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
   useEffect(() => {
     if (selectedDate === date) return;
     setSelectedDate(date);
-    setSelection(null);
   }, [date, selectedDate]);
 
   useEffect(() => {
@@ -291,7 +218,6 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
   const chooseDate = (nextDate: string) => {
     if (!nextDate || nextDate === selectedDate) return;
     setSelectedDate(nextDate);
-    setSelection(null);
   };
 
   const shareScannerPng = () => {
@@ -417,7 +343,6 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
           </table>
         </div>}
       </section>
-      {selection && <DetailModal selection={selection} locale={locale} onClose={() => setSelection(null)} />}
     </>
   );
 }

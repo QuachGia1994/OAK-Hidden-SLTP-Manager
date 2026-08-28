@@ -41,7 +41,7 @@ test("cloud scanner setup uses one-time tickets and encrypted server-side Telegr
   assert.match(setupRoute, /NextResponse\.json\(\{ ok: true, \.\.\.safeH1CloudConfigStatus\(saved\) \}/);
 });
 
-test("cloud scanner sends and persists every classified six-pattern alert", () => {
+test("cloud scanner persists every closed signal slot and sends its telegram message once", () => {
   assert.match(route, /loadH1CloudState/);
   assert.match(cloudStore, /seedCloudStateFromPublic/);
   assert.match(route, /x-h1-run-ticket/);
@@ -55,81 +55,54 @@ test("cloud scanner sends and persists every classified six-pattern alert", () =
   assert.match(telegramCloudStore, /H1_BLOCK_REMINDER_PREFIX/);
   assert.match(telegramCloudStore, /nx: true/);
   assert.match(route, /symbolState\.alerts\.push\(alert\)/);
-  assert.ok(route.indexOf("deliveredSlots(symbolState.alerts)") < route.indexOf("for (const evaluation of evaluations)"));
   assert.match(route, /await saveH1CloudState\(state\)/);
-  assert.ok(route.indexOf("await sendTelegram") < route.indexOf("symbolState.alerts.push(alert)"));
+  assert.match(route, /deliveredNow && telegramConfigured/);
   assert.doesNotMatch(route, /if \(alert\.tradeAllowed\)|if \(!alert\.tradeAllowed\)|blockedTradeSlots|reconcileTradeState/);
 });
 
-test("live H1 alerts create idempotent scheduled intents but never auto-approve or execute", () => {
-  assert.match(route, /createCloudIntent/);
-  assert.match(route, /source: "H1 Scanner"/);
-  assert.match(route, /automationKey: `h1:/);
-  assert.match(route, /h1AutoEntryLot/);
-  assert.match(scannerSource, /H1_AUTO_ENTRY_LOT_FX = 0\.05/);
-  assert.match(scannerSource, /H1_AUTO_ENTRY_LOT_XAUUSD = 0\.01/);
-  assert.match(route, /ĐẶT LỆNH HẸN GIỜ/);
-  assert.match(route, /markScheduledNotification/);
-  assert.match(telegramCloudStore, /scheduledNotifiedAt/);
-  assert.match(telegramCloudStore, /normalizeCloudIntentLot/);
-  assert.match(route, /brokerEntryDueAt/);
-  assert.match(route, /approvalLine/);
-  assert.match(route, /\/approve/);
-  assert.match(route, /Chưa \/approve thì cloud tuyệt đối không execute/);
-  assert.doesNotMatch(route, /approveCloudIntent|runCloudIntentExecution|executeClaimedCloudIntent/);
+test("live H1 signals are info-only: no cTrader intents, no engine entry time, no pattern", () => {
+  assert.doesNotMatch(route, /createCloudIntent/);
+  assert.doesNotMatch(route, /h1AutoEntryLot/);
+  assert.doesNotMatch(route, /ĐẶT LỆNH HẸN GIỜ/);
+  assert.doesNotMatch(route, /brokerEntryDueAt/);
+  assert.doesNotMatch(route, /entryTime/);
+  assert.doesNotMatch(route, /patternKind/);
+  assert.doesNotMatch(route, /evaluateH1BlocksForTarget|evaluateH1Block|m15Bars|m5Bars/);
+  assert.doesNotMatch(scannerSource, /H1_AUTO_ENTRY_LOT_FX|H1_AUTO_ENTRY_LOT_XAUUSD|H1PatternKind|evaluateM5BollingerEntry/);
+  assert.match(scannerSource, /evaluateH1SignalsForTarget/);
+  assert.match(route, /buildTelegramMessage\(base, market\.brokerDate, alert\)/);
 });
 
-test("scheduled entry intent is the only source of published BUY/SELL sides", () => {
-  assert.match(route, /listCloudIntents/);
-  assert.match(route, /scheduledSignalFor/);
-  assert.match(route, /scheduledSignal: scheduledSignalFor/);
-  assert.match(route, /vietnamEntryDueAt/);
-  assert.match(route, /scheduledIntentDueAtMatches/);
-  assert.match(route, /scheduledBlockFor/);
-  assert.match(route, /scheduledOnly/);
-  assert.match(route, /changed = applyScheduledIntentOverlay/);
-  assert.match(route, /signal: alert\.scheduledSignal \|\| "PENDING_SCHEDULED_ENTRY"/);
-  assert.match(route, /if \(automationReady && computedAlert\.symbolH1Signal && !alert\.scheduledSignal\)/);
-  assert.match(scannerSource, /scheduledSignal: null/);
-  assert.match(scannerSource, /scheduledSignal: alert\.scheduledSignal \?\? null/);
+test("signals derive only from the closed H1 candle and the six-block matrix", () => {
+  assert.match(route, /const closedSlotHour = market\.brokerHour - 1/);
+  assert.match(route, /evaluateH1SignalsForTarget\([\s\S]*H1_SCAN_HOURS,[\s\S]*closedSlotHour/);
+  assert.match(scannerSource, /buildStoredAlert\(/);
+  assert.doesNotMatch(scannerSource, /entryTimeFor|entryH1BaseFor/);
+  assert.match(route, /signal: alert\.symbolH1Signal \|\| "PENDING"/);
 });
 
-test("missing automation account never blocks signal persistence or the public table", () => {
-  assert.match(route, /automationReady/);
-  assert.match(route, /automationSkippedReason/);
-  assert.doesNotMatch(route, /H1 scheduled intents require Telegram control and the enabled scanner cTrader account/);
-  assert.ok(route.indexOf("if (automationReady && computedAlert.symbolH1Signal") < route.indexOf("symbolState.alerts.push(alert)"));
-  assert.match(route, /strategy: "h1-entry-h1-rule-49"/);
-});
-
-test("cTrader cloud scanner remains read-only even when shared OAuth has trading scope", () => {
+test("cTrader cloud scanner remains read-only and fetches H1 trendbars only", () => {
   assert.match(client, /wss:\/\/\$\{host\}:5036/);
   assert.match(client, /GET_TRENDBARS_REQ: 2137/);
   assert.match(client, /period: H1_PERIOD/);
-  assert.match(client, /period: M15_PERIOD/);
-  assert.match(client, /period: M5_PERIOD/);
-  assert.match(client, /normalizeM15Trendbars/);
-  assert.match(client, /normalizeM5Trendbars/);
+  assert.doesNotMatch(client, /period: M15_PERIOD|period: M5_PERIOD|normalizeM15Trendbars|normalizeM5Trendbars/);
   assert.match(client, /fetchCurrentBrokerDayMarket/);
   assert.match(client, /session\.scope !== "accounts" && session\.scope !== "trading"/);
   assert.doesNotMatch(route, /placeCTraderMarketOrder|closeCTraderPositions|amendCTraderPositionProtection|NEW_ORDER_REQ|CLOSE_POSITION_REQ/);
 });
 
-test("live route scans H3 H4 H6 H9 H12 H14 H16 and keeps entry refinements alive through H18", () => {
+test("live route scans the just-closed slot through H18 and keeps the recovery seed", () => {
   assert.match(route, /H1_SIGNAL_END_HOUR/);
   assert.match(route, /wall\.hour > H1_SIGNAL_END_HOUR/);
   assert.match(route, /const recoverySeedHour =[\s\S]*wall\.hour === 5/);
   assert.match(route, /if \(recoverySeedHour && !state\.days\[market\.brokerDate\]\)/);
   assert.match(route, /suppressedThroughHour: market\.brokerHour/);
-  assert.match(route, /const availableThroughMinute = market\.brokerHour \* 60 \+ market\.brokerMinute/);
-  assert.match(route, /backfillSuppressedHistory\([\s\S]*availableThroughMinute/);
-  assert.match(route, /evaluateH1BlocksForTarget\([\s\S]*availableThroughMinute/);
-  assert.doesNotMatch(route, /if \(recoveryOnly\)|recoveryOnly: true/);
-  assert.match(route, /targetsForBlockHour\(brokerHour\)\.every/);
+  assert.match(route, /backfillSuppressedHistory\([\s\S]*market\.symbols,/);
+  assert.match(route, /targetsForBlockHour\(slotHour\)\.every/);
   assert.match(route, /for \(const base of H1_TARGET_BASES\)/);
-  assert.match(route, /m15Counts/);
-  assert.match(route, /m5Counts/);
+  assert.match(route, /h1Counts/);
   assert.match(route, /brokerUtcOffsetHours/);
+  assert.doesNotMatch(route, /m15Counts|m5Counts|availableThroughMinute/);
   assert.doesNotMatch(route, /audusdH3|baseSymbolForTargetSlot|scannerBaseForTarget/i);
 });
 
@@ -160,12 +133,10 @@ test("historical cTrader H1 reads are sequential, throttled and bounded with has
   assert.match(client, /count: HISTORICAL_PAGE_COUNT/);
   assert.match(client, /trendPayload\.hasMore !== true/);
   assert.match(client, /await throttle\(\)/);
-  assert.match(client, /m15Complete/);
-  assert.match(client, /m5Complete/);
+  assert.doesNotMatch(client, /m15Complete|m5Complete|m15RequestCount|m5RequestCount/);
   assert.match(backfillRoute, /deadlineMs: startedAt \+ 150_000/);
-  assert.match(backfillRoute, /m15HistoryComplete/);
-  assert.match(backfillRoute, /m5HistoryComplete/);
-  assert.match(backfillRoute, /providerM5RequestCount/);
+  assert.match(backfillRoute, /providerRequestCount: historical\.requestCount/);
+  assert.doesNotMatch(backfillRoute, /m15HistoryComplete|m5HistoryComplete|providerM5RequestCount/);
   assert.match(workflow, /--max-time 200/);
   assert.doesNotMatch(client, /Promise\.all\([^)]*GET_TRENDBARS_REQ/);
 });
@@ -224,9 +195,7 @@ test("GitHub scheduler is tertiary fallback for H:00, H:01, H:15 and H:30 phases
   assert.match(route, /FINALIZE_RETRY_ATTEMPTS = 8/);
   assert.match(route, /FINALIZE_RETRY_DELAY_MS = 2_500/);
   assert.match(route, /marketReadyForSlot/);
-  assert.match(route, /expectedClosedM15Minute/);
-  assert.match(route, /market\.symbols\[base\]\.m15Bars/);
-  assert.match(route, /market\.symbols\[base\]\.bars/);
+  assert.match(route, /market\.symbols\[base\]\.bars\.some\(\(bar\) => bar\.hour === slotHour\)/);
   assert.match(route, /brokerMinute/);
   assert.match(route, /awaiting-closed-h1/);
   assert.match(route, /after-last-signal/);

@@ -38,17 +38,19 @@ function SignalRow({ symbol, hour, alert }: { symbol: string; hour: number; aler
       </View>
       <View style={styles.signalBody}>
         {!alert ? (
-          <Text style={[styles.empty, { color: theme.muted }]}>No pattern</Text>
+          <Text style={[styles.empty, { color: theme.muted }]}>No signal</Text>
         ) : (
           <>
             <View style={styles.signalTopline}>
               <View style={styles.badges}>
-                <Pill label={alert.patternKind.toUpperCase()} />
-                {alert.entryTime ? <Pill label={`ENTRY ${alert.entryTime}`} /> : null}
+                {alert.postSignalInverted ? <Pill label="REVERSE" tone="warning" /> : null}
+                {alert.baseDirection ? <Pill label={`BASE ${alert.baseDirection}`} /> : null}
               </View>
               <Text style={[styles.signal, { color: signalColor }]}>{alert.signal || "—"}</Text>
             </View>
-            <Text style={[styles.pattern, { color: theme.muted }]}>{alert.m15Window?.split("").join(" · ") || alert.pattern.replaceAll(" ", " · ")}</Text>
+            <Text style={[styles.pattern, { color: theme.muted }]}>
+              {alert.postSignalRule === "none" ? "no inversion" : alert.postSignalInverted ? "invert" : "keep"}
+            </Text>
           </>
         )}
       </View>
@@ -74,7 +76,7 @@ export default function EngineScreen() {
     <OakScreen
       eyebrow="OAK / H1 CLOUD"
       title="Engine"
-      subtitle="Native H1 command view for the H1+M15 engine across H3 H4 H6 H9 H12 H14 H16 blocks."
+      subtitle="Native H1 command view for the H1 engine across H3 H4 H6 H9 H12 H14 H16 blocks."
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.accent} />}
     >
       <GlassCard>

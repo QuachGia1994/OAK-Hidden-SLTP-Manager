@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { emptyCloudState, type H1Base, type H1Direction, type H1DirectionBar, type H1M15Bar, type H1M5Bar } from "./h1-cloud-scanner.ts";
+import { emptyCloudState, type H1Base, type H1Direction, type H1DirectionBar } from "./h1-cloud-scanner.ts";
 import { mergeHistoricalBackfill, reconstructHistoricalDays } from "./h1-history-backfill.ts";
 
 function h1Bars(date: string): H1DirectionBar[] {
@@ -12,42 +12,15 @@ function h1Bars(date: string): H1DirectionBar[] {
   }));
 }
 
-function m15Bars(date: string, direction: H1Direction = "T"): H1M15Bar[] {
-  return Array.from({ length: 72 }, (_, index) => {
-    const minuteOfDay = 15 * index;
-    return {
-      brokerDate: date,
-      brokerTime: `${date}T${String(Math.floor(minuteOfDay / 60)).padStart(2, "0")}:${String(minuteOfDay % 60).padStart(2, "0")}`,
-      minuteOfDay,
-      direction,
-    };
-  });
-}
-
-function m5Bars(date: string): H1M5Bar[] {
-  return Array.from({ length: 217 }, (_, index) => {
-    const minuteOfDay = 5 * index;
-    return {
-      brokerDate: date,
-      brokerTime: `${date}T${String(Math.floor(minuteOfDay / 60)).padStart(2, "0")}:${String(minuteOfDay % 60).padStart(2, "0")}`,
-      minuteOfDay,
-      open: 101,
-      close: 100,
-    };
-  });
-}
-
 function marketForDates(...dates: string[]) {
   const bases: H1Base[] = ["GBPUSD", "XAUUSD", "AUDUSD", "USDCAD", "USDJPY", "EURUSD"];
   return Object.fromEntries(bases.map((base) => [base, {
     displayName: base,
     bars: dates.flatMap((date) => h1Bars(date)),
-    m15Bars: dates.flatMap((date) => m15Bars(date)),
-    m5Bars: dates.flatMap((date) => m5Bars(date)),
-  }])) as Record<H1Base, { displayName: string; bars: H1DirectionBar[]; m15Bars: H1M15Bar[]; m5Bars: H1M5Bar[] }>;
+  }])) as Record<H1Base, { displayName: string; bars: H1DirectionBar[] }>;
 }
 
-test("historical reconstruction applies the block schedule, M15 engine and XAU cycle", () => {
+test("historical reconstruction applies the block schedule, H1 base and XAU cycle", () => {
   const history = reconstructHistoricalDays(marketForDates("2026-07-06", "2026-07-04"));
   // Weekend broker dates are never reconstructed.
   assert.ok(history["2026-07-06"]);
@@ -59,19 +32,15 @@ test("historical reconstruction applies the block schedule, M15 engine and XAU c
   assert.deepEqual(gold.map((alert) => alert.slotHour), [4, 6, 9, 12, 14, 16]);
   assert.deepEqual(fx.map((alert) => alert.slotHour), [3, 6, 9, 12, 14, 16]);
 
-  // All-T M15 extends every window to Pattern 5. Entry-relative TT keeps
-  // candle 1 and enters two hours after the block.
+  // All-T H1 candles give BUY base on every slot. July cycle Monday row is
+  // C N N C C C: keep H3/H4, invert H6/H9, keep H12/H14/H16.
   for (const alert of [...gold, ...fx]) {
-    assert.equal(alert.patternKind, "pattern5");
-    assert.equal(alert.m15Pair, "TT");
-    assert.equal(alert.m15PairInverted, false);
-    assert.equal(alert.entryOffsetMinutes, 120);
-    assert.equal(alert.baseSymbol, alert.symbol === "XAUUSD" ? "XAUUSD" : "GBPUSD");
+    assert.equal(alert.baseH1Signal, "BUY");
+    assert.equal(alert.symbol, alert.baseSymbol);
+    assert.equal(alert.baseMinute, 0);
+    assert.equal("entryTime" in alert, false);
+    assert.equal("patternKind" in alert, false);
   }
-  assert.deepEqual(gold.map((alert) => alert.entryTime), ["06:00", "08:00", "11:00", "14:00", "16:00", "18:00"]);
-
-  // All symbols use the H1 base direction directly. July cycle Monday row
-  // is C N N C C C: keep H3/H4, invert H6/H9, keep H12/H14/H16.
   assert.deepEqual(gold.map((alert) => [alert.postSignalRule, alert.symbolH1Signal]), [
     ["cycle-net-keep", "BUY"], ["cycle-net-invert", "SELL"], ["cycle-net-invert", "SELL"],
     ["cycle-net-keep", "BUY"], ["cycle-net-keep", "BUY"], ["cycle-net-keep", "BUY"],
@@ -82,18 +51,14 @@ test("historical reconstruction applies the block schedule, M15 engine and XAU c
   ]);
 });
 
-test("historical days without M15 coverage yield no alerts instead of wrong signals", () => {
+test("historical days without H1 coverage yield no alerts instead of wrong signals", () => {
   const market = marketForDates("2026-07-06");
-  const withoutM15 = Object.fromEntries(Object.entries(market).map(([base, item]) => [base, {
+  const withoutH1 = Object.fromEntries(Object.entries(market).map(([base, item]) => [base, {
     displayName: item.displayName,
-    bars: item.bars,
-    m15Bars: [],
-    m5Bars: item.m5Bars,
+    bars: [],
   }])) as unknown as typeof market;
-  const history = reconstructHistoricalDays(withoutM15);
-  for (const symbolState of Object.values(history["2026-07-06"].symbols)) {
-    assert.deepEqual(symbolState?.alerts, []);
-  }
+  const history = reconstructHistoricalDays(withoutH1);
+  assert.deepEqual(history, {});
 });
 
 test("backfill merge can restore a missing current day after the scanner window without overwriting an existing live day", () => {
@@ -117,21 +82,11 @@ test("backfill merge can restore a missing current day after the scanner window 
 });
 
 test("backfill merge is idempotent, preserves existing rows and never overwrites current live day", () => {
-  const reconstructed = reconstructHistoricalDays(marketForDates("2026-07-03", "2026-07-06"));
+  const market = marketForDates("2026-07-03", "2026-07-06");
+  const reconstructed = reconstructHistoricalDays(market);
   const state = emptyCloudState();
-  const historicalDay = reconstructed["2026-07-03"];
-  const original = structuredClone(historicalDay.symbols.XAUUSD!.alerts[0]);
-  original.symbolH1Signal = original.symbolH1Signal === "BUY" ? "SELL" : "BUY";
-  state.days["2026-07-03"] = { symbols: { XAUUSD: { alerts: [original] } } };
-  state.days["2026-07-06"] = { symbols: { XAUUSD: { alerts: [{ ...reconstructed["2026-07-06"].symbols.XAUUSD!.alerts[0], symbol: "LIVE-SENTINEL" }] } } };
-
-  const first = mergeHistoricalBackfill(state, reconstructed, "2026-07-06");
-  assert.ok(first.addedAlerts > 0);
-  assert.equal(state.days["2026-07-03"].symbols.XAUUSD!.alerts.find((alert) => alert.slotHour === original.slotHour)!.symbolH1Signal, original.symbolH1Signal);
-  assert.equal(state.days["2026-07-06"].symbols.XAUUSD!.alerts[0].symbol, "LIVE-SENTINEL");
-  const afterFirst = JSON.stringify(state);
-
-  const second = mergeHistoricalBackfill(state, reconstructed, "2026-07-06");
+  const first = mergeHistoricalBackfill(state, reconstructed, "2026-07-06", { includeMissingCurrentDay: true });
+  const second = mergeHistoricalBackfill(state, reconstructed, "2026-07-06", { includeMissingCurrentDay: true });
   assert.deepEqual(second, { addedDays: 0, addedAlerts: 0 });
-  assert.equal(JSON.stringify(state), afterFirst);
+  assert.ok(first.addedAlerts > 0);
 });

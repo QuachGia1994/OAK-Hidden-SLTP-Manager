@@ -10,20 +10,18 @@ const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.m
 const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
 const mobileH1RouteSource = readFileSync(new URL("../app/api/mobile/h1/route.ts", import.meta.url), "utf8");
 
-test("H1 web feed has schema-16 H1 entry-base and six-block weekday contract", () => {
-  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 16/);
+test("H1 web feed has schema-17 signal and six-block weekday contract without pattern/entry metadata", () => {
+  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 17/);
   assert.match(readerSource, /postSignalInverted/);
   assert.match(readerSource, /postSignalRule/);
-  assert.match(readerSource, /entryTime/);
   assert.match(readerSource, /scheduledSignal/);
-  assert.match(readerSource, /m15Pair/);
   assert.match(readerSource, /baseMinute/);
+  assert.doesNotMatch(readerSource, /entryTime|m15Pair|patternKind|m15Window/);
   assert.doesNotMatch(readerSource, /m5Open|m5Middle|m5Position|m5WindowCount/);
   assert.match(readerSource, /robot-sltp:public:h1-signals:latest/);
   assert.match(readerSource, /payload\.schemaVersion !== H1_SIGNAL_PUBLIC_SCHEMA/);
   assert.match(readerSource, /maskFutureH1Signals\(parsePayload/);
   assert.match(readerSource, /payload\.signalRuleVersion !== H1_SIGNAL_RULE_VERSION/);
-  for (const kind of ["pattern1", "pattern2", "pattern3", "pattern4", "pattern5", "pattern6"]) assert.match(readerSource, new RegExp(kind));
   assert.doesNotMatch(readerSource, /sw2|sw3Pure|sw3Normal|mon-block|tue-block|wed-block|tradeAllowed|blockedSlots|reconcileTradeState/);
 });
 
@@ -121,28 +119,12 @@ test("H1 board exports the selected scanner day as a shareable PNG with download
   assert.match(redesignCss, /\.oak-h1-share-png \{/);
 });
 
-test("H1 detail shows authoritative entry H1 candle evidence while preserving pattern and entry metadata", () => {
-  assert.doesNotMatch(boardSource, /<small>SYMBOL<\/small>|<small>PROFILE<\/small>|<small>SCAN<\/small>|SCANNER PATTERN|PATTERN SCANNER|Nguồn scanner|Pattern source/);
-  assert.match(boardSource, /Entry H1 base candle/);
-  assert.match(boardSource, /Cây H1 base tại entry/);
-  assert.match(boardSource, /entryH1Detail/);
-  assert.match(boardSource, /baseDirection/);
-  assert.match(boardSource, /pattern\/entry evidence only|chỉ là bằng chứng pattern\/entry/);
-  assert.match(boardSource, /patternPair/);
-  assert.match(boardSource, /Nhóm pattern/);
-  assert.match(boardSource, /Cặp chọn pattern/);
-  assert.match(boardSource, /Giờ entry|Entry time/);
-  assert.match(boardSource, /entryOffsetMinutes/);
-  for (const label of ["Pattern 1 · TGG / GTT", "Pattern 2 · TTT / GGG", "Pattern 3 · TGT / GTG", "Pattern 4 · GGT / TTG", "Pattern 5 · 4+ same-direction candles", "Pattern 6 · TGTG/GTGT + pair 5–6"]) {
-    assert.ok(boardSource.includes(label));
-  }
-  assert.match(boardSource, /Hậu signal/);
-  assert.match(boardSource, /cycle-net-invert/);
-  assert.match(boardSource, /cycle-net-keep/);
-  assert.match(boardSource, /regular-net-invert/);
-  assert.match(boardSource, /regular-net-keep/);
-  assert.match(boardSource, /H1 candle one hour before entry/);
-  assert.match(boardSource, /lấy cây H1 trước entry một giờ/);
+test("H1 board drops pattern and entry-time detail entirely and keeps the phase highlight", () => {
+  assert.doesNotMatch(boardSource, /Entry H1 base candle|Cây H1 base tại entry|entryH1Detail|Nhóm pattern|Cặp chọn pattern|Giờ entry|Entry time|entryOffsetMinutes|patternPair/);
+  assert.doesNotMatch(boardSource, /Pattern 1 · TGG|patternKind|m15Window|DetailModal/);
+  assert.match(boardSource, /oak-h1-degraded/);
+  assert.match(boardSource, /H1_SCAN_HOURS/);
+  assert.match(boardSource, /H1_TARGET_BASES/);
   assert.doesNotMatch(boardSource, /xau-cycle|thu-gbpusd|tue-audusd|AllowTrade lookback|NOT TRADE|sw2|sw3Pure|sw3Normal|audusdH3|mon-block|tue-block|wed-block|invert-pattern|keep-pattern|Logic base|baseInverted/);
   assert.match(vipSource, /redactH1Signals/);
   assert.match(vipSource, /base\.toUpperCase\(\) === VIP_SIGNAL_SYMBOL/);
