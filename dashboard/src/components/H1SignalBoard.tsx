@@ -110,7 +110,10 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
 
   data.symbols.forEach((base, rowIndex) => {
     const y = tableY + headerHeight + rowIndex * H1_SHARE_ROW_HEIGHT;
-    ctx.fillStyle = rowIndex % 2 === 0 ? colors.panel : colors.bg;
+    const symbolState = day.symbols?.[base];
+    const xauPostSignalInverted = base === "XAUUSD"
+      && (symbolState?.alerts ?? []).some((alert) => alert.postSignalInverted === true);
+    ctx.fillStyle = xauPostSignalInverted ? colors.raised : (rowIndex % 2 === 0 ? colors.panel : colors.bg);
     ctx.fillRect(tableX, y, tableWidth, H1_SHARE_ROW_HEIGHT);
     ctx.beginPath();
     ctx.moveTo(tableX, y);
@@ -118,7 +121,6 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     ctx.stroke();
     drawCentered(base, tableX, y, H1_SHARE_SYMBOL_WIDTH, H1_SHARE_ROW_HEIGHT, colors.text, `900 17px ${H1_SHARE_FONT}`);
 
-    const symbolState = day.symbols?.[base];
     const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
     data.hours.forEach((hour, hourIndex) => {
       const x = tableX + H1_SHARE_SYMBOL_WIDTH + hourIndex * H1_SHARE_HOUR_WIDTH;
@@ -177,9 +179,10 @@ function postSignalLabel(rule: H1SignalAlert["postSignalRule"], inverted: boolea
   if (!rule) return "—";
   const labels = {
     none: { EN: "no inversion", VN: "không đảo" },
-    "thu-cycle": { EN: "Thursday special-cycle marker, no inversion", VN: "đánh dấu chu kỳ Thứ 5 special, không đảo" },
-    "fri-cycle": { EN: "Friday special-cycle marker, no inversion", VN: "đánh dấu chu kỳ Thứ 6 special, không đảo" },
-    "mon-cycle": { EN: "Monday cycle marker after special Thursday, no inversion", VN: "đánh dấu chu kỳ Thứ 2 sau T5 đặc biệt, không đảo" },
+    "xau-cycle-invert": { EN: "cycle-month phase, reverse XAUUSD post-signal", VN: "pha chu kỳ tháng, đảo hậu signal XAUUSD" },
+    "xau-cycle-keep": { EN: "cycle-month phase, keep XAUUSD post-signal", VN: "pha chu kỳ tháng, giữ hậu signal XAUUSD" },
+    "xau-regular-invert": { EN: "regular-month phase, reverse XAUUSD post-signal", VN: "pha thường tháng, đảo hậu signal XAUUSD" },
+    "xau-regular-keep": { EN: "regular-month phase, keep XAUUSD post-signal", VN: "pha thường tháng, giữ hậu signal XAUUSD" },
     "thu-gbpusd": { EN: "reverse GBPUSD on Thursday", VN: "đảo GBPUSD Thứ 5" },
     "tue-audusd": { EN: "reverse AUDUSD on Tuesday", VN: "đảo AUDUSD Thứ 3" },
   } as const;
@@ -187,15 +190,14 @@ function postSignalLabel(rule: H1SignalAlert["postSignalRule"], inverted: boolea
   return labels[rule][locale];
 }
 
-function specialCycleRuleForDay(day: H1SignalPayload["days"][string] | undefined) {
-  for (const symbolState of Object.values(day?.symbols ?? {})) {
-    for (const alert of symbolState?.alerts ?? []) {
-      if (alert.postSignalRule === "thu-cycle" || alert.postSignalRule === "fri-cycle" || alert.postSignalRule === "mon-cycle") {
-        return alert.postSignalRule;
-      }
-    }
-  }
-  return null;
+function xauPostSignalDecisionForDay(day: H1SignalPayload["days"][string] | undefined) {
+  const alert = (day?.symbols?.XAUUSD?.alerts ?? []).find((candidate) =>
+    candidate.postSignalRule === "xau-cycle-invert"
+    || candidate.postSignalRule === "xau-cycle-keep"
+    || candidate.postSignalRule === "xau-regular-invert"
+    || candidate.postSignalRule === "xau-regular-keep"
+  );
+  return alert ? { rule: alert.postSignalRule, inverted: alert.postSignalInverted === true } : null;
 }
 
 function DetailModal({ selection, locale, onClose }: { selection: Selection; locale: Locale; onClose: () => void }) {
@@ -250,7 +252,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
   const matchingDates = data ? historyDatesForWeekday(data.days, weekdayFilter) : [];
   const date = data ? selectHistoryDate(data.days, weekdayFilter, selectedDate) : "";
   const day = date && data ? data.days[date] : undefined;
-  const specialCycleRule = specialCycleRuleForDay(day);
+  const xauPostSignalDecision = xauPostSignalDecisionForDay(day);
   const earliestDate = allDates.at(-1) || "";
   const latestDate = allDates[0] || "";
   const copy = locale === "EN"
@@ -373,9 +375,9 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
             <tbody>{data.symbols.map((base) => {
               const symbolState = day?.symbols?.[base];
               const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
-              const specialCycleRow = Boolean(specialCycleRule && base === "XAUUSD");
-              const cycleBadge = specialCycleRule === "thu-cycle" ? "T5 CYCLE" : specialCycleRule === "fri-cycle" ? "T6 CYCLE" : "T2 CYCLE";
-              return <tr key={base} className={specialCycleRow ? "oak-h1-special-cycle-row" : undefined} data-cycle-rule={specialCycleRow ? specialCycleRule : undefined}><th className="oak-h1-symbol-sticky"><b>{base}</b>{specialCycleRow && <small className="oak-h1-cycle-badge">{cycleBadge}</small>}</th>{data.hours.map((hour) => {
+              const postSignalInvertedRow = Boolean(base === "XAUUSD" && xauPostSignalDecision?.inverted);
+              const postSignalBadge = locale === "EN" ? "POST REVERSE" : "HẬU ĐẢO";
+              return <tr key={base} className={postSignalInvertedRow ? "oak-h1-post-invert-row" : undefined} data-post-signal-rule={postSignalInvertedRow ? xauPostSignalDecision?.rule : undefined}><th className="oak-h1-symbol-sticky"><b>{base}</b>{postSignalInvertedRow && <small className="oak-h1-post-invert-badge">{postSignalBadge}</small>}</th>{data.hours.map((hour) => {
                 const alert = byHour.get(hour);
                 if (!alert?.signal) return <td key={hour}><span className="oak-h1-cell-empty">—</span></td>;
                 const pattern6Warning = alert.patternKind === "pattern6";

@@ -10,8 +10,8 @@ const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.m
 const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
 const mobileH1RouteSource = readFileSync(new URL("../app/api/mobile/h1/route.ts", import.meta.url), "utf8");
 
-test("H1 web feed has independent schema-13 entry-minute M15 signal contract", () => {
-  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 13/);
+test("H1 web feed has independent schema-14 XAU cycle-phase contract", () => {
+  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 14/);
   assert.match(readerSource, /postSignalInverted/);
   assert.match(readerSource, /postSignalRule/);
   assert.match(readerSource, /entryTime/);
@@ -41,19 +41,17 @@ test("H1 cells render BUY SELL with pattern badges, entry times and no BLOCK pat
   assert.doesNotMatch(boardSource, /BLOCK|NOT TRADE|blockedSlots|oak-h1-cell-blocked|oak-h1-blocked-cell|⚠ PURE/);
 });
 
-test("special cycle highlights only the XAUUSD table row across Thu Fri Mon rules", () => {
-  assert.match(boardSource, /specialCycleRuleForDay/);
-  assert.match(boardSource, /alert\.postSignalRule === "thu-cycle" \|\| alert\.postSignalRule === "fri-cycle" \|\| alert\.postSignalRule === "mon-cycle"/);
+test("post-signal reversal highlights only the XAUUSD row on inverted XAU dates", () => {
+  assert.match(boardSource, /xauPostSignalDecisionForDay/);
   assert.match(boardSource, /base === "XAUUSD"/);
+  assert.match(boardSource, /postSignalInverted/);
   assert.doesNotMatch(boardSource, /base === "USDCAD"/);
-  assert.match(boardSource, /oak-h1-special-cycle-row/);
-  assert.match(boardSource, /data-cycle-rule/);
-  assert.match(boardSource, /T5 CYCLE/);
-  assert.match(boardSource, /T6 CYCLE/);
-  assert.match(boardSource, /T2 CYCLE/);
-  assert.match(redesignCss, /\.oak-h1-special-cycle-row > th/);
-  assert.match(redesignCss, /\.oak-h1-special-cycle-row > \.oak-h1-symbol-sticky/);
-  assert.match(redesignCss, /\.oak-h1-cycle-badge/);
+  assert.match(boardSource, /oak-h1-post-invert-row/);
+  assert.match(boardSource, /data-post-signal-rule/);
+  assert.match(boardSource, /HẬU ĐẢO|POST REVERSE/);
+  assert.match(redesignCss, /\.oak-h1-post-invert-row > th/);
+  assert.match(redesignCss, /\.oak-h1-post-invert-row > \.oak-h1-symbol-sticky/);
+  assert.match(redesignCss, /\.oak-h1-post-invert-badge/);
 });
 
 test("mobile H1 adapter preserves admin auth and normalized cloud feed semantics", () => {
@@ -104,9 +102,10 @@ test("H1 detail stays compact with M15 evidence, entry time and XAU cycle labels
     assert.ok(boardSource.includes(label));
   }
   assert.match(boardSource, /Hậu signal/);
-  assert.match(boardSource, /thu-cycle/);
-  assert.match(boardSource, /fri-cycle/);
-  assert.match(boardSource, /mon-cycle/);
+  assert.match(boardSource, /xau-cycle-invert/);
+  assert.match(boardSource, /xau-cycle-keep/);
+  assert.match(boardSource, /xau-regular-invert/);
+  assert.match(boardSource, /xau-regular-keep/);
   assert.match(boardSource, /thu-gbpusd/);
   assert.match(boardSource, /tue-audusd/);
   assert.match(boardSource, /Entry :00\/:25 · same M15 pair keeps candle 1 · alternating pair reverses candle 1/);

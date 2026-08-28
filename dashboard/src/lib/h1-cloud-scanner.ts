@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 51;
-export const H1_PUBLIC_SCHEMA = 13;
-export const H1_SIGNAL_RULE_VERSION = 45;
+export const H1_CLOUD_STATE_VERSION = 52;
+export const H1_PUBLIC_SCHEMA = 14;
+export const H1_SIGNAL_RULE_VERSION = 46;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v51";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v52";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -22,7 +22,7 @@ export type H1Base = typeof H1_ALL_BASES[number];
 export type H1Direction = "T" | "G";
 export type H1Signal = "BUY" | "SELL";
 export type H1PatternKind = "pattern1" | "pattern2" | "pattern3" | "pattern4" | "pattern5" | "pattern6";
-export type H1PostSignalRule = "none" | "thu-cycle" | "fri-cycle" | "mon-cycle" | "thu-gbpusd" | "tue-audusd";
+export type H1PostSignalRule = "none" | "xau-cycle-invert" | "xau-cycle-keep" | "xau-regular-invert" | "xau-regular-keep" | "thu-gbpusd" | "tue-audusd";
 
 export type H1DirectionBar = {
   hour: number;
@@ -77,7 +77,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 51;
+  version: 52;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[] }>>;
@@ -85,8 +85,8 @@ export type H1CloudState = {
 };
 
 export type H1PublicFeed = {
-  schemaVersion: 13;
-  signalRuleVersion: 45;
+  schemaVersion: 14;
+  signalRuleVersion: 46;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -181,17 +181,12 @@ export function brokerEntryDueAt(brokerDate: string, entryTime: string, brokerUt
 }
 
 // ---------------------------------------------------------------------------
-// XAUUSD-only special Thursday/Friday/Monday cycle.
+// XAUUSD-only monthly post-signal phase.
 //
-// A Thursday D is SPECIAL when either:
-//   (a) the first Friday of the calendar month containing D+1 falls on day
-//       3, 4 or 7; or
-//   (b) the Wednesday immediately before D falls on day 30 or 1.
-//
-// Visual effects only (XAUUSD whole-day row metadata):
-//   special Thursday week -> mark Thu and NEXT Monday
-//   normal Thursday week  -> mark Fri
-// These markers never change the computed signal.
+// The first Thursday of each calendar month anchors the phase for every week
+// in that month. A cycle-first-Thursday month reverses Fri/Tue and keeps
+// Thu/Mon/Wed. A regular-first-Thursday month reverses Thu/Mon/Wed and keeps
+// Fri/Tue. Weekends have no XAU post-signal rule.
 // ---------------------------------------------------------------------------
 const SPECIAL_FIRST_FRIDAY_DAYS = new Set([3, 4, 7]);
 const MONTH_BOUNDARY_WEDNESDAY_DAYS = new Set([30, 1]);
@@ -214,26 +209,40 @@ export function isSpecialThursdayBrokerDate(brokerDate: string): boolean {
   return MONTH_BOUNDARY_WEDNESDAY_DAYS.has(dayOfMonth(addBrokerCalendarDays(brokerDate, -1)));
 }
 
+function firstThursdayBrokerDate(brokerDate: string): string {
+  const value = parseBrokerDateKeyUtc(brokerDate);
+  const year = value.getUTCFullYear();
+  const month = value.getUTCMonth();
+  for (let day = 1; day <= 7; day += 1) {
+    if (new Date(Date.UTC(year, month, day)).getUTCDay() === 4) {
+      return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
+  }
+  throw new Error("calendar month has no Thursday");
+}
+
+export function isXauCycleMonth(brokerDate: string): boolean {
+  return isSpecialThursdayBrokerDate(firstThursdayBrokerDate(brokerDate));
+}
+
+const XAU_CYCLE_INVERT_WEEKDAYS = new Set([2, 5]);
+const XAU_REGULAR_INVERT_WEEKDAYS = new Set([1, 3, 4]);
+
 export function cycleDecisionFor(base: H1TargetBase, brokerDate: string): { inverted: boolean; rule: H1PostSignalRule } {
   const none = { inverted: false, rule: "none" as H1PostSignalRule };
   const weekday = parseBrokerDateKeyUtc(brokerDate).getUTCDay();
   if (base === "GBPUSD" && weekday === 4) return { inverted: true, rule: "thu-gbpusd" };
   if (base === "AUDUSD" && weekday === 2) return { inverted: true, rule: "tue-audusd" };
-  if (base !== "XAUUSD") return none;
-  if (weekday === 4) {
-    return isSpecialThursdayBrokerDate(brokerDate) ? { inverted: false, rule: "thu-cycle" } : none;
-  }
-  if (weekday === 5) {
-    return !isSpecialThursdayBrokerDate(addBrokerCalendarDays(brokerDate, -1))
-      ? { inverted: false, rule: "fri-cycle" }
-      : none;
-  }
-  if (weekday === 1) {
-    return isSpecialThursdayBrokerDate(addBrokerCalendarDays(brokerDate, -4))
-      ? { inverted: false, rule: "mon-cycle" }
-      : none;
-  }
-  return none;
+  if (base !== "XAUUSD" || weekday === 0 || weekday === 6) return none;
+
+  const cycleMonth = isXauCycleMonth(brokerDate);
+  const inverted = (cycleMonth ? XAU_CYCLE_INVERT_WEEKDAYS : XAU_REGULAR_INVERT_WEEKDAYS).has(weekday);
+  return {
+    inverted,
+    rule: cycleMonth
+      ? (inverted ? "xau-cycle-invert" : "xau-cycle-keep")
+      : (inverted ? "xau-regular-invert" : "xau-regular-keep"),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -422,9 +431,10 @@ function evaluationBaseLabel(alert: H1StoredAlert): string {
 export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, alert: H1StoredAlert): string {
   const postSignalLabels: Record<H1PostSignalRule, string> = {
     none: "không đảo",
-    "thu-cycle": "đánh dấu chu kỳ Thứ 5 special, không đảo",
-    "fri-cycle": "đánh dấu chu kỳ Thứ 6 special, không đảo",
-    "mon-cycle": "đánh dấu chu kỳ Thứ 2 sau T5 đặc biệt, không đảo",
+    "xau-cycle-invert": "pha chu kỳ tháng, đảo hậu signal XAUUSD",
+    "xau-cycle-keep": "pha chu kỳ tháng, giữ hậu signal XAUUSD",
+    "xau-regular-invert": "pha thường tháng, đảo hậu signal XAUUSD",
+    "xau-regular-keep": "pha thường tháng, giữ hậu signal XAUUSD",
     "thu-gbpusd": "đảo GBPUSD Thứ 5",
     "tue-audusd": "đảo AUDUSD Thứ 3",
   };
@@ -468,7 +478,8 @@ function isSignal(value: unknown): value is H1Signal {
 }
 
 function isPostSignalRule(value: unknown): value is H1PostSignalRule {
-  return value === "none" || value === "thu-cycle" || value === "fri-cycle" || value === "mon-cycle"
+  return value === "none" || value === "xau-cycle-invert" || value === "xau-cycle-keep"
+    || value === "xau-regular-invert" || value === "xau-regular-keep"
     || value === "thu-gbpusd" || value === "tue-audusd";
 }
 

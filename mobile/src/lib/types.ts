@@ -1,6 +1,6 @@
 export type H1SignalSide = "BUY" | "SELL";
 export type H1PatternKind = "pattern1" | "pattern2" | "pattern3" | "pattern4" | "pattern5" | "pattern6";
-export type H1PostSignalRule = "none" | "thu-cycle" | "fri-cycle" | "mon-cycle" | "thu-gbpusd" | "tue-audusd";
+export type H1PostSignalRule = "none" | "xau-cycle-invert" | "xau-cycle-keep" | "xau-regular-invert" | "xau-regular-keep" | "thu-gbpusd" | "tue-audusd";
 
 export type H1SignalAlert = {
   slotHour: number;

@@ -65,10 +65,10 @@ function m15Bars(sequenceNewestFirst: string, newestMinuteOfDay: number, date = 
 // 02:15/02:00/01:45 (135/120/105); group B window 02:30/02:15/02:00 (150/135/120).
 const H3_PAIR_NEWEST_MINUTE = 165;
 
-test("rule versions bump to state v51 / feed v13 / rule 45 with the seven-block grid", () => {
-  assert.equal(H1_CLOUD_STATE_VERSION, 51);
-  assert.equal(H1_PUBLIC_SCHEMA, 13);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 45);
+test("rule versions bump to state v52 / feed v14 / rule 46 with the seven-block grid", () => {
+  assert.equal(H1_CLOUD_STATE_VERSION, 52);
+  assert.equal(H1_PUBLIC_SCHEMA, 14);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 46);
   assert.deepEqual(H1_SCAN_HOURS, [3, 4, 6, 9, 12, 14, 16]);
 });
 
@@ -395,16 +395,36 @@ test("weekday post-signal inversion is applied after the pattern decision", () =
   );
 });
 
-test("XAUUSD special-cycle rules remain visual metadata and never invert signal", () => {
-  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-07-02"), { inverted: false, rule: "thu-cycle" });
-  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-07-03"), { inverted: false, rule: "none" });
-  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-07-06"), { inverted: false, rule: "mon-cycle" });
-  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-10-08"), { inverted: false, rule: "none" });
-  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-10-09"), { inverted: false, rule: "fri-cycle" });
-  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-10-12"), { inverted: false, rule: "none" });
-  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-10-01"), { inverted: false, rule: "thu-cycle" });
-  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-10-02"), { inverted: false, rule: "none" });
-  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-10-05"), { inverted: false, rule: "mon-cycle" });
+test("XAUUSD cycle-first-Thursday month keeps Thu Mon Wed and reverses Fri Tue across weeks", () => {
+  const expected = [
+    ["2026-07-02", false, "xau-cycle-keep"],
+    ["2026-07-03", true, "xau-cycle-invert"],
+    ["2026-07-06", false, "xau-cycle-keep"],
+    ["2026-07-07", true, "xau-cycle-invert"],
+    ["2026-07-08", false, "xau-cycle-keep"],
+    ["2026-07-09", false, "xau-cycle-keep"],
+    ["2026-07-10", true, "xau-cycle-invert"],
+  ] as const;
+  for (const [date, inverted, rule] of expected) {
+    assert.deepEqual(cycleDecisionFor("XAUUSD", date), { inverted, rule });
+  }
+  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-07-04"), { inverted: false, rule: "none" });
+});
+
+test("XAUUSD regular-first-Thursday month reverses Thu Mon Wed and keeps Fri Tue across weeks", () => {
+  const expected = [
+    ["2026-06-04", true, "xau-regular-invert"],
+    ["2026-06-05", false, "xau-regular-keep"],
+    ["2026-06-08", true, "xau-regular-invert"],
+    ["2026-06-09", false, "xau-regular-keep"],
+    ["2026-06-10", true, "xau-regular-invert"],
+    ["2026-06-11", true, "xau-regular-invert"],
+    ["2026-06-16", false, "xau-regular-keep"],
+  ] as const;
+  for (const [date, inverted, rule] of expected) {
+    assert.deepEqual(cycleDecisionFor("XAUUSD", date), { inverted, rule });
+  }
+  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-06-07"), { inverted: false, rule: "none" });
 });
 
 test("stored alerts compose base, M15 refinement and the XAU cycle in order", () => {
@@ -415,12 +435,12 @@ test("stored alerts compose base, M15 refinement and the XAU cycle in order", ()
   })!;
   assert.ok(evaluation);
   const alert = buildStoredAlert({ base: "XAUUSD", brokerSymbol: "XAUUSD", evaluation });
-  // Pattern 2 now uses the H+2:00 entry-relative pair. The XAU Monday
-  // cycle is visual metadata only, so the signal remains BUY.
+  // Pattern 2 uses the H+2:00 entry-relative pair. July's first
+  // Thursday is a cycle Thursday, so Monday keeps the post-signal.
   assert.deepEqual(
-    [alert.baseH1Signal, alert.m15PairInverted, alert.patternKind, alert.postSignalRule, alert.postSignalInverted, alert.symbolH1Signal, alert.entryOffsetMinutes, alert.entryTime],
-    ["BUY", false, "pattern2", "mon-cycle", false, "BUY", 120, "06:00"],
- );
+  [alert.baseH1Signal, alert.m15PairInverted, alert.patternKind, alert.postSignalRule, alert.postSignalInverted, alert.symbolH1Signal, alert.entryOffsetMinutes, alert.entryTime],
+  ["BUY", false, "pattern2", "xau-cycle-keep", false, "BUY", 120, "06:00"],
+  );
 
   const fxAlert = buildStoredAlert({
     base: "GBPUSD",
@@ -437,11 +457,11 @@ test("stored alerts compose base, M15 refinement and the XAU cycle in order", ()
   const message = buildTelegramMessage("XAUUSD", "2026-07-06", alert);
   assert.match(message, /Mốc block: H04 · Entry: 06:00 \(\+120p\)/);
   assert.match(message, /Cặp signal trước entry .*TT · cùng hướng, giữ cây 1/);
-  assert.match(message, /đánh dấu chu kỳ Thứ 2/);
+  assert.match(message, /pha chu kỳ tháng, giữ hậu signal/);
   assert.match(message, /Signal XAUUSD H1: BUY/);
 });
 
-test("state v51 round-trips into a rule-45 public feed with the seven-block grid", () => {
+test("state v52 round-trips into a rule-46 schema-14 public feed with the seven-block grid", () => {
   const evaluation = evaluateH1Block({
     slotHour: 3,
     h1Bars: h1Bars("T", 2),
@@ -453,7 +473,7 @@ test("state v51 round-trips into a rule-45 public feed with the seven-block grid
 
   const parsed = parseCloudState(JSON.stringify(state));
   const feed = buildPublicFeed(parsed, "2026-07-06T17:00:00.000Z");
-  assert.deepEqual([parsed.version, feed.schemaVersion, feed.signalRuleVersion, feed.hours], [51, 13, 45, [3, 4, 6, 9, 12, 14, 16]]);
+  assert.deepEqual([parsed.version, feed.schemaVersion, feed.signalRuleVersion, feed.hours], [52, 14, 46, [3, 4, 6, 9, 12, 14, 16]]);
   const feedAlert = feed.days["2026-07-06"].symbols.GBPUSD?.alerts[0];
   assert.deepEqual(
     [feedAlert?.patternKind, feedAlert?.entryTime, feedAlert?.patternPair, feedAlert?.m15Pair, feedAlert?.postSignalRule],

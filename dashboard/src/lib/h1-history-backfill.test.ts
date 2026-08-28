@@ -56,9 +56,9 @@ test("historical reconstruction applies the block schedule, M15 engine and XAU c
   }
   assert.deepEqual(gold.map((alert) => alert.entryTime), ["06:00", "08:00", "11:00", "14:00", "16:00", "18:00"]);
 
-  // Entry-relative TT keeps BUY. The Monday XAU cycle remains visual
-  // metadata only, so gold and FX both stay BUY.
-  assert.ok(gold.every((alert) => alert.postSignalRule === "mon-cycle" && !alert.postSignalInverted && alert.symbolH1Signal === "BUY"));
+  // Entry-relative TT keeps BUY. July is a cycle-first-Thursday month,
+  // so Monday keeps the XAU post-signal while FX remains unaffected.
+  assert.ok(gold.every((alert) => alert.postSignalRule === "xau-cycle-keep" && !alert.postSignalInverted && alert.symbolH1Signal === "BUY"));
   assert.ok(fx.every((alert) => alert.postSignalRule === "none" && alert.symbolH1Signal === "BUY"));
 });
 

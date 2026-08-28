@@ -6,7 +6,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Added
 
-- Reworked the H1 core as state v51 / public feed schema 13 / signal rule 45. P1/P2/P5 enter at `H+2:00`, P3/P4 at `H+1:25`, while P6 still uses pattern pair 5-6 to choose between them. Signal direction is derived only from the two closed M15 candles relative to entry: `entry-15/-30` for `:00`, or `entry-25/-40` for `:25`; same direction keeps candle 1, alternating direction reverses it. Added H:15 scheduler coverage and closed-M15 readiness checks through H18. Weekday/XAU rules and the explicit `/approve ID` broker-mutation boundary are unchanged.
+- Reworked the H1 core as state v52 / public feed schema 14 / signal rule 46. Pattern classification, entry times and entry-relative M15 signal refinement are unchanged. XAUUSD alone now follows a monthly post-signal phase anchored by the first Thursday: cycle months reverse Fri/Tue and keep Thu/Mon/Wed; regular months reverse Thu/Mon/Wed and keep Fri/Tue, repeating across later weeks. The table and PNG color only reversed XAU rows. GBPUSD Thursday and AUDUSD Tuesday reversals remain independent, and the explicit `/approve ID` broker-mutation boundary is unchanged.
 
 - Added revocable NeoTech profile share links. Owners can create 30-day read-only links, copy the secret URL once, list active links, revoke one or revoke all, while shared viewers receive live server-authoritative profile updates without workspace access, MT5 credentials, connector tokens, raw trades, ticket IDs or cash amounts. Share secrets stay in the URL fragment and are resolved through a bearer header; the server stores only SHA-256 hashes.
 
