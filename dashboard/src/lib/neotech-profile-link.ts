@@ -242,7 +242,8 @@ export function parseNeoTechProfileLink(value: string): NeoTechProfileLink | nul
     const match = parsed.pathname.match(/^\/trader\/([a-z0-9][a-z0-9-]{1,63})\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/?$/i);
     if (!match) return null;
     const viewToken = parsed.searchParams.get("t");
-    if (viewToken !== null && !/^[0-9]{1,6}$/.test(viewToken)) return null;
+    // NeoTech accepts legacy short view tokens (`t=0`) and millisecond Unix timestamps (`t=1787904455000`).
+    if (viewToken !== null && !/^[0-9]{1,13}$/.test(viewToken)) return null;
     return { url: canonicalUrl(parsed), providerSlug: match[1], profileId: match[2].toLowerCase(), viewToken };
   } catch {
     return null;

@@ -6,6 +6,7 @@ import {
 } from "./neotech-profile-link.ts";
 
 const LINK = "https://analysis.neotechltd.com/trader/fxce-mt5-demo/6c257cf7-f20b-45be-aaa7-bf0d34bea0cf?t=0";
+const TIMESTAMP_LINK = "https://analysis.neotechltd.com/trader/fxce-mt5-demo/6c257cf7-f20b-45be-aaa7-bf0d34bea0cf?t=1787904455000";
 
 test("NeoTech share URL is restricted to the analysis host and trader UUID shape", () => {
   const parsed = parseNeoTechProfileLink(LINK);
@@ -14,6 +15,10 @@ test("NeoTech share URL is restricted to the analysis host and trader UUID shape
   assert.equal(parsed?.profileId, "6c257cf7-f20b-45be-aaa7-bf0d34bea0cf");
   assert.equal(parsed?.viewToken, "0");
   assert.equal(parsed?.url, LINK);
+  const timestampParsed = parseNeoTechProfileLink(TIMESTAMP_LINK);
+  assert.ok(timestampParsed);
+  assert.equal(timestampParsed?.viewToken, "1787904455000");
+  assert.equal(timestampParsed?.url, TIMESTAMP_LINK);
   assert.equal(parseNeoTechProfileLink("http://analysis.neotechltd.com/trader/fxce-mt5-demo/6c257cf7-f20b-45be-aaa7-bf0d34bea0cf"), null);
   assert.equal(parseNeoTechProfileLink("https://evil.example/trader/fxce-mt5-demo/6c257cf7-f20b-45be-aaa7-bf0d34bea0cf"), null);
   assert.equal(parseNeoTechProfileLink("https://analysis.neotechltd.com/trader/fxce-mt5-demo/6c257cf7-f20b-45be-aaa7-bf0d34bea0cf?t=javascript"), null);
