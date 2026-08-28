@@ -179,7 +179,7 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
   const copy = locale === "EN"
     ? {
         title: "H1 Block Schedule",
-        sub: "Pattern entry · H1 candle one hour before entry · six-block weekday phases",
+        sub: "H1 block signals · six-block weekday phase · 90-day broker history",
         awaiting: "Awaiting H1 live feed",
         locked: "XAUUSD BUY/SELL signals require VIP · FX remains free",
         dateGroup: "Broker date",
@@ -188,7 +188,7 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
       }
     : {
         title: "Lịch block H1 trong ngày",
-        sub: "Entry theo pattern · lấy cây H1 trước entry một giờ · hậu signal theo 6 block/thứ",
+        sub: "Tín hiệu theo block H1 · hậu signal theo 6 block/thứ · lịch sử broker 90 ngày",
         awaiting: "Đang chờ feed H1 live",
         locked: "Tín hiệu BUY/SELL XAUUSD cần VIP · các cặp FX vẫn free",
         dateGroup: "Ngày broker",
@@ -263,9 +263,21 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
           </div>
         </header>
         {!unlocked && <div className="oak-h1-locked">{copy.locked}</div>}
+        <div className="oak-h1-history" data-empty="true">
+          <div className="oak-h1-history-row">
+            <span className="oak-h1-history-label">{copy.dateGroup}</span>
+            <div className="oak-h1-calendar-picker">
+              <span className="oak-h1-calendar-icon" aria-hidden="true">▦</span>
+              <input type="date" value="" disabled aria-label={copy.dateGroup} />
+              <small>0 {locale === "EN" ? "dates available" : "ngày có dữ liệu"}</small>
+            </div>
+          </div>
+          <p className="oak-h1-history-coverage">{copy.coverage}</p>
+        </div>
         {degraded
-          ? <p className="oak-h1-degraded" role="alert">{locale === "EN" ? "H1 data storage is temporarily unavailable. Refreshing automatically…" : "Kho dữ liệu H1 tạm không khả dụng. Đang tự động làm mới…"}</p>
+          ? <p className="oak-h1-degraded" role="alert">{locale === "EN" ? "Live storage is temporarily unavailable. History controls stay available while recovery runs automatically…" : "Kho live tạm không khả dụng. Lịch sử vẫn được giữ chỗ trong khi hệ thống tự phục hồi…"}</p>
           : <p className="oak-h1-awaiting">{copy.awaiting}</p>}
+        <p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe horizontally for later blocks" : "Vuốt ngang để xem H12 · H14 · H16"}</p>
         <div className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
             <thead><tr><th className="oak-h1-symbol-sticky">SYMBOL</th>{H1_SCAN_HOURS.map((hour) => {
@@ -314,13 +326,14 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
                 max={latestDate || undefined}
                 onChange={(event) => chooseDate(event.currentTarget.value)}
                 aria-label={copy.dateGroup}
+                disabled={!allDates.length}
               />
               <small>{allDates.length} {locale === "EN" ? "dates available" : "ngày có dữ liệu"}</small>
             </div>
           </div>
           <p className="oak-h1-history-coverage">{copy.coverage}</p>
         </div>
-        {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : <div className="oak-h1-table-scroll lux-scroll">
+        {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : <><p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe horizontally for later blocks" : "Vuốt ngang để xem H12 · H14 · H16"}</p><div className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
             <thead><tr><th className="oak-h1-symbol-sticky">SYMBOL</th>{data.hours.map((hour) => {
               const postSignalInverted = cycleDecisionFor("XAUUSD", date, hour).inverted;
@@ -341,7 +354,7 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
               })}</tr>;
             })}</tbody>
           </table>
-        </div>}
+        </div></>}
       </section>
     </>
   );

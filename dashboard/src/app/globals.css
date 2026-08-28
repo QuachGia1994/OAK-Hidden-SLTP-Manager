@@ -286,7 +286,7 @@ body {
 }
 
 /* cTrader multi-account control */
-.oak-account-panel { display: grid; gap: 1rem; }
+.oak-account-panel { display: grid; gap: 1rem; width: min(100%, 1080px); margin-inline: auto; }
 .oak-account-panel > header h1 { margin-top: .3rem; font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 900; letter-spacing: -.035em; }
 .oak-account-panel > header p { max-width: 52rem; margin-top: .45rem; color: var(--oak-fg-muted); font-size: .86rem; line-height: 1.6; }
 .oak-account-panel > header small { color: var(--oak-accent-command); font: 800 .66rem "Cascadia Mono", Consolas, monospace; letter-spacing: .14em; }
@@ -320,3 +320,11 @@ body {
 .oak-account-card footer { display: flex; justify-content: flex-end; }
 .oak-account-login { max-width: 34rem; margin-inline: auto; padding: 1rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-lg); background: var(--oak-bg-surface); box-shadow: var(--oak-shadow-2); }
 .oak-account-login form { display: grid; gap: .65rem; }
+
+@media (max-width: 640px) {
+  .oak-account-head { align-items: stretch; padding: .8rem; }
+  .oak-account-actions { width: 100%; }
+  .oak-account-actions button { flex: 1 1 9rem; }
+  .oak-account-fields { grid-template-columns: 1fr; }
+  .oak-account-card { padding: .75rem; }
+}

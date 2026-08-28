@@ -20,7 +20,10 @@ test("H1 web feed has schema-17 signal and six-block weekday contract without pa
   assert.doesNotMatch(readerSource, /m5Open|m5Middle|m5Position|m5WindowCount/);
   assert.match(readerSource, /robot-sltp:public:h1-signals:latest/);
   assert.match(readerSource, /payload\.schemaVersion !== H1_SIGNAL_PUBLIC_SCHEMA/);
-  assert.match(readerSource, /maskFutureH1Signals\(parsePayload/);
+  assert.match(readerSource, /const latest = parsePayload/);
+  assert.match(readerSource, /maskFutureH1Signals\(latest\)/);
+  assert.match(readerSource, /H1_CLOUD_STATE_KEY/);
+  assert.match(readerSource, /buildPublicFeed\(parseCloudState\(cloudState\)\)/);
   assert.match(readerSource, /payload\.signalRuleVersion !== H1_SIGNAL_RULE_VERSION/);
   assert.doesNotMatch(readerSource, /sw2|sw3Pure|sw3Normal|mon-block|tue-block|wed-block|tradeAllowed|blockedSlots|reconcileTradeState/);
 });
@@ -43,7 +46,7 @@ test("H1 cells publish only the scheduled BUY/SELL side", () => {
 
 test("H1 table sizes itself from the active columns instead of the legacy wide grid", () => {
   assert.match(redesignCss, /\.oak-h1-table \{[^}]*width: max-content;[^}]*min-width: 100%;/);
-  assert.match(redesignCss, /\.oak-h1-table th, \.oak-h1-table td \{[^}]*min-width: 4\.8rem;/);
+  assert.match(redesignCss, /\.oak-h1-table th, \.oak-h1-table td \{[^}]*min-width: 4\.45rem;/);
   assert.doesNotMatch(redesignCss, /\.oak-h1-table \{[^}]*min-width: 79rem;/);
 });
 
@@ -73,6 +76,8 @@ test("H1 history uses a native calendar picker without weekday filter controls",
   assert.match(boardSource, /max=\{latestDate \|\| undefined\}/);
   assert.match(boardSource, /onChange=\{\(event\) => chooseDate\(event\.currentTarget\.value\)\}/);
   assert.match(boardSource, /allDates\.length/);
+  assert.match(boardSource, /data-empty=\"true\"/);
+  assert.match(boardSource, /type=\"date\" value=\"\" disabled/);
   assert.doesNotMatch(boardSource, /HISTORY_FILTERS|weekdayFilter|oak-h1-history-options|Lọc theo thứ|Filter by weekday/);
   assert.match(redesignCss, /\.oak-h1-calendar-picker \{/);
   assert.match(redesignCss, /calendar-picker-indicator/);

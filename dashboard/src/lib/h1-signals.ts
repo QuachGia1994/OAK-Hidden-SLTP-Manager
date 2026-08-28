@@ -1,7 +1,12 @@
 import "server-only";
 
 import { redis } from "./redis-core";
-import { H1_SIGNAL_RULE_VERSION } from "./h1-cloud-scanner";
+import {
+  H1_CLOUD_STATE_KEY,
+  H1_SIGNAL_RULE_VERSION,
+  buildPublicFeed,
+  parseCloudState,
+} from "./h1-cloud-scanner";
 
 export type H1SignalSide = "BUY" | "SELL";
 export type H1PostSignalRule = "none" | "cycle-net-invert" | "cycle-net-keep" | "regular-net-invert" | "regular-net-keep";
@@ -91,7 +96,13 @@ export type H1SignalsReadResult =
 
 export async function readLatestH1Signals(): Promise<H1SignalsReadResult> {
   try {
-    return { ok: true, data: maskFutureH1Signals(parsePayload(await redis.get(LATEST_KEY), LATEST_KEY)) };
+    const latest = parsePayload(await redis.get(LATEST_KEY), LATEST_KEY);
+    if (latest) return { ok: true, data: maskFutureH1Signals(latest) };
+
+    const cloudState = await redis.get<unknown>(H1_CLOUD_STATE_KEY);
+    if (!cloudState) return { ok: true, data: null };
+    const fallback = parsePayload(buildPublicFeed(parseCloudState(cloudState)), H1_CLOUD_STATE_KEY);
+    return { ok: true, data: maskFutureH1Signals(fallback) };
   } catch (error) {
     console.error("[H1 SIGNAL READ FAILED]", error);
     return { ok: false };

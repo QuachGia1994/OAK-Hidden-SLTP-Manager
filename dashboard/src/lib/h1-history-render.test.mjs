@@ -95,6 +95,14 @@ test("H1 history renders one calendar picker with newest date and coverage", () 
   assert.doesNotMatch(vn, /Tất cả|T2|T3|T4|T5|T6|Lọc theo thứ/);
 });
 
+test("H1 empty live state keeps the calendar slot visible", () => {
+  const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data: null, degraded: true, locale: "VN", unlocked: true }));
+  assert.match(markup, /oak-h1-history/);
+  assert.match(markup, /type="date"[^>]*disabled/);
+  assert.match(markup, /0 ngày có dữ liệu/);
+  assert.match(markup, /Lịch sử vẫn được giữ chỗ/);
+});
+
 test("historical cTrader trendbars use DST-aware broker dates and hours", () => {
   const minute = (iso) => Math.trunc(new Date(iso).getTime() / 60_000);
   const rows = normalizeHistoricalTrendbars([
