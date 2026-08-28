@@ -28,7 +28,7 @@ test("H1 web feed has schema-16 H1 entry-base and six-block weekday contract", (
 });
 
 test("H1 cells publish only the scheduled BUY/SELL side", () => {
-  assert.match(boardSource, /oak-h1-block-button/);
+  assert.match(boardSource, /oak-h1-cell-signal/);
   assert.match(boardSource, /oak-h1-block-invert-badge/);
   assert.match(boardSource, /data-post-signal-inverted/);
   assert.match(boardSource, /scheduledSignal/);

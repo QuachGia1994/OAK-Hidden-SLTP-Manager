@@ -387,7 +387,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
                 const alert = byHour.get(hour);
                 if (!alert?.scheduledSignal) return <td key={hour} data-post-signal-inverted={postSignalInverted ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>;
                 const side = alert.scheduledSignal;
-                return <td key={hour} data-scheduled-signal={side} data-post-signal-inverted={postSignalInverted ? "true" : undefined}><button className="oak-h1-block-button" type="button" onClick={() => setSelection({ base, date, alert })} aria-label={`${base} H${String(hour).padStart(2, "0")} ${side}`}><b className="oak-h1-cell-signal" data-side={side.toLowerCase()}>{side}</b></button></td>;
+                return <td key={hour} data-scheduled-signal={side} data-post-signal-inverted={postSignalInverted ? "true" : undefined}><span className="oak-h1-cell-signal" data-side={side.toLowerCase()}>{side}</span></td>;
               })}</tr>;
             })}</tbody>
           </table>
