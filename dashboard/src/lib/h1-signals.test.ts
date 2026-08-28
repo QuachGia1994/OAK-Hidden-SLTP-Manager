@@ -64,13 +64,14 @@ test("temporary free VIP exposes H1 blocks to every visitor", () => {
   assert.match(engineBoardSource, /freeAccess: boolean/);
 });
 
-test("H1 history uses a native calendar picker while preserving weekday filtering", () => {
+test("H1 history uses a native calendar picker without weekday filter controls", () => {
   assert.match(boardSource, /className=\"oak-h1-calendar-picker\"/);
   assert.match(boardSource, /type=\"date\"/);
   assert.match(boardSource, /min=\{earliestDate \|\| undefined\}/);
   assert.match(boardSource, /max=\{latestDate \|\| undefined\}/);
   assert.match(boardSource, /onChange=\{\(event\) => chooseDate\(event\.currentTarget\.value\)\}/);
-  assert.match(boardSource, /matchingDates\.length/);
+  assert.match(boardSource, /allDates\.length/);
+  assert.doesNotMatch(boardSource, /HISTORY_FILTERS|weekdayFilter|oak-h1-history-options|Lọc theo thứ|Filter by weekday/);
   assert.match(redesignCss, /\.oak-h1-calendar-picker \{/);
   assert.match(redesignCss, /calendar-picker-indicator/);
   assert.doesNotMatch(boardSource, /oak-h1-history-dates/);

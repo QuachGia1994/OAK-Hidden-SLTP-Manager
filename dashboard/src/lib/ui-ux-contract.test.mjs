@@ -5,6 +5,7 @@ import test from "node:test";
 const navSource = readFileSync(new URL("../components/NavBar.tsx", import.meta.url), "utf8");
 const h1EngineSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
 const h1SignalSource = readFileSync(new URL("../components/H1SignalBoard.tsx", import.meta.url), "utf8");
+const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.meta.url), "utf8");
 const accountSource = readFileSync(new URL("../components/ProviderAccountsPanel.tsx", import.meta.url), "utf8");
 const dialogHookSource = readFileSync(new URL("../hooks/useDialogFocusTrap.ts", import.meta.url), "utf8");
 const neoTechSource = readFileSync(new URL("../app/neotech/NeoTechPublicDashboard.tsx", import.meta.url), "utf8");
@@ -31,6 +32,19 @@ test("provider account UI follows the global EN/VN locale", () => {
   assert.match(accountSource, /tr\("No cTrader accounts yet\./);
   assert.match(accountSource, /tr\("No MT5 accounts yet\./);
   assert.doesNotMatch(accountSource, /<p>Đăng nhập bằng Dashboard API key/);
+});
+
+test("H1 dashboard keeps date navigation without weekday filter controls", () => {
+  assert.match(h1SignalSource, /type=\"date\"/);
+  assert.match(h1SignalSource, /historyDatesForWeekday\(data\.days, \"all\"\)/);
+  assert.doesNotMatch(h1SignalSource, /HISTORY_FILTERS|weekdayFilter|oak-h1-history-options|Lọc theo thứ|Filter by weekday/);
+  assert.doesNotMatch(enginePageSource, /DashboardAutoRefresh|router\.refresh/);
+});
+
+test("H1 signal cells stay centered and use an explicit compact type scale", () => {
+  assert.match(h1SignalSource, /oak-h1-cell-signal/);
+  assert.match(oakCss, /\.oak-h1-cell-signal[\s\S]*display: grid/);
+  assert.match(oakCss, /\.oak-h1-cell-signal[\s\S]*text-align: center/);
 });
 
 test("all custom trading and NeoTech dialogs use the shared keyboard focus trap", () => {

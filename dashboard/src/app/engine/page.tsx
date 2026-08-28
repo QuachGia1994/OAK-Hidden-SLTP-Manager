@@ -1,4 +1,3 @@
-import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
 import { H1EngineBoard } from "@/components/H1EngineBoard";
 import { detectServerLocaleFromCookie } from "@/lib/i18n";
 import { getLatestH1Signals, maskFutureH1Signals } from "@/lib/h1-signals";
@@ -20,7 +19,6 @@ export default async function EnginePage() {
 
   return (
     <div className="page-shell terminal-page">
-      <DashboardAutoRefresh />
       <H1EngineBoard h1Data={h1Data} locale={locale} access={access} />
     </div>
   );

@@ -89,11 +89,9 @@ function render(locale) {
   return renderToStaticMarkup(React.createElement(H1SignalBoard, { data: payload(), locale, unlocked: true }));
 }
 
-test("H1 history controls render localized weekday labels, newest date and coverage without raw filter enums", () => {
+test("H1 history renders one calendar picker with newest date and coverage", () => {
   const en = render("EN");
   const vn = render("VN");
-  for (const label of ["All", "Mon", "Tue", "Wed", "Thu", "Fri"]) assert.match(en, new RegExp(`>${label}<`));
-  for (const label of ["Tất cả", "T2", "T3", "T4", "T5", "T6"]) assert.match(vn, new RegExp(`>${label}<`));
   assert.match(en, /7 trading days/);
   assert.match(vn, /7 ngày giao dịch/);
   assert.match(en, /2025-12-29.*2026-02-03/);
@@ -101,7 +99,8 @@ test("H1 history controls render localized weekday labels, newest date and cover
   assert.match(vn, /type="date"[^>]*value="2026-02-03"/);
   assert.match(en, /min="2025-12-29"/);
   assert.match(en, /max="2026-02-03"/);
-  for (const raw of ["weekday_all", "weekday_mon", "weekday_tue", "weekday_wed", "weekday_thu", "weekday_fri"]) assert.equal(en.includes(raw) || vn.includes(raw), false);
+  assert.doesNotMatch(en, /All|Mon|Tue|Wed|Thu|Fri|Lọc theo thứ|Filter by weekday/);
+  assert.doesNotMatch(vn, /Tất cả|T2|T3|T4|T5|T6|Lọc theo thứ/);
 });
 
 test("historical cTrader trendbars use DST-aware broker dates and hours", () => {
