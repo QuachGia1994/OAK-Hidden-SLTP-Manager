@@ -68,7 +68,7 @@ test("missing automation account never blocks signal persistence or the public t
   assert.match(route, /automationSkippedReason/);
   assert.doesNotMatch(route, /H1 scheduled intents require Telegram control and the enabled scanner cTrader account/);
   assert.ok(route.indexOf("if (automationReady)") < route.indexOf("symbolState.alerts.push(alert)"));
-  assert.match(route, /strategy: "h1-m5-bollinger-rule-47"/);
+  assert.match(route, /strategy: "h1-m5-bollinger-rule-48"/);
 });
 
 test("cTrader cloud scanner remains read-only even when shared OAuth has trading scope", () => {

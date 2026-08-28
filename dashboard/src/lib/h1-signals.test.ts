@@ -45,6 +45,12 @@ test("H1 cells render BUY SELL with pattern badges, entry times and no BLOCK pat
   assert.doesNotMatch(boardSource, /BLOCK|NOT TRADE|blockedSlots|oak-h1-cell-blocked|oak-h1-blocked-cell|⚠ PURE/);
 });
 
+test("H1 table sizes itself from the active columns instead of the legacy wide grid", () => {
+  assert.match(redesignCss, /\.oak-h1-table \{[^}]*width: max-content;[^}]*min-width: 100%;/);
+  assert.match(redesignCss, /\.oak-h1-table th, \.oak-h1-table td \{[^}]*min-width: 4\.8rem;/);
+  assert.doesNotMatch(redesignCss, /\.oak-h1-table \{[^}]*min-width: 79rem;/);
+});
+
 test("net post-signal reversal highlights each inverted symbol row", () => {
   assert.match(boardSource, /postSignalDecisionForSymbol/);
   assert.match(boardSource, /day\?\.symbols\?\.\[base\]/);

@@ -108,10 +108,10 @@ function buildStoredAlert(args: {
 // 02:15/02:00/01:45 (135/120/105); group B window 02:30/02:15/02:00 (150/135/120).
 const H3_PAIR_NEWEST_MINUTE = 165;
 
-test("rule versions bump to state v53 / feed v15 / rule 47 with the seven-block grid", () => {
+test("rule versions stay on state v53 / feed v15 and advance to rule 48", () => {
   assert.equal(H1_CLOUD_STATE_VERSION, 53);
   assert.equal(H1_PUBLIC_SCHEMA, 15);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 47);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 48);
   assert.deepEqual(H1_SCAN_HOURS, [3, 4, 6, 9, 12, 14, 16]);
 });
 
@@ -184,6 +184,31 @@ test("P2 and P5 both follow the H+2:00 entry-relative pair", () => {
     const alert = buildStoredAlert({ base: "GBPUSD", brokerSymbol: "GBPUSD", evaluation });
     assert.deepEqual([alert.baseDirection, alert.baseHour, alert.symbolH1Signal], [baseDirection, 5, signal]);
   }
+});
+
+test("flat entry-relative M15 does not discard a valid USDCAD Pattern 2 M5 alert", () => {
+  const bars = m15Bars("TGTTTG", H3_PAIR_NEWEST_MINUTE, "2026-08-28");
+  const flatEntryEvidence = bars.find((bar) => bar.minuteOfDay === 4 * 60 + 45) as (H1M15Bar & { flat?: boolean }) | undefined;
+  assert.ok(flatEntryEvidence);
+  flatEntryEvidence.flat = true;
+
+  const evaluation = evaluateH1Block({
+    slotHour: 3,
+    h1Bars: [],
+    m15Bars: bars,
+    availableThroughMinute: 5 * 60,
+  });
+  assert.ok(evaluation);
+  assert.equal(evaluation.patternKind, "pattern2");
+
+  const alert = buildStoredAlertCore({
+    base: "USDCAD",
+    brokerSymbol: "USDCAD",
+    evaluation,
+    m5Bars: m5BandBars(5 * 60, 101, 100, "2026-08-28"),
+  });
+  assert.ok(alert);
+  assert.deepEqual([alert.entryTime, alert.m5Position, alert.baseH1Signal, alert.symbolH1Signal], ["05:00", "above", "SELL", "BUY"]);
 });
 
 test("P1 P3 and P4 classification and entry offsets stay independent from signal refinement", () => {
@@ -542,7 +567,7 @@ test("stored alerts compose M5 Bollinger base and net weekday phase in order", (
   assert.match(message, /Signal XAUUSD H1: BUY/);
 });
 
-test("state v53 round-trips into a rule-47 schema-15 public feed with the seven-block grid", () => {
+test("state v53 round-trips into a rule-48 schema-15 public feed with the seven-block grid", () => {
   const evaluation = evaluateH1Block({
     slotHour: 3,
     h1Bars: h1Bars("T", 2),
@@ -554,7 +579,7 @@ test("state v53 round-trips into a rule-47 schema-15 public feed with the seven-
 
   const parsed = parseCloudState(JSON.stringify(state));
   const feed = buildPublicFeed(parsed, "2026-07-06T17:00:00.000Z");
-  assert.deepEqual([parsed.version, feed.schemaVersion, feed.signalRuleVersion, feed.hours], [53, 15, 47, [3, 4, 6, 9, 12, 14, 16]]);
+  assert.deepEqual([parsed.version, feed.schemaVersion, feed.signalRuleVersion, feed.hours], [53, 15, 48, [3, 4, 6, 9, 12, 14, 16]]);
   const feedAlert = feed.days["2026-07-06"].symbols.GBPUSD?.alerts[0];
   assert.deepEqual(
     [feedAlert?.patternKind, feedAlert?.entryTime, feedAlert?.patternPair, feedAlert?.m15Pair, feedAlert?.postSignalRule],

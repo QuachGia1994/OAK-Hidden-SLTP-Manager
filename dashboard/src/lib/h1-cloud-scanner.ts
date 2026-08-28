@@ -2,7 +2,7 @@ import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } fr
 
 export const H1_CLOUD_STATE_VERSION = 53;
 export const H1_PUBLIC_SCHEMA = 15;
-export const H1_SIGNAL_RULE_VERSION = 47;
+export const H1_SIGNAL_RULE_VERSION = 48;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
 export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v53";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
@@ -36,7 +36,6 @@ export type H1M15Bar = {
   brokerTime: string;
   minuteOfDay: number;
   direction: H1Direction;
-  flat?: boolean;
 };
 
 export type H1M5Bar = {
@@ -98,7 +97,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 15;
-  signalRuleVersion: 47;
+  signalRuleVersion: 48;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -395,7 +394,6 @@ export function evaluateH1Block(args: {
   const availableThroughMinute = args.availableThroughMinute ?? Number.POSITIVE_INFINITY;
   if (
     signalPairBars.length !== 2
-    || signalPairBars.some((bar) => bar.flat)
     || availableThroughMinute < signalReadyMinute
   ) return null;
 

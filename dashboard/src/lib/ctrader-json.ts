@@ -271,10 +271,6 @@ function directionFromTrendbar(row: Record<string, unknown>): H1Direction {
   return closeDelta > openDelta ? "T" : "G";
 }
 
-function trendbarIsFlat(row: Record<string, unknown>): boolean {
-  return Number(row.deltaClose || 0) === Number(row.deltaOpen || 0);
-}
-
 export function normalizeHistoricalTrendbars(rows: unknown[]): H1DirectionBar[] {
   const byDateHour = new Map<string, H1DirectionBar>();
   for (const source of rows) {
@@ -311,7 +307,6 @@ export function normalizeM15Trendbars(rows: unknown[], brokerDate?: string): H1M
       brokerTime: `${parts.dateKey}T${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`,
       minuteOfDay: parts.hour * 60 + parts.minute,
       direction: directionFromTrendbar(row),
-      flat: trendbarIsFlat(row),
     });
   }
   return [...byMinute.values()]
