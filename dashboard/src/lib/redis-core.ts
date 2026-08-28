@@ -69,6 +69,46 @@ export const redis = new Proxy(primaryRedis, {
   },
 }) as Redis;
 
+type RedisBackupSnapshot =
+  | { type: "string"; value: unknown; ttlMs: number }
+  | { type: "hash"; value: Record<string, unknown>; ttlMs: number }
+  | { type: "list"; value: unknown[]; ttlMs: number }
+  | { type: "set"; value: string[]; ttlMs: number };
+
+async function readPrimarySnapshot(key: string): Promise<RedisBackupSnapshot | null> {
+  const type = await primaryRedis.type(key);
+  if (type === "string") {
+    const value = await primaryRedis.get<unknown>(key);
+    if (value === null) return null;
+    return { type, value, ttlMs: Number(await primaryRedis.pttl(key)) };
+  }
+  if (type === "hash") {
+    const value = await primaryRedis.hgetall<Record<string, unknown>>(key);
+    if (!value || !Object.keys(value).length) return null;
+    return { type, value, ttlMs: Number(await primaryRedis.pttl(key)) };
+  }
+  if (type === "list") {
+    const value = await primaryRedis.lrange<unknown>(key, 0, -1);
+    if (!value.length) return null;
+    return { type, value, ttlMs: Number(await primaryRedis.pttl(key)) };
+  }
+  if (type === "set") {
+    const value = await primaryRedis.smembers(key);
+    if (!value.length) return null;
+    return { type, value, ttlMs: Number(await primaryRedis.pttl(key)) };
+  }
+  return null;
+}
+
+async function replaceBackupKey(key: string, snapshot: RedisBackupSnapshot): Promise<void> {
+  await backupRedis!.del(key);
+  if (snapshot.type === "string") await backupRedis!.set(key, snapshot.value);
+  if (snapshot.type === "hash") await backupRedis!.hset(key, snapshot.value);
+  if (snapshot.type === "list") for (const item of snapshot.value) await backupRedis!.rpush(key, item);
+  if (snapshot.type === "set") for (const item of snapshot.value) await backupRedis!.sadd(key, item);
+  if (snapshot.ttlMs > 0) await backupRedis!.pexpire(key, snapshot.ttlMs);
+}
+
 export async function syncRedisBackup(): Promise<{ scanned: number; copied: number; skipped: number }> {
   if (!backupRedis) throw new Error("Upstash backup is not configured");
   let cursor = 0;
@@ -80,26 +120,12 @@ export async function syncRedisBackup(): Promise<{ scanned: number; copied: numb
     cursor = Number(nextCursor);
     for (const key of keys) {
       scanned += 1;
-      const type = await primaryRedis.type(key);
-      const ttlMs = Number(await primaryRedis.pttl(key));
-      await backupRedis.del(key);
-      if (type === "string") {
-        const value = await primaryRedis.get<unknown>(key);
-        if (value !== null) await backupRedis.set(key, value);
-      } else if (type === "hash") {
-        const value = await primaryRedis.hgetall<Record<string, unknown>>(key);
-        if (value && Object.keys(value).length) await backupRedis.hset(key, value);
-      } else if (type === "list") {
-        const value = await primaryRedis.lrange<unknown>(key, 0, -1);
-        for (const item of value) await backupRedis.rpush(key, item);
-      } else if (type === "set") {
-        const value = await primaryRedis.smembers(key);
-        for (const item of value) await backupRedis.sadd(key, item);
-      } else {
+      const snapshot = await readPrimarySnapshot(key);
+      if (!snapshot) {
         skipped += 1;
         continue;
       }
-      if (ttlMs > 0) await backupRedis.pexpire(key, ttlMs);
+      await replaceBackupKey(key, snapshot);
       copied += 1;
     }
   } while (cursor !== 0);

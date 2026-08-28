@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 
 const route = readFileSync(new URL("../app/api/h1-scanner/run/route.ts", import.meta.url), "utf8");
 const backfillRoute = readFileSync(new URL("../app/api/h1-scanner/backfill/route.ts", import.meta.url), "utf8");
+const backupSyncRoute = readFileSync(new URL("../app/api/admin/redis-backup-sync/route.ts", import.meta.url), "utf8");
+const redisCore = readFileSync(new URL("./redis-core.ts", import.meta.url), "utf8");
 const cloudStore = readFileSync(new URL("./h1-cloud-store.ts", import.meta.url), "utf8");
 const telegramCloudStore = readFileSync(new URL("./telegram-cloud-store.ts", import.meta.url), "utf8");
 const scannerSource = readFileSync(new URL("./h1-cloud-scanner.ts", import.meta.url), "utf8");
@@ -139,6 +141,19 @@ test("historical cTrader H1 reads are sequential, throttled and bounded with has
   assert.doesNotMatch(backfillRoute, /m15HistoryComplete|m5HistoryComplete|providerM5RequestCount/);
   assert.match(workflow, /--max-time 200/);
   assert.doesNotMatch(client, /Promise\.all\([^)]*GET_TRENDBARS_REQ/);
+});
+
+test("backup seed is repo-fenced and snapshots primary before replacing backup", () => {
+  assert.match(backupSyncRoute, /verifyH1ScannerGitHubOidc/);
+  assert.match(backupSyncRoute, /requireAuth/);
+  assert.match(backupSyncRoute, /syncRedisBackup/);
+  assert.match(redisCore, /readPrimarySnapshot/);
+  assert.match(redisCore, /replaceBackupKey/);
+  assert.ok(redisCore.indexOf("const snapshot = await readPrimarySnapshot(key)") < redisCore.indexOf("await replaceBackupKey(key, snapshot)"));
+  assert.match(workflow, /Seed Upstash backup before history rebuild/);
+  assert.match(workflow, /api\/admin\/redis-backup-sync/);
+  assert.match(workflow, /continue-on-error: true/);
+  assert.ok(workflow.indexOf("Seed Upstash backup before history rebuild") < workflow.indexOf("Trigger private scanner route"));
 });
 
 test("GitHub OIDC verifier fences scanner trigger to repo main, exact workflow, and allowed events", () => {

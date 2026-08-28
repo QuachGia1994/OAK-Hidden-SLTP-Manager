@@ -12,7 +12,9 @@ on:
     paths:
       - ".github/workflows/h1-cloud-scanner.yml"
       - "dashboard/src/app/api/h1-scanner/**"
+      - "dashboard/src/app/api/admin/redis-backup-sync/**"
       - "dashboard/src/lib/github-oidc.ts"
+      - "dashboard/src/lib/redis-core.ts"
       - "dashboard/src/lib/ctrader-json.ts"
       - "dashboard/src/lib/h1-cloud-scanner.ts"
       - "dashboard/src/lib/h1-history-backfill.ts"
@@ -84,6 +86,19 @@ jobs:
           token="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<<"$token_json")"
           test -n "$token"
           echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - name: Seed Upstash backup before history rebuild
+        if: github.event_name == 'push'
+        continue-on-error: true
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --retry 1 --retry-delay 5 --max-time 120 \
+            -X POST \
+            -H "Authorization: Bearer $OIDC_TOKEN" \
+            -H "Content-Type: application/json" \
+            https://www.oakgatekeeper.uk/api/admin/redis-backup-sync
 
       - name: Trigger private scanner route
         env:
