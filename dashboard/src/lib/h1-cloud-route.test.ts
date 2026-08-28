@@ -47,6 +47,13 @@ test("cloud scanner sends and persists every classified six-pattern alert", () =
   assert.match(route, /x-h1-run-ticket/);
   assert.match(route, /getdel/);
   assert.match(route, /await sendTelegram/);
+  assert.match(route, /buildTelegramBlockReminder/);
+  assert.match(route, /claimH1BlockReminder/);
+  assert.match(route, /releaseH1BlockReminder/);
+  assert.match(route, /blockReminderSent/);
+  assert.match(route, /telegramConfigured/);
+  assert.match(telegramCloudStore, /H1_BLOCK_REMINDER_PREFIX/);
+  assert.match(telegramCloudStore, /nx: true/);
   assert.match(route, /symbolState\.alerts\.push\(alert\)/);
   assert.ok(route.indexOf("deliveredSlots(symbolState.alerts)") < route.indexOf("for (const evaluation of evaluations)"));
   assert.match(route, /await saveH1CloudState\(state\)/);

@@ -48,6 +48,14 @@ test("H1 table sizes itself from the active columns instead of the legacy wide g
   assert.doesNotMatch(redesignCss, /\.oak-h1-table \{[^}]*min-width: 79rem;/);
 });
 
+test("H1 entry focus keeps the active workspace compact and makes locked state useful", () => {
+  assert.match(boardSource, /H1EntryFocus/);
+  assert.match(boardSource, /oak-h1-locked-preview/);
+  assert.match(redesignCss, /\.oak-engine-screen \{[\s\S]*width: min\(100%, 1080px\)/);
+  assert.match(redesignCss, /\.oak-entry-focus-grid \{[\s\S]*repeat\(4, minmax\(0, 1fr\)\)/);
+  assert.match(redesignCss, /\.oak-entry-focus-card \{[\s\S]*min-height/);
+});
+
 test("H1 history uses a native calendar picker while preserving weekday filtering", () => {
   assert.match(boardSource, /className=\"oak-h1-calendar-picker\"/);
   assert.match(boardSource, /type=\"date\"/);

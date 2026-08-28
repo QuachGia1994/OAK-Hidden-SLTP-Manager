@@ -215,8 +215,10 @@ transform: none; background: var(--oak-accent-command-strong); box-shadow: none;
 /* H1 cloud trading workspace */
 .oak-engine-screen {
   display: grid;
-
-gap: .7rem; animation: none;
+  gap: .7rem;
+  width: min(100%, 1080px);
+  margin-inline: auto;
+  animation: none;
 }
 
 .oak-access-panel {
@@ -336,6 +338,33 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-h1-share-png:focus-visible { outline: 2px solid var(--oak-accent-command); outline-offset: 2px; }
 .oak-h1-share-png:disabled { opacity: .38; cursor: wait; }
 .oak-h1-locked { padding: .48rem .75rem; border-bottom: 1px solid var(--oak-border-subtle); color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 6%, var(--oak-bg-surface)); font: 800 .58rem "Cascadia Mono", Consolas, monospace; }
+.oak-entry-focus { display: grid; gap: .55rem; padding: .7rem .8rem .8rem; border-bottom: 1px solid var(--oak-border-subtle); background: var(--oak-bg-surface); }
+.oak-entry-focus-head { display: flex; align-items: center; justify-content: space-between; gap: .8rem; }
+.oak-entry-focus-head h3 { margin-top: .14rem; font-size: .82rem; font-weight: 900; letter-spacing: -.02em; }
+.oak-entry-focus-head p { margin-top: .14rem; color: var(--oak-fg-muted); font-size: .56rem; }
+.oak-entry-focus-count { display: inline-grid; min-width: 2.7rem; height: 2rem; place-items: center; padding-inline: .4rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-sm); color: var(--oak-accent-command); background: var(--oak-bg-raised); font: 850 .56rem "Cascadia Mono", Consolas, monospace; }
+.oak-entry-focus-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .45rem; }
+.oak-entry-focus-card { display: grid; gap: .42rem; min-width: 0; min-height: 7.2rem; padding: .62rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-sm); color: var(--oak-fg-primary); background: var(--oak-bg-raised); text-align: left; transition: border-color var(--oak-motion-fast) ease, background-color var(--oak-motion-fast) ease, opacity var(--oak-motion-fast) ease; }
+.oak-entry-focus-card:hover { border-color: color-mix(in srgb, var(--oak-accent-command) 55%, var(--oak-border-subtle)); background: color-mix(in srgb, var(--oak-accent-command) 5%, var(--oak-bg-raised)); }
+.oak-entry-focus-card[data-state="now"] { border-color: var(--oak-accent-command); box-shadow: inset 2px 0 0 var(--oak-accent-command); }
+.oak-entry-focus-card[data-state="passed"], .oak-entry-focus-card[data-state="history"] { opacity: .66; }
+.oak-entry-focus-card-top { display: flex; align-items: center; justify-content: space-between; gap: .45rem; }
+.oak-entry-focus-card-top b { font: 900 .68rem "Cascadia Mono", Consolas, monospace; }
+.oak-entry-focus-card-top small { color: var(--oak-fg-muted); font: 800 .44rem "Cascadia Mono", Consolas, monospace; text-align: right; }
+.oak-entry-focus-card > strong { font: 950 .9rem "Cascadia Mono", Consolas, monospace; letter-spacing: .04em; }
+.oak-entry-focus-card > strong[data-side="buy"] { color: var(--oak-signal-buy); }
+.oak-entry-focus-card > strong[data-side="sell"] { color: var(--oak-signal-sell); }
+.oak-entry-focus-card-meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .3rem; }
+.oak-entry-focus-card-meta > span { display: grid; gap: .12rem; min-width: 0; color: var(--oak-fg-muted); font: 750 .42rem "Cascadia Mono", Consolas, monospace; letter-spacing: .03em; }
+.oak-entry-focus-card-meta b { overflow: hidden; color: var(--oak-fg-primary); font-size: .54rem; text-overflow: ellipsis; white-space: nowrap; }
+.oak-entry-focus-card-meta b[data-inverted="true"] { color: var(--oak-status-warning); }
+.oak-entry-focus-card-base { overflow: hidden; color: var(--oak-fg-muted); font: 750 .44rem "Cascadia Mono", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.oak-entry-focus-empty, .oak-h1-locked-preview { display: flex; align-items: center; gap: .7rem; min-height: 5rem; padding: .8rem; border: 1px dashed var(--oak-border-subtle); border-radius: var(--oak-radius-sm); color: var(--oak-fg-muted); background: var(--oak-bg-raised); }
+.oak-entry-focus-empty > span, .oak-h1-locked-preview-icon { color: var(--oak-accent-command); font: 900 1.15rem "Cascadia Mono", Consolas, monospace; }
+.oak-entry-focus-empty p, .oak-h1-locked-preview p { font-size: .66rem; line-height: 1.45; }
+.oak-h1-locked-preview { margin: .7rem .8rem .8rem; border-color: color-mix(in srgb, var(--oak-status-warning) 32%, var(--oak-border-subtle)); }
+.oak-h1-locked-preview b { display: block; color: var(--oak-fg-primary); font-size: .7rem; }
+.oak-h1-locked-preview p { margin-top: .2rem; color: var(--oak-fg-muted); }
 .oak-h1-history { display: grid; gap: .48rem; padding: .6rem .75rem; border-bottom: 1px solid var(--oak-border-subtle); background: var(--oak-bg-surface); }
 .oak-h1-history-row { display: grid; grid-template-columns: 5.8rem minmax(0, 1fr); gap: .55rem; align-items: center; min-width: 0; }
 .oak-h1-history-label { color: var(--oak-fg-muted); font: 800 .46rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
@@ -392,6 +421,8 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-h1-explain b[data-side="sell"] { color: var(--oak-signal-sell); }
 .oak-h1-explain b[data-trade-state="blocked"] { color: var(--oak-status-warning); }
 @media (max-width: 720px) {
+  .oak-entry-focus-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .oak-entry-focus-card { min-height: 6.8rem; }
   .oak-h1-board-head { align-items: flex-start; flex-direction: column; }
   .oak-h1-meta { width: 100%; }
   .oak-h1-share-png { flex: 0 0 auto; }
@@ -1072,6 +1103,7 @@ min-height: 7rem;
 }
 
 @media (max-width: 430px) {
+  .oak-entry-focus-grid { grid-template-columns: 1fr; }
   .oak-brand-copy strong { font-size: .7rem; }
   .oak-command-title h1 { overflow-wrap: anywhere; }
   .oak-nav-workspace { grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -8,16 +8,18 @@ import { loadH1CTraderSession } from "@/lib/h1-ctrader-session";
 import { cTraderProviderAccountId, providerProtectionPoints } from "@/lib/provider-account-domain";
 import { listProviderAccounts } from "@/lib/provider-accounts";
 import { TELEGRAM_CLOUD_EXECUTION_MODE } from "@/lib/telegram-cloud-domain";
-import { createCloudIntent, markScheduledNotification, normalizeCloudIntentLot } from "@/lib/telegram-cloud-store";
+import { claimH1BlockReminder, createCloudIntent, markScheduledNotification, normalizeCloudIntentLot, releaseH1BlockReminder } from "@/lib/telegram-cloud-store";
 import { acquireH1CloudLock, loadH1CloudState, publishH1CloudState, releaseH1CloudLock, saveH1CloudState } from "@/lib/h1-cloud-store";
 import {
   H1_FIRST_SCAN_HOUR,
+  H1_SCAN_HOURS,
   H1_SIGNAL_END_HOUR,
   H1_TARGET_BASES,
   h1AutoEntryLot,
   backfillSuppressedHistory,
   brokerEntryDueAt,
   buildStoredAlert,
+  buildTelegramBlockReminder,
   buildTelegramMessage,
   ensureSymbolDay,
   evaluateH1BlocksForTarget,
@@ -211,6 +213,22 @@ export async function POST(request: Request) {
 
     const pending: RunSummary[] = [];
     let sent = 0;
+    let blockReminderSent = false;
+    const telegramConfigured = Boolean(!dryRun && cloudConfig?.telegramToken && cloudConfig?.telegramChatId);
+    const isScheduledBlock = (H1_SCAN_HOURS as readonly number[]).includes(market.brokerHour);
+    if (telegramConfigured && isScheduledBlock && cloudConfig) {
+      const reminderKey = `${market.brokerDate}:H${market.brokerHour}`;
+      const claimed = await claimH1BlockReminder(reminderKey);
+      if (claimed) {
+        try {
+          await sendTelegram(buildTelegramBlockReminder(market.brokerDate, market.brokerHour), cloudConfig);
+          blockReminderSent = true;
+        } catch (error) {
+          await releaseH1BlockReminder(reminderKey);
+          throw error;
+        }
+      }
+    }
 
     for (const base of H1_TARGET_BASES) {
       const evaluations = evaluateH1BlocksForTarget(
@@ -330,6 +348,7 @@ export async function POST(request: Request) {
       brokerMinute: market.brokerMinute,
       brokerUtcOffsetHours: market.brokerUtcOffsetHours,
       sent,
+      blockReminderSent,
       pending,
       h1Counts: Object.fromEntries(Object.entries(market.symbols).map(([base, item]) => [base, item.bars.length])),
       m15Counts: Object.fromEntries(Object.entries(market.symbols).map(([base, item]) => [base, item.m15Bars.length])),

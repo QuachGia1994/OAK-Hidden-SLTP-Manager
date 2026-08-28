@@ -11,6 +11,7 @@ import {
   h1AutoEntryLot,
   buildPublicFeed,
   buildStoredAlert as buildStoredAlertCore,
+  buildTelegramBlockReminder,
   buildTelegramMessage,
   brokerEntryDueAt,
   cycleDecisionFor,
@@ -606,6 +607,14 @@ test("stored alerts compose H1 entry candle base and net weekday phase in order"
   assert.match(message, /Cặp M15 evidence trước entry \(mới→cũ\): TT/);
   assert.match(message, /pha chu kỳ tháng, đảo hậu signal/);
   assert.match(message, /Signal XAUUSD H1: SELL/);
+});
+
+test("block reminders announce weekday phase even when no pattern alert exists", () => {
+  const message = buildTelegramBlockReminder("2026-07-10", 12);
+  assert.match(message, /BLOCK ĐÃ ĐẾN · Thứ 6 · HIỆN TẠI H12/);
+  assert.match(message, /Hậu signal: ĐẢO/);
+  assert.match(message, /Nhóm: H12\/H16 · pha chu kỳ tháng/);
+  assert.match(message, /entry time chỉ gửi khi pattern đạt/);
 });
 
 test("state v54 round-trips into a rule-49 schema-16 public feed with the seven-block grid", () => {

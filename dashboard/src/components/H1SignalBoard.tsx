@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useDialogFocusTrap } from "@/hooks/useDialogFocusTrap";
+import { H1EntryFocus } from "@/components/H1EntryFocus";
 import { historyDatesForWeekday, selectHistoryDate, type H1HistoryWeekdayFilter } from "@/lib/h1-history-navigation";
 import type { H1PatternKind, H1SignalAlert, H1SignalPayload } from "@/lib/h1-signals";
 
@@ -344,6 +345,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
           </div>
         </header>
         {!unlocked && <div className="oak-h1-locked">{copy.locked}</div>}
+        {unlocked && date && <H1EntryFocus data={data} date={date} locale={locale} onSelect={(base, alert) => setSelection({ base, date, alert })} />}
         <div className="oak-h1-history">
           <div className="oak-h1-history-row">
             <span className="oak-h1-history-label">{copy.weekdayGroup}</span>
@@ -370,7 +372,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
           </div>
           <p className="oak-h1-history-coverage">{copy.coverage}</p>
         </div>
-        {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : <div className="oak-h1-table-scroll lux-scroll">
+        {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : !unlocked ? <div className="oak-h1-locked-preview"><span className="oak-h1-locked-preview-icon">◈</span><div><b>{locale === "EN" ? "Signals hidden behind VIP" : "Tín hiệu đang ẩn sau VIP"}</b><p>{locale === "EN" ? "Use the VIP control above to reveal BUY/SELL, entry time and post-signal rules." : "Dùng nút Mở VIP phía trên để xem BUY/SELL, entry time và hậu signal."}</p></div></div> : <div className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
             <thead><tr><th className="oak-h1-symbol-sticky">SYMBOL</th>{data.hours.map((hour) => <th key={hour}>H{String(hour).padStart(2, "0")}</th>)}</tr></thead>
             <tbody>{data.symbols.map((base) => {

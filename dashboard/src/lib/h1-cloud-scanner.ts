@@ -509,6 +509,22 @@ function brokerWeekdayLabel(brokerDate: string): string {
   return ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"][brokerDateWeekdayIndex(brokerDate)] || brokerDate;
 }
 
+export function buildTelegramBlockReminder(brokerDate: string, slotHour: number): string {
+  const decision = cycleDecisionFor(H1_TARGET_BASES[0], brokerDate, slotHour);
+  const phase = decision.rule.startsWith("cycle-") ? "pha chu kỳ tháng" : "pha tháng thường";
+  const group = slotHour === 3 || slotHour === 4
+    ? "H3/H4"
+    : slotHour === 6 || slotHour === 9 || slotHour === 14
+      ? "H6/H9/H14"
+      : "H12/H16";
+  return [
+    `⏰ BLOCK ĐÃ ĐẾN · ${brokerWeekdayLabel(brokerDate)} · HIỆN TẠI H${String(slotHour).padStart(2, "0")}`,
+    `• Hậu signal: ${decision.inverted ? "ĐẢO" : "GIỮ NGUYÊN"}`,
+    `• Nhóm: ${group} · ${phase}`,
+    "• Chỉ lưu ý hậu signal; entry time chỉ gửi khi pattern đạt.",
+  ].join("\n");
+}
+
 export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, alert: H1StoredAlert): string {
   const postSignalLabels: Record<H1PostSignalRule, string> = {
     none: "không đảo",
