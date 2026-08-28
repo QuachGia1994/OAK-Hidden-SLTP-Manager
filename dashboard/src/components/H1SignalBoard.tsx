@@ -224,7 +224,9 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
           <p><span>{locale === "EN" ? "Pattern group" : "Nhóm pattern"}</span><b>{patternLabel(alert.patternKind, locale)}</b></p>
           <p><span>{alert.patternKind === "pattern6"
             ? `${locale === "EN" ? "P6 candle 5 base" : "Base cây thứ 5 P6"} · ${alert.baseSymbol}`
-            : `${locale === "EN" ? "Post-block M15 base" : "Base M15 sau block"} · ${alert.baseSymbol}`}</span><b>{baseDetail}</b></p>
+            : alert.patternKind === "pattern1" || alert.patternKind === "pattern3" || alert.patternKind === "pattern4"
+              ? `${locale === "EN" ? "Pattern candle 3 base" : "Base cây thứ 3 pattern"} · ${alert.baseSymbol}`
+              : `${locale === "EN" ? "Post-block M15 base" : "Base M15 sau block"} · ${alert.baseSymbol}`}</span><b>{baseDetail}</b></p>
           <p><span>{alert.patternKind === "pattern6"
             ? (locale === "EN" ? `M15 pair candles 5–6 ${alert.m15Pair || "—"}` : `Cặp M15 cây 5–6 ${alert.m15Pair || "—"}`)
             : (locale === "EN" ? `Pre-block M15 pair ${alert.m15Pair || "—"}` : `Cặp M15 trước block ${alert.m15Pair || "—"}`)}</span><b>{alert.patternKind === "pattern6"
@@ -258,7 +260,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
   const copy = locale === "EN"
     ? {
         title: "H1 Intraday Signals",
-        sub: "M15 signal base · P1/P5 reverse · P6 keeps candle 5 · P2/P3/P4 keep · weekday post-signal rules · XAU cycle marker",
+        sub: "M15 signal base · P1/P4 keep candle 3 · P3 reverses candle 3 · P5 reverse · P6 keeps candle 5 · weekday rules",
         awaiting: "Awaiting H1 live feed",
         locked: "VIP weekday signals are locked",
         weekdayGroup: "Filter by weekday",
@@ -269,7 +271,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
       }
     : {
         title: "Tín hiệu H1 trong ngày",
-        sub: "Base M15 · P1/P5 đảo · P6 giữ cây thứ 5 · P2/P3/P4 giữ · hậu signal theo cặp/thứ · XAU chỉ tô chu kỳ",
+        sub: "Base M15 · P1/P4 giữ cây thứ 3 · P3 đảo cây thứ 3 · P5 đảo · P6 giữ cây thứ 5 · hậu signal theo thứ",
         awaiting: "Đang chờ feed H1 live",
         locked: "Tín hiệu H1 ngày thường đang khóa VIP",
         weekdayGroup: "Lọc theo thứ",

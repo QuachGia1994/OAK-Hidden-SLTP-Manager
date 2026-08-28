@@ -6,7 +6,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Added
 
-- Reworked the H1 core as state v49 / public feed schema 11 / signal rule 43. Pattern 6 requires six M15 candles with a `TGTG/GTGT` prefix, keeps candle 5 as its base, uses pair 5-6 `TG/GT` for `H+2:00` and `TT/GG` for `H+1:25`, and renders a manual-decision warning in its cell. P1/P5 still invert; P2/P3/P4 and weekday/XAU rules are unchanged. Explicit `/approve ID` remains the broker-mutation boundary.
+- Reworked the H1 core as state v50 / public feed schema 12 / signal rule 44. P1/P4 keep pattern candle 3, P3 inverts pattern candle 3, P2 keeps the live `H:00` base, and P5 inverts the post-block `H:15` base. P6 requires six M15 candles with a `TGTG/GTGT` prefix, keeps candle 5, uses pair 5-6 `TG/GT` for `H+2:00` and `TT/GG` for `H+1:25`, and renders a manual-decision warning. Weekday/XAU rules and the explicit `/approve ID` broker-mutation boundary are unchanged.
 
 - Added revocable NeoTech profile share links. Owners can create 30-day read-only links, copy the secret URL once, list active links, revoke one or revoke all, while shared viewers receive live server-authoritative profile updates without workspace access, MT5 credentials, connector tokens, raw trades, ticket IDs or cash amounts. Share secrets stay in the URL fragment and are resolved through a bearer header; the server stores only SHA-256 hashes.
 

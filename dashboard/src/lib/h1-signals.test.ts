@@ -10,8 +10,8 @@ const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.m
 const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
 const mobileH1RouteSource = readFileSync(new URL("../app/api/mobile/h1/route.ts", import.meta.url), "utf8");
 
-test("H1 web feed has independent schema-11 M15 signal-base contract", () => {
-  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 11/);
+test("H1 web feed has independent schema-12 M15 signal-base contract", () => {
+  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 12/);
   assert.match(readerSource, /postSignalInverted/);
   assert.match(readerSource, /postSignalRule/);
   assert.match(readerSource, /entryTime/);
@@ -105,8 +105,8 @@ test("H1 detail stays compact with M15 evidence, entry time and XAU cycle labels
   assert.match(boardSource, /mon-cycle/);
   assert.match(boardSource, /thu-gbpusd/);
   assert.match(boardSource, /tue-audusd/);
-  assert.match(boardSource, /P1\/P5 reverse · P6 keeps candle 5/);
-  assert.match(boardSource, /P1\/P5 đảo · P6 giữ cây thứ 5/);
+  assert.match(boardSource, /P1\/P4 keep candle 3 · P3 reverses candle 3 · P5 reverse · P6 keeps candle 5/);
+  assert.match(boardSource, /P1\/P4 giữ cây thứ 3 · P3 đảo cây thứ 3 · P5 đảo · P6 giữ cây thứ 5/);
   assert.doesNotMatch(boardSource, /AllowTrade lookback|BLOCK|sw2|sw3Pure|sw3Normal|audusdH3|mon-block|tue-block|wed-block|invert-pattern|keep-pattern|Logic base|baseInverted/);
   assert.match(vipSource, /redactH1Signals/);
   assert.match(vipSource, /\{ \.\.\.symbol, alerts: \[\] \}/);

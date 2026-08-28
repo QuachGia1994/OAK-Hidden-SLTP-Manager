@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 49;
-export const H1_PUBLIC_SCHEMA = 11;
-export const H1_SIGNAL_RULE_VERSION = 43;
+export const H1_CLOUD_STATE_VERSION = 50;
+export const H1_PUBLIC_SCHEMA = 12;
+export const H1_SIGNAL_RULE_VERSION = 44;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v49";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v50";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -74,7 +74,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 49;
+  version: 50;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[] }>>;
@@ -82,8 +82,8 @@ export type H1CloudState = {
 };
 
 export type H1PublicFeed = {
-  schemaVersion: 11;
-  signalRuleVersion: 43;
+  schemaVersion: 12;
+  signalRuleVersion: 44;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -309,15 +309,25 @@ export function evaluateH1Block(args: {
     }
   }
 
-  // P6 uses candle 5 of its six-candle window as the signal base. P2 uses
-  // the live H:00 bar; other patterns use the post-block H:15 candle.
-  const pattern6BaseBar = patternKind === "pattern6" ? selectedWindowBars[4] : null;
+  // P1/P4 keep candle 3 of their pattern window; P3 inverts candle 3.
+  // P6 keeps candle 5, P2 uses the live H:00 bar, and P5 uses post-block H:15.
+  const patternBaseBar = patternKind === "pattern1"
+    || patternKind === "pattern3"
+    || patternKind === "pattern4"
+    ? selectedWindowBars[2]
+    : patternKind === "pattern6"
+      ? selectedWindowBars[4]
+      : null;
   const signalBaseMinute = patternKind === "pattern2" ? blockMinute : blockMinute + 15;
-  const signalReadyMinute = patternKind === "pattern2" || patternKind === "pattern6"
+  const signalReadyMinute = patternKind === "pattern2"
+    || patternKind === "pattern1"
+    || patternKind === "pattern3"
+    || patternKind === "pattern4"
+    || patternKind === "pattern6"
     ? blockMinute
     : blockMinute + 30;
   const availableThroughMinute = args.availableThroughMinute ?? Number.POSITIVE_INFINITY;
-  const baseBar = pattern6BaseBar || byMinute.get(signalBaseMinute);
+  const baseBar = patternBaseBar || byMinute.get(signalBaseMinute);
   if (!baseBar || baseBar.flat || availableThroughMinute < signalReadyMinute) return null;
 
   const considered = new Map<number, H1M15Bar>();
@@ -325,7 +335,7 @@ export function evaluateH1Block(args: {
   const bars = [...considered.values()].sort((left, right) => right.minuteOfDay - left.minuteOfDay);
 
   const baseDirection = baseBar.direction;
-  const m15PairInverted = patternKind === "pattern1" || patternKind === "pattern5";
+  const m15PairInverted = patternKind === "pattern3" || patternKind === "pattern5";
   const refinedDirection: H1Direction = m15PairInverted ? (baseDirection === "T" ? "G" : "T") : baseDirection;
   const entryOffsetMinutes = patternKind === "pattern6" && (m15Pair === "TT" || m15Pair === "GG")
     ? 85
