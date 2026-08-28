@@ -19,10 +19,6 @@ export type H1SignalAlert = {
   m15Window: string;
   entryOffsetMinutes?: number;
   entryTime: string;
-  m5Open: number;
-  m5Middle: number;
-  m5Position: "above" | "below";
-  m5WindowCount: 20;
   signal: H1SignalSide | null;
   postSignalInverted?: boolean;
   postSignalRule?: H1PostSignalRule;

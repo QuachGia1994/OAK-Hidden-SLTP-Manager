@@ -67,7 +67,7 @@ export default function SignalDetailScreen() {
                 <Row label="Pre-block M15 pair" value={`${alert.m15Pair || "—"} · window only`} />
                 <Row label="Pattern action" value={patternVerdict} />
                 <Row label="Entry time" value={alert.entryTime ? `${alert.entryTime} (+${alert.entryOffsetMinutes ?? "?"}p)` : "—"} />
-                <Row label="Post-block M15 base" value={`${alert.baseSymbol} · H${String(alert.baseHour || 0).padStart(2, "0")}:${String(alert.baseMinute ?? 0).padStart(2, "0")} · ${alert.baseDirection || "—"}`} />
+                <Row label="Entry H1 base" value={`${alert.baseSymbol} · H${String(alert.baseHour || 0).padStart(2, "0")}:00 · ${alert.baseDirection || "—"}`} />
                 <Row label="Base signal" value={alert.baseSignal || "—"} tone={alert.baseSignal === "SELL" ? "sell" : "buy"} />
                 <Row label="Post-signal" value={alert.postSignalRule || "none"} />
                 <Row label="Final signal" value={alert.signal || "—"} tone={alert.signal === "SELL" ? "sell" : "buy"} />
