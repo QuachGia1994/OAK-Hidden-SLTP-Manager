@@ -598,7 +598,10 @@ test("stored alerts compose H1 entry candle base and net weekday phase in order"
   assert.deepEqual([fxAlert.postSignalRule, fxAlert.symbolH1Signal], ["cycle-net-invert", "SELL"]);
 
   const message = buildTelegramMessage("XAUUSD", "2026-07-06", alert);
+  assert.match(message, /BLOCK ĐÃ ĐẾN · Thứ 2 · HIỆN TẠI H04/);
   assert.match(message, /Mốc block: H04 · Entry: 06:00 \(\+120p\)/);
+  assert.match(message, /Entry time: 06:00 · chuẩn bị vào lệnh/);
+  assert.match(message, /Hậu signal: ĐẢO · pha chu kỳ tháng/);
   assert.match(message, /Base H1 candle: H05:00 T → BUY/);
   assert.match(message, /Cặp M15 evidence trước entry \(mới→cũ\): TT/);
   assert.match(message, /pha chu kỳ tháng, đảo hậu signal/);

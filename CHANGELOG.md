@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- Added idempotent Telegram entry scheduling notifications for live H1 alerts. Existing pending H1 intents are backfilled for notification when their entry time is near, fixed lots are 0.05 for FX and 0.01 for XAUUSD on the $5,000 sizing policy, and pending H1 intent lots are normalized before approval.
+- Added idempotent Telegram entry scheduling notifications for live H1 alerts. Existing pending H1 intents are backfilled for notification when their entry time is near, fixed lots are 0.05 for FX and 0.01 for XAUUSD on the $5,000 sizing policy, and pending H1 intent lots are normalized before approval. Telegram block reminders now show the broker weekday/current H, post-signal action, block time and an explicit `Entry time` preparation line.
+- Added a read-only NeoTech profile-link inspector on `/neotech`: users can paste an `analysis.neotechltd.com/trader/<provider>/<uuid>?t=<n>` share URL to render all 12 rule statuses, coverage and account metrics. Upstream challenge/blocked pages and missing evidence remain fail-closed as `NOT_VERIFIABLE` instead of being inferred as PASS.
 - Replaced H1 history date chips with a visual native calendar picker while retaining weekday filters and broker-date bounds.
 - Fixed H1 Pattern 2 publication so flat entry-relative M15 evidence no longer discards a pattern before the H1 entry-base lookup; the dashboard table now sizes to its active seven hour columns instead of the legacy 79rem grid.
 - Fixed H1 table publication so a missing/disabled cTrader automation target no longer aborts signal persistence. Analytics and history continue to publish, while Telegram intent creation remains fail-closed until the exact scanner account and Telegram control are enabled; skipped slots are not replayed as trades.

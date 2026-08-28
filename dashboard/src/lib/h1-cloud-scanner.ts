@@ -505,6 +505,10 @@ function evaluationBaseLabel(alert: H1StoredAlert): string {
   return `H${String(alert.baseHour).padStart(2, "0")}:${String(alert.baseMinute).padStart(2, "0")}`;
 }
 
+function brokerWeekdayLabel(brokerDate: string): string {
+  return ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"][brokerDateWeekdayIndex(brokerDate)] || brokerDate;
+}
+
 export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, alert: H1StoredAlert): string {
   const postSignalLabels: Record<H1PostSignalRule, string> = {
     none: "không đảo",
@@ -518,13 +522,15 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
     : `• Cặp chọn pattern trước block (mới→cũ): ${alert.patternPair} · chỉ chọn cửa sổ pattern`;
   const cycleLine = alert.postSignalRule === "none"
     ? null
-    : `• Hậu signal: ${postSignalLabels[alert.postSignalRule]}`;
+    : `• Hậu signal: ${alert.postSignalInverted ? "ĐẢO" : "GIỮ NGUYÊN"} · ${postSignalLabels[alert.postSignalRule]}`;
   const rows = [
+    `⏰ BLOCK ĐÃ ĐẾN · ${brokerWeekdayLabel(brokerDate)} · HIỆN TẠI H${String(alert.slotHour).padStart(2, "0")}`,
     `🔔 ${base} H1 SIGNAL`,
     `• Symbol: ${alert.symbol}`,
     `• Profile: ${H1_CLOUD_PROFILE}`,
     `• Ngày broker: ${brokerDate}`,
     `• Mốc block: H${String(alert.slotHour).padStart(2, "0")} · Entry: ${alert.entryTime} (+${alert.entryOffsetMinutes}p)`,
+    `• Entry time: ${alert.entryTime} · chuẩn bị vào lệnh`,
     `• Base H1 candle: ${evaluationBaseLabel(alert)} ${alert.baseDirection} → ${alert.baseH1Signal}`,
     `• Cặp M15 evidence trước entry (mới→cũ): ${alert.m15Pair}`,
     patternEvidence,
