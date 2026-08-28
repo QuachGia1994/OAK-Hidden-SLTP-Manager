@@ -41,6 +41,21 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
   const isEn = locale === "EN";
   const dialogRef = useDialogFocusTrap(open, () => setOpen(false));
 
+  const openDialog = () => {
+    setError("");
+    setOpen(true);
+  };
+
+  const parseJson = async (response: Response): Promise<{ ok?: boolean; error?: string }> => {
+    const text = await response.text();
+    if (!text) return {};
+    try {
+      return JSON.parse(text) as { ok?: boolean; error?: string };
+    } catch {
+      return {};
+    }
+  };
+
   const unlock = async () => {
     if (!token.trim() || loading) return;
     setLoading(true);
@@ -51,11 +66,11 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: token.trim() }),
       });
-      const payload = await response.json() as { ok?: boolean; error?: string };
-      if (!response.ok || !payload.ok) throw new Error(payload.error || "VIP unlock failed");
+      const payload = await parseJson(response);
+      if (!response.ok || !payload.ok) throw new Error(payload.error || (isEn ? "VIP unlock failed. Try again." : "Không mở được VIP. Thử lại."));
       window.location.reload();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "VIP unlock failed");
+      setError(reason instanceof Error ? reason.message : (isEn ? "VIP unlock failed. Try again." : "Không mở được VIP. Thử lại."));
       setLoading(false);
     }
   };
@@ -66,11 +81,11 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
     setError("");
     try {
       const response = await fetch("/api/vip", { method: "DELETE" });
-      const payload = await response.json() as { ok?: boolean; error?: string };
-      if (!response.ok || !payload.ok) throw new Error(payload.error || "VIP logout failed");
+      const payload = await parseJson(response);
+      if (!response.ok || !payload.ok) throw new Error(payload.error || (isEn ? "VIP logout failed. Try again." : "Thoát VIP thất bại. Thử lại."));
       window.location.reload();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "VIP logout failed");
+      setError(reason instanceof Error ? reason.message : (isEn ? "VIP logout failed. Try again." : "Thoát VIP thất bại. Thử lại."));
       setLoading(false);
     }
   };
@@ -89,7 +104,7 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
       <div className="oak-access-copy"><small>ACCESS</small><b>{modeCopy.title}</b><p>{modeCopy.detail}</p></div>
       <div className="oak-access-state"><span>{ACCESS_WEEKDAY_LABELS[locale][access.weekday] ?? access.weekday}</span><i /></div>
       {access.mode === "vip" && <button type="button" disabled={loading} onClick={() => void logout()}>{loading ? "…" : modeCopy.action}</button>}
-      {access.mode === "locked" && <button type="button" onClick={() => setOpen(true)}>{modeCopy.action}</button>}
+      {access.mode === "locked" && <button type="button" onClick={openDialog}>{modeCopy.action}</button>}
     </section>
     {!open && error && <p className="oak-form-error" role="alert">{error}</p>}
     {open && <div className="oak-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
@@ -103,7 +118,7 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
   </>;
 }
 
-export function H1EngineBoard({ h1Data, locale, access }: { h1Data: H1SignalPayload | null; locale: Locale; access: VipAccessView }) {
+export function H1EngineBoard({ h1Data, degraded, locale, access }: { h1Data: H1SignalPayload | null; degraded?: boolean; locale: Locale; access: VipAccessView }) {
   const dates = h1Data ? Object.keys(h1Data.days).sort() : [];
   const brokerDay = dates.at(-1) ?? "—";
   const copy = locale === "EN"
@@ -120,6 +135,6 @@ export function H1EngineBoard({ h1Data, locale, access }: { h1Data: H1SignalPayl
     </header>
 
     <VipGate access={access} locale={locale} />
-    <H1SignalBoard data={h1Data} locale={locale} unlocked={access.unlocked} />
+    <H1SignalBoard data={h1Data} degraded={degraded} locale={locale} unlocked={access.unlocked} />
   </div>;
 }

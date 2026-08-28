@@ -95,11 +95,20 @@ export function maskFutureH1Signals(payload: H1SignalPayload | null, today = vie
   };
 }
 
-export async function getLatestH1Signals(): Promise<H1SignalPayload | null> {
+export type H1SignalsReadResult =
+  | { ok: true; data: H1SignalPayload | null }
+  | { ok: false };
+
+export async function readLatestH1Signals(): Promise<H1SignalsReadResult> {
   try {
-    return maskFutureH1Signals(parsePayload(await redis.get(LATEST_KEY), LATEST_KEY));
+    return { ok: true, data: maskFutureH1Signals(parsePayload(await redis.get(LATEST_KEY), LATEST_KEY)) };
   } catch (error) {
     console.error("[H1 SIGNAL READ FAILED]", error);
-    return null;
+    return { ok: false };
   }
+}
+
+export async function getLatestH1Signals(): Promise<H1SignalPayload | null> {
+  const result = await readLatestH1Signals();
+  return result.ok ? result.data : null;
 }

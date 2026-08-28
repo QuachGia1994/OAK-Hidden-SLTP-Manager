@@ -238,7 +238,7 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
   );
 }
 
-export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayload | null; locale: Locale; unlocked: boolean }) {
+export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1SignalPayload | null; degraded?: boolean; locale: Locale; unlocked: boolean }) {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => data ? selectHistoryDate(data.days, "all", "") : "");
   const [shareArtifact, setShareArtifact] = useState<ShareArtifact | null>(null);
@@ -316,7 +316,14 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
       .finally(() => setShareBusy(false));
   };
 
-  if (!data) return <section className="oak-h1-board oak-h1-empty"><div><span className="oak-eyebrow">H1 / LIVE</span><h2>{copy.title}</h2></div><p>{copy.awaiting}</p></section>;
+  if (!data) return (
+    <section className="oak-h1-board oak-h1-empty">
+      <div><span className="oak-eyebrow">H1 / LIVE</span><h2>{copy.title}</h2></div>
+      {degraded
+        ? <p className="oak-h1-degraded" role="alert">{locale === "EN" ? "H1 data storage is temporarily unavailable. Refreshing automatically…" : "Kho dữ liệu H1 tạm không khả dụng. Đang tự động làm mới…"}</p>
+        : <p>{copy.awaiting}</p>}
+    </section>
+  );
 
   return (
     <>

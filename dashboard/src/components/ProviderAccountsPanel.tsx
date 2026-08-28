@@ -273,8 +273,8 @@ export function ProviderAccountsPanel() {
       </header>
 
       <div className="oak-account-tabs" role="tablist" aria-label={tr("Provider account type", "Loại tài khoản provider")}>
-        <button type="button" role="tab" aria-selected={providerTab === "ctrader"} data-active={providerTab === "ctrader"} onClick={() => setProviderTab("ctrader")}>cTrader <span>{cTraderAccounts.length}</span></button>
-        <button type="button" role="tab" aria-selected={providerTab === "mt5"} data-active={providerTab === "mt5"} onClick={() => setProviderTab("mt5")}>MT5 <span>{mt5Accounts.length}</span></button>
+        <button type="button" role="tab" id="oak-tab-ctrader" aria-controls="oak-tabpanel-accounts" aria-selected={providerTab === "ctrader"} data-active={providerTab === "ctrader"} onClick={() => setProviderTab("ctrader")}>cTrader <span>{cTraderAccounts.length}</span></button>
+        <button type="button" role="tab" id="oak-tab-mt5" aria-controls="oak-tabpanel-accounts" aria-selected={providerTab === "mt5"} data-active={providerTab === "mt5"} onClick={() => setProviderTab("mt5")}>MT5 <span>{mt5Accounts.length}</span></button>
       </div>
 
       <div className="oak-account-status">
@@ -303,7 +303,7 @@ export function ProviderAccountsPanel() {
         <footer><button type="submit" disabled={busy === "create-mt5"}>{busy === "create-mt5" ? tr("Adding…", "Đang thêm…") : tr("Add MT5 account", "Thêm tài khoản MT5")}</button></footer>
       </form>}
 
-      <div className="oak-account-list" role="tabpanel" aria-label={tr(`${providerTab} accounts`, `Tài khoản ${providerTab}`)}>
+      <div className="oak-account-list" role="tabpanel" id="oak-tabpanel-accounts" aria-labelledby={providerTab === "ctrader" ? "oak-tab-ctrader" : "oak-tab-mt5"} aria-label={tr(`${providerTab} accounts`, `Tài khoản ${providerTab}`)}>
         {activeAccounts.map((account) => (
           <form key={account.id} className="oak-account-card" onSubmit={(event) => saveAccount(event, account)}>
             <header>
@@ -314,10 +314,10 @@ export function ProviderAccountsPanel() {
               <label>{tr("Account label", "Nhãn tài khoản")}<input name="label" defaultValue={account.label} /></label>
               {account.provider === "mt5" && <label>{tr("Bridge profile", "Profile bridge")}<input name="bridgeProfile" defaultValue={account.bridgeProfile || ""} placeholder="Vantage" /></label>}
               {account.provider === "mt5" && <label>{tr("MT5 server", "Server MT5")}<input name="bridgeServer" defaultValue={account.bridgeServer || ""} placeholder="Broker-Live" /></label>}
-              <label>{tr("FX SL points", "Điểm SL FX")}<input name="fxSlPoints" type="number" min="1" step="1" defaultValue={account.fxSlPoints} /></label>
-              <label>{tr("FX TP points", "Điểm TP FX")}<input name="fxTpPoints" type="number" min="1" step="1" defaultValue={account.fxTpPoints} /></label>
-              <label>{tr("Gold SL points", "Điểm SL Gold")}<input name="goldSlPoints" type="number" min="1" step="1" defaultValue={account.goldSlPoints} /></label>
-              <label>{tr("Gold TP points", "Điểm TP Gold")}<input name="goldTpPoints" type="number" min="1" step="1" defaultValue={account.goldTpPoints} /></label>
+              <label>{tr("FX SL points", "Điểm SL FX")}<input name="fxSlPoints" type="number" min="1" step="1" required defaultValue={account.fxSlPoints} /></label>
+              <label>{tr("FX TP points", "Điểm TP FX")}<input name="fxTpPoints" type="number" min="1" step="1" required defaultValue={account.fxTpPoints} /></label>
+              <label>{tr("Gold SL points", "Điểm SL Gold")}<input name="goldSlPoints" type="number" min="1" step="1" required defaultValue={account.goldSlPoints} /></label>
+              <label>{tr("Gold TP points", "Điểm TP Gold")}<input name="goldTpPoints" type="number" min="1" step="1" required defaultValue={account.goldTpPoints} /></label>
               {account.provider === "ctrader" && account.manager && <>
                 <label><input name="managerEnabled" type="checkbox" defaultChecked={account.manager.managerEnabled} /> cTrader Auto Manager</label>
                 <label><input name="autoAttachSlTp" type="checkbox" defaultChecked={account.manager.autoAttachSlTp} /> {tr("Auto attach missing SL/TP", "Tự gắn SL/TP còn thiếu")}</label>
@@ -329,8 +329,8 @@ export function ProviderAccountsPanel() {
                 <label>{tr("Full close at R", "Đóng toàn bộ tại R")}<input name="closeAtR" type="number" min="0" step="0.1" defaultValue={account.manager.closeAtR} /></label>
                 <label>{tr("Partial R levels", "Các mức R partial")}<input name="partialRLevels" defaultValue={account.manager.partialRLevels.join(",")} placeholder="1,2" /></label>
                 <label>{tr("Partial %", "% partial")}<input name="partialPercents" defaultValue={account.manager.partialPercents.join(",")} placeholder={tr("50 or 50,25", "50 hoặc 50,25")} /></label>
-                <label>{tr("Max lot / entry", "Lot tối đa / lệnh")}<input name="maxLotPerTrade" type="number" min="0.01" step="0.01" defaultValue={account.manager.maxLotPerTrade} /></label>
-                <label>{tr("Max exposure / symbol", "Exposure tối đa / symbol")}<input name="maxExposurePerSymbol" type="number" min="0.01" step="0.01" defaultValue={account.manager.maxExposurePerSymbol} /></label>
+                <label>{tr("Max lot / entry", "Lot tối đa / lệnh")}<input name="maxLotPerTrade" type="number" min="0.01" step="0.01" required defaultValue={account.manager.maxLotPerTrade} /></label>
+                <label>{tr("Max exposure / symbol", "Exposure tối đa / symbol")}<input name="maxExposurePerSymbol" type="number" min="0.01" step="0.01" required defaultValue={account.manager.maxExposurePerSymbol} /></label>
               </>}
               <label><input name="makeDefault" type="checkbox" defaultChecked={account.isDefault} disabled={!account.enabled} /> {tr("Default account", "Tài khoản mặc định")}</label>
             </div>

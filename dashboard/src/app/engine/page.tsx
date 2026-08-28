@@ -1,6 +1,6 @@
 import { H1EngineBoard } from "@/components/H1EngineBoard";
 import { detectServerLocaleFromCookie } from "@/lib/i18n";
-import { getLatestH1Signals, maskFutureH1Signals } from "@/lib/h1-signals";
+import { readLatestH1Signals } from "@/lib/h1-signals";
 import { getVipAccessState, redactH1Signals } from "@/lib/vip";
 import { headers } from "next/headers";
 
@@ -14,12 +14,12 @@ export default async function EnginePage() {
   );
   const cookieHeader = headerList.get("cookie") || "";
   const access = getVipAccessState(cookieHeader);
-  const rawH1Data = maskFutureH1Signals(await getLatestH1Signals());
-  const h1Data = access.unlocked ? rawH1Data : redactH1Signals(rawH1Data);
+  const read = await readLatestH1Signals();
+  const h1Data = read.ok ? (access.unlocked ? read.data : redactH1Signals(read.data)) : null;
 
   return (
     <div className="page-shell terminal-page">
-      <H1EngineBoard h1Data={h1Data} locale={locale} access={access} />
+      <H1EngineBoard h1Data={h1Data} degraded={read.ok === false} locale={locale} access={access} />
     </div>
   );
 }
