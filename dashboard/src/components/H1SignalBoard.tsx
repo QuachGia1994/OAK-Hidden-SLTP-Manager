@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useDialogFocusTrap } from "@/hooks/useDialogFocusTrap";
 import { historyDatesForWeekday, selectHistoryDate } from "@/lib/h1-history-navigation";
-import { cycleDecisionFor } from "@/lib/h1-cloud-scanner";
+import { cycleDecisionFor, H1_SCAN_HOURS, H1_TARGET_BASES } from "@/lib/h1-cloud-scanner";
 import type { H1PatternKind, H1SignalAlert, H1SignalPayload } from "@/lib/h1-signals";
 
 type Locale = "EN" | "VN";
@@ -316,14 +316,50 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
       .finally(() => setShareBusy(false));
   };
 
-  if (!data) return (
-    <section className="oak-h1-board oak-h1-empty">
-      <div><span className="oak-eyebrow">H1 / LIVE</span><h2>{copy.title}</h2></div>
-      {degraded
-        ? <p className="oak-h1-degraded" role="alert">{locale === "EN" ? "H1 data storage is temporarily unavailable. Refreshing automatically…" : "Kho dữ liệu H1 tạm không khả dụng. Đang tự động làm mới…"}</p>
-        : <p>{copy.awaiting}</p>}
-    </section>
-  );
+  if (!data) {
+    // No live feed yet (storage degraded or awaiting) — still render the
+    // deterministic six-block post-signal phase for today (VN calendar day),
+    // highlighting the blocks whose post-signal is inverted, so the board
+    // stays useful without live data. Cells stay empty until the feed returns.
+    const matrixDate = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Ho_Chi_Minh",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    return (
+      <section className="oak-h1-board">
+        <header className="oak-h1-board-head">
+          <div><span className="oak-eyebrow">H1 / LIVE</span><h2>{copy.title}</h2><p>{copy.sub}</p></div>
+          <div className="oak-h1-meta">
+            <span><small>BROKER DAY</small><b>{matrixDate}</b></span>
+            <span><small>{locale === "EN" ? "PHASE BASIS" : "CƠ SỞ PHA"}</small><b>{locale === "EN" ? "today · VN time" : "hôm nay · giờ VN"}</b></span>
+          </div>
+        </header>
+        {!unlocked && <div className="oak-h1-locked">{copy.locked}</div>}
+        {degraded
+          ? <p className="oak-h1-degraded" role="alert">{locale === "EN" ? "H1 data storage is temporarily unavailable. Refreshing automatically…" : "Kho dữ liệu H1 tạm không khả dụng. Đang tự động làm mới…"}</p>
+          : <p className="oak-h1-awaiting">{copy.awaiting}</p>}
+        <div className="oak-h1-table-scroll lux-scroll">
+          <table className="oak-h1-table">
+            <thead><tr><th className="oak-h1-symbol-sticky">SYMBOL</th>{H1_SCAN_HOURS.map((hour) => {
+              const inverted = cycleDecisionFor("XAUUSD", matrixDate, hour).inverted;
+              return <th key={hour} data-post-signal-inverted={inverted ? "true" : undefined}><span>H{String(hour).padStart(2, "0")}</span>{inverted && <small className="oak-h1-block-invert-badge">{locale === "EN" ? "REVERSE" : "ĐẢO"}</small>}</th>;
+            })}</tr></thead>
+            <tbody>{H1_TARGET_BASES.map((base) => (
+              <tr key={base}><th className="oak-h1-symbol-sticky"><b>{base}</b></th>{H1_SCAN_HOURS.map((hour) => {
+                const inverted = cycleDecisionFor("XAUUSD", matrixDate, hour).inverted;
+                if (base.toUpperCase() === VIP_SIGNAL_SYMBOL && !unlocked) {
+                  return <td key={hour} data-post-signal-inverted={inverted ? "true" : undefined}><span className="oak-h1-cell-locked">VIP</span></td>;
+                }
+                return <td key={hour} data-post-signal-inverted={inverted ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>;
+              })}</tr>
+            ))}</tbody>
+          </table>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <>

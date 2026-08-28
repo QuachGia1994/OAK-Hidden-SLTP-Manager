@@ -367,6 +367,7 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-h1-empty h2 { margin-top: .15rem; font-size: .9rem; font-weight: 900; }
 .oak-h1-empty p { color: var(--oak-fg-muted); font-size: .7rem; }
 .oak-h1-degraded { color: var(--oak-status-warning) !important; font: 800 .58rem "Cascadia Mono", Consolas, monospace !important; letter-spacing: .02em; }
+.oak-h1-awaiting { padding: .55rem .75rem; border-bottom: 1px solid var(--oak-border-subtle); color: var(--oak-fg-muted); font-size: .7rem; }
 .oak-h1-table-scroll { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .oak-h1-table { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
 .oak-h1-table th, .oak-h1-table td { width: 4.8rem; min-width: 4.8rem; border-right: 1px solid var(--oak-border-subtle); border-bottom: 1px solid var(--oak-border-subtle); }
