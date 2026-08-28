@@ -12,8 +12,7 @@ import { createCloudIntent } from "@/lib/telegram-cloud-store";
 import { acquireH1CloudLock, loadH1CloudState, publishH1CloudState, releaseH1CloudLock, saveH1CloudState } from "@/lib/h1-cloud-store";
 import {
   H1_FIRST_SCAN_HOUR,
-  H1_SCAN_END_HOUR,
-  H1_SCAN_HOURS,
+  H1_SIGNAL_END_HOUR,
   H1_TARGET_BASES,
   backfillSuppressedHistory,
   brokerEntryDueAt,
@@ -102,16 +101,26 @@ function delay(ms: number) {
 function marketReadyForSlot(
   market: Awaited<ReturnType<typeof fetchCurrentBrokerDayMarket>>,
   brokerHour: number,
+  brokerMinute: number,
 ) {
   const expectedClosedHour = brokerHour - 1;
-  return targetsForBlockHour(brokerHour).every((base) =>
+  const blockReady = targetsForBlockHour(brokerHour).every((base) =>
     market.symbols[base].bars.some((bar) => bar.hour === expectedClosedHour),
   );
+
+  // H+2:00 signals need the candle opened at H-1:45; H+1:25 signals
+  // become decidable at H+1:15 and need the candle opened at H+1:00.
+  const signalSlotHour = brokerMinute < 15 ? brokerHour - 2 : brokerHour - 1;
+  const expectedClosedM15Minute = brokerHour * 60 + (brokerMinute < 15 ? -15 : 0);
+  const signalPairReady = targetsForBlockHour(signalSlotHour).every((base) =>
+    market.symbols[base].m15Bars.some((bar) => bar.minuteOfDay === expectedClosedM15Minute),
+  );
+  return blockReady && signalPairReady;
 }
 
-async function fetchReadyMarket(session: CTraderScannerSession, nowMs: number, brokerHour: number) {
+async function fetchReadyMarket(session: CTraderScannerSession, nowMs: number, brokerHour: number, brokerMinute: number) {
   let market = await fetchCurrentBrokerDayMarket(session, nowMs);
-  for (let attempt = 1; attempt < FINALIZE_RETRY_ATTEMPTS && !marketReadyForSlot(market, brokerHour); attempt += 1) {
+  for (let attempt = 1; attempt < FINALIZE_RETRY_ATTEMPTS && !marketReadyForSlot(market, brokerHour, brokerMinute); attempt += 1) {
     await delay(FINALIZE_RETRY_DELAY_MS);
     market = await fetchCurrentBrokerDayMarket(session, Date.now());
   }
@@ -136,9 +145,8 @@ export async function POST(request: Request) {
 
   const nowMs = Date.now();
   const wall = brokerWallParts(nowMs);
-  const activeSlot = (H1_SCAN_HOURS as readonly number[]).includes(wall.hour);
-  const recoveryOnly = !activeSlot && wall.weekday !== 0 && wall.weekday !== 6 && wall.hour === 5;
-  if (wall.weekday === 0 || wall.weekday === 6 || wall.hour < H1_FIRST_SCAN_HOUR || wall.hour > H1_SCAN_END_HOUR || (!activeSlot && !recoveryOnly)) {
+  const recoverySeedHour = wall.weekday !== 0 && wall.weekday !== 6 && wall.hour === 5;
+  if (wall.weekday === 0 || wall.weekday === 6 || wall.hour < H1_FIRST_SCAN_HOUR || wall.hour > H1_SIGNAL_END_HOUR) {
     return NextResponse.json({
       ok: true,
       enabled,
@@ -147,9 +155,7 @@ export async function POST(request: Request) {
         ? "broker-weekend"
         : wall.hour < H1_FIRST_SCAN_HOUR
           ? "before-first-slot"
-          : wall.hour > H1_SCAN_END_HOUR
-            ? "after-last-slot"
-            : "inactive-slot",
+          : "after-last-signal",
       brokerDate: wall.dateKey,
       brokerHour: wall.hour,
       brokerUtcOffsetHours: wall.utcOffsetHours,
@@ -163,8 +169,8 @@ export async function POST(request: Request) {
 
   try {
     const session = await loadH1CTraderSession();
-    const market = await fetchReadyMarket(session, nowMs, wall.hour);
-    if (!marketReadyForSlot(market, wall.hour)) {
+    const market = await fetchReadyMarket(session, nowMs, wall.hour, wall.minute);
+    if (!marketReadyForSlot(market, wall.hour, wall.minute)) {
       return NextResponse.json({
         ok: true,
         enabled,
@@ -178,31 +184,18 @@ export async function POST(request: Request) {
     }
     const { state, source } = await loadH1CloudState(market.brokerDate, market.brokerHour);
     let recoveryDaySeeded = false;
-    if (recoveryOnly && !state.days[market.brokerDate]) {
+    if (recoverySeedHour && !state.days[market.brokerDate]) {
       state.days[market.brokerDate] = { suppressedThroughHour: market.brokerHour, symbols: {} };
       recoveryDaySeeded = true;
     }
-    const recoveredSuppressedHistory = backfillSuppressedHistory(state, market.brokerDate, market.symbols) > 0;
+    const availableThroughMinute = market.brokerHour * 60 + market.brokerMinute;
+    const recoveredSuppressedHistory = backfillSuppressedHistory(
+      state,
+      market.brokerDate,
+      market.symbols,
+      availableThroughMinute,
+    ) > 0;
     let changed = recoveryDaySeeded || recoveredSuppressedHistory;
-    if (recoveryOnly) {
-      if (!dryRun) {
-        if (changed || source === "public-seed") await saveH1CloudState(state);
-        await publishH1CloudState(state);
-      }
-      return NextResponse.json({
-        ok: true,
-        enabled,
-        dryRun,
-        skipped: "inactive-slot",
-        recoveryOnly: true,
-        recoveredCurrentDay: changed,
-        stateSource: source,
-        brokerDate: market.brokerDate,
-        brokerHour: market.brokerHour,
-        brokerMinute: market.brokerMinute,
-        brokerUtcOffsetHours: market.brokerUtcOffsetHours,
-      }, { headers: { "Cache-Control": "no-store, max-age=0" } });
-    }
 
     const providerTarget = dryRun
       ? null
@@ -225,7 +218,7 @@ export async function POST(request: Request) {
         market.symbols[base].bars,
         market.symbols[base].m15Bars,
         market.brokerHour,
-        market.brokerHour * 60 + market.brokerMinute,
+        availableThroughMinute,
       );
       const { symbol: symbolState } = ensureSymbolDay(state, market.brokerDate, base);
       const delivered = deliveredSlots(symbolState.alerts);
@@ -262,7 +255,7 @@ export async function POST(request: Request) {
               tp: 0,
               legacyProfile: providerTarget.label,
               executionMode: TELEGRAM_CLOUD_EXECUTION_MODE,
-              strategy: "h1-m15-rule-44",
+              strategy: "h1-m15-rule-45",
               blockHour: alert.slotHour,
               patternKind: alert.patternKind,
             },

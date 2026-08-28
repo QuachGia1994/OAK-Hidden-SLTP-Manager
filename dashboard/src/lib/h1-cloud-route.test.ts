@@ -68,7 +68,7 @@ test("missing automation account never blocks signal persistence or the public t
   assert.match(route, /automationSkippedReason/);
   assert.doesNotMatch(route, /H1 scheduled intents require Telegram control and the enabled scanner cTrader account/);
   assert.ok(route.indexOf("if (automationReady)") < route.indexOf("symbolState.alerts.push(alert)"));
-  assert.match(route, /strategy: "h1-m15-rule-44"/);
+  assert.match(route, /strategy: "h1-m15-rule-45"/);
 });
 
 test("cTrader cloud scanner remains read-only even when shared OAuth has trading scope", () => {
@@ -82,17 +82,18 @@ test("cTrader cloud scanner remains read-only even when shared OAuth has trading
   assert.doesNotMatch(route, /placeCTraderMarketOrder|closeCTraderPositions|amendCTraderPositionProtection|NEW_ORDER_REQ|CLOSE_POSITION_REQ/);
 });
 
-test("live route uses the H3 H4 H6 H9 H12 H14 H16 grid with per-block symbol scopes", () => {
-  assert.match(route, /H1_SCAN_HOURS as readonly number\[\]\)\.includes\(wall\.hour\)/);
-  assert.match(route, /const recoveryOnly = !activeSlot[\s\S]*wall\.hour === 5/);
-  assert.match(route, /if \(recoveryOnly && !state\.days\[market\.brokerDate\]\)/);
+test("live route scans H3 H4 H6 H9 H12 H14 H16 and keeps entry refinements alive through H18", () => {
+  assert.match(route, /H1_SIGNAL_END_HOUR/);
+  assert.match(route, /wall\.hour > H1_SIGNAL_END_HOUR/);
+  assert.match(route, /const recoverySeedHour =[\s\S]*wall\.hour === 5/);
+  assert.match(route, /if \(recoverySeedHour && !state\.days\[market\.brokerDate\]\)/);
   assert.match(route, /suppressedThroughHour: market\.brokerHour/);
-  assert.match(route, /backfillSuppressedHistory[\s\S]*if \(recoveryOnly\)/);
-  assert.match(route, /recoveredCurrentDay: changed/);
-  assert.match(route, /"inactive-slot"/);
+  assert.match(route, /const availableThroughMinute = market\.brokerHour \* 60 \+ market\.brokerMinute/);
+  assert.match(route, /backfillSuppressedHistory\([\s\S]*availableThroughMinute/);
+  assert.match(route, /evaluateH1BlocksForTarget\([\s\S]*availableThroughMinute/);
+  assert.doesNotMatch(route, /if \(recoveryOnly\)|recoveryOnly: true/);
   assert.match(route, /targetsForBlockHour\(brokerHour\)\.every/);
   assert.match(route, /for \(const base of H1_TARGET_BASES\)/);
-  assert.match(route, /evaluateH1BlocksForTarget/);
   assert.match(route, /m15Counts/);
   assert.match(route, /brokerUtcOffsetHours/);
   assert.doesNotMatch(route, /audusdH3|baseSymbolForTargetSlot|scannerBaseForTarget/i);
@@ -148,6 +149,7 @@ test("Cloudflare Durable Object is primary H:00 timekeeper with retry-aware watc
   assert.match(timekeeperConfig, /"\* \* \* \* \*"/);
   assert.match(timekeeperConfig, /"1 \* \* \* \*"/);
   assert.match(timekeeperConfig, /"10 \* \* \* \*"/);
+  assert.match(timekeeperConfig, /"15 \* \* \* \*"/);
   assert.match(timekeeperConfig, /"30 \* \* \* \*"/);
   assert.match(timekeeperConfig, /"50 \* \* \* \*"/);
   assert.match(timekeeper, /async alarm\(alarmInfo\)/);
@@ -164,8 +166,10 @@ test("Cloudflare Durable Object is primary H:00 timekeeper with retry-aware watc
   assert.doesNotMatch(timekeeper, /DASHBOARD_API_KEY|UPSTASH_REDIS_REST_TOKEN|CTRADER_CLIENT_SECRET|TELEGRAM_TOKEN/);
 });
 
-test("GitHub scheduler is tertiary fallback for H:00, H:01 and H:30 phases and warms deploys", () => {
+test("GitHub scheduler is tertiary fallback for H:00, H:01, H:15 and H:30 phases and warms deploys", () => {
   assert.match(workflow, /cron: "1 \* \* \* \*"/);
+  assert.match(workflow, /cron: "15 \* \* \* \*"/);
+  assert.match(workflow, /scheduled_minute\" == \"15/);
   assert.match(workflow, /cron: "10 \* \* \* \*"/);
   assert.match(workflow, /cron: "30 \* \* \* \*"/);
   assert.match(workflow, /cron: "50 \* \* \* \*"/);
@@ -182,8 +186,11 @@ test("GitHub scheduler is tertiary fallback for H:00, H:01 and H:30 phases and w
   assert.match(route, /FINALIZE_RETRY_ATTEMPTS = 8/);
   assert.match(route, /FINALIZE_RETRY_DELAY_MS = 2_500/);
   assert.match(route, /marketReadyForSlot/);
+  assert.match(route, /expectedClosedM15Minute/);
+  assert.match(route, /market\.symbols\[base\]\.m15Bars/);
+  assert.match(route, /brokerMinute/);
   assert.match(route, /awaiting-closed-h1/);
-  assert.match(route, /after-last-slot/);
+  assert.match(route, /after-last-signal/);
   assert.match(workflow, /id-token: write/);
   assert.match(workflow, /ACTIONS_ID_TOKEN_REQUEST_URL/);
   assert.match(workflow, /audience=oak-h1-cloud-scanner/);

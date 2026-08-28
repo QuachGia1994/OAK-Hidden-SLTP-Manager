@@ -13,7 +13,7 @@ function h1Bars(date: string): H1DirectionBar[] {
 }
 
 function m15Bars(date: string, direction: H1Direction = "T"): H1M15Bar[] {
-  return Array.from({ length: 68 }, (_, index) => {
+  return Array.from({ length: 72 }, (_, index) => {
     const minuteOfDay = 15 * index;
     return {
       brokerDate: date,
@@ -45,20 +45,21 @@ test("historical reconstruction applies the block schedule, M15 engine and XAU c
   assert.deepEqual(gold.map((alert) => alert.slotHour), [4, 6, 9, 12, 14, 16]);
   assert.deepEqual(fx.map((alert) => alert.slotHour), [3, 6, 9, 12, 14, 16]);
 
-  // All-T M15 extends every window to Pattern 5. Pattern 5 inverts its
-  // post-block H:15 BUY base and enters two hours after the block.
+  // All-T M15 extends every window to Pattern 5. Entry-relative TT keeps
+  // candle 1 and enters two hours after the block.
   for (const alert of [...gold, ...fx]) {
     assert.equal(alert.patternKind, "pattern5");
-    assert.equal(alert.m15PairInverted, true);
+    assert.equal(alert.m15Pair, "TT");
+    assert.equal(alert.m15PairInverted, false);
     assert.equal(alert.entryOffsetMinutes, 120);
     assert.equal(alert.baseSymbol, alert.symbol === "XAUUSD" ? "XAUUSD" : "GBPUSD");
   }
   assert.deepEqual(gold.map((alert) => alert.entryTime), ["06:00", "08:00", "11:00", "14:00", "16:00", "18:00"]);
 
-  // Pattern 5 flips BUY to SELL. The Monday XAU cycle remains visual
-  // metadata only, so gold and FX both stay SELL.
-  assert.ok(gold.every((alert) => alert.postSignalRule === "mon-cycle" && !alert.postSignalInverted && alert.symbolH1Signal === "SELL"));
-  assert.ok(fx.every((alert) => alert.postSignalRule === "none" && alert.symbolH1Signal === "SELL"));
+  // Entry-relative TT keeps BUY. The Monday XAU cycle remains visual
+  // metadata only, so gold and FX both stay BUY.
+  assert.ok(gold.every((alert) => alert.postSignalRule === "mon-cycle" && !alert.postSignalInverted && alert.symbolH1Signal === "BUY"));
+  assert.ok(fx.every((alert) => alert.postSignalRule === "none" && alert.symbolH1Signal === "BUY"));
 });
 
 test("historical days without M15 coverage yield no alerts instead of wrong signals", () => {

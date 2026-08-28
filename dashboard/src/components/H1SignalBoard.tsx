@@ -76,7 +76,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   ctx.fillText(locale === "EN" ? "H1 Intraday Signals" : "Tín hiệu H1 trong ngày", padding + 22, padding + 66);
   ctx.fillStyle = colors.muted;
   ctx.font = `700 15px ${H1_SHARE_FONT}`;
-  ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  ${locale === "EN" ? "Post-block M15 signal engine" : "Signal M15 sau block"}`, padding + 22, padding + 96);
+  ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  ${locale === "EN" ? "Entry-time M15 pair signal" : "Signal theo cặp M15 trước entry"}`, padding + 22, padding + 96);
 
   const tableX = padding;
   const tableY = padding + titleHeight;
@@ -204,9 +204,9 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
   const baseDetail = alert.baseSignal
     ? `${alert.baseSignal}${alert.baseHour !== null ? ` · H${String(alert.baseHour).padStart(2, "0")}:${String(alert.baseMinute ?? 0).padStart(2, "0")}=${alert.baseDirection || "—"}` : ""}`
     : "—";
-  const patternVerdict = alert.m15PairInverted
-    ? { EN: "pattern reverses M15 base", VN: "pattern đảo base M15" }
-    : { EN: "pattern keeps M15 base", VN: "pattern giữ base M15" };
+  const signalPairVerdict = alert.m15PairInverted
+    ? { EN: "different directions, reverse candle 1", VN: "khác hướng, đảo cây 1" }
+    : { EN: "same direction, keep candle 1", VN: "cùng hướng, giữ cây 1" };
 
   return (
     <div className="oak-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
@@ -222,17 +222,13 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
         </div>
         <div className="oak-h1-explain">
           <p><span>{locale === "EN" ? "Pattern group" : "Nhóm pattern"}</span><b>{patternLabel(alert.patternKind, locale)}</b></p>
+          <p><span>{`${locale === "EN" ? "Entry-relative M15 base" : "Base M15 trước entry"} · ${alert.baseSymbol}`}</span><b>{baseDetail}</b></p>
+          <p><span>{locale === "EN" ? `Entry signal pair ${alert.m15Pair || "—"}` : `Cặp signal trước entry ${alert.m15Pair || "—"}`}</span><b>{signalPairVerdict[locale]}</b></p>
           <p><span>{alert.patternKind === "pattern6"
-            ? `${locale === "EN" ? "P6 candle 5 base" : "Base cây thứ 5 P6"} · ${alert.baseSymbol}`
-            : alert.patternKind === "pattern1" || alert.patternKind === "pattern3" || alert.patternKind === "pattern4"
-              ? `${locale === "EN" ? "Pattern candle 3 base" : "Base cây thứ 3 pattern"} · ${alert.baseSymbol}`
-              : `${locale === "EN" ? "Post-block M15 base" : "Base M15 sau block"} · ${alert.baseSymbol}`}</span><b>{baseDetail}</b></p>
-          <p><span>{alert.patternKind === "pattern6"
-            ? (locale === "EN" ? `M15 pair candles 5–6 ${alert.m15Pair || "—"}` : `Cặp M15 cây 5–6 ${alert.m15Pair || "—"}`)
-            : (locale === "EN" ? `Pre-block M15 pair ${alert.m15Pair || "—"}` : `Cặp M15 trước block ${alert.m15Pair || "—"}`)}</span><b>{alert.patternKind === "pattern6"
+            ? (locale === "EN" ? `P6 entry pair 5–6 ${alert.patternPair || "—"}` : `Cặp entry P6 cây 5–6 ${alert.patternPair || "—"}`)
+            : (locale === "EN" ? `Pattern selector pair ${alert.patternPair || "—"}` : `Cặp chọn pattern ${alert.patternPair || "—"}`)}</span><b>{alert.patternKind === "pattern6"
             ? (locale === "EN" ? "selects H+2:00 or H+1:25 entry" : "chọn entry H+2:00 hoặc H+1:25")
             : (locale === "EN" ? "selects pattern window only" : "chỉ chọn cửa sổ pattern")}</b></p>
-          <p><span>{locale === "EN" ? "Pattern action" : "Tác động pattern"}</span><b>{patternVerdict[locale]}</b></p>
           <p><span>{locale === "EN" ? "Entry time" : "Giờ entry"}</span><b>{alert.entryTime ? `${alert.entryTime} (+${alert.entryOffsetMinutes ?? "?"}p)` : "—"}</b></p>
           <p><span>{locale === "EN" ? "Post-signal" : "Hậu signal"}</span><b>{postSignalLabel(alert.postSignalRule, alert.postSignalInverted, locale)}</b></p>
           <p><span>{locale === "EN" ? `Signal ${base} H1` : `Signal ${base} H1`}</span><b data-side={alert.signal?.toLowerCase()}>{alert.signal}</b></p>
@@ -260,7 +256,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
   const copy = locale === "EN"
     ? {
         title: "H1 Intraday Signals",
-        sub: "M15 signal base · P1/P4 keep candle 3 · P3 reverses candle 3 · P5 reverse · P6 keeps candle 5 · weekday rules",
+        sub: "Entry :00/:25 · same M15 pair keeps candle 1 · alternating pair reverses candle 1 · weekday rules",
         awaiting: "Awaiting H1 live feed",
         locked: "VIP weekday signals are locked",
         weekdayGroup: "Filter by weekday",
@@ -271,7 +267,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
       }
     : {
         title: "Tín hiệu H1 trong ngày",
-        sub: "Base M15 · P1/P4 giữ cây thứ 3 · P3 đảo cây thứ 3 · P5 đảo · P6 giữ cây thứ 5 · hậu signal theo thứ",
+        sub: "Entry :00/:25 · cặp M15 cùng hướng giữ cây 1 · khác hướng đảo cây 1 · hậu signal theo thứ",
         awaiting: "Đang chờ feed H1 live",
         locked: "Tín hiệu H1 ngày thường đang khóa VIP",
         weekdayGroup: "Lọc theo thứ",

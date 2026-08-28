@@ -2,7 +2,7 @@ const HOUR_MS = 60 * 60 * 1000;
 const SCANNER_URL = "https://www.oakgatekeeper.uk/api/h1-scanner/run";
 const TELEGRAM_TICK_URL = "https://www.oakgatekeeper.uk/api/telegram/tick";
 const TELEGRAM_CRON = "* * * * *";
-const SCANNER_FOLLOW_UP_CRONS = new Set(["1 * * * *", "30 * * * *"]);
+const SCANNER_FOLLOW_UP_CRONS = new Set(["1 * * * *", "15 * * * *", "30 * * * *"]);
 const INTERNAL_NAME = "primary";
 const RETRYABLE_SKIPS = new Set(["already-running", "awaiting-closed-h1", "disabled"]);
 

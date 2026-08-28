@@ -20,6 +20,7 @@ test("scanner retry policy retries concurrency and unfinalized H1 outcomes", () 
 test("scanner phases make every minute tick also heal a missed H1 alarm", () => {
   assert.equal(scannerScheduleMode("* * * * *"), "telegram-watchdog");
   assert.equal(scannerScheduleMode("1 * * * *"), "follow-up");
+  assert.equal(scannerScheduleMode("15 * * * *"), "follow-up");
   assert.equal(scannerScheduleMode("30 * * * *"), "follow-up");
   assert.equal(scannerScheduleMode("10 * * * *"), "watchdog");
   assert.equal(scannerScheduleMode("50 * * * *"), "watchdog");

@@ -4,6 +4,7 @@ on:
   schedule:
     - cron: "1 * * * *"
     - cron: "10 * * * *"
+    - cron: "15 * * * *"
     - cron: "30 * * * *"
     - cron: "50 * * * *"
   push:
@@ -61,7 +62,7 @@ jobs:
           now="$(date -u +%s)"
           minute="$(date -u +%M)"
           scheduled_minute="${SCHEDULE_EXPR%% *}"
-          if [[ "$scheduled_minute" == "1" || "$scheduled_minute" == "30" ]]; then
+          if [[ "$scheduled_minute" == "1" || "$scheduled_minute" == "15" || "$scheduled_minute" == "30" ]]; then
             exit 0
           fi
           if (( 10#$minute < 10#$scheduled_minute )); then
