@@ -199,20 +199,9 @@ export async function POST(request: Request) {
     ) > 0;
     let changed = recoveryDaySeeded || recoveredSuppressedHistory;
 
-    const providerTarget = dryRun
-      ? null
-      : (await listProviderAccounts()).find((account) => account.id === cTraderProviderAccountId(session.accountId) && account.enabled && account.provider === "ctrader") || null;
-    const automationReady = !dryRun && Boolean(cloudConfig?.telegramControlEnabled && providerTarget);
-    const automationSkippedReason = dryRun
-      ? "dry-run"
-      : !cloudConfig?.telegramControlEnabled
-        ? "telegram-control-disabled"
-        : !providerTarget
-          ? "enabled-scanner-account-missing"
-          : null;
-
-    const pending: RunSummary[] = [];
-    let sent = 0;
+    // Block reminders are deliberately independent from provider-account automation.
+    // A missing cTrader account may skip hẹn giờ entries, but must not suppress
+    // the human-readable hậu-signal reminder.
     let blockReminderSent = false;
     const telegramConfigured = Boolean(!dryRun && cloudConfig?.telegramToken && cloudConfig?.telegramChatId);
     const isScheduledBlock = (H1_SCAN_HOURS as readonly number[]).includes(market.brokerHour);
@@ -229,6 +218,21 @@ export async function POST(request: Request) {
         }
       }
     }
+
+    const providerTarget = dryRun
+      ? null
+      : (await listProviderAccounts()).find((account) => account.id === cTraderProviderAccountId(session.accountId) && account.enabled && account.provider === "ctrader") || null;
+    const automationReady = !dryRun && Boolean(cloudConfig?.telegramControlEnabled && providerTarget);
+    const automationSkippedReason = dryRun
+      ? "dry-run"
+      : !cloudConfig?.telegramControlEnabled
+        ? "telegram-control-disabled"
+        : !providerTarget
+          ? "enabled-scanner-account-missing"
+          : null;
+
+    const pending: RunSummary[] = [];
+    let sent = 0;
 
     for (const base of H1_TARGET_BASES) {
       const evaluations = evaluateH1BlocksForTarget(
