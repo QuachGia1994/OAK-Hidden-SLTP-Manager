@@ -4,7 +4,6 @@ import { readFileSync } from "node:fs";
 
 const readerSource = readFileSync(new URL("./h1-signals.ts", import.meta.url), "utf8");
 const boardSource = readFileSync(new URL("../components/H1SignalBoard.tsx", import.meta.url), "utf8");
-const entryFocusSource = readFileSync(new URL("../components/H1EntryFocus.tsx", import.meta.url), "utf8");
 const redesignCss = readFileSync(new URL("../app/oak-redesign.css", import.meta.url), "utf8");
 const vipSource = readFileSync(new URL("./vip.ts", import.meta.url), "utf8");
 const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.meta.url), "utf8");
@@ -37,7 +36,6 @@ test("H1 cells publish only the scheduled BUY/SELL side", () => {
   assert.match(boardSource, /oak-h1-cell-signal/);
   assert.match(boardSource, /data-side=\{side\.toLowerCase\(\)\}/);
   assert.match(boardSource, /cycleDecisionFor\("XAUUSD", date, hour\)/);
-  assert.match(entryFocusSource, /oak-entry-focus-block/);
   assert.doesNotMatch(boardSource, /alert\.signal|alert\.baseSignal/);
   assert.doesNotMatch(boardSource, /P\{alert\.patternKind\.slice\(-1\)\}|ENTRY \{alert\.entryTime\}/);
   assert.match(redesignCss, /\.oak-h1-cell-signal\[data-side="buy"\]/);
@@ -51,12 +49,11 @@ test("H1 table sizes itself from the active columns instead of the legacy wide g
   assert.doesNotMatch(redesignCss, /\.oak-h1-table \{[^}]*min-width: 79rem;/);
 });
 
-test("H1 entry focus keeps the active workspace compact and makes locked state useful", () => {
-  assert.match(boardSource, /H1EntryFocus/);
-  assert.match(boardSource, /oak-h1-locked-preview/);
-  assert.match(redesignCss, /\.oak-engine-screen \{[\s\S]*width: min\(100%, 1080px\)/);
-  assert.match(redesignCss, /\.oak-entry-focus-grid \{[\s\S]*repeat\(4, minmax\(0, 1fr\)\)/);
-  assert.match(redesignCss, /\.oak-entry-focus-card \{[\s\S]*min-height/);
+test("H1 board omits the separate Entry Focus panel", () => {
+  assert.doesNotMatch(boardSource, /H1EntryFocus|oak-entry-focus/);
+  assert.match(boardSource, /oak-h1-history/);
+  assert.match(boardSource, /oak-h1-table/);
+  assert.doesNotMatch(redesignCss, /\.oak-entry-focus/);
 });
 
 test("temporary free VIP exposes H1 blocks to every visitor", () => {

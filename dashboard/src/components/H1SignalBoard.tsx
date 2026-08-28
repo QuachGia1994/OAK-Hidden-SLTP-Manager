@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useDialogFocusTrap } from "@/hooks/useDialogFocusTrap";
-import { H1EntryFocus } from "@/components/H1EntryFocus";
 import { historyDatesForWeekday, selectHistoryDate, type H1HistoryWeekdayFilter } from "@/lib/h1-history-navigation";
 import { cycleDecisionFor } from "@/lib/h1-cloud-scanner";
 import type { H1PatternKind, H1SignalAlert, H1SignalPayload } from "@/lib/h1-signals";
@@ -348,7 +347,6 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
           </div>
         </header>
         {!unlocked && <div className="oak-h1-locked">{copy.locked}</div>}
-        {unlocked && date && <H1EntryFocus data={data} date={date} locale={locale} onSelect={(base, alert) => setSelection({ base, date, alert })} />}
         <div className="oak-h1-history">
           <div className="oak-h1-history-row">
             <span className="oak-h1-history-label">{copy.weekdayGroup}</span>
