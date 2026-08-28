@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useDialogFocusTrap } from "@/hooks/useDialogFocusTrap";
 import { H1EntryFocus } from "@/components/H1EntryFocus";
 import { historyDatesForWeekday, selectHistoryDate, type H1HistoryWeekdayFilter } from "@/lib/h1-history-navigation";
+import { cycleDecisionFor } from "@/lib/h1-cloud-scanner";
 import type { H1PatternKind, H1SignalAlert, H1SignalPayload } from "@/lib/h1-signals";
 
 type Locale = "EN" | "VN";
@@ -60,8 +61,8 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     text: "#f4f7fb",
     muted: "#8fa2b8",
     accent: "#4b8cff",
-    buy: "#15c98b",
-    sell: "#ff626e",
+    warning: "#e6a648",
+    warningSurface: "#2d2417",
   };
 
   ctx.fillStyle = colors.bg;
@@ -74,7 +75,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   ctx.fillText("OAK GATEKEEPER · H1 SCANNER", padding + 22, padding + 30);
   ctx.fillStyle = colors.text;
   ctx.font = `900 28px ${H1_SHARE_FONT}`;
-  ctx.fillText(locale === "EN" ? "H1 Intraday Signals" : "Tín hiệu H1 trong ngày", padding + 22, padding + 66);
+  ctx.fillText(locale === "EN" ? "H1 Block Schedule" : "Lịch block H1 trong ngày", padding + 22, padding + 66);
   ctx.fillStyle = colors.muted;
   ctx.font = `700 15px ${H1_SHARE_FONT}`;
   ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  ${locale === "EN" ? "Entry uses H1 candle one hour before" : "Entry dùng cây H1 trước một giờ"}`, padding + 22, padding + 96);
@@ -97,7 +98,14 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
 
   drawCentered("SYMBOL", tableX, tableY, H1_SHARE_SYMBOL_WIDTH, headerHeight, colors.muted, `850 14px ${H1_SHARE_FONT}`);
   data.hours.forEach((hour, index) => {
-    drawCentered(`H${String(hour).padStart(2, "0")}`, tableX + H1_SHARE_SYMBOL_WIDTH + index * H1_SHARE_HOUR_WIDTH, tableY, H1_SHARE_HOUR_WIDTH, headerHeight, colors.muted, `850 14px ${H1_SHARE_FONT}`);
+    const inverted = cycleDecisionFor("XAUUSD", date, hour).inverted;
+    const x = tableX + H1_SHARE_SYMBOL_WIDTH + index * H1_SHARE_HOUR_WIDTH;
+    if (inverted) {
+      ctx.fillStyle = colors.warningSurface;
+      ctx.fillRect(x, tableY, H1_SHARE_HOUR_WIDTH, headerHeight);
+    }
+    drawCentered(`H${String(hour).padStart(2, "0")}`, x, tableY, H1_SHARE_HOUR_WIDTH, headerHeight - (inverted ? 12 : 0), inverted ? colors.warning : colors.muted, `850 14px ${H1_SHARE_FONT}`);
+    if (inverted) drawCentered(locale === "EN" ? "REVERSE" : "ĐẢO", x, tableY + headerHeight - 16, H1_SHARE_HOUR_WIDTH, 16, colors.warning, `850 8px ${H1_SHARE_FONT}`);
   });
 
   for (let col = 0; col <= data.hours.length; col += 1) {
@@ -112,8 +120,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   data.symbols.forEach((base, rowIndex) => {
     const y = tableY + headerHeight + rowIndex * H1_SHARE_ROW_HEIGHT;
     const symbolState = day.symbols?.[base];
-    const postSignalInverted = (symbolState?.alerts ?? []).some((alert) => alert.postSignalInverted === true);
-    ctx.fillStyle = postSignalInverted ? colors.raised : (rowIndex % 2 === 0 ? colors.panel : colors.bg);
+    ctx.fillStyle = rowIndex % 2 === 0 ? colors.panel : colors.bg;
     ctx.fillRect(tableX, y, tableWidth, H1_SHARE_ROW_HEIGHT);
     ctx.beginPath();
     ctx.moveTo(tableX, y);
@@ -125,9 +132,14 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     data.hours.forEach((hour, hourIndex) => {
       const x = tableX + H1_SHARE_SYMBOL_WIDTH + hourIndex * H1_SHARE_HOUR_WIDTH;
       const alert = byHour.get(hour);
-      if (alert?.signal) {
-        const sideColor = alert.signal === "BUY" ? colors.buy : colors.sell;
-        drawCentered(alert.signal, x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT, sideColor, `950 17px ${H1_SHARE_FONT}`);
+      const inverted = cycleDecisionFor("XAUUSD", date, hour).inverted;
+      if (inverted) {
+        ctx.fillStyle = colors.warningSurface;
+        ctx.fillRect(x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT);
+      }
+      if (alert) {
+        drawCentered(`P${alert.patternKind.slice(-1)}`, x, y + 4, H1_SHARE_HOUR_WIDTH, 34, colors.accent, `950 16px ${H1_SHARE_FONT}`);
+        drawCentered(`ENTRY ${alert.entryTime}`, x, y + 43, H1_SHARE_HOUR_WIDTH, 26, colors.muted, `800 10px ${H1_SHARE_FONT}`);
       } else {
         drawCentered("—", x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT, colors.muted, `700 16px ${H1_SHARE_FONT}`);
       }
@@ -188,28 +200,19 @@ function postSignalLabel(rule: H1SignalAlert["postSignalRule"], inverted: boolea
   return labels[rule][locale];
 }
 
-function postSignalDecisionForSymbol(day: H1SignalPayload["days"][string] | undefined, base: string) {
-  const alert = (day?.symbols?.[base]?.alerts ?? []).find((candidate) =>
-    candidate.postSignalRule === "cycle-net-invert"
-    || candidate.postSignalRule === "cycle-net-keep"
-    || candidate.postSignalRule === "regular-net-invert"
-    || candidate.postSignalRule === "regular-net-keep"
-  );
-  return alert ? { rule: alert.postSignalRule, inverted: alert.postSignalInverted === true } : null;
-}
 
 function DetailModal({ selection, locale, onClose }: { selection: Selection; locale: Locale; onClose: () => void }) {
   const ref = useDialogFocusTrap(true, onClose);
   const { base, date, alert } = selection;
   const entryH1Detail = alert.baseDirection
-    ? `${alert.baseSignal || "—"} · H${String(alert.baseHour ?? "?").padStart(2, "0")}:00 · ${alert.baseDirection === "T" ? (locale === "EN" ? "bullish" : "tăng") : (locale === "EN" ? "bearish" : "giảm")}`
+    ? `H${String(alert.baseHour ?? "?").padStart(2, "0")}:00 · ${locale === "EN" ? "base candle captured" : "đã chốt cây base"}`
     : "—";
 
   return (
     <div className="oak-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section ref={ref} className="oak-h1-detail-modal" role="dialog" aria-modal="true" aria-label={`${base} H1 detail`}>
+      <section ref={ref} className="oak-h1-detail-modal" role="dialog" aria-modal="true" aria-label={`${base} H1 block detail`}>
         <header className="oak-modal-header">
-          <div><span className="oak-eyebrow">H1 SIGNAL DETAIL</span><h2>{base} · H{String(alert.slotHour).padStart(2, "0")}</h2><p>{locale === "EN" ? "Intraday scanner pattern" : "Pattern scanner H1 trong ngày"}</p></div>
+          <div><span className="oak-eyebrow">H1 BLOCK DETAIL</span><h2>{base} · H{String(alert.slotHour).padStart(2, "0")}</h2><p>{locale === "EN" ? "Intraday pattern block" : "Block pattern H1 trong ngày"}</p></div>
           <button type="button" onClick={onClose} aria-label="Close">×</button>
         </header>
         <div className="oak-h1-detail-grid">
@@ -228,7 +231,6 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
             : (locale === "EN" ? "selects pattern window only" : "chỉ chọn cửa sổ pattern")}</b></p>
           <p><span>{locale === "EN" ? "Entry time" : "Giờ entry"}</span><b>{alert.entryTime ? `${alert.entryTime} (+${alert.entryOffsetMinutes ?? "?"}p)` : "—"}</b></p>
           <p><span>{locale === "EN" ? "Post-signal" : "Hậu signal"}</span><b>{postSignalLabel(alert.postSignalRule, alert.postSignalInverted, locale)}</b></p>
-          <p><span>{locale === "EN" ? `Signal ${base} H1` : `Signal ${base} H1`}</span><b data-side={alert.signal?.toLowerCase()}>{alert.signal}</b></p>
         </div>
       </section>
     </div>
@@ -251,10 +253,10 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
   const latestDate = allDates[0] || "";
   const copy = locale === "EN"
     ? {
-        title: "H1 Intraday Signals",
+        title: "H1 Block Schedule",
         sub: "Pattern entry · H1 candle one hour before entry · six-block weekday phases",
         awaiting: "Awaiting H1 live feed",
-        locked: "VIP weekday signals are locked",
+        locked: "VIP weekday H1 blocks are locked",
         weekdayGroup: "Filter by weekday",
         dateGroup: "Broker date",
         noMatch: "No retained broker dates match this weekday.",
@@ -262,10 +264,10 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
         filters: { all: "All", mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri" } as const,
       }
     : {
-        title: "Tín hiệu H1 trong ngày",
+        title: "Lịch block H1 trong ngày",
         sub: "Entry theo pattern · lấy cây H1 trước entry một giờ · hậu signal theo 6 block/thứ",
         awaiting: "Đang chờ feed H1 live",
-        locked: "Tín hiệu H1 ngày thường đang khóa VIP",
+        locked: "Block H1 ngày thường đang khóa VIP",
         weekdayGroup: "Lọc theo thứ",
         dateGroup: "Ngày broker",
         noMatch: "Không có ngày broker trong khoảng lưu trữ khớp bộ lọc này.",
@@ -312,7 +314,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
     const file = new File([shareArtifact.blob], filename, { type: "image/png", lastModified: Date.now() });
     const shareData: ShareData = {
       files: [file],
-      title: locale === "EN" ? "OAK H1 Intraday Signals" : "OAK · Tín hiệu H1 trong ngày",
+      title: locale === "EN" ? "OAK H1 Block Schedule" : "OAK · Lịch block H1 trong ngày",
       text: `${shareArtifact.date} · oakgatekeeper.uk`,
     };
     const canShareFile = typeof navigator.share === "function" && typeof navigator.canShare === "function" && navigator.canShare(shareData);
@@ -372,20 +374,21 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
           </div>
           <p className="oak-h1-history-coverage">{copy.coverage}</p>
         </div>
-        {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : !unlocked ? <div className="oak-h1-locked-preview"><span className="oak-h1-locked-preview-icon">◈</span><div><b>{locale === "EN" ? "Signals hidden behind VIP" : "Tín hiệu đang ẩn sau VIP"}</b><p>{locale === "EN" ? "Use the VIP control above to reveal BUY/SELL, entry time and post-signal rules." : "Dùng nút Mở VIP phía trên để xem BUY/SELL, entry time và hậu signal."}</p></div></div> : <div className="oak-h1-table-scroll lux-scroll">
+        {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : !unlocked ? <div className="oak-h1-locked-preview"><span className="oak-h1-locked-preview-icon">◈</span><div><b>{locale === "EN" ? "H1 blocks hidden behind VIP" : "Block H1 đang ẩn sau VIP"}</b><p>{locale === "EN" ? "Use the VIP control above to reveal H1 blocks, entry times and post-signal rules." : "Dùng nút Mở VIP phía trên để xem block H1, entry time và hậu signal."}</p></div></div> : <div className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
-            <thead><tr><th className="oak-h1-symbol-sticky">SYMBOL</th>{data.hours.map((hour) => <th key={hour}>H{String(hour).padStart(2, "0")}</th>)}</tr></thead>
+            <thead><tr><th className="oak-h1-symbol-sticky">SYMBOL</th>{data.hours.map((hour) => {
+              const postSignalInverted = cycleDecisionFor("XAUUSD", date, hour).inverted;
+              return <th key={hour} data-post-signal-inverted={postSignalInverted ? "true" : undefined}><span>H{String(hour).padStart(2, "0")}</span>{postSignalInverted && <small className="oak-h1-block-invert-badge">{locale === "EN" ? "REVERSE" : "ĐẢO"}</small>}</th>;
+            })}</tr></thead>
             <tbody>{data.symbols.map((base) => {
               const symbolState = day?.symbols?.[base];
               const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
-              const postSignalDecision = postSignalDecisionForSymbol(day, base);
-              const postSignalInvertedRow = Boolean(postSignalDecision?.inverted);
-              const postSignalBadge = locale === "EN" ? "POST REVERSE" : "HẬU ĐẢO";
-              return <tr key={base} className={postSignalInvertedRow ? "oak-h1-post-invert-row" : undefined} data-post-signal-rule={postSignalInvertedRow ? postSignalDecision?.rule : undefined}><th className="oak-h1-symbol-sticky"><b>{base}</b>{postSignalInvertedRow && <small className="oak-h1-post-invert-badge">{postSignalBadge}</small>}</th>{data.hours.map((hour) => {
+              return <tr key={base}><th className="oak-h1-symbol-sticky"><b>{base}</b></th>{data.hours.map((hour) => {
+                const postSignalInverted = cycleDecisionFor("XAUUSD", date, hour).inverted;
                 const alert = byHour.get(hour);
-                if (!alert?.signal) return <td key={hour}><span className="oak-h1-cell-empty">—</span></td>;
+                if (!alert) return <td key={hour} data-post-signal-inverted={postSignalInverted ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>;
                 const pattern6Warning = alert.patternKind === "pattern6";
-                return <td key={hour} data-pattern-kind={alert.patternKind}><button className="oak-h1-signal-button" type="button" data-side={alert.signal.toLowerCase()} onClick={() => setSelection({ base, date, alert })}>{pattern6Warning && <small className="oak-h1-pattern6-warning">{locale === "EN" ? "⚠ DECIDE" : "⚠ TỰ QUYẾT"}</small>}<small className="oak-h1-pattern-badge">P{alert.patternKind.slice(-1)}</small><b>{alert.signal}</b><small className="oak-h1-entry-badge">{alert.entryTime}</small></button></td>;
+                return <td key={hour} data-pattern-kind={alert.patternKind} data-post-signal-inverted={postSignalInverted ? "true" : undefined}><button className="oak-h1-block-button" type="button" onClick={() => setSelection({ base, date, alert })} aria-label={`${base} H${String(hour).padStart(2, "0")} ${alert.entryTime}`}>{pattern6Warning && <small className="oak-h1-pattern6-warning">{locale === "EN" ? "⚠ DECIDE" : "⚠ TỰ QUYẾT"}</small>}<small className="oak-h1-pattern-badge">P{alert.patternKind.slice(-1)}</small><b className="oak-h1-block-label">H{String(hour).padStart(2, "0")}</b><small className="oak-h1-entry-badge">ENTRY {alert.entryTime}</small></button></td>;
               })}</tr>;
             })}</tbody>
           </table>

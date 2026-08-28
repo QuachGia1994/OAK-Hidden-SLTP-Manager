@@ -72,7 +72,7 @@ export function H1EntryFocus({
     const day = data.days[date];
     if (!day) return [];
     return data.symbols.flatMap((base) => (day.symbols?.[base]?.alerts ?? [])
-      .filter((alert) => Boolean(alert.signal))
+      .filter((alert) => Boolean(alert.entryTime))
       .map((alert) => ({ base, alert })))
       .sort((left, right) => (
         parseEntryMinutes(left.alert.entryTime) - parseEntryMinutes(right.alert.entryTime)
@@ -139,10 +139,10 @@ export function H1EntryFocus({
                 className="oak-entry-focus-card"
                 data-state={state}
                 onClick={() => onSelect(base, alert)}
-                aria-label={[base, alert.signal || "", alert.entryTime].join(" ")}
+                aria-label={[base, `H${String(alert.slotHour).padStart(2, "0")}`, alert.entryTime].join(" ")}
               >
                 <span className="oak-entry-focus-card-top"><b>{alert.symbol || base}</b><small>H{String(alert.slotHour).padStart(2, "0")} · {STATUS_LABELS[locale][state]}</small></span>
-                <strong data-side={alert.signal?.toLowerCase()}>{alert.signal || "—"}</strong>
+                <strong className="oak-entry-focus-block">H{String(alert.slotHour).padStart(2, "0")} · P{alert.patternKind.slice(-1)}</strong>
                 <span className="oak-entry-focus-card-meta">
                   <span>{copy.entry} <b>{alert.entryTime || "—"}</b></span>
                   <span>{copy.lot} <b>{entryLot(alert.symbol || base)}</b></span>
