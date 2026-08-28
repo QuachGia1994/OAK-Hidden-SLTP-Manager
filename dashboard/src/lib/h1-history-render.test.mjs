@@ -58,18 +58,14 @@ function alert(slotHour, signal = "BUY") {
     profile: "cTrader IcMarkets",
     baseSymbol: "XAUUSD",
     baseSignal: "BUY",
-    baseHour: slotHour,
-    baseMinute: 15,
+    baseHour: slotHour + 1,
+    baseMinute: 0,
     baseDirection: "T",
     m15Pair: "TT",
     m15PairInverted: false,
     m15Window: "TTTT",
     entryOffsetMinutes: 120,
     entryTime: `${String((slotHour + 2) % 24).padStart(2, "0")}:00`,
-    m5Open: 101,
-    m5Middle: 100.05,
-    m5Position: "above",
-    m5WindowCount: 20,
     signal,
     postSignalInverted: false,
     postSignalRule: "none",
@@ -79,8 +75,8 @@ function alert(slotHour, signal = "BUY") {
 function payload() {
   const dates = ["2025-12-29", "2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02", "2026-01-05", "2026-02-03"];
   return {
-    schemaVersion: 15,
-    signalRuleVersion: 47,
+    schemaVersion: 16,
+    signalRuleVersion: 49,
     profile: "cTrader IcMarkets",
     publishedAt: "2026-02-03T12:00:00.000Z",
     hours: [3, 4, 6, 9, 12, 14, 16],
@@ -101,8 +97,10 @@ test("H1 history controls render localized weekday labels, newest date and cover
   assert.match(en, /7 trading days/);
   assert.match(vn, /7 ngày giao dịch/);
   assert.match(en, /2025-12-29.*2026-02-03/);
-  assert.match(en, /aria-pressed="true"[^>]*>All</);
-  assert.ok(en.indexOf("2026-02-03") < en.indexOf("2026-01-05"));
+  assert.match(en, /type="date"[^>]*value="2026-02-03"/);
+  assert.match(vn, /type="date"[^>]*value="2026-02-03"/);
+  assert.match(en, /min="2025-12-29"/);
+  assert.match(en, /max="2026-02-03"/);
   for (const raw of ["weekday_all", "weekday_mon", "weekday_tue", "weekday_wed", "weekday_thu", "weekday_fri"]) assert.equal(en.includes(raw) || vn.includes(raw), false);
 });
 

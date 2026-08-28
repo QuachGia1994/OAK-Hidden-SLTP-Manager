@@ -172,6 +172,23 @@ export async function markDueNotification(task: CloudIntent, nowMs = Date.now())
   await appendTelegramAudit({ action: "intent_due_notified", taskId: task.id, kind: task.kind });
 }
 
+export async function markScheduledNotification(task: CloudIntent, nowMs = Date.now()): Promise<void> {
+  if (task.scheduledNotifiedAt) return;
+  task.scheduledNotifiedAt = nowMs;
+  await redis.hset(TASKS_KEY, { [String(task.id)]: JSON.stringify(task) });
+  await appendTelegramAudit({ action: "intent_scheduled_notified", taskId: task.id, kind: task.kind, dueAt: task.dueAt });
+}
+
+export async function normalizeCloudIntentLot(task: CloudIntent, lot: number): Promise<CloudIntent> {
+  if (!Number.isFinite(lot) || lot <= 0 || task.kind !== "entry") return task;
+  if (!(task.status === "approval_required" || task.status === "scheduled" || task.status === "approved")) return task;
+  if (Number(task.payload.lot) === lot) return task;
+  task.payload = { ...task.payload, lot };
+  await redis.hset(TASKS_KEY, { [String(task.id)]: JSON.stringify(task) });
+  await appendTelegramAudit({ action: "intent_lot_normalized", taskId: task.id, lot });
+  return task;
+}
+
 export async function approveCloudIntent(id: number, nowMs = Date.now()): Promise<CloudIntent | null> {
   const task = await getCloudIntent(id);
   if (!task || task.status !== "approval_required") return null;

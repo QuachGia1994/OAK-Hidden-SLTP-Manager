@@ -339,9 +339,14 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-h1-history { display: grid; gap: .48rem; padding: .6rem .75rem; border-bottom: 1px solid var(--oak-border-subtle); background: var(--oak-bg-surface); }
 .oak-h1-history-row { display: grid; grid-template-columns: 5.8rem minmax(0, 1fr); gap: .55rem; align-items: center; min-width: 0; }
 .oak-h1-history-label { color: var(--oak-fg-muted); font: 800 .46rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
-.oak-h1-history-options, .oak-h1-history-dates { display: flex; gap: .35rem; min-width: 0; }
+.oak-h1-history-options { display: flex; gap: .35rem; min-width: 0; }
 .oak-h1-history-options { flex-wrap: wrap; }
-.oak-h1-history-dates { overflow-x: auto; padding-bottom: .12rem; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+.oak-h1-calendar-picker { display: flex; align-items: center; gap: .45rem; min-width: 0; width: min(100%, 22rem); padding: .22rem .35rem .22rem .45rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-sm); background: var(--oak-bg-raised); }
+.oak-h1-calendar-icon { flex: 0 0 auto; color: var(--oak-accent-command); font-size: .9rem; line-height: 1; }
+.oak-h1-calendar-picker input { min-width: 0; flex: 0 1 11rem; height: 1.85rem; padding: .2rem .3rem; border: 0; border-radius: .35rem; color: var(--oak-fg-primary); background: transparent; font: 850 .58rem "Cascadia Mono", Consolas, monospace; color-scheme: light dark; }
+.oak-h1-calendar-picker input:focus-visible { outline: 2px solid var(--oak-accent-command); outline-offset: 1px; }
+.oak-h1-calendar-picker input::-webkit-calendar-picker-indicator { cursor: pointer; opacity: .8; filter: invert(65%) sepia(88%) saturate(1200%) hue-rotate(185deg); }
+.oak-h1-calendar-picker small { min-width: 0; overflow: hidden; color: var(--oak-fg-muted); font: 750 .46rem "Cascadia Mono", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
 .oak-h1-history-chip { flex: 0 0 auto; min-height: 1.9rem; padding: .3rem .52rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-sm); color: var(--oak-fg-muted); background: var(--oak-bg-raised); font: 800 .52rem "Cascadia Mono", Consolas, monospace; }
 .oak-h1-history-chip[aria-pressed="true"] { border-color: var(--oak-accent-command); color: var(--oak-accent-command); background: color-mix(in srgb, var(--oak-accent-command) 8%, var(--oak-bg-raised)); }
 .oak-h1-history-chip:focus-visible { outline: 2px solid var(--oak-accent-command); outline-offset: 2px; }

@@ -4,7 +4,7 @@ import { emptyCloudState, type H1Base, type H1Direction, type H1DirectionBar, ty
 import { mergeHistoricalBackfill, reconstructHistoricalDays } from "./h1-history-backfill.ts";
 
 function h1Bars(date: string): H1DirectionBar[] {
-  return Array.from({ length: 17 }, (_, hour) => ({
+  return Array.from({ length: 18 }, (_, hour) => ({
     hour,
     brokerDate: date,
     brokerTime: `${date}T${String(hour).padStart(2, "0")}:00`,
@@ -70,10 +70,16 @@ test("historical reconstruction applies the block schedule, M15 engine and XAU c
   }
   assert.deepEqual(gold.map((alert) => alert.entryTime), ["06:00", "08:00", "11:00", "14:00", "16:00", "18:00"]);
 
-  // Entry M5 Open is above Middle(20). XAUUSD maps above to BUY while
-  // GBPUSD maps above to SELL. July cycle Monday keeps both net signals.
-  assert.ok(gold.every((alert) => alert.postSignalRule === "cycle-net-keep" && !alert.postSignalInverted && alert.symbolH1Signal === "BUY"));
-  assert.ok(fx.every((alert) => alert.postSignalRule === "cycle-net-keep" && !alert.postSignalInverted && alert.symbolH1Signal === "SELL"));
+  // All symbols use the H1 base direction directly. July cycle Monday
+  // inverts early/mid groups and keeps the late group.
+  assert.deepEqual(gold.map((alert) => [alert.postSignalRule, alert.symbolH1Signal]), [
+    ["cycle-net-invert", "SELL"], ["cycle-net-invert", "SELL"], ["cycle-net-invert", "SELL"],
+    ["cycle-net-keep", "BUY"], ["cycle-net-invert", "SELL"], ["cycle-net-keep", "BUY"],
+  ]);
+  assert.deepEqual(fx.map((alert) => [alert.postSignalRule, alert.symbolH1Signal]), [
+    ["cycle-net-invert", "SELL"], ["cycle-net-invert", "SELL"], ["cycle-net-invert", "SELL"],
+    ["cycle-net-keep", "BUY"], ["cycle-net-invert", "SELL"], ["cycle-net-keep", "BUY"],
+  ]);
 });
 
 test("historical days without M15 coverage yield no alerts instead of wrong signals", () => {

@@ -20,6 +20,7 @@ export type CloudIntent = {
   dueAt: number | null;
   dueText: string;
   dueNotifiedAt?: number;
+  scheduledNotifiedAt?: number;
   approvedAt?: number;
   executionStartedAt?: number;
   executionFinishedAt?: number;

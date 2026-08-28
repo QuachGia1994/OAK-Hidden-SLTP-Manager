@@ -10,17 +10,14 @@ const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.m
 const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
 const mobileH1RouteSource = readFileSync(new URL("../app/api/mobile/h1/route.ts", import.meta.url), "utf8");
 
-test("H1 web feed has schema-15 M5 Bollinger and net weekday contract", () => {
-  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 15/);
+test("H1 web feed has schema-16 H1 entry-base and six-block weekday contract", () => {
+  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 16/);
   assert.match(readerSource, /postSignalInverted/);
   assert.match(readerSource, /postSignalRule/);
   assert.match(readerSource, /entryTime/);
   assert.match(readerSource, /m15Pair/);
   assert.match(readerSource, /baseMinute/);
-  assert.match(readerSource, /m5Open/);
-  assert.match(readerSource, /m5Middle/);
-  assert.match(readerSource, /m5Position/);
-  assert.match(readerSource, /m5WindowCount/);
+  assert.doesNotMatch(readerSource, /m5Open|m5Middle|m5Position|m5WindowCount/);
   assert.match(readerSource, /robot-sltp:public:h1-signals:latest/);
   assert.match(readerSource, /payload\.schemaVersion !== H1_SIGNAL_PUBLIC_SCHEMA/);
   assert.match(readerSource, /maskFutureH1Signals\(parsePayload/);
@@ -49,6 +46,18 @@ test("H1 table sizes itself from the active columns instead of the legacy wide g
   assert.match(redesignCss, /\.oak-h1-table \{[^}]*width: max-content;[^}]*min-width: 100%;/);
   assert.match(redesignCss, /\.oak-h1-table th, \.oak-h1-table td \{[^}]*min-width: 4\.8rem;/);
   assert.doesNotMatch(redesignCss, /\.oak-h1-table \{[^}]*min-width: 79rem;/);
+});
+
+test("H1 history uses a native calendar picker while preserving weekday filtering", () => {
+  assert.match(boardSource, /className=\"oak-h1-calendar-picker\"/);
+  assert.match(boardSource, /type=\"date\"/);
+  assert.match(boardSource, /min=\{earliestDate \|\| undefined\}/);
+  assert.match(boardSource, /max=\{latestDate \|\| undefined\}/);
+  assert.match(boardSource, /onChange=\{\(event\) => chooseDate\(event\.currentTarget\.value\)\}/);
+  assert.match(boardSource, /matchingDates\.length/);
+  assert.match(redesignCss, /\.oak-h1-calendar-picker \{/);
+  assert.match(redesignCss, /calendar-picker-indicator/);
+  assert.doesNotMatch(boardSource, /oak-h1-history-dates/);
 });
 
 test("net post-signal reversal highlights each inverted symbol row", () => {
@@ -93,13 +102,12 @@ test("H1 board exports the selected scanner day as a shareable PNG with download
   assert.match(redesignCss, /\.oak-h1-share-png \{/);
 });
 
-test("H1 detail shows authoritative M5 Bollinger evidence while preserving pattern and entry metadata", () => {
+test("H1 detail shows authoritative entry H1 candle evidence while preserving pattern and entry metadata", () => {
   assert.doesNotMatch(boardSource, /<small>SYMBOL<\/small>|<small>PROFILE<\/small>|<small>SCAN<\/small>|SCANNER PATTERN|PATTERN SCANNER|Nguồn scanner|Pattern source/);
-  assert.match(boardSource, /Entry M5 Bollinger base/);
-  assert.match(boardSource, /Base Bollinger M5 tại entry/);
-  assert.match(boardSource, /m5Open/);
-  assert.match(boardSource, /m5Middle/);
-  assert.match(boardSource, /m5Position/);
+  assert.match(boardSource, /Entry H1 base candle/);
+  assert.match(boardSource, /Cây H1 base tại entry/);
+  assert.match(boardSource, /entryH1Detail/);
+  assert.match(boardSource, /baseDirection/);
   assert.match(boardSource, /pattern\/entry evidence only|chỉ là bằng chứng pattern\/entry/);
   assert.match(boardSource, /patternPair/);
   assert.match(boardSource, /Nhóm pattern/);
@@ -114,8 +122,8 @@ test("H1 detail shows authoritative M5 Bollinger evidence while preserving patte
   assert.match(boardSource, /cycle-net-keep/);
   assert.match(boardSource, /regular-net-invert/);
   assert.match(boardSource, /regular-net-keep/);
-  assert.match(boardSource, /M5 Open vs Middle\(20\)/);
-  assert.match(boardSource, /M5 Open so với Middle\(20\)/);
+  assert.match(boardSource, /H1 candle one hour before entry/);
+  assert.match(boardSource, /lấy cây H1 trước entry một giờ/);
   assert.doesNotMatch(boardSource, /xau-cycle|thu-gbpusd|tue-audusd|AllowTrade lookback|BLOCK|sw2|sw3Pure|sw3Normal|audusdH3|mon-block|tue-block|wed-block|invert-pattern|keep-pattern|Logic base|baseInverted/);
   assert.match(vipSource, /redactH1Signals/);
   assert.match(vipSource, /\{ \.\.\.symbol, alerts: \[\] \}/);

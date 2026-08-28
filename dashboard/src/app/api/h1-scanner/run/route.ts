@@ -8,12 +8,13 @@ import { loadH1CTraderSession } from "@/lib/h1-ctrader-session";
 import { cTraderProviderAccountId, providerProtectionPoints } from "@/lib/provider-account-domain";
 import { listProviderAccounts } from "@/lib/provider-accounts";
 import { TELEGRAM_CLOUD_EXECUTION_MODE } from "@/lib/telegram-cloud-domain";
-import { createCloudIntent } from "@/lib/telegram-cloud-store";
+import { createCloudIntent, markScheduledNotification, normalizeCloudIntentLot } from "@/lib/telegram-cloud-store";
 import { acquireH1CloudLock, loadH1CloudState, publishH1CloudState, releaseH1CloudLock, saveH1CloudState } from "@/lib/h1-cloud-store";
 import {
   H1_FIRST_SCAN_HOUR,
   H1_SIGNAL_END_HOUR,
   H1_TARGET_BASES,
+  h1AutoEntryLot,
   backfillSuppressedHistory,
   brokerEntryDueAt,
   buildStoredAlert,
@@ -33,7 +34,6 @@ const CF_TIMEKEEPER_TOKEN_HASH_KEY = "robot-sltp:cloud:h1-scanner:cf-timekeeper:
 const CF_TIMEKEEPER_HEADER = "x-h1-timekeeper-key";
 const FINALIZE_RETRY_ATTEMPTS = 8;
 const FINALIZE_RETRY_DELAY_MS = 2_500;
-const H1_AUTO_ENTRY_LOT = 0.03;
 
 type RunSummary = {
   base: string;
@@ -115,13 +115,7 @@ function marketReadyForSlot(
   const signalPairReady = targetsForBlockHour(signalSlotHour).every((base) =>
     market.symbols[base].m15Bars.some((bar) => bar.minuteOfDay === expectedClosedM15Minute),
   );
-  const expectedEntryMinute = brokerMinute < 15
-    ? brokerHour * 60
-    : brokerHour * 60 + 25;
-  const entryM5Ready = targetsForBlockHour(signalSlotHour).every((base) =>
-    market.symbols[base].m5Bars.some((bar) => bar.minuteOfDay === expectedEntryMinute),
-  );
-  return blockReady && signalPairReady && entryM5Ready;
+  return blockReady && signalPairReady;
 }
 
 async function fetchReadyMarket(session: CTraderScannerSession, nowMs: number, brokerHour: number, brokerMinute: number) {
@@ -233,18 +227,19 @@ export async function POST(request: Request) {
       for (let hour = 3; hour <= suppressedThrough; hour += 1) delivered.add(hour);
 
       for (const evaluation of evaluations) {
-        if (delivered.has(evaluation.slotHour)) continue;
+        const storedAlert = symbolState.alerts.find((item) => item.slotHour === evaluation.slotHour);
         const alert = buildStoredAlert({
           base,
           brokerSymbol: market.symbols[base].displayName || base,
           evaluation,
-          m5Bars: market.symbols[base].m5Bars,
+          h1Bars: market.symbols[base].bars,
         });
         if (!alert) continue;
         let intentId: number | null = null;
         let telegramMessage = buildTelegramMessage(base, market.brokerDate, alert);
         if (automationReady) {
           if (!cloudConfig || !providerTarget) throw new Error("H1 automation readiness invariant failed");
+          const lot = h1AutoEntryLot(base);
           const protection = providerProtectionPoints(providerTarget, alert.symbol);
           const dueAt = brokerEntryDueAt(market.brokerDate, alert.entryTime, market.brokerUtcOffsetHours);
           const task = await createCloudIntent({
@@ -258,12 +253,12 @@ export async function POST(request: Request) {
             payload: {
               side: alert.symbolH1Signal,
               symbol: alert.symbol,
-              lot: H1_AUTO_ENTRY_LOT,
+              lot,
               sl: 0,
               tp: 0,
               legacyProfile: providerTarget.label,
               executionMode: TELEGRAM_CLOUD_EXECUTION_MODE,
-              strategy: "h1-m5-bollinger-rule-48",
+              strategy: "h1-entry-h1-rule-49",
               blockHour: alert.slotHour,
               patternKind: alert.patternKind,
             },
@@ -272,12 +267,28 @@ export async function POST(request: Request) {
               [providerTarget.id]: { label: providerTarget.label, slPoints: protection.sl, tpPoints: protection.tp },
             },
           });
-          intentId = task.id;
+          const normalizedTask = await normalizeCloudIntentLot(task, lot);
+          intentId = normalizedTask.id;
+          const approvalLine = normalizedTask.status === "approval_required"
+            ? `• Xác nhận: /approve ${normalizedTask.id}`
+            : `• Trạng thái: ${normalizedTask.status} · đã arm`;
           telegramMessage = [telegramMessage,
-            `• Intent #${task.id}: ${alert.symbolH1Signal} ${alert.symbol} · ${H1_AUTO_ENTRY_LOT} lot · @${providerTarget.label}`,
-            `• Trạng thái: ${task.status} · /approve ${task.id}`,
-            "• Chưa /approve thì cloud tuyệt đối không execute.",
+            `⏰ ĐẶT LỆNH HẸN GIỜ: ${alert.symbolH1Signal} ${alert.symbol} · ${lot} lot · ${normalizedTask.dueText}`,
+            `• Intent #${normalizedTask.id} · @${providerTarget.label}`,
+            approvalLine,
+            normalizedTask.status === "approval_required"
+              ? "• Chưa /approve thì cloud tuyệt đối không execute."
+              : "• Đến entry time cloud sẽ tự execute.",
           ].join("\n");
+          const activeTask = normalizedTask.status === "approval_required"
+            || normalizedTask.status === "scheduled"
+            || normalizedTask.status === "approved";
+          const withinReminderWindow = dueAt >= nowMs - 15 * 60 * 1000;
+          if (activeTask && !normalizedTask.scheduledNotifiedAt && withinReminderWindow) {
+            await sendTelegram(telegramMessage, cloudConfig);
+            await markScheduledNotification(normalizedTask);
+            sent += 1;
+          }
         }
         pending.push({
           base,
@@ -290,20 +301,14 @@ export async function POST(request: Request) {
           postSignalRule: alert.postSignalRule,
           intentId,
         });
-        if (dryRun) continue;
+        if (dryRun || storedAlert || delivered.has(evaluation.slotHour)) continue;
 
-        if (automationReady) {
-          if (!cloudConfig) throw new Error("H1 automation readiness invariant failed");
-          await sendTelegram(telegramMessage, cloudConfig);
-          sent += 1;
-        }
         symbolState.alerts.push(alert);
         symbolState.alerts.sort((left, right) => left.slotHour - right.slotHour);
         delivered.add(alert.slotHour);
         changed = true;
-        // Persist every classified slot for the public table. When automation
-        // is ready this still happens only after Telegram succeeds, preserving
-        // retry ordering without making analytics depend on trading readiness.
+        // Persist every classified slot for the public table. Telegram
+        // notification is idempotent and independent from this analytics write.
         await saveH1CloudState(state);
       }
     }

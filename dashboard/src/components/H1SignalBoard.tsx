@@ -76,7 +76,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   ctx.fillText(locale === "EN" ? "H1 Intraday Signals" : "Tín hiệu H1 trong ngày", padding + 22, padding + 66);
   ctx.fillStyle = colors.muted;
   ctx.font = `700 15px ${H1_SHARE_FONT}`;
-  ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  ${locale === "EN" ? "Entry M5 Open vs Middle(20)" : "M5 Open tại entry so với Middle(20)"}`, padding + 22, padding + 96);
+  ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  ${locale === "EN" ? "Entry uses H1 candle one hour before" : "Entry dùng cây H1 trước một giờ"}`, padding + 22, padding + 96);
 
   const tableX = padding;
   const tableY = padding + titleHeight;
@@ -200,8 +200,8 @@ function postSignalDecisionForSymbol(day: H1SignalPayload["days"][string] | unde
 function DetailModal({ selection, locale, onClose }: { selection: Selection; locale: Locale; onClose: () => void }) {
   const ref = useDialogFocusTrap(true, onClose);
   const { base, date, alert } = selection;
-  const bollingerDetail = Number.isFinite(alert.m5Open) && Number.isFinite(alert.m5Middle)
-    ? `${alert.baseSignal || "—"} · Open ${alert.m5Open} ${alert.m5Position === "above" ? ">" : "<"} Middle(20) ${alert.m5Middle}`
+  const entryH1Detail = alert.baseDirection
+    ? `${alert.baseSignal || "—"} · H${String(alert.baseHour ?? "?").padStart(2, "0")}:00 · ${alert.baseDirection === "T" ? (locale === "EN" ? "bullish" : "tăng") : (locale === "EN" ? "bearish" : "giảm")}`
     : "—";
 
   return (
@@ -218,7 +218,7 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
         </div>
         <div className="oak-h1-explain">
           <p><span>{locale === "EN" ? "Pattern group" : "Nhóm pattern"}</span><b>{patternLabel(alert.patternKind, locale)}</b></p>
-          <p><span>{`${locale === "EN" ? "Entry M5 Bollinger base" : "Base Bollinger M5 tại entry"} · ${alert.baseSymbol}`}</span><b>{bollingerDetail}</b></p>
+          <p><span>{`${locale === "EN" ? "Entry H1 base candle" : "Cây H1 base tại entry"} · ${alert.baseSymbol}`}</span><b>{entryH1Detail}</b></p>
           <p><span>{locale === "EN" ? `Pattern M15 pair ${alert.m15Pair || "—"}` : `Cặp M15 chọn pattern ${alert.m15Pair || "—"}`}</span><b>{locale === "EN" ? "pattern/entry evidence only" : "chỉ là bằng chứng pattern/entry"}</b></p>
           <p><span>{alert.patternKind === "pattern6"
             ? (locale === "EN" ? `P6 entry pair 5–6 ${alert.patternPair || "—"}` : `Cặp entry P6 cây 5–6 ${alert.patternPair || "—"}`)
@@ -251,7 +251,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
   const copy = locale === "EN"
     ? {
         title: "H1 Intraday Signals",
-        sub: "Pattern entry · M5 Open vs Middle(20) · net weekday reversals",
+        sub: "Pattern entry · H1 candle one hour before entry · six-block weekday phases",
         awaiting: "Awaiting H1 live feed",
         locked: "VIP weekday signals are locked",
         weekdayGroup: "Filter by weekday",
@@ -262,7 +262,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
       }
     : {
         title: "Tín hiệu H1 trong ngày",
-        sub: "Entry theo pattern · M5 Open so với Middle(20) · hậu signal đảo ròng theo thứ",
+        sub: "Entry theo pattern · lấy cây H1 trước entry một giờ · hậu signal theo 6 block/thứ",
         awaiting: "Đang chờ feed H1 live",
         locked: "Tín hiệu H1 ngày thường đang khóa VIP",
         weekdayGroup: "Lọc theo thứ",
@@ -299,7 +299,8 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
   };
 
   const chooseDate = (nextDate: string) => {
-    if (nextDate === selectedDate) return;
+    if (!nextDate || nextDate === selectedDate) return;
+    if (weekdayFilter !== "all" && !matchingDates.includes(nextDate)) setWeekdayFilter("all");
     setSelectedDate(nextDate);
     setSelection(null);
   };
@@ -354,10 +355,17 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
           </div>
           <div className="oak-h1-history-row">
             <span className="oak-h1-history-label">{copy.dateGroup}</span>
-            <div className="oak-h1-history-dates lux-scroll" role="group" aria-label={copy.dateGroup}>
-              {matchingDates.map((brokerDate) => (
-                <button key={brokerDate} type="button" className="oak-h1-history-chip" aria-pressed={date === brokerDate} onClick={() => chooseDate(brokerDate)}>{brokerDate}</button>
-              ))}
+            <div className="oak-h1-calendar-picker">
+              <span className="oak-h1-calendar-icon" aria-hidden="true">▦</span>
+              <input
+                type="date"
+                value={date}
+                min={earliestDate || undefined}
+                max={latestDate || undefined}
+                onChange={(event) => chooseDate(event.currentTarget.value)}
+                aria-label={copy.dateGroup}
+              />
+              <small>{matchingDates.length} {locale === "EN" ? "dates available" : "ngày có dữ liệu"}</small>
             </div>
           </div>
           <p className="oak-h1-history-coverage">{copy.coverage}</p>

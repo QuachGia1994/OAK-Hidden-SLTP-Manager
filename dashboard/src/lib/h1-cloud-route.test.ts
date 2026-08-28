@@ -5,6 +5,8 @@ import { readFileSync } from "node:fs";
 const route = readFileSync(new URL("../app/api/h1-scanner/run/route.ts", import.meta.url), "utf8");
 const backfillRoute = readFileSync(new URL("../app/api/h1-scanner/backfill/route.ts", import.meta.url), "utf8");
 const cloudStore = readFileSync(new URL("./h1-cloud-store.ts", import.meta.url), "utf8");
+const telegramCloudStore = readFileSync(new URL("./telegram-cloud-store.ts", import.meta.url), "utf8");
+const scannerSource = readFileSync(new URL("./h1-cloud-scanner.ts", import.meta.url), "utf8");
 const client = readFileSync(new URL("./ctrader-json.ts", import.meta.url), "utf8");
 const workflow = readFileSync(new URL("../../../.github/workflows/h1-cloud-scanner.yml", import.meta.url), "utf8");
 const oidc = readFileSync(new URL("./github-oidc.ts", import.meta.url), "utf8");
@@ -56,9 +58,16 @@ test("live H1 alerts create idempotent scheduled intents but never auto-approve 
   assert.match(route, /createCloudIntent/);
   assert.match(route, /source: "H1 Scanner"/);
   assert.match(route, /automationKey: `h1:/);
-  assert.match(route, /H1_AUTO_ENTRY_LOT = 0\.03/);
+  assert.match(route, /h1AutoEntryLot/);
+  assert.match(scannerSource, /H1_AUTO_ENTRY_LOT_FX = 0\.05/);
+  assert.match(scannerSource, /H1_AUTO_ENTRY_LOT_XAUUSD = 0\.01/);
+  assert.match(route, /ĐẶT LỆNH HẸN GIỜ/);
+  assert.match(route, /markScheduledNotification/);
+  assert.match(telegramCloudStore, /scheduledNotifiedAt/);
+  assert.match(telegramCloudStore, /normalizeCloudIntentLot/);
   assert.match(route, /brokerEntryDueAt/);
-  assert.match(route, /status.*\/approve/);
+  assert.match(route, /approvalLine/);
+  assert.match(route, /\/approve/);
   assert.match(route, /Chưa \/approve thì cloud tuyệt đối không execute/);
   assert.doesNotMatch(route, /approveCloudIntent|runCloudIntentExecution|executeClaimedCloudIntent/);
 });
@@ -68,7 +77,7 @@ test("missing automation account never blocks signal persistence or the public t
   assert.match(route, /automationSkippedReason/);
   assert.doesNotMatch(route, /H1 scheduled intents require Telegram control and the enabled scanner cTrader account/);
   assert.ok(route.indexOf("if (automationReady)") < route.indexOf("symbolState.alerts.push(alert)"));
-  assert.match(route, /strategy: "h1-m5-bollinger-rule-48"/);
+  assert.match(route, /strategy: "h1-entry-h1-rule-49"/);
 });
 
 test("cTrader cloud scanner remains read-only even when shared OAuth has trading scope", () => {
@@ -195,8 +204,7 @@ test("GitHub scheduler is tertiary fallback for H:00, H:01, H:15 and H:30 phases
   assert.match(route, /marketReadyForSlot/);
   assert.match(route, /expectedClosedM15Minute/);
   assert.match(route, /market\.symbols\[base\]\.m15Bars/);
-  assert.match(route, /market\.symbols\[base\]\.m5Bars/);
-  assert.match(route, /expectedEntryMinute/);
+  assert.match(route, /market\.symbols\[base\]\.bars/);
   assert.match(route, /brokerMinute/);
   assert.match(route, /awaiting-closed-h1/);
   assert.match(route, /after-last-signal/);

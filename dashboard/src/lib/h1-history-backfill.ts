@@ -9,7 +9,6 @@ import {
   type H1DirectionBar,
   type H1MarketSnapshot,
   type H1M15Bar,
-  type H1M5Bar,
   type H1TargetBase,
 } from "./h1-cloud-scanner.ts";
 
@@ -32,8 +31,7 @@ export function reconstructHistoricalDays(market: H1HistoricalMarket): H1Histori
     const perBase = Object.fromEntries((Object.keys(market) as H1TargetBase[]).map((base) => [base, {
       bars: barsForDate(market[base].bars as H1DirectionBar[], date),
       m15Bars: barsForDate((market[base].m15Bars || []) as H1M15Bar[], date),
-      m5Bars: barsForDate((market[base].m5Bars || []) as H1M5Bar[], date),
-    }])) as Record<H1TargetBase, { bars: H1DirectionBar[]; m15Bars: H1M15Bar[]; m5Bars: H1M5Bar[] }>;
+    }])) as Record<H1TargetBase, { bars: H1DirectionBar[]; m15Bars: H1M15Bar[] }>;
     if (!Object.values(perBase).some((item) => item.bars.length > 0)) continue;
 
     const symbols: H1CloudState["days"][string]["symbols"] = {};
@@ -46,7 +44,7 @@ export function reconstructHistoricalDays(market: H1HistoricalMarket): H1Histori
           base,
           brokerSymbol: market[base].displayName || base,
           evaluation,
-          m5Bars: perBase[base].m5Bars,
+          h1Bars: perBase[base].bars,
         });
         return alert ? [alert] : [];
       });
