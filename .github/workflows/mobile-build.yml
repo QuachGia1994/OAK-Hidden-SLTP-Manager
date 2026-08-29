@@ -110,17 +110,26 @@ jobs:
         working-directory: mobile
         run: pnpm exec expo prebuild --platform android --clean --no-install
 
-      - name: Build debug APK
+      - name: Build standalone release APK
         working-directory: mobile/android
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug --no-daemon
+          ./gradlew :app:assembleRelease --no-daemon
+
+      - name: Verify release APK contains bundled JS
+        working-directory: mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK_PATH"
+          unzip -l "$APK_PATH" | grep -E 'assets/(index.android.bundle|index.android\.bundle\.hbc)$'
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
-          name: OAK-Gatekeeper-Android-debug
-          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          name: OAK-Gatekeeper-Android-release
+          path: mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
 
