@@ -82,6 +82,24 @@ export type MobileBridgePayload = {
   nodes: Array<{ id: string; label: string; online: boolean }>;
 };
 
+export type MobileCalendarPayload = {
+  dates: string[];
+  historyDates: string[];
+  fallbackDates: string[];
+  latestDate: string;
+  earliestDate: string;
+  hasHistory: boolean;
+  symbols: string[];
+  hours: number[];
+};
+
+export type MobileSignalsPayload = {
+  brokerDate: string;
+  today: MobileSignalRow[];
+  recent: MobileSignalRow[];
+  filters: Array<"all" | "buy" | "sell" | "reverse" | "keep">;
+};
+
 export type Provider = "ctrader" | "mt5";
 
 export type ProviderAccount = {
@@ -134,6 +152,8 @@ export type MobileAppPayload = {
   ok: true;
   h1: H1SignalPayload | null;
   accounts: AccountPayload;
+  calendar: MobileCalendarPayload;
+  signals: MobileSignalsPayload;
   dashboard: MobileDashboardPayload;
   reports: MobileReportPayload;
   bridge: MobileBridgePayload;

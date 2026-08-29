@@ -5,6 +5,7 @@ import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native"
 import { GlassCard, OakScreen, Pill, SectionTitle } from "@/components/ui";
 import { latestH1Date, phaseLabel, recentAlerts } from "@/lib/h1";
 import { radius, spacing, useOakTheme } from "@/lib/theme";
+import type { MobileSignalRow } from "@/lib/types";
 import { useOakData } from "@/state/data";
 
 type Filter = "all" | "buy" | "sell" | "reverse" | "keep";
@@ -13,16 +14,28 @@ const FILTERS: Filter[] = ["all", "buy", "sell", "reverse", "keep"];
 export default function SignalsScreen() {
   const theme = useOakTheme();
   const router = useRouter();
-  const { h1, refreshing, refresh } = useOakData();
+  const { h1, app, refreshing, refresh } = useOakData();
   const [filter, setFilter] = useState<Filter>("all");
-  const date = latestH1Date(h1);
-  const rows = useMemo(() => recentAlerts(h1).filter(({ alert }) => {
-    if (filter === "buy") return alert.signal === "BUY";
-    if (filter === "sell") return alert.signal === "SELL";
-    if (filter === "reverse") return Boolean(alert.postSignalInverted);
-    if (filter === "keep") return alert.postSignalRule !== "none" && !alert.postSignalInverted;
-    return true;
-  }), [h1, filter]);
+  const date = app?.signals?.brokerDate || latestH1Date(h1);
+  const rows = useMemo(() => {
+    const backendRows = app?.signals?.today?.length ? app.signals.today : null;
+    const source: MobileSignalRow[] = backendRows || recentAlerts(h1).map(({ symbol, alert }) => ({
+      symbol,
+      slotHour: alert.slotHour,
+      signal: alert.signal,
+      baseSignal: alert.baseSignal,
+      baseDirection: alert.baseDirection,
+      postSignalInverted: Boolean(alert.postSignalInverted),
+      postSignalRule: alert.postSignalRule || "none",
+    }));
+    return source.filter((row) => {
+      if (filter === "buy") return row.signal === "BUY";
+      if (filter === "sell") return row.signal === "SELL";
+      if (filter === "reverse") return row.postSignalInverted;
+      if (filter === "keep") return row.postSignalRule !== "none" && !row.postSignalInverted;
+      return true;
+    });
+  }, [app, h1, filter]);
 
   return (
     <OakScreen
@@ -44,22 +57,22 @@ export default function SignalsScreen() {
 
       <SectionTitle title="H1 activity" meta={date || "—"} />
       <View style={styles.list}>
-        {rows.map(({ symbol, alert }) => {
-          const tone = alert.signal === "SELL" ? "sell" : "buy";
+        {rows.map((row) => {
+          const tone = row.signal === "SELL" ? "sell" : "buy";
           return (
-            <Pressable key={`${symbol}:${alert.slotHour}`} onPress={() => { Haptics.selectionAsync(); router.push({ pathname: "/signal/[symbol]/[hour]", params: { symbol, hour: String(alert.slotHour) } } as never); }}>
+            <Pressable key={`${row.symbol}:${row.slotHour}`} onPress={() => { Haptics.selectionAsync(); router.push({ pathname: "/signal/[symbol]/[hour]", params: { symbol: row.symbol, hour: String(row.slotHour) } } as never); }}>
               <GlassCard glow={tone}>
                 <View style={styles.rowTop}>
                   <View style={styles.rowIdentity}>
-                    <Text style={[styles.symbol, { color: theme.text }]}>{symbol}</Text>
-                    <Text style={[styles.hour, { color: theme.muted }]}>H{String(alert.slotHour).padStart(2, "0")}</Text>
+                    <Text style={[styles.symbol, { color: theme.text }]}>{row.symbol}</Text>
+                    <Text style={[styles.hour, { color: theme.muted }]}>H{String(row.slotHour).padStart(2, "0")}</Text>
                   </View>
-                  <Text style={[styles.signal, { color: alert.signal === "SELL" ? theme.sell : theme.buy }]}>{alert.signal || "—"}</Text>
+                  <Text style={[styles.signal, { color: row.signal === "SELL" ? theme.sell : theme.buy }]}>{row.signal || "—"}</Text>
                 </View>
                 <View style={styles.badges}>
-                  <Pill label={phaseLabel(alert)} tone={alert.postSignalInverted ? "warning" : "online"} />
-                  <Pill label={`BASE ${alert.baseDirection || "—"}`} />
-                  <Pill label={`H${String(alert.baseHour ?? alert.slotHour).padStart(2, "0")}`} tone="accent" />
+                  <Pill label={phaseLabel(row)} tone={row.postSignalInverted ? "warning" : "online"} />
+                  <Pill label={`BASE ${row.baseDirection || "—"}`} />
+                  <Pill label="BACKEND" tone={app?.signals ? "accent" : "muted"} />
                 </View>
               </GlassCard>
             </Pressable>

@@ -1,6 +1,5 @@
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { useMinimizeOnScroll } from "expo-glass-tabs";
 import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, Text, View, type RefreshControlProps, type ViewStyle } from "react-native";
 import Animated from "react-native-reanimated";
@@ -21,7 +20,6 @@ export function OakScreen({
   refreshControl?: ReactElement<RefreshControlProps>;
 }) {
   const theme = useOakTheme();
-  const onScroll = useMinimizeOnScroll();
   return (
     <LinearGradient colors={[theme.canvas, "#07101D", theme.canvas]} style={styles.flex}>
       <View style={styles.gridLayer} pointerEvents="none">
@@ -30,8 +28,6 @@ export function OakScreen({
       </View>
       <SafeAreaView style={styles.flex} edges={["top"]}>
         <Animated.ScrollView
-          onScroll={onScroll}
-          scrollEventThrottle={16}
           refreshControl={refreshControl}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
@@ -146,5 +142,5 @@ const styles = StyleSheet.create({
   metricLabel: { fontSize: 10, fontWeight: "800", letterSpacing: 0.8 },
   metricValue: { fontSize: 16, fontWeight: "900" },
   beacon: { width: 7, height: 7, borderRadius: 999, shadowOpacity: 0.8, shadowRadius: 10, shadowOffset: { width: 0, height: 0 } },
-  bottomSpacer: { height: 88 },
+  bottomSpacer: { height: 120 },
 });

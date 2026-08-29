@@ -6,9 +6,35 @@ import { isMonthEndBridgeCell } from "./h1-cloud-scanner";
 import { getMt5BridgeHeartbeat } from "./mt5-bridge";
 import { getDefaultProviderAccountId, listProviderAccounts } from "./provider-accounts";
 
+const FALLBACK_SYMBOLS = ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"];
+const FALLBACK_HOURS = [3, 4, 6, 9, 12, 14, 16, 21];
+
+function vietnamDateKey(now = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+function dateDaysAgo(days: number): string {
+  const value = new Date(`${vietnamDateKey()}T00:00:00+07:00`);
+  value.setDate(value.getDate() - days);
+  return value.toISOString().slice(0, 10);
+}
+
+function fallbackDates(count = 90): string[] {
+  return Array.from({ length: count }, (_, index) => dateDaysAgo(index));
+}
+
 function latestH1Date(payload: H1SignalPayload | null): string {
   if (!payload) return "";
   return Object.keys(payload.days).sort().at(-1) || "";
+}
+
+function h1Dates(payload: H1SignalPayload | null): string[] {
+  return Object.keys(payload?.days || {}).sort().reverse();
 }
 
 function alertsForDate(payload: H1SignalPayload | null, date: string): Array<{ symbol: string; alert: H1SignalAlert }> {
@@ -40,7 +66,7 @@ function countSignals(rows: Array<{ alert: H1SignalAlert }>) {
 }
 
 function compactSignalRows(rows: Array<{ symbol: string; alert: H1SignalAlert }>) {
-  return rows.filter((row) => row.alert.signal).slice(-12).map(({ symbol, alert }) => ({
+  return rows.filter((row) => row.alert.signal).slice(-18).map(({ symbol, alert }) => ({
     symbol,
     slotHour: alert.slotHour,
     signal: alert.signal,
@@ -78,6 +104,33 @@ async function accountPayload() {
     },
     defaultAccountId: await getDefaultProviderAccountId(),
     accounts: accountsWithStatus,
+  };
+}
+
+function calendarSummary(h1: H1SignalPayload | null) {
+  const dates = h1Dates(h1);
+  const generatedFallbackDates = fallbackDates(90);
+  return {
+    dates: dates.length ? dates : generatedFallbackDates,
+    historyDates: dates,
+    fallbackDates: generatedFallbackDates,
+    latestDate: dates[0] || generatedFallbackDates[0] || vietnamDateKey(),
+    earliestDate: dates.at(-1) || generatedFallbackDates.at(-1) || vietnamDateKey(),
+    hasHistory: dates.length > 0,
+    symbols: h1?.symbols?.length ? h1.symbols : FALLBACK_SYMBOLS,
+    hours: h1?.hours?.length ? h1.hours : FALLBACK_HOURS,
+  };
+}
+
+function signalSummary(h1: H1SignalPayload | null) {
+  const brokerDate = latestH1Date(h1);
+  const todayRows = compactSignalRows(alertsForDate(h1, brokerDate));
+  const allRows = compactSignalRows(allAlerts(h1).map(({ symbol, alert }) => ({ symbol, alert })).slice(-60));
+  return {
+    brokerDate,
+    today: todayRows,
+    recent: allRows,
+    filters: ["all", "buy", "sell", "reverse", "keep"] as const,
   };
 }
 
@@ -157,6 +210,8 @@ export async function buildMobileAppPayload() {
     ok: true as const,
     h1,
     accounts,
+    calendar: calendarSummary(h1),
+    signals: signalSummary(h1),
     dashboard: dashboardSummary(h1, accounts, latencyMs),
     reports: reportSummary(h1),
     bridge: bridgeSummary(accounts, h1),

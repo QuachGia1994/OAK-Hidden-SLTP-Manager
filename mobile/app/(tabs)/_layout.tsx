@@ -1,51 +1,83 @@
-import { useRouter } from "expo-router";
-import { TabList, TabSlot, TabTrigger, Tabs } from "expo-router/ui";
-import {
-  GlassTabBar,
-  GlassTabButton,
-  TabBarMinimizeProvider,
-  renderFadingTabScreen,
-  type GlassTabItem,
-} from "expo-glass-tabs";
+import { Tabs } from "expo-router";
+import { Text } from "react-native";
 import { useOakTheme } from "@/lib/theme";
 
-const ITEMS: (GlassTabItem & { href: "/" | "/calendar" | "/bridge" | "/signals" | "/reports" | "/more" })[] = [
-  { name: "index", href: "/", label: "Home", icon: "house.fill" },
-  { name: "calendar", href: "/calendar", label: "H1", icon: "calendar" },
-  { name: "signals", href: "/signals", label: "Signals", icon: "antenna.radiowaves.left.and.right" },
-  { name: "reports", href: "/reports", label: "Reports", icon: "chart.xyaxis.line" },
-  { name: "bridge", href: "/bridge", label: "Bridge", icon: "point.3.connected.trianglepath.dotted" },
-  { name: "more", href: "/more", label: "More", icon: "square.grid.2x2.fill" },
-];
+const ITEMS = [
+  { name: "index", title: "Home", icon: "⌂" },
+  { name: "calendar", title: "H1", icon: "▦" },
+  { name: "signals", title: "Signals", icon: "≋" },
+  { name: "reports", title: "Reports", icon: "⌁" },
+  { name: "bridge", title: "Bridge", icon: "⌬" },
+  { name: "more", title: "More", icon: "▣" },
+] as const;
 
 export default function TabLayout() {
-  const router = useRouter();
   const theme = useOakTheme();
 
   return (
-    <TabBarMinimizeProvider>
-      <Tabs>
-        <TabSlot style={{ height: "100%" }} renderFn={renderFadingTabScreen} />
-        <TabList asChild>
-          <GlassTabBar
-            onIndexSelected={(index) => router.navigate(ITEMS[index].href as never)}
-            theme={{
-              activeTint: theme.text,
-              inactiveTint: theme.muted,
-              highlight: `${theme.cyan}30`,
-              glassTint: theme.glass,
-              solidFallback: theme.surface,
-            }}
-            haptics
-          >
-            {ITEMS.map(({ href, ...item }, index) => (
-              <TabTrigger key={item.name} name={item.name} href={href as never} asChild>
-                <GlassTabButton item={item} index={index} />
-              </TabTrigger>
-            ))}
-          </GlassTabBar>
-        </TabList>
-      </Tabs>
-    </TabBarMinimizeProvider>
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarHideOnKeyboard: false,
+        tabBarActiveTintColor: theme.cyan,
+        tabBarInactiveTintColor: theme.muted,
+        tabBarLabelPosition: "below-icon",
+        tabBarStyle: {
+          position: "absolute",
+          left: 14,
+          right: 14,
+          bottom: 14,
+          height: 76,
+          paddingTop: 8,
+          paddingBottom: 10,
+          paddingHorizontal: 4,
+          borderTopWidth: 0,
+          borderRadius: 28,
+          backgroundColor: "#07101D",
+          borderWidth: 1,
+          borderColor: "rgba(88,166,255,0.22)",
+          shadowColor: theme.cyan,
+          shadowOpacity: 0.18,
+          shadowRadius: 18,
+          shadowOffset: { width: 0, height: 0 },
+          elevation: 16,
+        },
+        tabBarItemStyle: {
+          minHeight: 58,
+          borderRadius: 22,
+          paddingVertical: 2,
+        },
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: "800",
+          marginTop: 0,
+        },
+      }}
+    >
+      {ITEMS.map((item) => (
+        <Tabs.Screen
+          key={item.name}
+          name={item.name}
+          options={{
+            title: item.title,
+            tabBarIcon: ({ color, focused }) => (
+              <Text
+                style={{
+                  color,
+                  width: 26,
+                  height: 24,
+                  textAlign: "center",
+                  fontSize: focused ? 20 : 18,
+                  lineHeight: 23,
+                  fontWeight: "900",
+                }}
+              >
+                {item.icon}
+              </Text>
+            ),
+          }}
+        />
+      ))}
+    </Tabs>
   );
 }
