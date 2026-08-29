@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 
 const PARTICLE_COUNT = 180;
 const STATIC_PARTICLE_COUNT = 80;
+const MOBILE_HUD_QUERY = "(max-width: 899px), (pointer: coarse)";
 
 function compileShader(gl: WebGLRenderingContext, type: number, source: string): WebGLShader {
   const shader = gl.createShader(type);
@@ -86,6 +87,8 @@ export function SpatialHudCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
+    if (window.matchMedia(MOBILE_HUD_QUERY).matches || document.documentElement.classList.contains("oak-android")) return;
+
     const root = document.documentElement;
     let pointerFrame = 0;
     let pointerX = window.innerWidth / 2;
@@ -123,8 +126,13 @@ export function SpatialHudCanvas() {
     if (!canvas) return;
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const coarse = window.matchMedia("(pointer: coarse)").matches;
+    const mobile = window.matchMedia(MOBILE_HUD_QUERY).matches;
     const android = document.documentElement.classList.contains("oak-android");
+    if (mobile || android) {
+      canvas.dataset.mobileDisabled = "true";
+      return;
+    }
+
     const gl = canvas.getContext("webgl", {
       alpha: true,
       antialias: false,
@@ -146,7 +154,7 @@ export function SpatialHudCanvas() {
     const program = createProgram(gl);
     const buffer = gl.createBuffer();
     if (!buffer) return;
-    const particles = createParticles(reduced || coarse || android ? STATIC_PARTICLE_COUNT : PARTICLE_COUNT);
+    const particles = createParticles(reduced ? STATIC_PARTICLE_COUNT : PARTICLE_COUNT);
     const positionLocation = gl.getAttribLocation(program, "a_position");
     const seedLocation = gl.getAttribLocation(program, "a_seed");
     const timeLocation = gl.getUniformLocation(program, "u_time");
@@ -160,7 +168,7 @@ export function SpatialHudCanvas() {
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
 
     const resize = () => {
-      const ratio = Math.min(window.devicePixelRatio || 1, coarse || android ? 1.25 : 1.75);
+      const ratio = Math.min(window.devicePixelRatio || 1, 1.75);
       width = Math.max(1, Math.floor(window.innerWidth * ratio));
       height = Math.max(1, Math.floor(window.innerHeight * ratio));
       canvas.width = width;
@@ -184,7 +192,7 @@ export function SpatialHudCanvas() {
       gl.uniform2f(pointerLocation, pointerX, pointerY);
       gl.uniform2f(resolutionLocation, width, height);
       gl.drawArrays(gl.POINTS, 0, particles.length / 4);
-      if (!reduced && !coarse && !android) frame = window.requestAnimationFrame(render);
+      if (!reduced) frame = window.requestAnimationFrame(render);
     };
 
     const start = () => {

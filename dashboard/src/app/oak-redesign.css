@@ -1147,7 +1147,13 @@ body.oak-body {
     radial-gradient(900px circle at 50% 18%, color-mix(in srgb, var(--oak-accent-command) 15%, transparent), transparent 54%),
     linear-gradient(180deg, #080b10, color-mix(in srgb, var(--oak-bg-canvas) 84%, #0f172a));
 }
+:root:not(.dark):not(.contrast) .oak-spatial-stage {
+  background:
+    radial-gradient(900px circle at 50% 16%, color-mix(in srgb, var(--oak-accent-command) 11%, transparent), transparent 56%),
+    linear-gradient(180deg, #f7faff, var(--oak-bg-canvas));
+}
 .oak-spatial-canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .78; mix-blend-mode: screen; }
+:root:not(.dark):not(.contrast) .oak-spatial-canvas { opacity: .3; mix-blend-mode: multiply; }
 .oak-spatial-canvas[data-fallback="true"] { opacity: 0; }
 .oak-spatial-grid {
   position: absolute;
@@ -1163,6 +1169,7 @@ body.oak-body {
   mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 72%, transparent);
 }
 .oak-spatial-vignette { position: absolute; inset: 0; background: radial-gradient(circle at 50% 34%, transparent 0 42%, rgba(0,0,0,.52) 100%); }
+:root:not(.dark):not(.contrast) .oak-spatial-vignette { background: radial-gradient(circle at 50% 34%, transparent 0 48%, rgba(15,23,42,.11) 100%); }
 .oak-spatial-grain {
   position: absolute;
   inset: 0;
@@ -1173,7 +1180,9 @@ body.oak-body {
   background-size: 37px 41px, 29px 31px;
 }
 .oak-main, .oak-footer, .oak-nav { position: relative; z-index: 1; }
+:root:not(.dark):not(.contrast) .oak-spatial-grain { opacity: .012; }
 .oak-nav { z-index: 50; background: color-mix(in srgb, var(--hud-glass-bg) 92%, transparent); backdrop-filter: var(--hud-glass-blur); -webkit-backdrop-filter: var(--hud-glass-blur); }
+:root:not(.dark):not(.contrast) .oak-nav { background: color-mix(in srgb, var(--oak-bg-surface) 98%, transparent); border-bottom-color: var(--oak-border-strong); }
 .oak-nav::after { content: ""; position: absolute; inset: auto 0 0; height: 1px; background: linear-gradient(90deg, transparent, var(--hud-glass-border), transparent); }
 
 :where(.oak-command-strip, .oak-access-panel, .oak-h1-board, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-fact-input-panel, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .tarot-hero, .tarot-result, .discover-hero, .discover-card) {
@@ -1217,6 +1226,16 @@ body.oak-body {
   }
 }
 .oak-h1-symbol-sticky { background: color-mix(in srgb, var(--oak-bg-raised) 96%, #0f172a) !important; }
+:root:not(.dark):not(.contrast) .oak-h1-board,
+:root:not(.dark):not(.contrast) .oak-command-strip,
+:root:not(.dark):not(.contrast) .oak-access-panel { background: #fff !important; border-color: var(--oak-border-strong) !important; }
+:root:not(.dark):not(.contrast) .oak-h1-symbol-sticky { background: #eef3f8 !important; color: var(--oak-fg-primary) !important; }
+:root:not(.dark):not(.contrast) .oak-h1-table thead th { color: #344054; background: #eef3f8; border-color: #b8c2cf; }
+:root:not(.dark):not(.contrast) .oak-h1-table tbody td { color: var(--oak-fg-primary); background: rgba(255,255,255,.98); border-color: #c3ccd7; }
+:root:not(.dark):not(.contrast) .oak-h1-history,
+:root:not(.dark):not(.contrast) .oak-h1-calendar-picker { color: var(--oak-fg-primary); }
+:root:not(.dark):not(.contrast) .oak-h1-calendar-picker { background: #f8fafc; border-color: #aeb9c6; }
+:root:not(.dark):not(.contrast) .oak-h1-degraded { color: #475467; background: #eef2f6; border-color: #b8c2cf; }
 .oak-h1-cell-signal[data-side="buy"] { text-shadow: 0 0 16px color-mix(in srgb, var(--oak-signal-buy) 54%, transparent); }
 .oak-h1-cell-signal[data-side="sell"] { text-shadow: 0 0 16px color-mix(in srgb, var(--oak-signal-sell) 54%, transparent); }
 .oak-h1-table tbody td[data-scheduled-signal="BUY"] { box-shadow: inset 0 0 22px color-mix(in srgb, var(--oak-signal-buy) 8%, transparent); }
@@ -1231,6 +1250,37 @@ body.oak-body {
   .oak-spatial-grid { opacity: .18; transform: none; }
   :where(.oak-command-strip, .oak-access-panel, .oak-h1-board, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-fact-input-panel, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .tarot-hero, .tarot-result, .discover-hero, .discover-card) { backdrop-filter: none; -webkit-backdrop-filter: none; }
   .oak-access-panel:hover, .oak-command-strip:hover, .oak-account-card:hover, .oak-h1-board:hover { transform: none !important; }
+}
+
+/* Mobile/tablet performance profile: no WebGL/compositor-heavy glass. Desktop keeps the full spatial HUD. */
+@media (max-width: 899px), (pointer: coarse) {
+  body.oak-body { background: var(--oak-bg-canvas) !important; }
+  .oak-spatial-stage { display: none !important; }
+  .oak-nav,
+  .oak-footer,
+  :where(.oak-command-strip, .oak-access-panel, .oak-h1-board, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-fact-input-panel, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .tarot-hero, .tarot-result, .tarot-placeholder, .discover-hero, .discover-card) {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: var(--oak-shadow-1) !important;
+  }
+  .oak-nav { background: var(--oak-bg-surface) !important; }
+  :where(.oak-command-strip, .oak-access-panel, .oak-h1-board, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-fact-input-panel, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .tarot-hero, .tarot-result, .tarot-placeholder, .discover-hero, .discover-card) {
+    background: var(--oak-bg-surface) !important;
+  }
+  :where(.oak-command-strip, .oak-access-panel, .oak-h1-board, .oak-account-card, .discover-card)::before,
+  .oak-command-strip::after,
+  .oak-h1-board::after,
+  .oak-account-head::after { display: none !important; }
+  .oak-access-panel,
+  .oak-command-strip,
+  .oak-h1-board,
+  .oak-account-card,
+  .oak-nav-link,
+  .oak-theme-toggle { transform: none !important; transition: none !important; }
+  .oak-h1-cell-signal[data-side="buy"],
+  .oak-h1-cell-signal[data-side="sell"] { text-shadow: none !important; }
+  .oak-h1-table tbody td[data-scheduled-signal="BUY"],
+  .oak-h1-table tbody td[data-scheduled-signal="SELL"] { box-shadow: none !important; }
 }
 
 @media print {

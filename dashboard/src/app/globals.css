@@ -3,26 +3,26 @@
 
 :root {
   /* OAK semantic design system — single web token authority. */
-  --oak-bg-canvas: #f4f6f8;
+  --oak-bg-canvas: #edf2f7;
   --oak-bg-surface: #ffffff;
-  --oak-bg-raised: #f7f8fa;
-  --oak-fg-primary: #101828;
-  --oak-fg-muted: #667085;
-  --oak-accent-command: #1677ff;
-  --oak-accent-command-strong: #0958d9;
-  --oak-signal-buy: #07875f;
-  --oak-signal-sell: #d92d20;
-  --oak-status-warning: #a15c07;
-  --oak-status-danger: #b42318;
-  --oak-status-online: #07875f;
-  --oak-access-vip: #9a6700;
+  --oak-bg-raised: #f4f7fa;
+  --oak-fg-primary: #0b1220;
+  --oak-fg-muted: #475467;
+  --oak-accent-command: #0b6ffb;
+  --oak-accent-command-strong: #0057d9;
+  --oak-signal-buy: #067647;
+  --oak-signal-sell: #b42318;
+  --oak-status-warning: #8a4b08;
+  --oak-status-danger: #9f1b16;
+  --oak-status-online: #067647;
+  --oak-access-vip: #7a4f00;
   --oak-reverse-bg: #f1ebff;
   --oak-reverse-border: #7f56d9;
   --oak-reverse-text: #53389e;
-  --oak-border-subtle: #d0d5dd;
-  --oak-border-strong: #98a2b3;
-  --oak-shadow-1: 0 1px 2px rgba(16, 24, 40, .05);
-  --oak-shadow-2: 0 8px 24px rgba(16, 24, 40, .08);
+  --oak-border-subtle: #b8c2cf;
+  --oak-border-strong: #667085;
+  --oak-shadow-1: 0 1px 3px rgba(15, 23, 42, .10);
+  --oak-shadow-2: 0 10px 28px rgba(15, 23, 42, .12);
   --oak-radius-sm: .5rem;
   --oak-radius-md: .7rem;
   --oak-radius-lg: .9rem;
@@ -33,11 +33,11 @@
   --hud-pointer-y: 28vh;
   --hud-pointer-nx: .5;
   --hud-pointer-ny: .28;
-  --hud-glass-bg: color-mix(in srgb, var(--oak-bg-surface) 82%, transparent);
-  --hud-glass-border: color-mix(in srgb, var(--oak-accent-command) 20%, var(--oak-border-subtle));
-  --hud-glass-blur: blur(14px) saturate(150%);
-  --hud-spotlight-glow: color-mix(in srgb, var(--oak-accent-command) 12%, transparent);
-  --hud-grid-accent: color-mix(in srgb, var(--oak-accent-command) 10%, transparent);
+  --hud-glass-bg: color-mix(in srgb, var(--oak-bg-surface) 96%, transparent);
+  --hud-glass-border: color-mix(in srgb, var(--oak-accent-command) 30%, var(--oak-border-subtle));
+  --hud-glass-blur: blur(12px) saturate(125%);
+  --hud-spotlight-glow: color-mix(in srgb, var(--oak-accent-command) 7%, transparent);
+  --hud-grid-accent: color-mix(in srgb, var(--oak-accent-command) 12%, transparent);
   --hud-bracket-color: var(--oak-accent-command);
 
   /* Compatibility aliases for existing secondary-tool components. */

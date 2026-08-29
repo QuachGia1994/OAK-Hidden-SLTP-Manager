@@ -11,6 +11,7 @@ const dialogHookSource = readFileSync(new URL("../hooks/useDialogFocusTrap.ts", 
 const neoTechSource = readFileSync(new URL("../app/neotech/NeoTechPublicDashboard.tsx", import.meta.url), "utf8");
 const factCheckSharedSource = readFileSync(new URL("../app/factcheck/[id]/page.tsx", import.meta.url), "utf8");
 const oakCss = readFileSync(new URL("../app/oak-redesign.css", import.meta.url), "utf8");
+const globalsCss = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const layoutSource = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const spatialSource = readFileSync(new URL("../components/SpatialHudCanvas.tsx", import.meta.url), "utf8");
 
@@ -77,7 +78,8 @@ test("spatial HUD layer stays below DOM UI and respects performance guards", () 
   assert.match(spatialSource, /pointer-events: none|oak-spatial-stage/);
   assert.match(spatialSource, /visibilitychange/);
   assert.match(spatialSource, /prefers-reduced-motion: reduce/);
-  assert.match(spatialSource, /pointer: coarse/);
+  assert.match(spatialSource, /MOBILE_HUD_QUERY = "\(max-width: 899px\), \(pointer: coarse\)"/);
+  assert.match(spatialSource, /canvas\.dataset\.mobileDisabled = "true"/);
   assert.match(spatialSource, /powerPreference: "low-power"/);
   assert.match(spatialSource, /requestAnimationFrame/);
   assert.match(oakCss, /\.oak-spatial-stage \{/);
@@ -85,5 +87,18 @@ test("spatial HUD layer stays below DOM UI and respects performance guards", () 
   assert.match(oakCss, /\.oak-main, \.oak-footer, \.oak-nav \{ position: relative; z-index: 1; \}/);
   assert.match(oakCss, /radial-gradient\(600px circle at var\(--hud-pointer-x\) var\(--hud-pointer-y\)/);
   assert.match(oakCss, /backdrop-filter: var\(--hud-glass-blur\)/);
-  assert.match(oakCss, /\.oak-android \.oak-spatial-canvas/);
+  assert.match(oakCss, /@media \(max-width: 899px\), \(pointer: coarse\)/);
+  assert.match(oakCss, /\.oak-spatial-stage \{ display: none !important; \}/);
+  assert.match(oakCss, /body\.oak-body \{ background: var\(--oak-bg-canvas\) !important; \}/);
+});
+
+test("light theme keeps strong text, borders and opaque H1 surfaces over the desktop spatial layer", () => {
+  assert.match(globalsCss, /--oak-fg-primary: #0b1220/);
+  assert.match(globalsCss, /--oak-fg-muted: #475467/);
+  assert.match(globalsCss, /--oak-border-subtle: #b8c2cf/);
+  assert.match(globalsCss, /--hud-glass-bg: color-mix\(in srgb, var\(--oak-bg-surface\) 96%, transparent\)/);
+  assert.match(oakCss, /:root:not\(\.dark\):not\(\.contrast\) \.oak-spatial-stage/);
+  assert.match(oakCss, /:root:not\(\.dark\):not\(\.contrast\) \.oak-h1-table thead th/);
+  assert.match(oakCss, /:root:not\(\.dark\):not\(\.contrast\) \.oak-h1-table tbody td/);
+  assert.match(oakCss, /:root:not\(\.dark\):not\(\.contrast\) \.oak-h1-calendar-picker/);
 });
