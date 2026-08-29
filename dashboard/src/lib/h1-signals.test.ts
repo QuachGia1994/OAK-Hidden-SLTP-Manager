@@ -54,9 +54,13 @@ test("H1 cells publish only the scheduled BUY/SELL side", () => {
   assert.doesNotMatch(boardSource, /NOT TRADE|blockedSlots|oak-h1-cell-blocked|oak-h1-blocked-cell|⚠ PURE/);
 });
 
-test("H1 table sizes itself from the active columns instead of the legacy wide grid", () => {
+test("H1 table sizes itself from the active columns and stretches across desktop viewports", () => {
+  assert.match(redesignCss, /\.oak-engine-screen \{[^}]*width: 100%;/);
   assert.match(redesignCss, /\.oak-h1-table \{[^}]*width: max-content;[^}]*min-width: 100%;/);
   assert.match(redesignCss, /\.oak-h1-table th, \.oak-h1-table td \{[^}]*min-width: 4\.45rem;/);
+  assert.match(redesignCss, /@media \(min-width: 900px\) \{[\s\S]*?\.oak-h1-table \{ width: 100%; min-width: 100%; \}[\s\S]*?\.oak-h1-table th, \.oak-h1-table td \{ width: auto; min-width: 0; \}/);
+  assert.match(redesignCss, /\.oak-h1-symbol-sticky \{ width: clamp\(8rem, 10vw, 11rem\) !important;/);
+  assert.doesNotMatch(redesignCss, /\.oak-engine-screen \{[^}]*1080px/);
   assert.doesNotMatch(redesignCss, /\.oak-h1-table \{[^}]*min-width: 79rem;/);
 });
 

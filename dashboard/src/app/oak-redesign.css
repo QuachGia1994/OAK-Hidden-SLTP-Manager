@@ -216,7 +216,7 @@ transform: none; background: var(--oak-accent-command-strong); box-shadow: none;
 .oak-engine-screen {
   display: grid;
   gap: .7rem;
-  width: min(100%, 1080px);
+  width: 100%;
   margin-inline: auto;
   animation: none;
 }
@@ -380,6 +380,12 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-h1-table tbody tr:last-child th, .oak-h1-table tbody tr:last-child td { border-bottom: 0; }
 .oak-h1-table thead th { height: 2.15rem; color: var(--oak-fg-muted); background: var(--oak-bg-raised); font: 850 .55rem "Cascadia Mono", Consolas, monospace; }
 .oak-h1-symbol-sticky { position: sticky; left: 0; z-index: 4; width: 6.25rem !important; min-width: 6.25rem; padding-inline: .58rem; text-align: left; background: var(--oak-bg-raised) !important; box-shadow: 1px 0 0 var(--oak-border-subtle); }
+
+@media (min-width: 900px) {
+  .oak-h1-table { width: 100%; min-width: 100%; }
+  .oak-h1-table th, .oak-h1-table td { width: auto; min-width: 0; }
+  .oak-h1-symbol-sticky { width: clamp(8rem, 10vw, 11rem) !important; min-width: clamp(8rem, 10vw, 11rem); }
+}
 .oak-h1-table tbody .oak-h1-symbol-sticky b { color: var(--oak-fg-primary); font: 900 .67rem "Cascadia Mono", Consolas, monospace; }
 .oak-h1-table thead th[data-post-signal-inverted="true"],
 .oak-h1-table tbody td[data-post-signal-inverted="true"] { background: color-mix(in srgb, var(--oak-status-warning) 12%, var(--oak-bg-surface)); }
