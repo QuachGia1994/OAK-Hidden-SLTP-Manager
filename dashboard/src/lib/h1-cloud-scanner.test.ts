@@ -16,6 +16,8 @@ import {
   emptyCloudState,
   ensureSymbolDay,
   evaluateH1SignalsForTarget,
+  isLastFridayBrokerDate,
+  isMonthEndBridgeCell,
   isSpecialThursdayBrokerDate,
   parseCloudState,
   parsePublicFeedCloudState,
@@ -146,6 +148,20 @@ test("six-block matrix resolves independently per hour within a weekday", () => 
   assert.deepEqual([12, 14, 16].map((hour) => cycleDecisionFor("XAUUSD", "2026-07-03", hour).inverted), [true, false, false]);
   // Wednesday 2026-07-08 (cycle): row N C C C N C -> H6 C, H9 C, H14 N.
   assert.deepEqual([6, 9, 14].map((hour) => cycleDecisionFor("XAUUSD", "2026-07-08", hour).inverted), [false, false, true]);
+});
+
+test("month-end bridge keeps the last Friday month through next Mon Tue Wed and resets on first Thursday", () => {
+  assert.equal(isLastFridayBrokerDate("2026-10-30"), true);
+  assert.equal(isMonthEndBridgeCell("2026-10-30", 16), true);
+  assert.equal(isMonthEndBridgeCell("2026-10-30", 14), false);
+  for (const date of ["2026-11-02", "2026-11-03", "2026-11-04"]) {
+    assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell(date, hour)), [true, true, true, true, true, true, true]);
+  }
+  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-11-02", 3), { inverted: false, rule: "cycle-net-keep" });
+  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-11-03", 3), { inverted: true, rule: "cycle-net-invert" });
+  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-11-04", 14), { inverted: true, rule: "cycle-net-invert" });
+  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-11-05", 3), { inverted: false, rule: "regular-net-keep" });
+  assert.equal(isMonthEndBridgeCell("2026-11-05", 3), false);
 });
 
 test("special Thursday definition covers both calendar branches", () => {

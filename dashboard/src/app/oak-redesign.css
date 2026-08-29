@@ -382,7 +382,16 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-h1-table thead th[data-post-signal-inverted="true"],
 .oak-h1-table tbody td[data-post-signal-inverted="true"] { background: color-mix(in srgb, var(--oak-status-warning) 12%, var(--oak-bg-surface)); }
 .oak-h1-table thead th[data-post-signal-inverted="true"] { color: var(--oak-status-warning); box-shadow: inset 0 -3px 0 var(--oak-status-warning); }
-.oak-h1-block-invert-badge { display: block; margin-top: .12rem; color: var(--oak-status-warning); font: 900 .4rem "Cascadia Mono", Consolas, monospace; letter-spacing: .03em; line-height: 1.1; }
+.oak-h1-table thead th[data-month-end-bridge="true"],
+.oak-h1-table tbody td[data-month-end-bridge="true"] {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--oak-accent-command) 20%, transparent), transparent 54%),
+    color-mix(in srgb, var(--oak-status-warning) 15%, var(--oak-bg-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oak-accent-command) 55%, transparent), inset 0 0 22px color-mix(in srgb, var(--oak-accent-command) 14%, transparent);
+}
+.oak-h1-table thead th[data-month-end-bridge="true"] { color: var(--oak-accent-command); }
+.oak-h1-block-invert-badge, .oak-h1-bridge-badge { display: block; margin-top: .12rem; color: var(--oak-status-warning); font: 900 .4rem "Cascadia Mono", Consolas, monospace; letter-spacing: .03em; line-height: 1.1; }
+.oak-h1-bridge-badge { color: var(--oak-accent-command); }
 .oak-h1-cell-empty { display: grid; min-height: 3.1rem; place-items: center; color: color-mix(in srgb, var(--oak-fg-muted) 45%, transparent); font-size: .68rem; }
 .oak-h1-cell-locked { display: grid; min-height: 3.1rem; place-items: center; color: var(--oak-status-warning); font: 900 .5rem/1 "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
 .oak-h1-block-button { position: relative; display: grid; width: 100%; min-height: 3.7rem; place-content: center; padding: .35rem; text-align: center; transition: background-color var(--oak-motion-fast) ease; }

@@ -147,8 +147,29 @@ function firstThursdayBrokerDate(brokerDate: string): string {
   throw new Error("calendar month has no Thursday");
 }
 
+function calendarMonthKey(brokerDate: string): string {
+  const value = parseBrokerDateKeyUtc(brokerDate);
+  return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+export function isLastFridayBrokerDate(brokerDate: string): boolean {
+  if (brokerDateWeekdayIndex(brokerDate) !== 5) return false;
+  return calendarMonthKey(addBrokerCalendarDays(brokerDate, 7)) !== calendarMonthKey(brokerDate);
+}
+
+function monthEndBridgeAnchorFriday(brokerDate: string): string | null {
+  const weekday = brokerDateWeekdayIndex(brokerDate);
+  if (weekday < 1 || weekday > 3) return null;
+  const candidate = addBrokerCalendarDays(brokerDate, -(weekday + 2));
+  return isLastFridayBrokerDate(candidate) ? candidate : null;
+}
+
+function phaseAnchorBrokerDate(brokerDate: string): string {
+  return monthEndBridgeAnchorFriday(brokerDate) || brokerDate;
+}
+
 export function isCycleMonth(brokerDate: string): boolean {
-  return isSpecialThursdayBrokerDate(firstThursdayBrokerDate(brokerDate));
+  return isSpecialThursdayBrokerDate(firstThursdayBrokerDate(phaseAnchorBrokerDate(brokerDate)));
 }
 
 type H1PostSignalBlock = 0 | 1 | 2 | 3 | 4 | 5;
@@ -161,6 +182,12 @@ function postSignalBlockForSlot(slotHour: number): H1PostSignalBlock | null {
   if (slotHour === 14) return 4;
   if (slotHour === 16) return 5;
   return null;
+}
+
+export function isMonthEndBridgeCell(brokerDate: string, slotHour: number): boolean {
+  if (postSignalBlockForSlot(slotHour) === null) return false;
+  if (isLastFridayBrokerDate(brokerDate)) return slotHour === 16;
+  return monthEndBridgeAnchorFriday(brokerDate) !== null;
 }
 
 // Cycle-month rows, ordered as [H3/H4, H6, H9, H12, H14, H16].

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { historyDatesForWeekday, selectHistoryDate } from "@/lib/h1-history-navigation";
-import { cycleDecisionFor, H1_SCAN_HOURS, H1_TARGET_BASES } from "@/lib/h1-cloud-scanner";
+import { cycleDecisionFor, H1_SCAN_HOURS, H1_TARGET_BASES, isMonthEndBridgeCell } from "@/lib/h1-cloud-scanner";
 import type { H1SignalAlert, H1SignalPayload } from "@/lib/h1-signals";
 
 type Locale = "EN" | "VN";
@@ -297,15 +297,17 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
           <table className="oak-h1-table">
             <thead><tr><th className="oak-h1-symbol-sticky">SYMBOL</th>{H1_SCAN_HOURS.map((hour) => {
               const inverted = cycleDecisionFor("XAUUSD", fallbackDate, hour).inverted;
-              return <th key={hour} data-post-signal-inverted={inverted ? "true" : undefined}><span>H{String(hour).padStart(2, "0")}</span>{inverted && <small className="oak-h1-block-invert-badge">{locale === "EN" ? "REVERSE" : "ĐẢO"}</small>}</th>;
+              const bridge = isMonthEndBridgeCell(fallbackDate, hour);
+              return <th key={hour} data-post-signal-inverted={inverted ? "true" : undefined} data-month-end-bridge={bridge ? "true" : undefined}><span>H{String(hour).padStart(2, "0")}</span>{inverted && <small className="oak-h1-block-invert-badge">{locale === "EN" ? "REVERSE" : "ĐẢO"}</small>}{bridge && <small className="oak-h1-bridge-badge">{locale === "EN" ? "BRIDGE" : "CẦU"}</small>}</th>;
             })}</tr></thead>
             <tbody>{H1_TARGET_BASES.map((base) => (
               <tr key={base}><th className="oak-h1-symbol-sticky"><b>{base}</b></th>{H1_SCAN_HOURS.map((hour) => {
                 const inverted = cycleDecisionFor("XAUUSD", fallbackDate, hour).inverted;
+                const bridge = isMonthEndBridgeCell(fallbackDate, hour);
                 if (base.toUpperCase() === VIP_SIGNAL_SYMBOL && !unlocked) {
-                  return <td key={hour} data-post-signal-inverted={inverted ? "true" : undefined}><span className="oak-h1-cell-locked">VIP</span></td>;
+                  return <td key={hour} data-post-signal-inverted={inverted ? "true" : undefined} data-month-end-bridge={bridge ? "true" : undefined}><span className="oak-h1-cell-locked">VIP</span></td>;
                 }
-                return <td key={hour} data-post-signal-inverted={inverted ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>;
+                return <td key={hour} data-post-signal-inverted={inverted ? "true" : undefined} data-month-end-bridge={bridge ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>;
               })}</tr>
             ))}</tbody>
           </table>
@@ -352,20 +354,22 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
           <table className="oak-h1-table">
             <thead><tr><th className="oak-h1-symbol-sticky">SYMBOL</th>{data.hours.map((hour) => {
               const postSignalInverted = cycleDecisionFor("XAUUSD", date, hour).inverted;
-              return <th key={hour} data-post-signal-inverted={postSignalInverted ? "true" : undefined}><span>H{String(hour).padStart(2, "0")}</span>{postSignalInverted && <small className="oak-h1-block-invert-badge">{locale === "EN" ? "REVERSE" : "ĐẢO"}</small>}</th>;
+              const bridge = isMonthEndBridgeCell(date, hour);
+              return <th key={hour} data-post-signal-inverted={postSignalInverted ? "true" : undefined} data-month-end-bridge={bridge ? "true" : undefined}><span>H{String(hour).padStart(2, "0")}</span>{postSignalInverted && <small className="oak-h1-block-invert-badge">{locale === "EN" ? "REVERSE" : "ĐẢO"}</small>}{bridge && <small className="oak-h1-bridge-badge">{locale === "EN" ? "BRIDGE" : "CẦU"}</small>}</th>;
             })}</tr></thead>
             <tbody>{data.symbols.map((base) => {
               const symbolState = day?.symbols?.[base];
               const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
               return <tr key={base}><th className="oak-h1-symbol-sticky"><b>{base}</b></th>{data.hours.map((hour) => {
                 const postSignalInverted = cycleDecisionFor("XAUUSD", date, hour).inverted;
+                const bridge = isMonthEndBridgeCell(date, hour);
                 if (base.toUpperCase() === VIP_SIGNAL_SYMBOL && !unlocked) {
-                  return <td key={hour} data-post-signal-inverted={postSignalInverted ? "true" : undefined}><span className="oak-h1-cell-locked">VIP</span></td>;
+                  return <td key={hour} data-post-signal-inverted={postSignalInverted ? "true" : undefined} data-month-end-bridge={bridge ? "true" : undefined}><span className="oak-h1-cell-locked">VIP</span></td>;
                 }
                 const alert = byHour.get(hour);
-                if (!alert?.scheduledSignal) return <td key={hour} data-post-signal-inverted={postSignalInverted ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>;
+                if (!alert?.scheduledSignal) return <td key={hour} data-post-signal-inverted={postSignalInverted ? "true" : undefined} data-month-end-bridge={bridge ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>;
                 const side = alert.scheduledSignal;
-                return <td key={hour} data-scheduled-signal={side} data-post-signal-inverted={postSignalInverted ? "true" : undefined}><span className="oak-h1-cell-signal" data-side={side.toLowerCase()}>{side}</span></td>;
+                return <td key={hour} data-scheduled-signal={side} data-post-signal-inverted={postSignalInverted ? "true" : undefined} data-month-end-bridge={bridge ? "true" : undefined}><span className="oak-h1-cell-signal" data-side={side.toLowerCase()}>{side}</span></td>;
               })}</tr>;
             })}</tbody>
           </table>

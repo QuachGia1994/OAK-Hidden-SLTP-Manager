@@ -86,12 +86,16 @@ test("H1 history uses a native calendar picker without weekday filter controls",
   assert.doesNotMatch(boardSource, /oak-h1-history-dates/);
 });
 
-test("post-signal reversal highlights each inverted H1 block column", () => {
+test("post-signal reversal and month-end bridge highlights reach H1 block cells", () => {
   assert.match(boardSource, /cycleDecisionFor\("XAUUSD", date, hour\)\.inverted/);
+  assert.match(boardSource, /isMonthEndBridgeCell/);
   assert.match(boardSource, /data-post-signal-inverted/);
+  assert.match(boardSource, /data-month-end-bridge/);
   assert.match(boardSource, /oak-h1-block-invert-badge/);
+  assert.match(boardSource, /oak-h1-bridge-badge/);
   assert.match(redesignCss, /\.oak-h1-table thead th\[data-post-signal-inverted="true"\]/);
   assert.match(redesignCss, /\.oak-h1-table tbody td\[data-post-signal-inverted="true"\]/);
+  assert.match(redesignCss, /data-month-end-bridge="true"/);
   assert.doesNotMatch(boardSource, /postSignalDecisionForSymbol|oak-h1-post-invert-row|oak-h1-post-invert-badge/);
   assert.doesNotMatch(redesignCss, /oak-h1-post-invert-row|oak-h1-post-invert-badge/);
 });
