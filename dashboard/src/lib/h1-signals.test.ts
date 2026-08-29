@@ -95,6 +95,10 @@ test("H1 history uses a deterministic Sunday-first calendar without weekday filt
   assert.match(redesignCss, /\.oak-h1-calendar-weekdays/);
   assert.match(redesignCss, /grid-template-columns: repeat\(7, 1\.75rem\)/);
   assert.match(redesignCss, /width: min\(15rem, calc\(100vw - 1\.25rem\)\)/);
+  assert.match(redesignCss, /\.oak-h1-board \{[\s\S]*?overflow: visible;/);
+  assert.match(redesignCss, /\.oak-h1-history \{[^}]*z-index: 30;[^}]*overflow: visible;/);
+  assert.match(redesignCss, /\.oak-h1-table-scroll \{[^}]*overflow-y: hidden;[^}]*border-radius:/);
+  assert.doesNotMatch(redesignCss, /\.oak-h1-board \{[^}]*overflow: hidden;/);
   assert.doesNotMatch(redesignCss, /width: min\(20\.5rem/);
   assert.doesNotMatch(boardSource, /oak-h1-history-dates/);
 });

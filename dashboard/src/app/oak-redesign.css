@@ -313,7 +313,8 @@ min-height: 2rem; padding: .35rem .6rem;
 
 /* H1 intraday signal matrix */
 .oak-h1-board {
-  overflow: hidden;
+  position: relative;
+  overflow: visible;
   border: 1px solid var(--oak-border-subtle);
   border-radius: var(--oak-radius-md);
   background: var(--oak-bg-surface);
@@ -327,6 +328,7 @@ min-height: 2rem; padding: .35rem .6rem;
   padding: .7rem .8rem;
   border-bottom: 1px solid var(--oak-border-subtle);
   background: var(--oak-bg-raised);
+  border-radius: calc(var(--oak-radius-md) - 1px) calc(var(--oak-radius-md) - 1px) 0 0;
 }
 .oak-h1-board-head h2 { margin-top: .16rem; font-size: 1.02rem; font-weight: 900; letter-spacing: -.025em; }
 .oak-h1-board-head p { max-width: 42rem; margin-top: .2rem; color: var(--oak-fg-muted); font-size: .64rem; line-height: 1.45; }
@@ -347,7 +349,7 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-h1-locked-preview { margin: .7rem .8rem .8rem; border-color: color-mix(in srgb, var(--oak-status-warning) 32%, var(--oak-border-subtle)); }
 .oak-h1-locked-preview b { display: block; color: var(--oak-fg-primary); font-size: .7rem; }
 .oak-h1-locked-preview p { margin-top: .2rem; color: var(--oak-fg-muted); }
-.oak-h1-history { display: grid; gap: .42rem; padding: .55rem .7rem; border-bottom: 1px solid var(--oak-border-subtle); background: var(--oak-bg-surface); }
+.oak-h1-history { position: relative; z-index: 30; display: grid; gap: .42rem; padding: .55rem .7rem; overflow: visible; border-bottom: 1px solid var(--oak-border-subtle); background: var(--oak-bg-surface); }
 .oak-h1-history[data-empty="true"] { background: color-mix(in srgb, var(--oak-bg-raised) 42%, var(--oak-bg-surface)); }
 .oak-h1-history-row { display: grid; grid-template-columns: 5.8rem minmax(0, 1fr); gap: .55rem; align-items: center; min-width: 0; }
 .oak-h1-history-label { color: var(--oak-fg-muted); font: 800 .46rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
@@ -371,7 +373,7 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-h1-degraded { color: var(--oak-status-warning) !important; font: 800 .58rem "Cascadia Mono", Consolas, monospace !important; letter-spacing: .02em; }
 .oak-h1-awaiting { padding: .5rem .7rem; border-bottom: 1px solid var(--oak-border-subtle); color: var(--oak-fg-muted); font-size: .66rem; }
 .oak-h1-scroll-hint { display: none; margin: 0; padding: .32rem .7rem; border-bottom: 1px solid var(--oak-border-subtle); color: var(--oak-fg-muted); background: var(--oak-bg-raised); font: 750 .48rem "Cascadia Mono", Consolas, monospace; letter-spacing: .02em; }
-.oak-h1-table-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; -webkit-overflow-scrolling: touch; }
+.oak-h1-table-scroll { max-width: 100%; overflow-x: auto; overflow-y: hidden; border-radius: 0 0 calc(var(--oak-radius-md) - 1px) calc(var(--oak-radius-md) - 1px); overscroll-behavior-inline: contain; -webkit-overflow-scrolling: touch; }
 .oak-h1-table { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
 .oak-h1-table th, .oak-h1-table td { width: 4.45rem; min-width: 4.45rem; border-right: 1px solid var(--oak-border-subtle); border-bottom: 1px solid var(--oak-border-subtle); }
 .oak-h1-table th:last-child, .oak-h1-table td:last-child { border-right: 0; }
