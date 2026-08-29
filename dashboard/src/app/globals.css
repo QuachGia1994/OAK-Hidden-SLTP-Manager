@@ -29,6 +29,16 @@
   --oak-motion-fast: 120ms;
   --oak-motion-base: 180ms;
   --oak-ease: cubic-bezier(.2,.8,.2,1);
+  --hud-pointer-x: 50vw;
+  --hud-pointer-y: 28vh;
+  --hud-pointer-nx: .5;
+  --hud-pointer-ny: .28;
+  --hud-glass-bg: color-mix(in srgb, var(--oak-bg-surface) 82%, transparent);
+  --hud-glass-border: color-mix(in srgb, var(--oak-accent-command) 20%, var(--oak-border-subtle));
+  --hud-glass-blur: blur(14px) saturate(150%);
+  --hud-spotlight-glow: color-mix(in srgb, var(--oak-accent-command) 12%, transparent);
+  --hud-grid-accent: color-mix(in srgb, var(--oak-accent-command) 10%, transparent);
+  --hud-bracket-color: var(--oak-accent-command);
 
   /* Compatibility aliases for existing secondary-tool components. */
   --background: var(--oak-bg-canvas);
@@ -68,6 +78,11 @@
   --oak-border-strong: #475467;
   --oak-shadow-1: 0 1px 2px rgba(0, 0, 0, .3);
   --oak-shadow-2: 0 12px 32px rgba(0, 0, 0, .28);
+  --hud-glass-bg: color-mix(in srgb, #0f172a 68%, transparent);
+  --hud-glass-border: rgba(255, 255, 255, .08);
+  --hud-glass-blur: blur(20px) saturate(180%);
+  --hud-spotlight-glow: rgba(77, 159, 255, .16);
+  --hud-grid-accent: rgba(77, 159, 255, .12);
 }
 
 .contrast {
@@ -91,6 +106,10 @@
   --oak-border-strong: #7a6940;
   --oak-shadow-1: 0 1px 2px rgba(0, 0, 0, .45);
   --oak-shadow-2: 0 12px 32px rgba(0, 0, 0, .4);
+  --hud-glass-bg: color-mix(in srgb, #0d0c09 74%, transparent);
+  --hud-glass-border: rgba(255, 209, 102, .14);
+  --hud-spotlight-glow: rgba(240, 180, 41, .15);
+  --hud-grid-accent: rgba(240, 180, 41, .11);
 }
 
 @theme inline {

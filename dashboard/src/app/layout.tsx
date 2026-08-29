@@ -5,6 +5,7 @@ import "./factcheck-share.css";
 import { NavBar } from "@/components/NavBar";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { LocaleProvider } from "@/components/LocaleProvider";
+import { SpatialHudCanvas } from "@/components/SpatialHudCanvas";
 import { headers } from "next/headers";
 import { detectServerLocaleFromCookie } from "@/lib/i18n";
 
@@ -49,6 +50,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <body className="oak-body min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)]">
         <LocaleProvider initialLocale={locale}>
           <ThemeProvider>
+            <SpatialHudCanvas />
             <NavBar />
             <main className="oak-main flex-1 min-h-0">{children}</main>
             <footer className="oak-footer">

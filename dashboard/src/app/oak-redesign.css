@@ -1120,7 +1120,112 @@ animation: none !important; transition-duration: .01ms !important; scroll-behavi
 }
 }
 
+/* Spatial HUD / cinematic WebGL layer */
+body.oak-body {
+  background:
+    radial-gradient(900px circle at var(--hud-pointer-x) var(--hud-pointer-y), var(--hud-spotlight-glow), transparent 42%),
+    linear-gradient(180deg, color-mix(in srgb, var(--oak-accent-command) 5%, transparent), transparent 18rem),
+    var(--oak-bg-canvas);
+}
+
+.oak-spatial-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(900px circle at 50% 18%, color-mix(in srgb, var(--oak-accent-command) 15%, transparent), transparent 54%),
+    linear-gradient(180deg, #080b10, color-mix(in srgb, var(--oak-bg-canvas) 84%, #0f172a));
+}
+.oak-spatial-canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .78; mix-blend-mode: screen; }
+.oak-spatial-canvas[data-fallback="true"] { opacity: 0; }
+.oak-spatial-grid {
+  position: absolute;
+  inset: -20% -10% 0;
+  opacity: .34;
+  transform: perspective(900px) rotateX(62deg) translateY(13vh);
+  transform-origin: 50% 70%;
+  background-image:
+    linear-gradient(var(--hud-grid-accent) 1px, transparent 1px),
+    linear-gradient(90deg, var(--hud-grid-accent) 1px, transparent 1px),
+    radial-gradient(circle at var(--hud-pointer-x) var(--hud-pointer-y), color-mix(in srgb, var(--oak-accent-command) 18%, transparent), transparent 34%);
+  background-size: 48px 48px, 48px 48px, 100% 100%;
+  mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 72%, transparent);
+}
+.oak-spatial-vignette { position: absolute; inset: 0; background: radial-gradient(circle at 50% 34%, transparent 0 42%, rgba(0,0,0,.52) 100%); }
+.oak-spatial-grain {
+  position: absolute;
+  inset: 0;
+  opacity: .035;
+  background-image:
+    radial-gradient(circle at 25% 30%, #fff 0 1px, transparent 1px),
+    radial-gradient(circle at 75% 70%, #fff 0 1px, transparent 1px);
+  background-size: 37px 41px, 29px 31px;
+}
+.oak-main, .oak-footer, .oak-nav { position: relative; z-index: 1; }
+.oak-nav { z-index: 50; background: color-mix(in srgb, var(--hud-glass-bg) 92%, transparent); backdrop-filter: var(--hud-glass-blur); -webkit-backdrop-filter: var(--hud-glass-blur); }
+.oak-nav::after { content: ""; position: absolute; inset: auto 0 0; height: 1px; background: linear-gradient(90deg, transparent, var(--hud-glass-border), transparent); }
+
+:where(.oak-command-strip, .oak-access-panel, .oak-h1-board, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-fact-input-panel, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .tarot-hero, .tarot-result, .discover-hero, .discover-card) {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--hud-glass-border) !important;
+  background: var(--hud-glass-bg) !important;
+  backdrop-filter: var(--hud-glass-blur);
+  -webkit-backdrop-filter: var(--hud-glass-blur);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.07),
+    0 20px 70px rgba(0,0,0,.18),
+    0 0 0 1px rgba(255,255,255,.025) !important;
+}
+:where(.oak-command-strip, .oak-access-panel, .oak-h1-board, .oak-account-card, .discover-card)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(600px circle at var(--hud-pointer-x) var(--hud-pointer-y), rgba(255,255,255,.065), transparent 40%);
+}
+:where(.oak-command-strip, .oak-access-panel, .oak-h1-board, .oak-account-card, .discover-card) > * { position: relative; z-index: 1; }
+.oak-command-strip::after, .oak-h1-board::after, .oak-account-head::after {
+  content: "";
+  position: absolute;
+  inset: .42rem;
+  z-index: 0;
+  pointer-events: none;
+  border: 1px solid transparent;
+  border-image: linear-gradient(135deg, var(--hud-bracket-color), transparent 18%, transparent 82%, var(--hud-bracket-color)) 1;
+  opacity: .28;
+}
+.oak-access-panel, .oak-command-strip, .oak-h1-board, .oak-account-card {
+  transform-style: preserve-3d;
+  transition: transform 220ms var(--oak-ease), border-color 180ms ease, box-shadow 180ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .oak-access-panel:hover, .oak-command-strip:hover, .oak-account-card:hover, .oak-h1-board:hover {
+    transform: perspective(1100px) rotateX(calc((var(--hud-pointer-ny) - .5) * -1.2deg)) rotateY(calc((var(--hud-pointer-nx) - .5) * 1.5deg)) translate3d(0,-1px,0);
+  }
+}
+.oak-h1-symbol-sticky { background: color-mix(in srgb, var(--oak-bg-raised) 96%, #0f172a) !important; }
+.oak-h1-cell-signal[data-side="buy"] { text-shadow: 0 0 16px color-mix(in srgb, var(--oak-signal-buy) 54%, transparent); }
+.oak-h1-cell-signal[data-side="sell"] { text-shadow: 0 0 16px color-mix(in srgb, var(--oak-signal-sell) 54%, transparent); }
+.oak-h1-table tbody td[data-scheduled-signal="BUY"] { box-shadow: inset 0 0 22px color-mix(in srgb, var(--oak-signal-buy) 8%, transparent); }
+.oak-h1-table tbody td[data-scheduled-signal="SELL"] { box-shadow: inset 0 0 22px color-mix(in srgb, var(--oak-signal-sell) 8%, transparent); }
+
+.oak-android .oak-spatial-canvas { opacity: .22; }
+.oak-android .oak-spatial-grid { opacity: .18; transform: none; }
+.oak-android :where(.oak-command-strip, .oak-access-panel, .oak-h1-board, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-fact-input-panel, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .tarot-hero, .tarot-result, .discover-hero, .discover-card) { backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+@media (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .oak-spatial-canvas { opacity: .22; }
+  .oak-spatial-grid { opacity: .18; transform: none; }
+  :where(.oak-command-strip, .oak-access-panel, .oak-h1-board, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-fact-input-panel, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .tarot-hero, .tarot-result, .discover-hero, .discover-card) { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .oak-access-panel:hover, .oak-command-strip:hover, .oak-account-card:hover, .oak-h1-board:hover { transform: none !important; }
+}
+
 @media print {
+  .oak-spatial-stage { display: none !important; }
   .oak-nav, .oak-footer { display: none !important; }
   .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel { box-shadow: none !important; backdrop-filter: none !important; }
 }
