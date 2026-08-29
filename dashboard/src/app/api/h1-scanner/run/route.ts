@@ -18,6 +18,7 @@ import {
   buildTelegramMessage,
   ensureSymbolDay,
   evaluateH1SignalsForTarget,
+  isH1SlotActiveForBrokerDate,
   targetsForBlockHour,
   type H1CloudState,
   type H1StoredAlert,
@@ -97,6 +98,7 @@ function marketReadyForSlot(
 ) {
   // The signal for slot S needs the S:00 H1 candle closed, i.e. broker hour S+1.
   const slotHour = brokerHour - 1;
+  if (!isH1SlotActiveForBrokerDate(market.brokerDate, slotHour)) return true;
   if (!(targetsForBlockHour(slotHour) as readonly string[]).length) return false;
   return targetsForBlockHour(slotHour).every((base) =>
     market.symbols[base].bars.some((bar) => bar.hour === slotHour),
@@ -185,7 +187,8 @@ export async function POST(request: Request) {
     // user-scheduled entry/close appointments.
     let blockReminderSent = false;
     const telegramConfigured = Boolean(!dryRun && cloudConfig?.telegramToken && cloudConfig?.telegramChatId);
-    const isScheduledBlock = (H1_SCAN_HOURS as readonly number[]).includes(market.brokerHour);
+    const isScheduledBlock = (H1_SCAN_HOURS as readonly number[]).includes(market.brokerHour)
+      && isH1SlotActiveForBrokerDate(market.brokerDate, market.brokerHour);
     if (telegramConfigured && isScheduledBlock && cloudConfig) {
       const reminderKey = `${market.brokerDate}:H${market.brokerHour}`;
       const claimed = await claimH1BlockReminder(reminderKey);

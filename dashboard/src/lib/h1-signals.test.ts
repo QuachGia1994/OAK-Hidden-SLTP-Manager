@@ -198,7 +198,8 @@ test("H1 board exports the selected scanner day as a shareable PNG with download
   assert.match(boardSource, /navigator\.canShare\(shareData\)/);
   assert.match(boardSource, /navigator\.share\(shareData\)/);
   assert.match(boardSource, /anchor\.download = filename/);
-  assert.match(boardSource, /data\.hours\.forEach/);
+  assert.match(boardSource, /activeH1ScanHoursForBrokerDate\(date, data\.hours\)/);
+  assert.match(boardSource, /hours\.forEach/);
   assert.match(boardSource, /data\.symbols\.forEach/);
   assert.match(redesignCss, /\.oak-h1-share-png \{/);
 });

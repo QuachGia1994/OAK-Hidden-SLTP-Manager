@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { historyDatesForWeekday, selectHistoryDate } from "@/lib/h1-history-navigation";
-import { cycleDecisionFor, H1_SCAN_HOURS, H1_TARGET_BASES, isMonthEndBridgeCell } from "@/lib/h1-cloud-scanner";
+import { activeH1ScanHoursForBrokerDate, cycleDecisionFor, H1_SCAN_HOURS, H1_TARGET_BASES, isMonthEndBridgeCell } from "@/lib/h1-cloud-scanner";
 import type { H1SignalAlert, H1SignalPayload } from "@/lib/h1-signals";
 
 type Locale = "EN" | "VN";
@@ -37,11 +37,12 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   const day = data.days[date];
   if (!day) throw new Error("Broker day unavailable");
 
+  const hours = activeH1ScanHoursForBrokerDate(date, data.hours);
   const padding = 40;
   const titleHeight = 128;
   const headerHeight = 54;
   const footerHeight = 46;
-  const tableWidth = H1_SHARE_SYMBOL_WIDTH + data.hours.length * H1_SHARE_HOUR_WIDTH;
+  const tableWidth = H1_SHARE_SYMBOL_WIDTH + hours.length * H1_SHARE_HOUR_WIDTH;
   const logicalWidth = padding * 2 + tableWidth;
   const logicalHeight = padding + titleHeight + headerHeight + data.symbols.length * H1_SHARE_ROW_HEIGHT + footerHeight + padding;
   const canvas = document.createElement("canvas");
@@ -97,7 +98,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   };
 
   drawCentered("SYMBOL", tableX, tableY, H1_SHARE_SYMBOL_WIDTH, headerHeight, colors.muted, `850 14px ${H1_SHARE_FONT}`);
-  data.hours.forEach((hour, index) => {
+  hours.forEach((hour, index) => {
     const inverted = cycleDecisionFor("XAUUSD", date, hour).inverted;
     const x = tableX + H1_SHARE_SYMBOL_WIDTH + index * H1_SHARE_HOUR_WIDTH;
     if (inverted) {
@@ -108,9 +109,9 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     if (inverted) drawCentered(locale === "EN" ? "REVERSE" : "ĐẢO", x, tableY + headerHeight - 16, H1_SHARE_HOUR_WIDTH, 16, colors.warning, `850 8px ${H1_SHARE_FONT}`);
   });
 
-  for (let col = 0; col <= data.hours.length; col += 1) {
+  for (let col = 0; col <= hours.length; col += 1) {
     const x = tableX + H1_SHARE_SYMBOL_WIDTH + col * H1_SHARE_HOUR_WIDTH;
-    if (col === data.hours.length) continue;
+    if (col === hours.length) continue;
     ctx.beginPath();
     ctx.moveTo(x, tableY);
     ctx.lineTo(x, tableY + headerHeight + data.symbols.length * H1_SHARE_ROW_HEIGHT);
@@ -129,7 +130,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     drawCentered(base, tableX, y, H1_SHARE_SYMBOL_WIDTH, H1_SHARE_ROW_HEIGHT, colors.text, `900 17px ${H1_SHARE_FONT}`);
 
     const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
-    data.hours.forEach((hour, hourIndex) => {
+    hours.forEach((hour, hourIndex) => {
       const x = tableX + H1_SHARE_SYMBOL_WIDTH + hourIndex * H1_SHARE_HOUR_WIDTH;
       const alert = byHour.get(hour);
       const inverted = cycleDecisionFor("XAUUSD", date, hour).inverted;
@@ -407,6 +408,7 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
     }).format(new Date());
     const fallbackMinDate = addIsoCalendarDays(today, -89);
     const fallbackDate = selectedDate && selectedDate >= fallbackMinDate && selectedDate <= today ? selectedDate : today;
+    const fallbackHours = activeH1ScanHoursForBrokerDate(fallbackDate, H1_SCAN_HOURS);
     return (
       <section className="oak-h1-board">
         <header className="oak-h1-board-head">
@@ -438,13 +440,13 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
         <p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe horizontally for later blocks" : "Vuốt ngang để xem H12 · H14 · H16"}</p>
         <div className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
-            <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{H1_SCAN_HOURS.map((hour) => {
+            <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{fallbackHours.map((hour) => {
               const inverted = cycleDecisionFor("XAUUSD", fallbackDate, hour).inverted;
               const bridge = isMonthEndBridgeCell(fallbackDate, hour);
               return <th id={`h1-hour-${hour}`} scope="col" key={hour} data-post-signal-inverted={inverted ? "true" : undefined} data-month-end-bridge={bridge ? "true" : undefined}><span>H{String(hour).padStart(2, "0")}</span>{inverted && <small className="oak-h1-block-invert-badge">{locale === "EN" ? "REVERSE" : "ĐẢO"}</small>}{bridge && <small className="oak-h1-bridge-badge">{locale === "EN" ? "BRIDGE" : "CẦU"}</small>}</th>;
             })}</tr></thead>
             <tbody>{H1_TARGET_BASES.map((base) => (
-              <tr key={base}><th id={`h1-symbol-${base}`} scope="row" className="oak-h1-symbol-sticky"><b>{base}</b></th>{H1_SCAN_HOURS.map((hour) => {
+              <tr key={base}><th id={`h1-symbol-${base}`} scope="row" className="oak-h1-symbol-sticky"><b>{base}</b></th>{fallbackHours.map((hour) => {
                 const inverted = cycleDecisionFor("XAUUSD", fallbackDate, hour).inverted;
                 const bridge = isMonthEndBridgeCell(fallbackDate, hour);
                 if (base.toUpperCase() === VIP_SIGNAL_SYMBOL && !unlocked) {
@@ -458,6 +460,8 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
       </section>
     );
   }
+
+  const activeHours = date ? activeH1ScanHoursForBrokerDate(date, data.hours) : data.hours;
 
   return (
     <>
@@ -493,7 +497,7 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
         </div>
         {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : <><p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe horizontally for later blocks" : "Vuốt ngang để xem H12 · H14 · H16"}</p><div className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
-            <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{data.hours.map((hour) => {
+            <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{activeHours.map((hour) => {
               const postSignalInverted = cycleDecisionFor("XAUUSD", date, hour).inverted;
               const bridge = isMonthEndBridgeCell(date, hour);
               return <th id={`h1-hour-${hour}`} scope="col" key={hour} data-post-signal-inverted={postSignalInverted ? "true" : undefined} data-month-end-bridge={bridge ? "true" : undefined}><span>H{String(hour).padStart(2, "0")}</span>{postSignalInverted && <small className="oak-h1-block-invert-badge">{locale === "EN" ? "REVERSE" : "ĐẢO"}</small>}{bridge && <small className="oak-h1-bridge-badge">{locale === "EN" ? "BRIDGE" : "CẦU"}</small>}</th>;
@@ -501,7 +505,7 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
             <tbody>{data.symbols.map((base) => {
               const symbolState = day?.symbols?.[base];
               const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
-              return <tr key={base}><th id={`h1-symbol-${base}`} scope="row" className="oak-h1-symbol-sticky"><b>{base}</b></th>{data.hours.map((hour) => {
+              return <tr key={base}><th id={`h1-symbol-${base}`} scope="row" className="oak-h1-symbol-sticky"><b>{base}</b></th>{activeHours.map((hour) => {
                 const postSignalInverted = cycleDecisionFor("XAUUSD", date, hour).inverted;
                 const bridge = isMonthEndBridgeCell(date, hour);
                 if (base.toUpperCase() === VIP_SIGNAL_SYMBOL && !unlocked) {
