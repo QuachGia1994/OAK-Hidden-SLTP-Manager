@@ -14,10 +14,19 @@ const oakCss = readFileSync(new URL("../app/oak-redesign.css", import.meta.url),
 const globalsCss = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const layoutSource = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const spatialSource = readFileSync(new URL("../components/SpatialHudCanvas.tsx", import.meta.url), "utf8");
+const breadcrumbSource = readFileSync(new URL("../components/RouteBreadcrumbs.tsx", import.meta.url), "utf8");
+const historyPageSource = readFileSync(new URL("../app/history/page.tsx", import.meta.url), "utf8");
 
-test("mobile keeps the global locale switch reachable", () => {
+test("mobile keeps locale reachable without full reload and uses a controlled navigation drawer", () => {
   assert.match(navSource, /oak-locale-switch/);
   assert.match(navSource, /setLocaleMode\(item\)/);
+  assert.match(navSource, /router\.refresh\(\)/);
+  assert.doesNotMatch(navSource, /window\.location\.reload/);
+  assert.match(navSource, /oak-mobile-nav-toggle/);
+  assert.match(navSource, /data-mobile-open/);
+  assert.match(navSource, /aria-controls="oak-mobile-navigation"/);
+  assert.match(oakCss, /\.oak-nav-workspace\[data-mobile-open="true"\] \{ display: grid; \}/);
+  assert.match(oakCss, /\.oak-mobile-nav-toggle \{ display: grid; \}/);
   assert.doesNotMatch(oakCss, /\.oak-locale-switch\s*\{\s*display:\s*none/);
 });
 
@@ -46,10 +55,15 @@ test("H1 dashboard keeps Sunday-first date navigation without weekday filter con
   assert.doesNotMatch(enginePageSource, /DashboardAutoRefresh|router\.refresh/);
 });
 
-test("H1 signal cells stay centered and use an explicit compact type scale", () => {
+test("H1 signal cells stay centered, expose mobile scroll affordance and table header relationships", () => {
   assert.match(h1SignalSource, /oak-h1-cell-signal/);
+  assert.match(h1SignalSource, /scope="col"/);
+  assert.match(h1SignalSource, /scope="row"/);
+  assert.match(h1SignalSource, /headers=\{`h1-symbol-\$\{base\} h1-hour-\$\{hour\}`\}/);
+  assert.match(h1SignalSource, /VIP required/);
   assert.match(oakCss, /\.oak-h1-cell-signal[\s\S]*display: grid/);
   assert.match(oakCss, /\.oak-h1-cell-signal[\s\S]*text-align: center/);
+  assert.match(oakCss, /\.oak-h1-scroll-hint \{ display: block; color: var\(--oak-fg-muted\); font-size: \.625rem; \}/);
 });
 
 test("all custom trading and NeoTech dialogs use the shared keyboard focus trap", () => {
@@ -60,9 +74,11 @@ test("all custom trading and NeoTech dialogs use the shared keyboard focus trap"
   assert.match(dialogHookSource, /event\.shiftKey/);
 });
 
-test("H1 header stays simplified and VIP logout errors remain visible", () => {
+test("H1 header stays simplified and VIP actions expose visible loading state", () => {
   assert.doesNotMatch(h1EngineSource, /<small>PROFILE<\/small>/);
   assert.match(h1EngineSource, /!open && error/);
+  assert.match(h1EngineSource, /oak-button-spinner/);
+  assert.match(oakCss, /\.oak-button-spinner/);
 });
 
 test("NeoTech and shared FactCheck states follow the global locale", () => {
@@ -92,6 +108,32 @@ test("spatial HUD layer stays below DOM UI and respects performance guards", () 
   assert.match(oakCss, /@media \(max-width: 899px\), \(pointer: coarse\)/);
   assert.match(oakCss, /\.oak-spatial-stage \{ display: none !important; \}/);
   assert.match(oakCss, /body\.oak-body \{ background: var\(--oak-bg-canvas\) !important; \}/);
+});
+
+test("history has its own trading route and nested routes expose skip/breadcrumb context", () => {
+  assert.match(navSource, /href="\/history"/);
+  assert.match(historyPageSource, /readLatestH1Signals/);
+  assert.match(historyPageSource, /<H1SignalBoard/);
+  assert.match(layoutSource, /oak-skip-link/);
+  assert.match(layoutSource, /id="main-content"/);
+  assert.match(layoutSource, /<RouteBreadcrumbs \/>/);
+  assert.match(breadcrumbSource, /pathname\.startsWith\("\/factcheck\/"\)/);
+  assert.match(breadcrumbSource, /pathname\.startsWith\("\/neotech\/"\)/);
+  assert.match(layoutSource, /oak-footer/);
+});
+
+test("technical labels have a readable minimum and tools menu has an explicit close action", () => {
+  assert.match(navSource, /oak-tools-close/);
+  assert.match(oakCss, /\.oak-tools-close/);
+  assert.match(oakCss, /\.oak-eyebrow,[\s\S]*\.oak-h1-calendar-weekdays span \{ font-size: \.625rem; \}/);
+  assert.match(oakCss, /padding-left: max\(\.85rem, env\(safe-area-inset-left\)\)/);
+});
+
+test("provider account empty states expose immediate actions", () => {
+  assert.match(accountSource, /id="oak-add-mt5"/);
+  assert.match(accountSource, /Connect cTrader/);
+  assert.match(accountSource, /href="#oak-add-mt5"/);
+  assert.match(oakCss, /\.oak-account-empty button,/);
 });
 
 test("light theme keeps strong text, borders and opaque H1 surfaces over the desktop spatial layer", () => {

@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTheme } from "./ThemeProvider";
 import { useLocale } from "./LocaleProvider";
 
 function EngineIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18V9m5 9V5m5 13v-7m5 7V3" /></svg>;
+}
+function HistoryIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4m8-4v4M4 10h16M8 14h3m2 0h3" /></svg>;
 }
 function AccountIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3" /><path d="M5 20c.8-4 3.1-6 7-6s6.2 2 7 6" /></svg>;
@@ -30,9 +33,11 @@ function ToolsIcon() {
 
 export function NavBar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { theme, cycleTheme } = useTheme();
   const { locale, mode, setLocaleMode } = useLocale();
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const toolsRef = useRef<HTMLDivElement>(null);
   const toolsButtonRef = useRef<HTMLButtonElement>(null);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
@@ -42,10 +47,11 @@ export function NavBar() {
     { href: "/tarot", label: "Tarot", detail: locale === "EN" ? "Reflection" : "Chiêm nghiệm", icon: <TarotIcon /> },
     { href: "/discover", label: locale === "EN" ? "Discover" : "Khám phá", detail: locale === "EN" ? "Playground" : "Giải trí", icon: <DiscoverIcon /> },
   ];
-  const toolsActive = tools.some((item) => pathname === item.href);
+  const toolsActive = tools.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
 
   useEffect(() => {
     setToolsOpen(false);
+    setMobileOpen(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -67,8 +73,9 @@ export function NavBar() {
   }, [toolsOpen]);
 
   const changeLocale = (item: "EN" | "VN") => {
+    if (item === mode) return;
     setLocaleMode(item);
-    window.setTimeout(() => window.location.reload(), 0);
+    window.requestAnimationFrame(() => router.refresh());
   };
 
   const focusToolItem = (index: number) => {
@@ -107,7 +114,7 @@ export function NavBar() {
           </span>
         </Link>
 
-        <div className="oak-nav-workspace" aria-label="Product navigation">
+        <div id="oak-mobile-navigation" className="oak-nav-workspace" data-mobile-open={mobileOpen ? "true" : undefined} aria-label="Product navigation">
           <span className="oak-nav-section-label">TRADING</span>
           <Link
             href="/engine"
@@ -117,6 +124,15 @@ export function NavBar() {
           >
             <span className="oak-nav-icon"><EngineIcon /></span>
             <span>H1 Signals</span>
+          </Link>
+          <Link
+            href="/history"
+            aria-current={pathname === "/history" ? "page" : undefined}
+            className="oak-nav-link"
+            data-active={pathname === "/history" ? "true" : undefined}
+          >
+            <span className="oak-nav-icon"><HistoryIcon /></span>
+            <span>{locale === "EN" ? "History" : "Lịch sử"}</span>
           </Link>
           <Link
             href="/accounts"
@@ -129,9 +145,9 @@ export function NavBar() {
           </Link>
           <Link
             href="/neotech"
-            aria-current={pathname === "/neotech" ? "page" : undefined}
+            aria-current={pathname === "/neotech" || pathname.startsWith("/neotech/") ? "page" : undefined}
             className="oak-nav-link"
-            data-active={pathname === "/neotech" ? "true" : undefined}
+            data-active={pathname === "/neotech" || pathname.startsWith("/neotech/") ? "true" : undefined}
           >
             <span className="oak-nav-icon"><NeoTechIcon /></span>
             <span>NeoTech</span>
@@ -160,7 +176,7 @@ export function NavBar() {
             </button>
             {toolsOpen && (
               <div id="oak-tools-menu" ref={toolsMenuRef} className="oak-tools-menu" role="menu" onKeyDown={handleToolsMenuKeyDown}>
-                <header><small>OAK LABS</small><b>{locale === "EN" ? "Secondary tools" : "Công cụ phụ trợ"}</b></header>
+                <header><span><small>OAK LABS</small><b>{locale === "EN" ? "Secondary tools" : "Công cụ phụ trợ"}</b></span><button type="button" className="oak-tools-close" onClick={() => { setToolsOpen(false); toolsButtonRef.current?.focus(); }} aria-label={locale === "EN" ? "Close tools menu" : "Đóng menu công cụ"}>×</button></header>
                 {tools.map((item) => (
                   <Link key={item.href} href={item.href} role="menuitem" data-active={pathname === item.href ? "true" : undefined}>
                     <span className="oak-nav-icon">{item.icon}</span>
@@ -180,6 +196,9 @@ export function NavBar() {
           </div>
           <button onClick={cycleTheme} className="oak-theme-toggle" aria-label={`Theme: ${theme}`} title={`Theme: ${theme}`}>
             <span className="oak-theme-glyph" data-theme={theme}>{theme === "dark" ? "◐" : theme === "contrast" ? "◒" : "☼"}</span>
+          </button>
+          <button type="button" className="oak-mobile-nav-toggle" aria-label={locale === "EN" ? (mobileOpen ? "Close navigation" : "Open navigation") : (mobileOpen ? "Đóng điều hướng" : "Mở điều hướng")} aria-controls="oak-mobile-navigation" aria-expanded={mobileOpen} onClick={() => { setMobileOpen((current) => !current); setToolsOpen(false); }}>
+            <span aria-hidden="true">{mobileOpen ? "×" : "☰"}</span>
           </button>
         </div>
       </div>

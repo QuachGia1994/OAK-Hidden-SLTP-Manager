@@ -84,7 +84,7 @@ test("multi-provider web control plane is admin-only and does not expose broker 
   assert.match(panelSource, /setProviderTab\("mt5"\)/);
   assert.match(panelSource, /accounts\.filter\(\(item\) => item\.provider === "ctrader"\)/);
   assert.match(panelSource, /accounts\.filter\(\(item\) => item\.provider === "mt5"\)/);
-  assert.match(panelSource, /providerTab === "mt5" && <form className="oak-account-card" onSubmit=\{createMt5\}>/);
+  assert.match(panelSource, /providerTab === "mt5" && <form id="oak-add-mt5" className="oak-account-card" onSubmit=\{createMt5\}>/);
   assert.match(panelSource, /Runtime <b>OAK EA<\/b>/);
   assert.match(globalsCss, /\.oak-account-tabs \{/);
   assert.match(globalsCss, /\.oak-account-tabs button\[data-active="true"\]/);

@@ -1392,6 +1392,142 @@ body.oak-body {
   .oak-h1-calendar-popover { position: fixed; top: auto; right: auto; bottom: max(.65rem, env(safe-area-inset-bottom)); left: 50%; width: min(15rem, calc(100vw - 1.25rem)); transform: translateX(-50%); }
 }
 
+/* UX review pass — navigation, accessibility and readable technical labels. */
+.oak-nav-layout { position: relative; }
+.oak-mobile-nav-toggle {
+  display: none;
+  width: 2.45rem;
+  height: 2.45rem;
+  place-items: center;
+  border: 1px solid var(--oak-border-subtle);
+  border-radius: .72rem;
+  color: var(--oak-fg-primary);
+  background: var(--oak-bg-raised);
+  font-size: 1rem;
+  font-weight: 900;
+}
+.oak-tools-menu header { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: .65rem; }
+.oak-tools-menu header > span { min-width: 0; }
+.oak-tools-close {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid var(--oak-border-subtle);
+  border-radius: var(--oak-radius-sm);
+  color: var(--oak-fg-muted);
+  background: var(--oak-bg-raised);
+  font-size: 1rem;
+}
+.oak-tools-close:hover { color: var(--oak-fg-primary); border-color: var(--oak-border-strong); }
+.oak-skip-link {
+  position: fixed;
+  top: .5rem;
+  left: .75rem;
+  z-index: 200;
+  padding: .6rem .8rem;
+  border: 2px solid var(--oak-accent-command);
+  border-radius: var(--oak-radius-sm);
+  color: var(--oak-fg-primary);
+  background: var(--oak-bg-surface);
+  font-size: .78rem;
+  font-weight: 850;
+  transform: translateY(calc(-100% - 1rem));
+  transition: transform var(--oak-motion-fast) ease;
+}
+.oak-skip-link:focus { transform: translateY(0); }
+.oak-breadcrumb { border-bottom: 1px solid var(--oak-border-subtle); background: var(--oak-bg-raised); }
+.oak-breadcrumb-inner { display: flex; min-height: 2rem; align-items: center; gap: .4rem; color: var(--oak-fg-muted); font-size: .68rem; }
+.oak-breadcrumb-inner > span { display: inline-flex; align-items: center; gap: .4rem; min-width: 0; }
+.oak-breadcrumb-inner a:hover { color: var(--oak-accent-command); }
+.oak-breadcrumb-inner b { color: var(--oak-fg-primary); font-weight: 800; }
+.oak-breadcrumb-inner i { opacity: .55; font-style: normal; }
+.oak-history-page { display: grid; gap: .8rem; }
+.oak-history-page-head { display: grid; gap: .28rem; padding: .2rem .15rem; }
+.oak-history-page-head h1 { font-size: clamp(1.35rem, 2.4vw, 2rem); font-weight: 900; letter-spacing: -.035em; }
+.oak-history-page-head p { max-width: 48rem; color: var(--oak-fg-muted); font-size: .82rem; line-height: 1.55; }
+.oak-account-empty { display: grid; gap: .65rem; justify-items: start; }
+.oak-account-empty p { margin: 0; }
+.oak-account-empty button,
+.oak-account-empty a { display: inline-flex; min-height: 2.35rem; align-items: center; justify-content: center; padding: .5rem .7rem; border: 1px solid var(--oak-accent-command); border-radius: var(--oak-radius-sm); color: var(--oak-bg-surface); background: var(--oak-accent-command); font-size: .72rem; font-weight: 850; }
+.oak-account-empty button:disabled { opacity: .5; cursor: not-allowed; }
+.oak-button-spinner {
+  display: inline-block;
+  width: .78rem;
+  height: .78rem;
+  margin-right: .35rem;
+  vertical-align: -.08rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  animation: oak-button-spin .7s linear infinite;
+}
+@keyframes oak-button-spin { to { transform: rotate(360deg); } }
+
+.oak-eyebrow,
+.oak-nav-section-label,
+.oak-h1-history-label,
+.oak-command-meta small,
+.oak-h1-meta small,
+.oak-tools-menu header small,
+.oak-h1-calendar-picker > small,
+.oak-h1-calendar-weekdays span { font-size: .625rem; }
+
+@media (max-width: 759px) {
+  .page-shell {
+    padding-left: max(.85rem, env(safe-area-inset-left));
+    padding-right: max(.85rem, env(safe-area-inset-right));
+  }
+  .oak-nav-layout { grid-template-columns: minmax(0, 1fr) auto; row-gap: 0; min-height: 3.55rem; padding-block: .35rem; }
+  .oak-nav-workspace {
+    position: absolute;
+    top: calc(100% + .35rem);
+    left: 0;
+    right: 0;
+    z-index: 80;
+    display: none;
+    grid-row: auto;
+    grid-column: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: .35rem;
+    width: auto;
+    max-height: calc(100dvh - 5rem - env(safe-area-inset-bottom));
+    padding: .65rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--oak-border-strong);
+    border-radius: var(--oak-radius-lg);
+    background: var(--oak-bg-surface);
+    box-shadow: var(--oak-shadow-2);
+  }
+  .oak-nav-workspace[data-mobile-open="true"] { display: grid; }
+  .oak-nav-workspace > .oak-nav-section-label { display: block; grid-column: 1 / -1; margin: .2rem .15rem 0; font-size: .625rem; }
+  .oak-nav-link { justify-content: flex-start; gap: .45rem; min-height: 2.8rem; padding: .6rem .65rem; font-size: .75rem; }
+  .oak-tools { display: block; grid-column: 1 / -1; }
+  .oak-tools > .oak-nav-section-label { display: block; margin: .55rem .15rem .25rem; font-size: .625rem; }
+  .oak-tools-trigger { width: 100%; }
+  .oak-tools-menu {
+    position: static;
+    top: auto;
+    right: auto;
+    left: auto;
+    width: 100%;
+    max-height: min(18rem, 48dvh);
+    margin-top: .35rem;
+    overflow-y: auto;
+  }
+  .oak-mobile-nav-toggle { display: grid; }
+  .oak-nav-controls { gap: .35rem; }
+  .oak-h1-scroll-hint { display: block; color: var(--oak-fg-muted); font-size: .625rem; }
+  .oak-breadcrumb-inner { min-height: 2.2rem; padding-block: .25rem; overflow-x: auto; white-space: nowrap; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oak-button-spinner { animation: none; }
+  .oak-skip-link { transition: none; }
+}
+
 @media print {
   .oak-spatial-stage { display: none !important; }
   .oak-nav, .oak-footer { display: none !important; }

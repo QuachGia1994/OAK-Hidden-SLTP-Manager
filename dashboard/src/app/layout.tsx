@@ -6,6 +6,7 @@ import { NavBar } from "@/components/NavBar";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { LocaleProvider } from "@/components/LocaleProvider";
 import { SpatialHudCanvas } from "@/components/SpatialHudCanvas";
+import { RouteBreadcrumbs } from "@/components/RouteBreadcrumbs";
 import { headers } from "next/headers";
 import { detectServerLocaleFromCookie } from "@/lib/i18n";
 
@@ -51,8 +52,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <LocaleProvider initialLocale={locale}>
           <ThemeProvider>
             <SpatialHudCanvas />
+            <a className="oak-skip-link" href="#main-content">{locale === "EN" ? "Skip to main content" : "Bỏ qua đến nội dung chính"}</a>
             <NavBar />
-            <main className="oak-main flex-1 min-h-0">{children}</main>
+            <RouteBreadcrumbs />
+            <main id="main-content" tabIndex={-1} className="oak-main flex-1 min-h-0">{children}</main>
             <footer className="oak-footer">
               <div className="nav-shell oak-footer-inner">
                 <span>OAK GATEKEEPER</span>

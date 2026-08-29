@@ -290,7 +290,7 @@ export function ProviderAccountsPanel() {
 
       {error && <p className="oak-account-error">{error}</p>}
 
-      {providerTab === "mt5" && <form className="oak-account-card" onSubmit={createMt5}>
+      {providerTab === "mt5" && <form id="oak-add-mt5" className="oak-account-card" onSubmit={createMt5}>
         <header><div><b>{tr("Add MT5 account", "Thêm tài khoản MT5")}</b><span>{tr("Metadata only · no broker password stored", "Chỉ lưu metadata · không lưu broker password")}</span></div></header>
         <div className="oak-account-fields">
           <label>Broker<input name="broker" placeholder="Vantage / ICMarkets / Darwinex" required /></label>
@@ -340,9 +340,11 @@ export function ProviderAccountsPanel() {
             </footer>
           </form>
         ))}
-        {!activeAccounts.length && <p className="oak-account-empty">{providerTab === "ctrader"
+        {!activeAccounts.length && <div className="oak-account-empty"><p>{providerTab === "ctrader"
           ? tr("No cTrader accounts yet. Connect or sync cTrader to load the account list.", "Chưa có cTrader account. Connect/sync cTrader để tải danh sách account.")
-          : tr("No MT5 accounts yet. Add an account above, then attach the OAK EA to the terminal.", "Chưa có MT5 account. Thêm account ở form phía trên rồi gắn OAK EA vào terminal.")}</p>}
+          : tr("No MT5 accounts yet. Add an account above, then attach the OAK EA to the terminal.", "Chưa có MT5 account. Thêm account ở form phía trên rồi gắn OAK EA vào terminal.")}</p>{providerTab === "ctrader"
+            ? <button type="button" onClick={connectCTrader} disabled={Boolean(busy)}>{tr("Connect cTrader", "Kết nối cTrader")}</button>
+            : <a href="#oak-add-mt5">{tr("Add MT5 account", "Thêm tài khoản MT5")}</a>}</div>}
       </div>
     </section>
   );

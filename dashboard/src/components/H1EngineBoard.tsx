@@ -103,7 +103,7 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
       <div className="oak-access-symbol"><span>{access.mode === "vip" ? "◆" : access.mode === "free" || access.mode === "weekend" ? "◇" : "◈"}</span></div>
       <div className="oak-access-copy"><small>ACCESS</small><b>{modeCopy.title}</b><p>{modeCopy.detail}</p></div>
       <div className="oak-access-state"><span>{ACCESS_WEEKDAY_LABELS[locale][access.weekday] ?? access.weekday}</span><i /></div>
-      {access.mode === "vip" && <button type="button" disabled={loading} onClick={() => void logout()}>{loading ? "…" : modeCopy.action}</button>}
+      {access.mode === "vip" && <button type="button" disabled={loading} onClick={() => void logout()}>{loading && <span className="oak-button-spinner" aria-hidden="true" />}{loading ? (isEn ? "Exiting" : "Đang thoát") : modeCopy.action}</button>}
       {access.mode === "locked" && <button type="button" onClick={openDialog}>{modeCopy.action}</button>}
     </section>
     {!open && error && <p className="oak-form-error" role="alert">{error}</p>}
@@ -112,7 +112,7 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
         <header className="oak-modal-header"><div><span className="oak-eyebrow">PRIVATE ACCESS</span><h2>VIP UNLOCK</h2><p>{isEn ? "Enter your access code to reveal XAUUSD BUY/SELL signals." : "Nhập mã truy cập để mở BUY/SELL XAUUSD."}</p></div><button type="button" onClick={() => setOpen(false)} aria-label="Close">×</button></header>
         <label className="oak-vip-field"><span>{isEn ? "ACCESS CODE" : "MÃ VIP"}</span><input type="password" value={token} onChange={(event) => setToken(event.target.value)} onKeyDown={(event) => event.key === "Enter" && void unlock()} autoFocus autoComplete="current-password" /></label>
         {error && <p className="oak-form-error">{error}</p>}
-        <button className="oak-primary-action" type="button" disabled={loading || !token.trim()} onClick={() => void unlock()}>{loading ? (isEn ? "UNLOCKING" : "ĐANG MỞ") : "UNLOCK BLOCKS"}</button>
+        <button className="oak-primary-action" type="button" disabled={loading || !token.trim()} onClick={() => void unlock()}>{loading && <span className="oak-button-spinner" aria-hidden="true" />}{loading ? (isEn ? "UNLOCKING" : "ĐANG MỞ") : "UNLOCK BLOCKS"}</button>
       </section>
     </div>}
   </>;
