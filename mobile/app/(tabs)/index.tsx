@@ -1,146 +1,122 @@
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { GlassCard, Metric, OakScreen, Pill, SectionTitle } from "@/components/ui";
-import { alertsForSymbol, latestH1Date } from "@/lib/h1";
+import { RefreshControl, StyleSheet, Text, View, Pressable } from "react-native";
+import { Beacon, GlassCard, Metric, OakScreen, Pill, SectionTitle } from "@/components/ui";
+import { latestH1Date, recentAlerts, reportSummary } from "@/lib/h1";
 import { radius, spacing, useOakTheme } from "@/lib/theme";
-import type { H1SignalAlert } from "@/lib/types";
 import { useOakData } from "@/state/data";
 
-function SignalRow({ symbol, hour, alert }: { symbol: string; hour: number; alert: H1SignalAlert | null }) {
+export default function DashboardScreen() {
   const theme = useOakTheme();
   const router = useRouter();
-  const signalColor = alert?.signal === "SELL" ? theme.sell : theme.buy;
-
-  async function open() {
-    if (!alert) return;
-    await Haptics.selectionAsync();
-    router.push({ pathname: "/signal/[symbol]/[hour]", params: { symbol, hour: String(hour) } } as never);
-  }
-
-  return (
-    <Pressable
-      disabled={!alert}
-      onPress={open}
-      style={({ pressed }) => [
-        styles.signalRow,
-        {
-          borderColor: theme.border,
-          backgroundColor: theme.surface,
-          opacity: pressed ? 0.72 : 1,
-        },
-      ]}
-    >
-      <View style={styles.hourRail}>
-        <Text style={[styles.hourLabel, { color: alert ? theme.text : theme.muted }]}>H{String(hour).padStart(2, "0")}</Text>
-        <View style={[styles.hourDot, { backgroundColor: alert ? signalColor : theme.border }]} />
-      </View>
-      <View style={styles.signalBody}>
-        {!alert ? (
-          <Text style={[styles.empty, { color: theme.muted }]}>No signal</Text>
-        ) : (
-          <>
-            <View style={styles.signalTopline}>
-              <View style={styles.badges}>
-                {alert.postSignalInverted ? <Pill label="REVERSE" tone="warning" /> : null}
-                {alert.baseDirection ? <Pill label={`BASE ${alert.baseDirection}`} /> : null}
-              </View>
-              <Text style={[styles.signal, { color: signalColor }]}>{alert.signal || "—"}</Text>
-            </View>
-            <Text style={[styles.pattern, { color: theme.muted }]}>
-              {alert.postSignalRule === "none" ? "no inversion" : alert.postSignalInverted ? "invert" : "keep"}
-            </Text>
-          </>
-        )}
-      </View>
-    </Pressable>
-  );
-}
-
-export default function EngineScreen() {
-  const theme = useOakTheme();
-  const { h1, refreshing, error, refresh } = useOakData();
-  const [symbol, setSymbol] = useState("");
+  const { h1, accounts, refreshing, error, refresh } = useOakData();
   const date = latestH1Date(h1);
-
-  useEffect(() => {
-    if (!h1?.symbols.length) return;
-    if (!symbol || !h1.symbols.includes(symbol)) setSymbol(h1.symbols[0]);
-  }, [h1, symbol]);
-
-  const byHour = useMemo(() => new Map(alertsForSymbol(h1, symbol).map((alert) => [alert.slotHour, alert])), [h1, symbol]);
-  const updated = h1?.publishedAt ? new Date(h1.publishedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
+  const rows = recentAlerts(h1).slice(0, 5);
+  const summary = reportSummary(h1);
+  const onlineAccounts = accounts?.accounts.filter((item) => item.enabled).length || 0;
+  const totalAccounts = accounts?.accounts.length || 0;
 
   return (
     <OakScreen
-      eyebrow="OAK / H1 CLOUD"
-      title="Engine"
-      subtitle="Native H1 command view for the H1 engine across H3 H4 H6 H9 H12 H14 H16 blocks."
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.accent} />}
+      eyebrow="OAK SLTP"
+      title="Dashboard"
+      subtitle="Robot trading system · H1 block calendar · BUY/SELL signal monitor."
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.cyan} />}
     >
-      <GlassCard>
-        <View style={styles.liveHead}>
-          <View style={styles.liveCopy}>
-            <Pill label="LIVE · CTRADER ICMARKETS" tone="online" />
-            <Text style={[styles.liveTitle, { color: theme.text }]}>H1 scanner feed</Text>
+      <GlassCard glow="warning">
+        <LinearGradient colors={[`${theme.vip}22`, "transparent"]} style={styles.vipGlow} pointerEvents="none" />
+        <View style={styles.vipRow}>
+          <View style={[styles.crown, { borderColor: `${theme.vip}55`, backgroundColor: `${theme.vip}18` }]}>
+            <Text style={[styles.crownText, { color: theme.vip }]}>♛</Text>
           </View>
-          <View style={styles.metrics}>
-            <Metric label="BROKER DAY" value={date || "—"} />
-            <Metric label="UPDATED" value={updated} />
+          <View style={styles.vipCopy}>
+            <Text style={[styles.vipTitle, { color: theme.vip }]}>VIP UNLOCKED</Text>
+            <Text style={[styles.vipSub, { color: theme.muted }]}>Đã mở BUY/SELL XAUUSD</Text>
           </View>
+          <Pill label="VIP" tone="warning" />
         </View>
       </GlassCard>
 
-      {error ? <View style={[styles.errorBox, { borderColor: `${theme.danger}66`, backgroundColor: `${theme.danger}12` }]}><Text style={{ color: theme.danger }}>{error}</Text></View> : null}
+      <GlassCard>
+        <View style={styles.onlineHead}>
+          <View style={styles.statusTitle}><Text style={[styles.cardLabel, { color: theme.muted }]}>HỆ THỐNG ONLINE</Text><Beacon /></View>
+          <Pill label={error ? "DEGRADED" : "ACTIVE"} tone={error ? "warning" : "online"} />
+        </View>
+        <View style={styles.metricGrid3}>
+          <Metric label="LATENCY" value="12ms" tone="text" />
+          <Metric label="UPTIME" value="99.9%" tone="text" />
+          <Metric label="STATUS" value={error ? "SYNC" : "ACTIVE"} tone={error ? "warning" : "buy"} />
+        </View>
+      </GlassCard>
 
-      <SectionTitle title="Symbols" meta={`${h1?.symbols.length || 0} markets`} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.symbolStrip}>
-        {(h1?.symbols || []).map((item) => {
-          const active = item === symbol;
-          return (
-            <Pressable
-              key={item}
-              onPress={() => {
-                setSymbol(item);
-                Haptics.selectionAsync();
-              }}
-              style={[styles.symbolChip, { borderColor: active ? theme.accent : theme.border, backgroundColor: active ? `${theme.accent}18` : theme.surface }]}
-            >
-              <Text style={[styles.symbolText, { color: active ? theme.accent : theme.muted }]}>{item}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      {error ? <View style={[styles.errorBox, { borderColor: `${theme.warning}66`, backgroundColor: `${theme.warning}12` }]}><Text style={{ color: theme.warning }}>{error}</Text></View> : null}
 
-      <SectionTitle title="H1 timeline" meta={symbol || "—"} />
-      <View style={styles.timeline}>
-        {(h1?.hours || [3, 4, 6, 9, 12, 14, 16]).map((hour) => (
-          <SignalRow key={hour} symbol={symbol} hour={hour} alert={byHour.get(hour) || null} />
-        ))}
-      </View>
+      <SectionTitle title="Tín hiệu hôm nay" meta="Xem tất cả" />
+      <GlassCard glow="muted">
+        <View style={styles.signalList}>
+          {rows.map(({ symbol, alert }) => {
+            const tone = alert.signal === "SELL" ? "sell" : "buy";
+            return (
+              <Pressable
+                key={`${symbol}:${alert.slotHour}`}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  router.push({ pathname: "/signal/[symbol]/[hour]", params: { symbol, hour: String(alert.slotHour) } } as never);
+                }}
+                style={styles.signalLine}
+              >
+                <Text style={[styles.signalSymbol, { color: theme.text }]}>{symbol}</Text>
+                <Text style={[styles.signalHour, { color: theme.muted }]}>H{String(alert.slotHour).padStart(2, "0")}</Text>
+                <Pill label={alert.signal || "—"} tone={tone} />
+                <Text style={[styles.signalTime, { color: theme.muted }]}>{String(alert.baseHour ?? alert.slotHour).padStart(2, "0")}:00</Text>
+              </Pressable>
+            );
+          })}
+          {!rows.length ? <Text style={[styles.empty, { color: theme.muted }]}>Đang chờ feed H1 live.</Text> : null}
+        </View>
+      </GlassCard>
+
+      <SectionTitle title="Thống kê ngày" meta={date || "—"} />
+      <GlassCard glow="purple">
+        <View style={styles.statsRow}>
+          <View style={[styles.ring, { borderColor: theme.cyan }]}>
+            <Text style={[styles.ringValue, { color: theme.text }]}>{summary.total}</Text>
+            <Text style={[styles.ringLabel, { color: theme.muted }]}>Tín hiệu</Text>
+          </View>
+          <View style={styles.statsList}>
+            <Metric label="BUY" value={`${summary.buy}`} tone="buy" />
+            <Metric label="SELL" value={`${summary.sell}`} tone="sell" />
+            <Metric label="BRIDGE" value={`${onlineAccounts}/${totalAccounts}`} tone="accent" />
+          </View>
+        </View>
+      </GlassCard>
     </OakScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  liveHead: { gap: spacing.lg },
-  liveCopy: { gap: spacing.sm },
-  liveTitle: { fontSize: 22, fontWeight: "900", letterSpacing: -0.6 },
-  metrics: { flexDirection: "row", gap: spacing.md },
+  vipGlow: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
+  vipRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  crown: { width: 48, height: 48, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center" },
+  crownText: { fontSize: 28, fontWeight: "900" },
+  vipCopy: { flex: 1, gap: 4 },
+  vipTitle: { fontSize: 18, fontWeight: "900", letterSpacing: 0.2 },
+  vipSub: { fontSize: 12, fontWeight: "700" },
+  onlineHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
+  statusTitle: { flexDirection: "row", alignItems: "center", gap: 7 },
+  cardLabel: { fontSize: 10, fontWeight: "900", letterSpacing: 1.2 },
+  metricGrid3: { flexDirection: "row", gap: spacing.md },
   errorBox: { padding: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.md },
-  symbolStrip: { gap: spacing.sm, paddingRight: spacing.lg },
-  symbolChip: { minHeight: 40, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.pill },
-  symbolText: { fontSize: 12, fontWeight: "900", letterSpacing: 0.5 },
-  timeline: { gap: spacing.sm },
-  signalRow: { minHeight: 86, flexDirection: "row", borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.md, overflow: "hidden" },
-  hourRail: { width: 64, alignItems: "center", justifyContent: "center", gap: 8 },
-  hourLabel: { fontSize: 14, fontWeight: "900", letterSpacing: 0.4 },
-  hourDot: { width: 6, height: 6, borderRadius: 999 },
-  signalBody: { flex: 1, justifyContent: "center", gap: 7, paddingVertical: 12, paddingRight: 13 },
-  signalTopline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  badges: { flexDirection: "row", flexWrap: "wrap", gap: 6, flex: 1 },
-  signal: { fontSize: 20, fontWeight: "900", letterSpacing: -0.4 },
-  pattern: { fontSize: 11, fontWeight: "700" },
+  signalList: { gap: spacing.sm },
+  signalLine: { minHeight: 42, flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  signalSymbol: { width: 78, fontSize: 13, fontWeight: "900" },
+  signalHour: { width: 38, fontSize: 11, fontWeight: "900" },
+  signalTime: { marginLeft: "auto", fontSize: 11, fontWeight: "800" },
   empty: { fontSize: 12, fontWeight: "700" },
+  statsRow: { flexDirection: "row", alignItems: "center", gap: spacing.lg },
+  ring: { width: 92, height: 92, borderRadius: 999, borderWidth: 5, alignItems: "center", justifyContent: "center" },
+  ringValue: { fontSize: 22, fontWeight: "900" },
+  ringLabel: { fontSize: 10, fontWeight: "800" },
+  statsList: { flex: 1, gap: spacing.sm },
 });

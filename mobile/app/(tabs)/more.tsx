@@ -7,6 +7,16 @@ import { radius, spacing, useOakTheme } from "@/lib/theme";
 import { useAuth } from "@/state/auth";
 import { useOakData } from "@/state/data";
 
+const MENU = [
+  ["Tài khoản", "user"],
+  ["Quản lý VIP", "crown"],
+  ["Cài đặt cảnh báo", "bell"],
+  ["Kết nối Telegram", "send"],
+  ["Ngôn ngữ", "Tiếng Việt"],
+  ["Giao diện", "Dark"],
+  ["Trợ giúp & Hướng dẫn", "?"],
+] as const;
+
 export default function MoreScreen() {
   const theme = useOakTheme();
   const { signOut } = useAuth();
@@ -21,41 +31,44 @@ export default function MoreScreen() {
 
   return (
     <OakScreen
-      eyebrow="OAK / SYSTEM"
+      eyebrow="OAK / MORE"
       title="More"
-      subtitle="Native shell settings and Vercel connection state. Broker and Redis credentials remain server-side."
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.accent} />}
+      subtitle="Thiết lập native shell, cảnh báo, Telegram và trạng thái backend."
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.cyan} />}
     >
-      <GlassCard>
-        <View style={styles.heroCard}>
-          <View style={styles.brandRow}>
-            <View style={[styles.logo, { borderColor: `${theme.accent}88`, backgroundColor: `${theme.accent}18` }]}>
-              <Text style={[styles.logoText, { color: theme.accent }]}>OAK</Text>
-            </View>
-            <View style={styles.brandCopy}>
-              <Pill label={online ? "VERCEL ONLINE" : "BACKEND OFFLINE"} tone={online ? "online" : "danger"} />
-              <Text style={[styles.brandTitle, { color: theme.text }]}>Gatekeeper Mobile</Text>
-              <Text style={[styles.brandMeta, { color: theme.muted }]}>Expo native shell · v{version}</Text>
-            </View>
+      <GlassCard glow="purple">
+        <View style={styles.profileRow}>
+          <View style={[styles.avatar, { backgroundColor: `${theme.purple}32`, borderColor: `${theme.purple}66` }]}><Text style={[styles.avatarText, { color: theme.text }]}>◉</Text></View>
+          <View style={styles.profileCopy}>
+            <Text style={[styles.profileTitle, { color: theme.text }]}>OAK SLTP VIP</Text>
+            <Text style={[styles.profileMeta, { color: theme.muted }]}>VIP UNLOCKED · v{version}</Text>
           </View>
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
-          <View style={styles.metrics}>
-            <Metric label="H1 FEED" value={h1 ? "READY" : "WAIT"} />
-            <Metric label="ACCOUNTS" value={String(accounts?.accounts.length || 0)} />
-          </View>
+          <Pill label="♛" tone="warning" />
         </View>
+      </GlassCard>
+
+      <View style={styles.menuList}>
+        {MENU.map(([label, right]) => (
+          <GlassCard key={label} glow="muted">
+            <View style={styles.menuItem}>
+              <Text style={[styles.menuIcon, { color: theme.muted }]}>{right.length === 1 ? right : "○"}</Text>
+              <Text style={[styles.menuLabel, { color: theme.text }]}>{label}</Text>
+              <Text style={[styles.menuRight, { color: theme.muted }]}>{right.length > 1 ? right : "›"}</Text>
+            </View>
+          </GlassCard>
+        ))}
+      </View>
+
+      <SectionTitle title="System" meta={online ? "online" : "offline"} />
+      <GlassCard glow={online ? "buy" : "warning"}>
+        <View style={styles.metrics}>
+          <Metric label="H1 FEED" value={h1 ? "READY" : "WAIT"} tone={h1 ? "buy" : "warning"} />
+          <Metric label="ACCOUNTS" value={String(accounts?.accounts.length || 0)} tone="accent" />
+        </View>
+        <Text selectable style={[styles.endpoint, { color: theme.muted }]}>{API_BASE}</Text>
       </GlassCard>
 
       {error ? <View style={[styles.errorBox, { borderColor: `${theme.danger}66`, backgroundColor: `${theme.danger}12` }]}><Text style={{ color: theme.danger }}>{error}</Text></View> : null}
-
-      <SectionTitle title="Backend" />
-      <GlassCard>
-        <View style={styles.settingGroup}>
-          <Text style={[styles.settingLabel, { color: theme.muted }]}>API BASE</Text>
-          <Text selectable style={[styles.endpoint, { color: theme.text }]}>{API_BASE}</Text>
-          <Text style={[styles.settingHint, { color: theme.muted }]}>Admin API key is stored in SecureStore on this device and sent only as the `x-api-key` request header.</Text>
-        </View>
-      </GlassCard>
 
       <View style={styles.actions}>
         <Pressable onPress={refresh} style={({ pressed }) => [styles.action, { borderColor: theme.border, backgroundColor: theme.surface, opacity: pressed ? 0.72 : 1 }]}>
@@ -73,20 +86,20 @@ export default function MoreScreen() {
 }
 
 const styles = StyleSheet.create({
-  heroCard: { gap: spacing.md },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  logo: { width: 58, height: 58, borderWidth: StyleSheet.hairlineWidth, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  logoText: { fontSize: 14, fontWeight: "900", letterSpacing: 1.4 },
-  brandCopy: { flex: 1, gap: 6 },
-  brandTitle: { fontSize: 20, fontWeight: "900", letterSpacing: -0.5 },
-  brandMeta: { fontSize: 11, fontWeight: "700" },
-  divider: { height: StyleSheet.hairlineWidth },
+  profileRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  avatar: { width: 54, height: 54, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center" },
+  avatarText: { fontSize: 24, fontWeight: "900" },
+  profileCopy: { flex: 1, gap: 4 },
+  profileTitle: { fontSize: 17, fontWeight: "900" },
+  profileMeta: { fontSize: 11, fontWeight: "800" },
+  menuList: { gap: spacing.sm },
+  menuItem: { flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 30 },
+  menuIcon: { width: 22, fontSize: 14, fontWeight: "900" },
+  menuLabel: { flex: 1, fontSize: 13, fontWeight: "800" },
+  menuRight: { fontSize: 12, fontWeight: "900" },
   metrics: { flexDirection: "row", gap: spacing.md },
+  endpoint: { marginTop: spacing.md, fontSize: 11, fontWeight: "700" },
   errorBox: { padding: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.md },
-  settingGroup: { gap: 8 },
-  settingLabel: { fontSize: 10, fontWeight: "900", letterSpacing: 1 },
-  endpoint: { fontSize: 13, fontWeight: "800" },
-  settingHint: { fontSize: 12, lineHeight: 18 },
   actions: { gap: spacing.sm },
   action: { minHeight: 50, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
   actionText: { fontSize: 11, fontWeight: "900", letterSpacing: 1 },
