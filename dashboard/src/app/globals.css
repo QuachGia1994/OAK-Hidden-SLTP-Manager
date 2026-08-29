@@ -8,8 +8,8 @@
   --oak-bg-raised: #f4f7fa;
   --oak-fg-primary: #0b1220;
   --oak-fg-muted: #475467;
-  --oak-accent-command: #0b6ffb;
-  --oak-accent-command-strong: #0057d9;
+  --oak-accent-command: #075ec8;
+  --oak-accent-command-strong: #004aa3;
   --oak-signal-buy: #067647;
   --oak-signal-sell: #b42318;
   --oak-status-warning: #8a4b08;
@@ -26,6 +26,10 @@
   --oak-radius-sm: .5rem;
   --oak-radius-md: .7rem;
   --oak-radius-lg: .9rem;
+  --oak-text-base: .875rem;
+  --oak-text-secondary: .8125rem;
+  --oak-text-meta: .75rem;
+  --oak-touch-min: 2.75rem;
   --oak-motion-fast: 120ms;
   --oak-motion-base: 180ms;
   --oak-ease: cubic-bezier(.2,.8,.2,1);

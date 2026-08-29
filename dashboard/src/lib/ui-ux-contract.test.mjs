@@ -133,11 +133,31 @@ test("history has its own trading route and nested routes expose skip/breadcrumb
   assert.match(layoutSource, /oak-footer/);
 });
 
-test("technical labels have a readable minimum and tools menu has an explicit close action", () => {
+test("technical labels use the shared 12px readability floor and tools menu has an explicit close action", () => {
   assert.match(navSource, /oak-tools-close/);
   assert.match(oakCss, /\.oak-tools-close/);
-  assert.match(oakCss, /\.oak-eyebrow,[\s\S]*\.oak-h1-calendar-weekdays span \{ font-size: \.625rem; \}/);
+  assert.match(globalsCss, /--oak-text-base: \.875rem/);
+  assert.match(globalsCss, /--oak-text-secondary: \.8125rem/);
+  assert.match(globalsCss, /--oak-text-meta: \.75rem/);
+  assert.match(oakCss, /\/\* Readability pass[\s\S]*\.oak-eyebrow,[\s\S]*\.oak-breadcrumb-inner \{ font-size: var\(--oak-text-meta\); \}/);
   assert.match(oakCss, /padding-left: max\(\.85rem, env\(safe-area-inset-left\)\)/);
+});
+
+test("mobile controls and calendar expose 44px-class touch targets", () => {
+  assert.match(globalsCss, /--oak-touch-min: 2\.75rem/);
+  assert.match(oakCss, /@media \(max-width: 759px\)[\s\S]*\.oak-mobile-nav-toggle,[\s\S]*width: var\(--oak-touch-min\);[\s\S]*height: var\(--oak-touch-min\)/);
+  assert.match(oakCss, /grid-template-columns: repeat\(7, var\(--oak-touch-min\)\)/);
+  assert.match(oakCss, /\.oak-h1-calendar-grid button \{[\s\S]*width: var\(--oak-touch-min\);[\s\S]*height: var\(--oak-touch-min\)/);
+  assert.match(oakCss, /\.oak-locale-switch button \{[\s\S]*height: var\(--oak-touch-min\)/);
+});
+
+test("light accent and signal states use stronger accessible visual treatment", () => {
+  assert.match(globalsCss, /--oak-accent-command: #075ec8/);
+  assert.match(globalsCss, /--oak-accent-command-strong: #004aa3/);
+  assert.match(oakCss, /\.oak-h1-cell-signal \{[\s\S]*border-radius: 999px/);
+  assert.match(oakCss, /\.oak-h1-cell-signal\[data-side="buy"\] \{ background: color-mix/);
+  assert.match(oakCss, /\.oak-h1-cell-signal\[data-side="sell"\] \{ background: color-mix/);
+  assert.match(oakCss, /\.oak-h1-block-invert-badge,[\s\S]*border-radius: 999px/);
 });
 
 test("provider account empty states expose immediate actions", () => {

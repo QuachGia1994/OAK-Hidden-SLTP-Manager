@@ -1539,6 +1539,109 @@ body.oak-body {
   .oak-skip-link { transition: none; }
 }
 
+/* Readability pass — preserve dense trading UI without sub-12px labels. */
+.oak-nav-link,
+.oak-history-page-head p,
+.oak-h1-board-head p,
+.oak-access-copy p,
+.oak-h1-awaiting { font-size: var(--oak-text-secondary); }
+
+.oak-brand-copy small,
+.oak-eyebrow,
+.oak-nav-section-label,
+.oak-access-copy small,
+.oak-h1-meta small,
+.oak-h1-history-label,
+.oak-h1-history-coverage,
+.oak-h1-degraded,
+.oak-tools-menu header small,
+.oak-h1-calendar-picker > small,
+.oak-h1-calendar-weekdays span,
+.oak-h1-scroll-hint,
+.oak-breadcrumb-inner { font-size: var(--oak-text-meta); }
+
+.oak-access-copy b,
+.oak-h1-meta b,
+.oak-h1-calendar-trigger b,
+.oak-h1-table thead th,
+.oak-h1-table tbody .oak-h1-symbol-sticky b { font-size: var(--oak-text-meta); }
+
+.oak-h1-cell-signal {
+  width: fit-content;
+  min-width: 3.4rem;
+  min-height: 1.95rem;
+  margin-inline: auto;
+  padding: .35rem .6rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: var(--oak-text-secondary);
+}
+.oak-h1-cell-signal[data-side="buy"] { background: color-mix(in srgb, var(--oak-signal-buy) 10%, var(--oak-bg-surface)); }
+.oak-h1-cell-signal[data-side="sell"] { background: color-mix(in srgb, var(--oak-signal-sell) 10%, var(--oak-bg-surface)); }
+.oak-h1-block-invert-badge,
+.oak-h1-bridge-badge {
+  width: fit-content;
+  margin: .18rem auto 0;
+  padding: .12rem .34rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 9%, var(--oak-bg-surface));
+  font-size: .6875rem;
+}
+
+@media (max-width: 759px) {
+  .oak-mobile-nav-toggle,
+  .oak-theme-toggle,
+  .oak-tools-close {
+    width: var(--oak-touch-min);
+    height: var(--oak-touch-min);
+  }
+  .oak-locale-switch button {
+    min-width: var(--oak-touch-min);
+    height: var(--oak-touch-min);
+  }
+  .oak-nav-link,
+  .oak-access-panel > button,
+  .oak-account-empty button,
+  .oak-account-empty a,
+  .oak-h1-calendar-popover > footer button {
+    min-height: var(--oak-touch-min);
+  }
+  .oak-h1-calendar-popover {
+    width: min(22rem, calc(100vw - 1rem));
+    padding: .65rem;
+  }
+  .oak-h1-calendar-popover > header {
+    grid-template-columns: var(--oak-touch-min) minmax(0, 1fr) var(--oak-touch-min);
+  }
+  .oak-h1-calendar-popover > header button {
+    min-height: var(--oak-touch-min);
+  }
+  .oak-h1-calendar-weekdays,
+  .oak-h1-calendar-grid {
+    grid-template-columns: repeat(7, var(--oak-touch-min));
+    gap: .15rem;
+  }
+  .oak-h1-calendar-weekdays span {
+    width: var(--oak-touch-min);
+    min-height: 2rem;
+  }
+  .oak-h1-calendar-grid button {
+    width: var(--oak-touch-min);
+    height: var(--oak-touch-min);
+    font-size: var(--oak-text-meta);
+  }
+}
+
+@media (max-width: 350px) {
+  .oak-h1-calendar-popover { width: calc(100vw - .5rem); padding-inline: .35rem; }
+  .oak-h1-calendar-weekdays,
+  .oak-h1-calendar-grid { grid-template-columns: repeat(7, 2.35rem); gap: .1rem; }
+  .oak-h1-calendar-weekdays span,
+  .oak-h1-calendar-grid button { width: 2.35rem; }
+  .oak-h1-calendar-grid button { height: 2.35rem; }
+}
+
 @media print {
   .oak-spatial-stage { display: none !important; }
   .oak-nav, .oak-footer { display: none !important; }
