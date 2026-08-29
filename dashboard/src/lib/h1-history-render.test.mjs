@@ -95,12 +95,13 @@ test("H1 history renders one calendar picker with newest date and coverage", () 
   assert.doesNotMatch(vn, /Tất cả|T2|T3|T4|T5|T6|Lọc theo thứ/);
 });
 
-test("H1 empty live state keeps the calendar slot visible", () => {
+test("H1 empty live state keeps the fallback calendar interactive", () => {
   const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data: null, degraded: true, locale: "VN", unlocked: true }));
   assert.match(markup, /oak-h1-history/);
-  assert.match(markup, /type="date"[^>]*disabled/);
-  assert.match(markup, /0 ngày có dữ liệu/);
-  assert.match(markup, /Lịch sử vẫn được giữ chỗ/);
+  assert.match(markup, /type="date"/);
+  assert.match(markup, /calendar dự phòng/);
+  assert.match(markup, /Calendar vẫn bấm được/);
+  assert.doesNotMatch(markup, /type="date"[^>]*disabled/);
 });
 
 test("historical cTrader trendbars use DST-aware broker dates and hours", () => {

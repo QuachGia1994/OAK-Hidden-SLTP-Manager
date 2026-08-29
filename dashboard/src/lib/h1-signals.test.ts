@@ -77,7 +77,9 @@ test("H1 history uses a native calendar picker without weekday filter controls",
   assert.match(boardSource, /onChange=\{\(event\) => chooseDate\(event\.currentTarget\.value\)\}/);
   assert.match(boardSource, /allDates\.length/);
   assert.match(boardSource, /data-empty=\"true\"/);
-  assert.match(boardSource, /type=\"date\" value=\"\" disabled/);
+  assert.match(boardSource, /fallbackMinDate/);
+  assert.match(boardSource, /calendar dự phòng/);
+  assert.doesNotMatch(boardSource, /type=\"date\" value=\"\" disabled/);
   assert.doesNotMatch(boardSource, /HISTORY_FILTERS|weekdayFilter|oak-h1-history-options|Lọc theo thứ|Filter by weekday/);
   assert.match(redesignCss, /\.oak-h1-calendar-picker \{/);
   assert.match(redesignCss, /calendar-picker-indicator/);

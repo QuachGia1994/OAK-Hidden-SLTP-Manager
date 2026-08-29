@@ -167,6 +167,12 @@ function formatPublished(value: string, locale: Locale) {
   });
 }
 
+function addIsoCalendarDays(dateKey: string, days: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const value = new Date(Date.UTC(year, month - 1, day + days));
+  return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}-${String(value.getUTCDate()).padStart(2, "0")}`;
+}
+
 export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1SignalPayload | null; degraded?: boolean; locale: Locale; unlocked: boolean }) {
   const [selectedDate, setSelectedDate] = useState(() => data ? selectHistoryDate(data.days, "all", "") : "");
   const [shareArtifact, setShareArtifact] = useState<ShareArtifact | null>(null);
@@ -243,23 +249,25 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
   };
 
   if (!data) {
-    // No live feed yet (storage degraded or awaiting) — still render the
-    // deterministic six-block post-signal phase for today (VN calendar day),
-    // highlighting the blocks whose post-signal is inverted, so the board
-    // stays useful without live data. Cells stay empty until the feed returns.
-    const matrixDate = new Intl.DateTimeFormat("en-CA", {
+    // No live feed yet (storage degraded, primary quota, or awaiting) — keep a
+    // real date picker alive so the calendar affordance never disappears on
+    // mobile. The selected fallback date controls the phase matrix only; cells
+    // remain empty until historical feed data returns.
+    const today = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Ho_Chi_Minh",
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
     }).format(new Date());
+    const fallbackMinDate = addIsoCalendarDays(today, -89);
+    const fallbackDate = selectedDate && selectedDate >= fallbackMinDate && selectedDate <= today ? selectedDate : today;
     return (
       <section className="oak-h1-board">
         <header className="oak-h1-board-head">
           <div><span className="oak-eyebrow">H1 / LIVE</span><h2>{copy.title}</h2><p>{copy.sub}</p></div>
           <div className="oak-h1-meta">
-            <span><small>BROKER DAY</small><b>{matrixDate}</b></span>
-            <span><small>{locale === "EN" ? "PHASE BASIS" : "CƠ SỞ PHA"}</small><b>{locale === "EN" ? "today · VN time" : "hôm nay · giờ VN"}</b></span>
+            <span><small>BROKER DAY</small><b>{fallbackDate}</b></span>
+            <span><small>{locale === "EN" ? "PHASE BASIS" : "CƠ SỞ PHA"}</small><b>{locale === "EN" ? "selected date" : "ngày đang chọn"}</b></span>
           </div>
         </header>
         {!unlocked && <div className="oak-h1-locked">{copy.locked}</div>}
@@ -268,25 +276,32 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
             <span className="oak-h1-history-label">{copy.dateGroup}</span>
             <div className="oak-h1-calendar-picker">
               <span className="oak-h1-calendar-icon" aria-hidden="true">▦</span>
-              <input type="date" value="" disabled aria-label={copy.dateGroup} />
-              <small>0 {locale === "EN" ? "dates available" : "ngày có dữ liệu"}</small>
+              <input
+                type="date"
+                value={fallbackDate}
+                min={fallbackMinDate}
+                max={today}
+                onChange={(event) => chooseDate(event.currentTarget.value)}
+                aria-label={copy.dateGroup}
+              />
+              <small>{locale === "EN" ? "fallback calendar" : "calendar dự phòng"}</small>
             </div>
           </div>
           <p className="oak-h1-history-coverage">{copy.coverage}</p>
         </div>
         {degraded
-          ? <p className="oak-h1-degraded" role="alert">{locale === "EN" ? "Live storage is temporarily unavailable. History controls stay available while recovery runs automatically…" : "Kho live tạm không khả dụng. Lịch sử vẫn được giữ chỗ trong khi hệ thống tự phục hồi…"}</p>
+          ? <p className="oak-h1-degraded" role="alert">{locale === "EN" ? "Live storage is temporarily unavailable. Calendar stays available while recovery runs automatically…" : "Kho live tạm không khả dụng. Calendar vẫn bấm được trong khi hệ thống tự phục hồi…"}</p>
           : <p className="oak-h1-awaiting">{copy.awaiting}</p>}
         <p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe horizontally for later blocks" : "Vuốt ngang để xem H12 · H14 · H16"}</p>
         <div className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
             <thead><tr><th className="oak-h1-symbol-sticky">SYMBOL</th>{H1_SCAN_HOURS.map((hour) => {
-              const inverted = cycleDecisionFor("XAUUSD", matrixDate, hour).inverted;
+              const inverted = cycleDecisionFor("XAUUSD", fallbackDate, hour).inverted;
               return <th key={hour} data-post-signal-inverted={inverted ? "true" : undefined}><span>H{String(hour).padStart(2, "0")}</span>{inverted && <small className="oak-h1-block-invert-badge">{locale === "EN" ? "REVERSE" : "ĐẢO"}</small>}</th>;
             })}</tr></thead>
             <tbody>{H1_TARGET_BASES.map((base) => (
               <tr key={base}><th className="oak-h1-symbol-sticky"><b>{base}</b></th>{H1_SCAN_HOURS.map((hour) => {
-                const inverted = cycleDecisionFor("XAUUSD", matrixDate, hour).inverted;
+                const inverted = cycleDecisionFor("XAUUSD", fallbackDate, hour).inverted;
                 if (base.toUpperCase() === VIP_SIGNAL_SYMBOL && !unlocked) {
                   return <td key={hour} data-post-signal-inverted={inverted ? "true" : undefined}><span className="oak-h1-cell-locked">VIP</span></td>;
                 }
