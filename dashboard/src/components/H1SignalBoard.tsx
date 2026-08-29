@@ -324,7 +324,7 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
   const [shareArtifact, setShareArtifact] = useState<ShareArtifact | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
   const allDates = data ? historyDatesForWeekday(data.days, "all") : [];
-  const date = data ? selectHistoryDate(data.days, "all", selectedDate) : "";
+  const date = data ? selectHistoryDate(data.days, "all", selectedDate) : selectedDate;
   const day = date && data ? data.days[date] : undefined;
   const earliestDate = allDates.at(-1) || "";
   const latestDate = allDates[0] || "";
@@ -349,9 +349,9 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
       };
 
   useEffect(() => {
-    if (selectedDate === date) return;
+    if (!data || selectedDate === date) return;
     setSelectedDate(date);
-  }, [date, selectedDate]);
+  }, [data, date, selectedDate]);
 
   useEffect(() => {
     let cancelled = false;

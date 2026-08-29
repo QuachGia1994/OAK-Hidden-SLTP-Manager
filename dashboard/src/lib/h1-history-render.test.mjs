@@ -43,7 +43,9 @@ registerHooks({
   },
 });
 
-const { H1SignalBoard } = await import(pathToFileURL(resolvePath(srcRoot, "components/H1SignalBoard.tsx")).href);
+const h1SignalBoardPath = resolvePath(srcRoot, "components/H1SignalBoard.tsx");
+const h1SignalBoardSource = readFileSync(h1SignalBoardPath, "utf8");
+const { H1SignalBoard } = await import(pathToFileURL(h1SignalBoardPath).href);
 const { redactH1Signals } = await import(pathToFileURL(resolvePath(srcRoot, "lib/vip.ts")).href);
 const { brokerWallParts, icMarketsServerOffsetSeconds, normalizeHistoricalTrendbars } = await import(pathToFileURL(resolvePath(srcRoot, "lib/ctrader-json.ts")).href);
 const { latestH1Date, alertsForSymbol } = await import(pathToFileURL(resolvePath(repoRoot, "mobile/src/lib/h1.ts")).href);
@@ -105,6 +107,12 @@ test("H1 empty live state keeps the fallback calendar interactive", () => {
   assert.match(markup, /calendar dự phòng/);
   assert.match(markup, /Calendar vẫn bấm được/);
   assert.doesNotMatch(markup, /oak-h1-calendar-trigger[^>]*disabled/);
+});
+
+test("fallback history selection is not reset to today while live data is unavailable", () => {
+  assert.match(h1SignalBoardSource, /const date = data \? selectHistoryDate\(data\.days, "all", selectedDate\) : selectedDate;/);
+  assert.match(h1SignalBoardSource, /if \(!data \|\| selectedDate === date\) return;/);
+  assert.doesNotMatch(h1SignalBoardSource, /const date = data \? selectHistoryDate\(data\.days, "all", selectedDate\) : "";/);
 });
 
 test("historical cTrader trendbars use DST-aware broker dates and hours", () => {
