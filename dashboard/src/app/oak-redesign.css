@@ -1165,18 +1165,29 @@ body.oak-body {
 .oak-spatial-canvas[data-fallback="true"] { opacity: 0; }
 .oak-spatial-grid {
   position: absolute;
-  inset: -20% -10% 0;
-  opacity: .34;
-  transform: perspective(900px) rotateX(62deg) translateY(13vh);
-  transform-origin: 50% 70%;
+  inset: -28% -12% -4%;
+  opacity: .56;
+  transform: perspective(720px) rotateX(66deg) translateY(8vh) scale(1.08);
+  transform-origin: 50% 68%;
   background-image:
     linear-gradient(var(--hud-grid-accent) 1px, transparent 1px),
     linear-gradient(90deg, var(--hud-grid-accent) 1px, transparent 1px),
-    radial-gradient(circle at var(--hud-pointer-x) var(--hud-pointer-y), color-mix(in srgb, var(--oak-accent-command) 18%, transparent), transparent 34%);
-  background-size: 48px 48px, 48px 48px, 100% 100%;
-  mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 72%, transparent);
+    linear-gradient(color-mix(in srgb, var(--oak-accent-command) 30%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--oak-accent-command) 30%, transparent) 1px, transparent 1px),
+    radial-gradient(circle at var(--hud-pointer-x) var(--hud-pointer-y), color-mix(in srgb, var(--oak-accent-command) 26%, transparent), transparent 36%);
+  background-size: 44px 44px, 44px 44px, 176px 176px, 176px 176px, 100% 100%;
+  mask-image: linear-gradient(to bottom, transparent 2%, #000 17%, #000 86%, transparent 100%);
 }
-.oak-spatial-vignette { position: absolute; inset: 0; background: radial-gradient(circle at 50% 34%, transparent 0 42%, rgba(0,0,0,.52) 100%); }
+.oak-spatial-grid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent 0 18%, color-mix(in srgb, var(--oak-accent-command) 18%, transparent) 18.4%, transparent 19.4% 100%);
+  opacity: .7;
+}
+:root:not(.dark):not(.contrast) .oak-spatial-grid { opacity: .44; }
+.oak-spatial-vignette { position: absolute; inset: 0; background: radial-gradient(circle at 50% 34%, transparent 0 46%, rgba(0,0,0,.42) 100%); }
 :root:not(.dark):not(.contrast) .oak-spatial-vignette { background: radial-gradient(circle at 50% 34%, transparent 0 48%, rgba(15,23,42,.11) 100%); }
 .oak-spatial-grain {
   position: absolute;

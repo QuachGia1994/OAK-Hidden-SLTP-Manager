@@ -110,6 +110,17 @@ test("spatial HUD layer stays below DOM UI and respects performance guards", () 
   assert.match(oakCss, /body\.oak-body \{ background: var\(--oak-bg-canvas\) !important; \}/);
 });
 
+test("desktop spatial grid uses a stronger two-scale perspective plane without re-enabling mobile HUD", () => {
+  assert.match(globalsCss, /--hud-grid-accent: color-mix\(in srgb, var\(--oak-accent-command\) 20%, transparent\)/);
+  assert.match(globalsCss, /--hud-grid-accent: rgba\(77, 159, 255, \.22\)/);
+  assert.match(oakCss, /\.oak-spatial-grid \{[\s\S]*opacity: \.56/);
+  assert.match(oakCss, /perspective\(720px\) rotateX\(66deg\) translateY\(8vh\) scale\(1\.08\)/);
+  assert.match(oakCss, /background-size: 44px 44px, 44px 44px, 176px 176px, 176px 176px, 100% 100%/);
+  assert.match(oakCss, /\.oak-spatial-grid::after/);
+  assert.match(oakCss, /:root:not\(\.dark\):not\(\.contrast\) \.oak-spatial-grid \{ opacity: \.44; \}/);
+  assert.match(oakCss, /@media \(max-width: 899px\), \(pointer: coarse\)[\s\S]*\.oak-spatial-stage \{ display: none !important; \}/);
+});
+
 test("history has its own trading route and nested routes expose skip/breadcrumb context", () => {
   assert.match(navSource, /href="\/history"/);
   assert.match(historyPageSource, /readLatestH1Signals/);

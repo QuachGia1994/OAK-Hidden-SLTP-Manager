@@ -37,7 +37,7 @@
   --hud-glass-border: color-mix(in srgb, var(--oak-accent-command) 30%, var(--oak-border-subtle));
   --hud-glass-blur: blur(12px) saturate(125%);
   --hud-spotlight-glow: color-mix(in srgb, var(--oak-accent-command) 7%, transparent);
-  --hud-grid-accent: color-mix(in srgb, var(--oak-accent-command) 12%, transparent);
+  --hud-grid-accent: color-mix(in srgb, var(--oak-accent-command) 20%, transparent);
   --hud-bracket-color: var(--oak-accent-command);
 
   /* Compatibility aliases for existing secondary-tool components. */
@@ -82,7 +82,7 @@
   --hud-glass-border: rgba(255, 255, 255, .08);
   --hud-glass-blur: blur(20px) saturate(180%);
   --hud-spotlight-glow: rgba(77, 159, 255, .16);
-  --hud-grid-accent: rgba(77, 159, 255, .12);
+  --hud-grid-accent: rgba(77, 159, 255, .22);
 }
 
 .contrast {
@@ -109,7 +109,7 @@
   --hud-glass-bg: color-mix(in srgb, #0d0c09 74%, transparent);
   --hud-glass-border: rgba(255, 209, 102, .14);
   --hud-spotlight-glow: rgba(240, 180, 41, .15);
-  --hud-grid-accent: rgba(240, 180, 41, .11);
+  --hud-grid-accent: rgba(240, 180, 41, .20);
 }
 
 @theme inline {
