@@ -81,27 +81,30 @@ function render(locale) {
   return renderToStaticMarkup(React.createElement(H1SignalBoard, { data: payload(), locale, unlocked: true }));
 }
 
-test("H1 history renders one calendar picker with newest date and coverage", () => {
+test("H1 history renders one custom calendar trigger with newest date and coverage", () => {
   const en = render("EN");
   const vn = render("VN");
   assert.match(en, /7 trading days/);
   assert.match(vn, /7 ngày giao dịch/);
   assert.match(en, /2025-12-29.*2026-02-03/);
-  assert.match(en, /type="date"[^>]*value="2026-02-03"/);
-  assert.match(vn, /type="date"[^>]*value="2026-02-03"/);
-  assert.match(en, /min="2025-12-29"/);
-  assert.match(en, /max="2026-02-03"/);
+  assert.match(en, /oak-h1-calendar-trigger/);
+  assert.match(vn, /oak-h1-calendar-trigger/);
+  assert.match(en, /03 \/ 02 \/ 2026/);
+  assert.match(vn, /03 \/ 02 \/ 2026/);
+  assert.match(en, /aria-haspopup="dialog"/);
+  assert.doesNotMatch(en, /type="date"/);
   assert.doesNotMatch(en, /All|Mon|Tue|Wed|Thu|Fri|Lọc theo thứ|Filter by weekday/);
-  assert.doesNotMatch(vn, /Tất cả|T2|T3|T4|T5|T6|Lọc theo thứ/);
+  assert.doesNotMatch(vn, /Tất cả|Lọc theo thứ/);
 });
 
 test("H1 empty live state keeps the fallback calendar interactive", () => {
   const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data: null, degraded: true, locale: "VN", unlocked: true }));
   assert.match(markup, /oak-h1-history/);
-  assert.match(markup, /type="date"/);
+  assert.match(markup, /oak-h1-calendar-trigger/);
+  assert.match(markup, /aria-haspopup="dialog"/);
   assert.match(markup, /calendar dự phòng/);
   assert.match(markup, /Calendar vẫn bấm được/);
-  assert.doesNotMatch(markup, /type="date"[^>]*disabled/);
+  assert.doesNotMatch(markup, /oak-h1-calendar-trigger[^>]*disabled/);
 });
 
 test("historical cTrader trendbars use DST-aware broker dates and hours", () => {

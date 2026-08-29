@@ -79,20 +79,21 @@ test("XAUUSD signal sides are VIP-only while FX remains free", () => {
   assert.match(engineBoardSource, /freeAccess: boolean/);
 });
 
-test("H1 history uses a native calendar picker without weekday filter controls", () => {
-  assert.match(boardSource, /className=\"oak-h1-calendar-picker\"/);
-  assert.match(boardSource, /type=\"date\"/);
-  assert.match(boardSource, /min=\{earliestDate \|\| undefined\}/);
-  assert.match(boardSource, /max=\{latestDate \|\| undefined\}/);
-  assert.match(boardSource, /onChange=\{\(event\) => chooseDate\(event\.currentTarget\.value\)\}/);
-  assert.match(boardSource, /allDates\.length/);
+test("H1 history uses a deterministic Sunday-first calendar without weekday filter controls", () => {
+  assert.match(boardSource, /function SundayCalendarPicker/);
+  assert.match(boardSource, /\[\"CN\", \"T2\", \"T3\", \"T4\", \"T5\", \"T6\", \"T7\"\]/);
+  assert.match(boardSource, /getUTCDay\(\)/);
+  assert.match(boardSource, /sundayOffset/);
+  assert.match(boardSource, /allowedDates=\{allDates\}/);
+  assert.match(boardSource, /disabled=\{!allDates\.length\}/);
   assert.match(boardSource, /data-empty=\"true\"/);
   assert.match(boardSource, /fallbackMinDate/);
   assert.match(boardSource, /calendar dự phòng/);
-  assert.doesNotMatch(boardSource, /type=\"date\" value=\"\" disabled/);
+  assert.doesNotMatch(boardSource, /type=\"date\"/);
   assert.doesNotMatch(boardSource, /HISTORY_FILTERS|weekdayFilter|oak-h1-history-options|Lọc theo thứ|Filter by weekday/);
   assert.match(redesignCss, /\.oak-h1-calendar-picker \{/);
-  assert.match(redesignCss, /calendar-picker-indicator/);
+  assert.match(redesignCss, /\.oak-h1-calendar-weekdays/);
+  assert.match(redesignCss, /grid-template-columns: repeat\(7/);
   assert.doesNotMatch(boardSource, /oak-h1-history-dates/);
 });
 

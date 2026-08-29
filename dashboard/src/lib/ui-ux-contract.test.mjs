@@ -37,10 +37,12 @@ test("provider account UI follows the global EN/VN locale", () => {
   assert.doesNotMatch(accountSource, /<p>Đăng nhập bằng Dashboard API key/);
 });
 
-test("H1 dashboard keeps date navigation without weekday filter controls", () => {
-  assert.match(h1SignalSource, /type=\"date\"/);
+test("H1 dashboard keeps Sunday-first date navigation without weekday filter controls", () => {
+  assert.match(h1SignalSource, /function SundayCalendarPicker/);
+  assert.match(h1SignalSource, /\[\"SUN\", \"MON\", \"TUE\", \"WED\", \"THU\", \"FRI\", \"SAT\"\]/);
+  assert.match(h1SignalSource, /\[\"CN\", \"T2\", \"T3\", \"T4\", \"T5\", \"T6\", \"T7\"\]/);
   assert.match(h1SignalSource, /historyDatesForWeekday\(data\.days, \"all\"\)/);
-  assert.doesNotMatch(h1SignalSource, /HISTORY_FILTERS|weekdayFilter|oak-h1-history-options|Lọc theo thứ|Filter by weekday/);
+  assert.doesNotMatch(h1SignalSource, /type=\"date\"|HISTORY_FILTERS|weekdayFilter|oak-h1-history-options|Lọc theo thứ|Filter by weekday/);
   assert.doesNotMatch(enginePageSource, /DashboardAutoRefresh|router\.refresh/);
 });
 

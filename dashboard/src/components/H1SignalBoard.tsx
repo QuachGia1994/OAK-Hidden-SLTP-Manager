@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { historyDatesForWeekday, selectHistoryDate } from "@/lib/h1-history-navigation";
 import { cycleDecisionFor, H1_SCAN_HOURS, H1_TARGET_BASES, isMonthEndBridgeCell } from "@/lib/h1-cloud-scanner";
 import type { H1SignalAlert, H1SignalPayload } from "@/lib/h1-signals";
@@ -173,6 +173,152 @@ function addIsoCalendarDays(dateKey: string, days: number): string {
   return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}-${String(value.getUTCDate()).padStart(2, "0")}`;
 }
 
+function monthKeyFor(dateKey: string): string {
+  return dateKey.slice(0, 7);
+}
+
+function shiftMonth(monthKey: string, offset: number): string {
+  const [year, month] = monthKey.split("-").map(Number);
+  const value = new Date(Date.UTC(year, month - 1 + offset, 1));
+  return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthCells(monthKey: string): Array<{ date: string; currentMonth: boolean }> {
+  const [year, month] = monthKey.split("-").map(Number);
+  const first = new Date(Date.UTC(year, month - 1, 1));
+  const sundayOffset = first.getUTCDay();
+  return Array.from({ length: 42 }, (_, index) => {
+    const value = new Date(Date.UTC(year, month - 1, 1 - sundayOffset + index));
+    return {
+      date: `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}-${String(value.getUTCDate()).padStart(2, "0")}`,
+      currentMonth: value.getUTCMonth() === month - 1,
+    };
+  });
+}
+
+function dateLabel(dateKey: string): string {
+  const [year, month, day] = dateKey.split("-");
+  return `${day} / ${month} / ${year}`;
+}
+
+function SundayCalendarPicker({
+  value,
+  min,
+  max,
+  allowedDates,
+  disabled = false,
+  locale,
+  label,
+  meta,
+  onChange,
+}: {
+  value: string;
+  min: string;
+  max: string;
+  allowedDates?: string[];
+  disabled?: boolean;
+  locale: Locale;
+  label: string;
+  meta: string;
+  onChange: (date: string) => void;
+}) {
+  const safeMax = max || value || new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const safeMin = min || safeMax;
+  const displayValue = value || safeMax;
+  const [open, setOpen] = useState(false);
+  const [viewMonth, setViewMonth] = useState(() => monthKeyFor(displayValue));
+  const allowed = useMemo(() => new Set(allowedDates ?? []), [allowedDates]);
+  const cells = useMemo(() => monthCells(viewMonth), [viewMonth]);
+  const weekdays = locale === "EN" ? ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] : ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+  const monthTitle = new Intl.DateTimeFormat(locale === "EN" ? "en-US" : "vi-VN", {
+    timeZone: "UTC",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(`${viewMonth}-01T00:00:00Z`));
+
+  useEffect(() => {
+    if (value) setViewMonth(monthKeyFor(value));
+  }, [value]);
+
+  const canSelect = (date: string) => !disabled && date >= safeMin && date <= safeMax && (!allowedDates?.length || allowed.has(date));
+  const canView = (candidate: string) => {
+    const [year, month] = candidate.split("-").map(Number);
+    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    return `${candidate}-${String(lastDay).padStart(2, "0")}` >= safeMin && `${candidate}-01` <= safeMax;
+  };
+
+  const select = (date: string) => {
+    if (!canSelect(date)) return;
+    onChange(date);
+    setOpen(false);
+  };
+
+  return (
+    <div className="oak-h1-calendar-picker" data-open={open ? "true" : undefined}>
+      <button
+        type="button"
+        className="oak-h1-calendar-trigger"
+        onClick={() => setOpen((current) => disabled ? false : !current)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={label}
+        disabled={disabled}
+      >
+        <span className="oak-h1-calendar-icon" aria-hidden="true">▦</span>
+        <b>{value ? dateLabel(value) : "—"}</b>
+        <span className="oak-h1-calendar-chevron" aria-hidden="true">⌄</span>
+      </button>
+      <small>{meta}</small>
+      {open && (
+        <div className="oak-h1-calendar-popover" role="dialog" aria-label={label} onKeyDown={(event) => {
+          if (event.key === "Escape") setOpen(false);
+        }}>
+          <header>
+            <button type="button" onClick={() => {
+              const previous = shiftMonth(viewMonth, -1);
+              if (canView(previous)) setViewMonth(previous);
+            }} disabled={!canView(shiftMonth(viewMonth, -1))} aria-label={locale === "EN" ? "Previous month" : "Tháng trước"}>‹</button>
+            <b>{monthTitle}</b>
+            <button type="button" onClick={() => {
+              const next = shiftMonth(viewMonth, 1);
+              if (canView(next)) setViewMonth(next);
+            }} disabled={!canView(shiftMonth(viewMonth, 1))} aria-label={locale === "EN" ? "Next month" : "Tháng sau"}>›</button>
+          </header>
+          <div className="oak-h1-calendar-weekdays" aria-hidden="true">
+            {weekdays.map((weekday, index) => <span key={weekday} data-sunday={index === 0 ? "true" : undefined}>{weekday}</span>)}
+          </div>
+          <div className="oak-h1-calendar-grid">
+            {cells.map((cell) => {
+              const selectable = canSelect(cell.date);
+              return (
+                <button
+                  type="button"
+                  key={cell.date}
+                  onClick={() => select(cell.date)}
+                  disabled={!selectable}
+                  data-current-month={cell.currentMonth ? "true" : undefined}
+                  data-selected={cell.date === value ? "true" : undefined}
+                  data-sunday={new Date(`${cell.date}T00:00:00Z`).getUTCDay() === 0 ? "true" : undefined}
+                  aria-label={cell.date}
+                  aria-pressed={cell.date === value}
+                >
+                  {Number(cell.date.slice(-2))}
+                </button>
+              );
+            })}
+          </div>
+          <footer><button type="button" onClick={() => setOpen(false)}>{locale === "EN" ? "Close" : "Đóng"}</button></footer>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1SignalPayload | null; degraded?: boolean; locale: Locale; unlocked: boolean }) {
   const [selectedDate, setSelectedDate] = useState(() => data ? selectHistoryDate(data.days, "all", "") : "");
   const [shareArtifact, setShareArtifact] = useState<ShareArtifact | null>(null);
@@ -274,18 +420,15 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
         <div className="oak-h1-history" data-empty="true">
           <div className="oak-h1-history-row">
             <span className="oak-h1-history-label">{copy.dateGroup}</span>
-            <div className="oak-h1-calendar-picker">
-              <span className="oak-h1-calendar-icon" aria-hidden="true">▦</span>
-              <input
-                type="date"
-                value={fallbackDate}
-                min={fallbackMinDate}
-                max={today}
-                onChange={(event) => chooseDate(event.currentTarget.value)}
-                aria-label={copy.dateGroup}
-              />
-              <small>{locale === "EN" ? "fallback calendar" : "calendar dự phòng"}</small>
-            </div>
+            <SundayCalendarPicker
+              value={fallbackDate}
+              min={fallbackMinDate}
+              max={today}
+              locale={locale}
+              label={copy.dateGroup}
+              meta={locale === "EN" ? "fallback calendar" : "calendar dự phòng"}
+              onChange={chooseDate}
+            />
           </div>
           <p className="oak-h1-history-coverage">{copy.coverage}</p>
         </div>
@@ -334,19 +477,17 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
         <div className="oak-h1-history">
           <div className="oak-h1-history-row">
             <span className="oak-h1-history-label">{copy.dateGroup}</span>
-            <div className="oak-h1-calendar-picker">
-              <span className="oak-h1-calendar-icon" aria-hidden="true">▦</span>
-              <input
-                type="date"
-                value={date}
-                min={earliestDate || undefined}
-                max={latestDate || undefined}
-                onChange={(event) => chooseDate(event.currentTarget.value)}
-                aria-label={copy.dateGroup}
-                disabled={!allDates.length}
-              />
-              <small>{allDates.length} {locale === "EN" ? "dates available" : "ngày có dữ liệu"}</small>
-            </div>
+            <SundayCalendarPicker
+              value={date}
+              min={earliestDate}
+              max={latestDate}
+              allowedDates={allDates}
+              disabled={!allDates.length}
+              locale={locale}
+              label={copy.dateGroup}
+              meta={`${allDates.length} ${locale === "EN" ? "dates available" : "ngày có dữ liệu"}`}
+              onChange={chooseDate}
+            />
           </div>
           <p className="oak-h1-history-coverage">{copy.coverage}</p>
         </div>
