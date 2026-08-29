@@ -4,10 +4,41 @@ import { useMemo, useState } from "react";
 import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { OakScreen, Pill, SectionTitle } from "@/components/ui";
 import { latestH1Date, recentAlerts } from "@/lib/h1";
+import type { H1SignalAlert } from "@/lib/types";
 import { radius, spacing, useOakTheme } from "@/lib/theme";
 import { useOakData } from "@/state/data";
 
-type Filter = "all" | "pattern1" | "pattern2" | "pattern3" | "pattern4" | "pattern5" | "pattern6";
+type Filter = "all" | "buy" | "sell" | "reverse" | "keep";
+
+type FilterItem = { key: Filter; label: string };
+
+const FILTERS: readonly FilterItem[] = [
+  { key: "all", label: "ALL" },
+  { key: "buy", label: "BUY" },
+  { key: "sell", label: "SELL" },
+  { key: "reverse", label: "ĐẢO" },
+  { key: "keep", label: "GIỮ" },
+];
+
+function matchesFilter(alert: H1SignalAlert, filter: Filter): boolean {
+  if (filter === "all") return true;
+  if (filter === "buy" || filter === "sell") return alert.signal === filter.toUpperCase();
+  if (filter === "reverse") return alert.postSignalInverted === true;
+  return alert.postSignalInverted !== true;
+}
+
+function phaseLabel(alert: H1SignalAlert): string {
+  const family = alert.postSignalRule?.startsWith("cycle-") ? "CHU KỲ" : alert.postSignalRule?.startsWith("regular-") ? "THÁNG THƯỜNG" : "PHA";
+  return `${alert.postSignalInverted ? "ĐẢO" : "GIỮ"} · ${family}`;
+}
+
+function baseCandleLabel(alert: H1SignalAlert): string {
+  const hour = typeof alert.baseHour === "number" ? `H${String(alert.baseHour).padStart(2, "0")}` : "H—";
+  const minute = typeof alert.baseMinute === "number" ? String(alert.baseMinute).padStart(2, "0") : "00";
+  const direction = alert.baseDirection || "—";
+  const baseSignal = alert.baseSignal || "—";
+  return `Base ${hour}:${minute} ${direction} → ${baseSignal}`;
+}
 
 export default function AlertsScreen() {
   const theme = useOakTheme();
@@ -15,30 +46,28 @@ export default function AlertsScreen() {
   const { h1, refreshing, refresh } = useOakData();
   const [filter, setFilter] = useState<Filter>("all");
   const date = latestH1Date(h1);
-  const rows = useMemo(() => recentAlerts(h1).filter(({ alert }) =>
-    filter === "all" || alert.patternKind === filter
-  ), [h1, filter]);
+  const rows = useMemo(() => recentAlerts(h1).filter(({ alert }) => matchesFilter(alert, filter)), [h1, filter]);
 
   return (
     <OakScreen
-      eyebrow="OAK / EVENT STREAM"
+      eyebrow="OAK / H1 STREAM"
       title="Alerts"
-      subtitle="Recent H1 pattern events from the same normalized cloud feed used by Engine."
+      subtitle="Recent H1 block signals from schema v17 cloud feed."
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.accent} />}
     >
       <View style={[styles.filters, { borderColor: theme.border, backgroundColor: theme.raised }]}>
-        {(["all", "pattern1", "pattern2", "pattern3", "pattern4", "pattern5", "pattern6"] as const).map((item) => {
-          const active = filter === item;
+        {FILTERS.map((item) => {
+          const active = filter === item.key;
           return (
             <Pressable
-              key={item}
+              key={item.key}
               onPress={() => {
-                setFilter(item);
+                setFilter(item.key);
                 Haptics.selectionAsync();
               }}
               style={[styles.filter, { backgroundColor: active ? theme.surface : "transparent", borderColor: active ? `${theme.accent}66` : "transparent" }]}
             >
-              <Text style={[styles.filterText, { color: active ? theme.text : theme.muted }]}>{item.toUpperCase()}</Text>
+              <Text style={[styles.filterText, { color: active ? theme.text : theme.muted }]}>{item.label}</Text>
             </Pressable>
           );
         })}
@@ -47,7 +76,8 @@ export default function AlertsScreen() {
       <SectionTitle title="H1 activity" meta={date || "—"} />
       <View style={styles.list}>
         {rows.map(({ symbol, alert }) => {
-          const signalColor = alert.signal === "SELL" ? theme.sell : theme.buy;
+          const signal = alert.signal || "—";
+          const signalColor = signal === "SELL" ? theme.sell : signal === "BUY" ? theme.buy : theme.muted;
           return (
             <Pressable
               key={`${symbol}:${alert.slotHour}`}
@@ -69,13 +99,13 @@ export default function AlertsScreen() {
                   <Text style={[styles.symbol, { color: theme.text }]}>{symbol}</Text>
                   <Text style={[styles.hour, { color: theme.muted }]}>H{String(alert.slotHour).padStart(2, "0")}</Text>
                 </View>
-                <Text style={[styles.signal, { color: signalColor }]}>{alert.signal}</Text>
+                <Text style={[styles.signal, { color: signalColor }]}>{signal}</Text>
               </View>
               <View style={styles.badges}>
-                <Pill label={alert.patternKind.toUpperCase()} />
-                {alert.entryTime ? <Pill label={`ENTRY ${alert.entryTime}`} /> : null}
+                <Pill label={phaseLabel(alert)} />
+                <Pill label={`BLOCK H${String(alert.slotHour).padStart(2, "0")}`} />
               </View>
-              <Text style={[styles.meta, { color: theme.muted }]}>{alert.m15Window?.split("").join(" · ") || alert.pattern.replaceAll(" ", " · ")} · cặp M15 {alert.m15Pair || "—"}</Text>
+              <Text style={[styles.meta, { color: theme.muted }]}>{baseCandleLabel(alert)} · {alert.profile}</Text>
             </Pressable>
           );
         })}
