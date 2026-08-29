@@ -1720,6 +1720,93 @@ body.oak-body {
   .oak-h1-calendar-grid button { min-height: 2.35rem; }
 }
 
+/* Mobile density pass: preserve 44px controls while reducing chrome before H1 data. */
+@media (max-width: 759px) {
+  .nav-shell {
+    padding-left: max(.55rem, env(safe-area-inset-left));
+    padding-right: max(.55rem, env(safe-area-inset-right));
+  }
+  .oak-nav-layout {
+    min-height: 3.25rem;
+    gap: .42rem;
+    padding-block: .2rem;
+  }
+  .oak-brand {
+    min-width: 0;
+    min-height: var(--oak-touch-min);
+    gap: .4rem;
+    overflow: hidden;
+  }
+  .oak-brand-icon {
+    width: 2rem;
+    height: 2rem;
+  }
+  .oak-brand-copy {
+    min-width: 0;
+  }
+  .oak-brand-copy small {
+    display: none;
+  }
+  .oak-brand-copy strong {
+    max-width: 100%;
+    margin-top: 0;
+    overflow: hidden;
+    font-size: .76rem;
+    text-overflow: ellipsis;
+  }
+  .oak-nav-controls {
+    flex: 0 0 auto;
+    gap: .22rem;
+  }
+  .oak-locale-switch {
+    padding: .1rem;
+  }
+
+  .oak-h1-board-head {
+    gap: .5rem;
+    padding: .58rem .62rem;
+  }
+  .oak-h1-board-head h2 {
+    margin-top: .1rem;
+    font-size: 1rem;
+  }
+  .oak-h1-board-head p {
+    margin-top: .12rem;
+    line-height: 1.35;
+  }
+  .oak-h1-meta {
+    gap: .25rem;
+  }
+  .oak-h1-meta span {
+    min-width: 0;
+    padding: .24rem .35rem;
+  }
+  .oak-h1-share-png {
+    min-width: var(--oak-touch-min);
+    min-height: var(--oak-touch-min);
+    padding: .3rem .42rem;
+  }
+  .oak-h1-history {
+    gap: .28rem;
+    padding: .42rem .55rem;
+  }
+  .oak-h1-history-row {
+    gap: .25rem;
+  }
+  .oak-h1-calendar-trigger {
+    min-height: var(--oak-touch-min);
+    padding: .42rem .6rem;
+  }
+  .oak-h1-scroll-hint {
+    padding: .25rem .55rem;
+  }
+}
+
+@media (max-width: 390px) {
+  .oak-brand-copy b { display: none; }
+  .oak-brand-copy strong { font-size: .72rem; }
+}
+
 @media print {
   .oak-spatial-stage { display: none !important; }
   .oak-nav, .oak-footer { display: none !important; }

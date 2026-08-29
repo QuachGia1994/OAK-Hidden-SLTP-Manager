@@ -160,6 +160,18 @@ test("iPhone H1 surface stays inside the visual viewport and keeps native horizo
   assert.match(oakCss, /\.oak-engine-screen,[\s\S]*\.oak-h1-table-scroll \{[\s\S]*min-width: 0;[\s\S]*max-width: 100%/);
 });
 
+test("mobile H1 chrome stays compact and date changes reset the matrix to the first block", () => {
+  assert.match(h1SignalSource, /useRef<HTMLDivElement>\(null\)/);
+  assert.match(h1SignalSource, /scroller\.scrollLeft = 0/);
+  assert.match(h1SignalSource, /\[date, hasData\]/);
+  assert.match(h1SignalSource, /ref=\{tableScrollRef\} className="oak-h1-table-scroll lux-scroll"/);
+  assert.match(oakCss, /Mobile density pass/);
+  assert.match(oakCss, /\.nav-shell \{[\s\S]*padding-left: max\(\.55rem, env\(safe-area-inset-left\)\)/);
+  assert.match(oakCss, /\.oak-brand-copy small \{[\s\S]*display: none/);
+  assert.match(oakCss, /\.oak-h1-board-head \{[\s\S]*padding: \.58rem \.62rem/);
+  assert.match(oakCss, /@media \(max-width: 390px\)[\s\S]*\.oak-brand-copy b \{ display: none; \}/);
+});
+
 test("light accent and signal states use stronger accessible visual treatment", () => {
   assert.match(globalsCss, /--oak-accent-command: #075ec8/);
   assert.match(globalsCss, /--oak-accent-command-strong: #004aa3/);

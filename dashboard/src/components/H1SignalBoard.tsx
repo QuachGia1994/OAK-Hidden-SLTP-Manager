@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { historyDatesForWeekday, selectHistoryDate } from "@/lib/h1-history-navigation";
 import { activeH1ScanHoursForBrokerDate, cycleDecisionFor, H1_SCAN_HOURS, H1_TARGET_BASES, isMonthEndBridgeCell } from "@/lib/h1-cloud-scanner";
 import type { H1SignalAlert, H1SignalPayload } from "@/lib/h1-signals";
@@ -324,6 +324,8 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
   const [selectedDate, setSelectedDate] = useState(() => data ? selectHistoryDate(data.days, "all", "") : "");
   const [shareArtifact, setShareArtifact] = useState<ShareArtifact | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const hasData = Boolean(data);
   const allDates = data ? historyDatesForWeekday(data.days, "all") : [];
   const date = data ? selectHistoryDate(data.days, "all", selectedDate) : selectedDate;
   const day = date && data ? data.days[date] : undefined;
@@ -353,6 +355,13 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
     if (!data || selectedDate === date) return;
     setSelectedDate(date);
   }, [data, date, selectedDate]);
+
+  useEffect(() => {
+    if (!date) return;
+    const scroller = tableScrollRef.current;
+    if (!scroller) return;
+    scroller.scrollLeft = 0;
+  }, [date, hasData]);
 
   useEffect(() => {
     let cancelled = false;
@@ -438,7 +447,7 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
           ? <p className="oak-h1-degraded" role="alert">{locale === "EN" ? "Live storage is temporarily unavailable. Calendar stays available while recovery runs automatically…" : "Kho live tạm không khả dụng. Calendar vẫn bấm được trong khi hệ thống tự phục hồi…"}</p>
           : <p className="oak-h1-awaiting">{copy.awaiting}</p>}
         <p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe horizontally for later blocks" : "Vuốt ngang để xem H12 · H14 · H16"}</p>
-        <div className="oak-h1-table-scroll lux-scroll">
+        <div ref={tableScrollRef} className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
             <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{fallbackHours.map((hour) => {
               const inverted = cycleDecisionFor("XAUUSD", fallbackDate, hour).inverted;
@@ -495,7 +504,7 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
           </div>
           <p className="oak-h1-history-coverage">{copy.coverage}</p>
         </div>
-        {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : <><p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe horizontally for later blocks" : "Vuốt ngang để xem H12 · H14 · H16"}</p><div className="oak-h1-table-scroll lux-scroll">
+        {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : <><p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe horizontally for later blocks" : "Vuốt ngang để xem H12 · H14 · H16"}</p><div ref={tableScrollRef} className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
             <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{activeHours.map((hour) => {
               const postSignalInverted = cycleDecisionFor("XAUUSD", date, hour).inverted;
