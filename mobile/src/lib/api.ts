@@ -1,5 +1,5 @@
 import Constants from "expo-constants";
-import type { AccountPayload, MobileH1Response } from "./types";
+import type { AccountPayload, MobileAppPayload, MobileH1Response } from "./types";
 
 const configuredBase = process.env.EXPO_PUBLIC_OAK_API_BASE
   || String(Constants.expoConfig?.extra?.apiBase || "https://www.oakgatekeeper.uk");
@@ -24,6 +24,10 @@ async function apiRequest<T>(path: string, apiKey: string, init?: RequestInit): 
     throw new Error(message);
   }
   return body as T;
+}
+
+export function fetchMobileApp(apiKey: string): Promise<MobileAppPayload> {
+  return apiRequest<MobileAppPayload>("/api/mobile/app", apiKey, { cache: "no-store" });
 }
 
 export function fetchMobileH1(apiKey: string): Promise<MobileH1Response> {

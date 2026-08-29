@@ -1,51 +1,31 @@
-import { useColorScheme } from "react-native";
-
 const dark = {
   canvas: "#05080E",
-  surface: "#09111D",
-  raised: "#0D1726",
-  text: "#F6F8FF",
-  muted: "#8EA4C4",
-  border: "#1E3350",
+  surface: "#0A1220",
+  raised: "#101B2D",
+  text: "#F8FAFF",
+  muted: "#A9B8D3",
+  faint: "#71809B",
+  border: "#284468",
   accent: "#58A6FF",
-  cyan: "#00F0FF",
-  purple: "#B026FF",
+  cyan: "#00E5FF",
+  purple: "#A855F7",
   amber: "#FFB800",
-  buy: "#00FF88",
-  sell: "#FF2E63",
+  buy: "#00E08A",
+  sell: "#FF476F",
   warning: "#FFB800",
-  danger: "#FF2E63",
-  online: "#00FF88",
-  glass: "rgba(8, 14, 26, 0.78)",
-  glow: "rgba(0, 240, 255, 0.22)",
+  danger: "#FF476F",
+  online: "#00E08A",
+  glass: "rgba(10, 18, 32, 0.88)",
+  glow: "rgba(0, 229, 255, 0.20)",
   vip: "#FFC44D",
-};
-
-const light = {
-  canvas: "#F3F6FA",
-  surface: "#FFFFFF",
-  raised: "#F7F9FC",
-  text: "#101828",
-  muted: "#667085",
-  border: "#D0D5DD",
-  accent: "#1677FF",
-  cyan: "#1677FF",
-  purple: "#6941C6",
-  amber: "#B54708",
-  buy: "#07875F",
-  sell: "#D92D20",
-  warning: "#A15C07",
-  danger: "#B42318",
-  online: "#07875F",
-  glass: "rgba(255,255,255,0.84)",
-  glow: "rgba(22,119,255,0.16)",
-  vip: "#B54708",
 };
 
 export type OakTheme = typeof dark;
 
 export function useOakTheme(): OakTheme {
-  return useColorScheme() === "light" ? light : dark;
+  // The concept is intentionally dark. Do not follow system light mode: the
+  // light palette washed out text against the glass cards on iOS screenshots.
+  return dark;
 }
 
 export const spacing = {

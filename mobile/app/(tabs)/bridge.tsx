@@ -5,17 +5,21 @@ import { useOakData } from "@/state/data";
 
 export default function BridgeScreen() {
   const theme = useOakTheme();
-  const { accounts, refreshing, refresh } = useOakData();
+  const { app, accounts, refreshing, refresh } = useOakData();
+  const bridge = app?.bridge;
   const mt5 = accounts?.accounts.filter((item) => item.provider === "mt5") || [];
   const ctrader = accounts?.accounts.filter((item) => item.provider === "ctrader") || [];
-  const onlineMt5 = mt5.filter((item) => item.bridgeOnline).length;
-  const enabledCtrader = ctrader.filter((item) => item.enabled).length;
+  const onlineMt5 = bridge?.mt5Online ?? mt5.filter((item) => item.bridgeOnline).length;
+  const mt5Total = bridge?.mt5Total ?? mt5.length;
+  const enabledCtrader = bridge?.ctraderEnabled ?? ctrader.filter((item) => item.enabled).length;
+  const ctraderTotal = bridge?.ctraderTotal ?? ctrader.length;
+  const brokerOnline = onlineMt5 > 0 || enabledCtrader > 0;
 
   return (
     <OakScreen
       eyebrow="OAK / BRIDGE"
       title="Bridge"
-      subtitle="Cầu nối MT5 EA, cTrader OAuth và dispatcher cloud cho robot SLTP."
+      subtitle="Backend bridge state: MT5 EA heartbeat, cTrader OAuth và dispatcher cloud cho robot SLTP."
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.cyan} />}
     >
       <GlassCard glow="accent">
@@ -23,20 +27,29 @@ export default function BridgeScreen() {
           <View style={styles.node}><Beacon /><Text style={[styles.nodeTitle, { color: theme.text }]}>Mobile</Text><Text style={[styles.nodeMeta, { color: theme.muted }]}>Native UI</Text></View>
           <View style={[styles.link, { backgroundColor: theme.cyan }]} />
           <View style={styles.node}><Beacon tone="accent" /><Text style={[styles.nodeTitle, { color: theme.text }]}>Cloud</Text><Text style={[styles.nodeMeta, { color: theme.muted }]}>Vercel</Text></View>
-          <View style={[styles.link, { backgroundColor: theme.cyan }]} />
-          <View style={styles.node}><Beacon tone={onlineMt5 ? "online" : "warning"} /><Text style={[styles.nodeTitle, { color: theme.text }]}>Broker</Text><Text style={[styles.nodeMeta, { color: theme.muted }]}>MT5/cT</Text></View>
+          <View style={[styles.link, { backgroundColor: brokerOnline ? theme.cyan : theme.warning }]} />
+          <View style={styles.node}><Beacon tone={brokerOnline ? "online" : "warning"} /><Text style={[styles.nodeTitle, { color: theme.text }]}>Broker</Text><Text style={[styles.nodeMeta, { color: theme.muted }]}>MT5/cT</Text></View>
         </View>
       </GlassCard>
 
-      <SectionTitle title="Connection state" meta="Realtime" />
+      <SectionTitle title="Connection state" meta={bridge ? "Backend" : "Fallback"} />
       <View style={styles.grid}>
         <GlassCard glow={onlineMt5 ? "buy" : "warning"} style={styles.half}>
-          <Metric label="MT5 BRIDGE" value={`${onlineMt5}/${mt5.length}`} tone={onlineMt5 ? "buy" : "warning"} />
+          <Metric label="MT5 BRIDGE" value={`${onlineMt5}/${mt5Total}`} tone={onlineMt5 ? "buy" : "warning"} />
         </GlassCard>
         <GlassCard glow={enabledCtrader ? "buy" : "muted"} style={styles.half}>
-          <Metric label="CTRADER" value={`${enabledCtrader}/${ctrader.length}`} tone={enabledCtrader ? "buy" : "muted"} />
+          <Metric label="CTRADER" value={`${enabledCtrader}/${ctraderTotal}`} tone={enabledCtrader ? "buy" : "muted"} />
         </GlassCard>
       </View>
+
+      <SectionTitle title="Month-end bridge" meta={bridge?.brokerDate || "—"} />
+      <GlassCard glow={bridge?.bridgeCells.length ? "warning" : "muted"}>
+        <View style={styles.bridgeCopy}>
+          <Pill label={`${bridge?.bridgeCells.length || 0} CẦU CELL`} tone={bridge?.bridgeCells.length ? "warning" : "muted"} />
+          <Text style={[styles.bridgeTitle, { color: theme.text }]}>Cầu nối cuối tháng</Text>
+          <Text style={[styles.bridgeText, { color: theme.muted }]}>H16 thứ 6 cuối tháng và H thứ 2–3–4 sau đó giữ phase tháng cũ; thứ 5 đầu tháng reset tháng mới.</Text>
+        </View>
+      </GlassCard>
 
       <SectionTitle title="Accounts" meta={`${accounts?.accounts.length || 0} total`} />
       <View style={styles.list}>
@@ -74,9 +87,12 @@ const styles = StyleSheet.create({
   node: { flex: 1, minHeight: 86, alignItems: "center", justifyContent: "center", gap: 5 },
   nodeTitle: { fontSize: 14, fontWeight: "900" },
   nodeMeta: { fontSize: 10, fontWeight: "800" },
-  link: { width: 20, height: 2, opacity: 0.8 },
+  link: { width: 20, height: 2, opacity: 0.85 },
   grid: { flexDirection: "row", gap: spacing.sm },
   half: { flex: 1 },
+  bridgeCopy: { gap: spacing.sm },
+  bridgeTitle: { fontSize: 18, fontWeight: "900" },
+  bridgeText: { fontSize: 12, lineHeight: 18, fontWeight: "700" },
   list: { gap: spacing.sm },
   accountLine: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   accountCopy: { flex: 1, gap: 7 },

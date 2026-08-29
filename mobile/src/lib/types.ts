@@ -11,6 +11,7 @@ export type H1SignalAlert = {
   baseMinute: number | null;
   baseDirection: "T" | "G" | "";
   signal: H1SignalSide | null;
+  scheduledSignal?: H1SignalSide | null;
   postSignalInverted?: boolean;
   postSignalRule?: H1PostSignalRule;
 };
@@ -32,6 +33,53 @@ export type H1SignalPayload = {
 export type MobileH1Response = {
   ok: true;
   data: H1SignalPayload | null;
+};
+
+export type MobileSignalRow = {
+  symbol: string;
+  slotHour: number;
+  signal: H1SignalSide | null;
+  baseSignal: H1SignalSide | null;
+  baseDirection: "T" | "G" | "";
+  postSignalInverted: boolean;
+  postSignalRule: H1PostSignalRule;
+};
+
+export type MobileDashboardPayload = {
+  brokerDate: string;
+  publishedAt: string | null;
+  latencyMs: number;
+  uptimePct: number;
+  status: "ACTIVE" | "WAITING";
+  totalSignals: number;
+  buySignals: number;
+  sellSignals: number;
+  reverseSignals: number;
+  bridgeCells: number;
+  vipUnlocked: boolean;
+  providerOnline: boolean;
+  today: MobileSignalRow[];
+};
+
+export type MobileReportPayload = {
+  totalSignals: number;
+  buySignals: number;
+  sellSignals: number;
+  reverseSignals: number;
+  keepSignals: number;
+  signalBalancePct: number;
+  reversePct: number;
+  trend: Array<{ date: string; value: number; index: number }>;
+};
+
+export type MobileBridgePayload = {
+  brokerDate: string;
+  mt5Online: number;
+  mt5Total: number;
+  ctraderEnabled: number;
+  ctraderTotal: number;
+  bridgeCells: number[];
+  nodes: Array<{ id: string; label: string; online: boolean }>;
 };
 
 export type Provider = "ctrader" | "mt5";
@@ -80,4 +128,13 @@ export type AccountPayload = {
   };
   defaultAccountId: string;
   accounts: ProviderAccount[];
+};
+
+export type MobileAppPayload = {
+  ok: true;
+  h1: H1SignalPayload | null;
+  accounts: AccountPayload;
+  dashboard: MobileDashboardPayload;
+  reports: MobileReportPayload;
+  bridge: MobileBridgePayload;
 };

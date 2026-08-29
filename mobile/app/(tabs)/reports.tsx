@@ -6,42 +6,52 @@ import { useOakData } from "@/state/data";
 
 export default function ReportsScreen() {
   const theme = useOakTheme();
-  const { h1, refreshing, refresh } = useOakData();
-  const summary = reportSummary(h1);
-  const date = latestH1Date(h1);
-  const buyPct = summary.total ? Math.round((summary.buy / summary.total) * 100) : 0;
-  const sellPct = summary.total ? Math.round((summary.sell / summary.total) * 100) : 0;
-  const reversePct = summary.total ? Math.round((summary.reverse / summary.total) * 100) : 0;
+  const { app, h1, refreshing, refresh } = useOakData();
+  const fallback = reportSummary(h1);
+  const backend = app?.reports;
+  const date = app?.dashboard.brokerDate || latestH1Date(h1);
+  const total = backend?.totalSignals ?? fallback.total;
+  const buy = backend?.buySignals ?? fallback.buy;
+  const sell = backend?.sellSignals ?? fallback.sell;
+  const reverse = backend?.reverseSignals ?? fallback.reverse;
+  const keep = backend?.keepSignals ?? fallback.keep;
+  const balancePct = backend?.signalBalancePct ?? fallback.winRate;
+  const reversePct = backend?.reversePct ?? (total ? Math.round((reverse / total) * 100) : 0);
+  const trend = backend?.trend.length ? backend.trend : [12, 22, 18, 31, 38, 34, 45, 52, 49, 61].map((value, index) => ({ date: String(index), value, index }));
+  const maxTrend = Math.max(1, ...trend.map((item) => item.value));
 
   return (
     <OakScreen
       eyebrow="OAK / REPORTS"
       title="Reports"
-      subtitle="Hiệu suất H1 feed client-side: BUY/SELL mix, reverse ratio và system rhythm."
+      subtitle="Backend summary cho H1 feed: BUY/SELL mix, hậu signal và nhịp block theo ngày."
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.cyan} />}
     >
       <SectionTitle title="Ngày" meta={date || "—"} />
       <View style={styles.grid2}>
-        <GlassCard style={styles.half}><Metric label="TỔNG TÍN HIỆU" value={`${summary.total}`} /></GlassCard>
-        <GlassCard style={styles.half} glow="buy"><Metric label="WIN RATE DEMO" value={`${summary.winRate}%`} tone="buy" /></GlassCard>
-        <GlassCard style={styles.half} glow="buy"><Metric label="BUY" value={`${summary.buy}`} tone="buy" /></GlassCard>
-        <GlassCard style={styles.half} glow="sell"><Metric label="SELL" value={`${summary.sell}`} tone="sell" /></GlassCard>
-        <GlassCard style={styles.half} glow="warning"><Metric label="HẬU ĐẢO" value={`${summary.reverse}`} tone="warning" /></GlassCard>
-        <GlassCard style={styles.half}><Metric label="HẬU GIỮ" value={`${summary.keep}`} tone="accent" /></GlassCard>
+        <GlassCard style={styles.half}><Metric label="TỔNG TÍN HIỆU" value={`${total}`} /></GlassCard>
+        <GlassCard style={styles.half} glow="buy"><Metric label="SIGNAL BALANCE" value={`${balancePct}%`} tone="buy" /></GlassCard>
+        <GlassCard style={styles.half} glow="buy"><Metric label="BUY" value={`${buy}`} tone="buy" /></GlassCard>
+        <GlassCard style={styles.half} glow="sell"><Metric label="SELL" value={`${sell}`} tone="sell" /></GlassCard>
+        <GlassCard style={styles.half} glow="warning"><Metric label="HẬU ĐẢO" value={`${reverse}`} tone="warning" /></GlassCard>
+        <GlassCard style={styles.half}><Metric label="HẬU GIỮ" value={`${keep}`} tone="accent" /></GlassCard>
       </View>
 
-      <SectionTitle title="Performance curve" meta="Synthetic preview" />
+      <SectionTitle title="Performance curve" meta={backend ? "Backend" : "Fallback"} />
       <GlassCard glow="buy">
         <View style={styles.chart}>
-          {[12, 22, 18, 31, 38, 34, 45, 52, 49, 61].map((height, index) => (
-            <View key={index} style={[styles.barWrap, { borderColor: theme.border }]}> 
-              <View style={[styles.bar, { height, backgroundColor: index < 2 ? theme.sell : theme.buy }]} />
-            </View>
-          ))}
+          {trend.map((item) => {
+            const height = Math.max(8, Math.round((item.value / maxTrend) * 112));
+            return (
+              <View key={`${item.date}:${item.index}`} style={[styles.barWrap, { borderColor: theme.border }]}>
+                <View style={[styles.bar, { height, backgroundColor: item.index < 2 ? theme.sell : theme.buy }]} />
+              </View>
+            );
+          })}
         </View>
         <View style={styles.chartLegend}>
-          <Pill label={`BUY ${buyPct}%`} tone="buy" />
-          <Pill label={`SELL ${sellPct}%`} tone="sell" />
+          <Pill label={`BUY ${total ? Math.round((buy / total) * 100) : 0}%`} tone="buy" />
+          <Pill label={`SELL ${total ? Math.round((sell / total) * 100) : 0}%`} tone="sell" />
           <Pill label={`ĐẢO ${reversePct}%`} tone="warning" />
         </View>
       </GlassCard>

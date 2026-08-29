@@ -9,6 +9,10 @@ const vipSource = readFileSync(new URL("./vip.ts", import.meta.url), "utf8");
 const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.meta.url), "utf8");
 const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
 const mobileH1RouteSource = readFileSync(new URL("../app/api/mobile/h1/route.ts", import.meta.url), "utf8");
+const mobileAppRouteSource = readFileSync(new URL("../app/api/mobile/app/route.ts", import.meta.url), "utf8");
+const mobileAppBackendSource = readFileSync(new URL("./mobile-app-backend.ts", import.meta.url), "utf8");
+const mobileThemeSource = readFileSync(new URL("../../../mobile/src/lib/theme.ts", import.meta.url), "utf8");
+const mobileDataSource = readFileSync(new URL("../../../mobile/src/state/data.tsx", import.meta.url), "utf8");
 
 test("H1 web feed has schema-17 signal and six-block weekday contract without pattern/entry metadata", () => {
   assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 17/);
@@ -106,6 +110,26 @@ test("mobile H1 adapter preserves admin auth and normalized cloud feed semantics
   assert.match(mobileH1RouteSource, /maskFutureH1Signals/);
   assert.match(mobileH1RouteSource, /Cache-Control.*no-store/);
   assert.doesNotMatch(mobileH1RouteSource, /UPSTASH|CTRADER_CLIENT_SECRET|DASHBOARD_API_KEY/);
+});
+
+test("mobile app backend exposes one authenticated app payload without leaking secrets", () => {
+  assert.match(mobileAppRouteSource, /requireAdminOrApiAuth/);
+  assert.match(mobileAppRouteSource, /buildMobileAppPayload/);
+  assert.match(mobileAppRouteSource, /Cache-Control.*no-store/);
+  assert.match(mobileAppBackendSource, /dashboardSummary/);
+  assert.match(mobileAppBackendSource, /reportSummary/);
+  assert.match(mobileAppBackendSource, /bridgeSummary/);
+  assert.match(mobileAppBackendSource, /isMonthEndBridgeCell/);
+  assert.doesNotMatch(mobileAppRouteSource + mobileAppBackendSource, /CTRADER_CLIENT_SECRET|DASHBOARD_API_KEY|UPSTASH_REDIS_REST_TOKEN/);
+});
+
+test("mobile concept app uses backend summary and forced dark high-contrast palette", () => {
+  assert.match(mobileThemeSource, /return dark/);
+  assert.doesNotMatch(mobileThemeSource, /useColorScheme\(\)/);
+  assert.match(mobileThemeSource, /text: "#F8FAFF"/);
+  assert.match(mobileThemeSource, /muted: "#A9B8D3"/);
+  assert.match(mobileDataSource, /fetchMobileApp/);
+  assert.match(mobileDataSource, /App backend fallback/);
 });
 
 test("engine web surface is H1-only with the compact command header", () => {
