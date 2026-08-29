@@ -34,6 +34,19 @@ async function authorize(request: Request): Promise<NextResponse | null> {
   return denied;
 }
 
+type BackfillStage = "load-state" | "load-session" | "fetch-history" | "reconstruct" | "merge" | "persist";
+
+function backfillErrorCode(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error || "");
+  if (/quota|max requests limit|rate.?limit|429/i.test(message)) return "REDIS_LIMIT";
+  if (/has not been authorised|token|oauth|unauthor/i.test(message)) return "CTRADER_AUTH";
+  if (/symbol not found/i.test(message)) return "CTRADER_SYMBOL";
+  if (/history request budget exceeded|deadline/i.test(message)) return "CTRADER_HISTORY_BUDGET";
+  if (/ctrader|websocket|trendbar/i.test(message)) return "CTRADER_PROVIDER";
+  if (/redis|upstash/i.test(message)) return "REDIS_PROVIDER";
+  return "BACKFILL_INTERNAL";
+}
+
 export async function POST(request: Request) {
   const denied = await authorize(request);
   if (denied) return denied;
@@ -46,6 +59,7 @@ export async function POST(request: Request) {
   const lockToken = await acquireH1CloudLock();
   if (!lockToken) return NextResponse.json({ ok: true, skipped: "already-running" }, { headers: { "Cache-Control": "no-store" } });
 
+  let stage: BackfillStage = "load-state";
   try {
     const nowMs = Date.now();
     const current = brokerWallParts(nowMs);
@@ -53,11 +67,14 @@ export async function POST(request: Request) {
     const { state, source } = await loadH1CloudHistoryState();
     const recoverMissingCurrentDay = current.hour > H1_SCAN_END_HOUR && !state.days[current.dateKey];
     const requestedThrough = recoverMissingCurrentDay ? current.dateKey : addBrokerCalendarDays(current.dateKey, -1);
+    stage = "load-session";
     const session = await loadH1CTraderSession();
+    stage = "fetch-history";
     const startedAt = Date.now();
     const historical = await fetchHistoricalBrokerH1(session, utcHistoryEnvelopeStart(requestedFrom), nowMs, {
       deadlineMs: startedAt + 150_000,
     });
+    stage = "reconstruct";
     const reconstructedAll = reconstructHistoricalDays(historical.symbols);
     const reconstructed = Object.fromEntries(Object.entries(reconstructedAll).filter(([date]) =>
       date >= requestedFrom && (date < current.dateKey || (recoverMissingCurrentDay && date === current.dateKey)),
@@ -65,9 +82,11 @@ export async function POST(request: Request) {
     const coverageDates = Object.keys(reconstructed).sort();
     const coverageSet = new Set(coverageDates);
     const unavailableWeekdays = requestedWeekdays(requestedFrom, requestedThrough).filter((date) => !coverageSet.has(date));
+    stage = "merge";
     const merged = mergeHistoricalBackfill(state, reconstructed, current.dateKey, { includeMissingCurrentDay: recoverMissingCurrentDay });
 
     if (merged.addedAlerts > 0 || merged.addedDays > 0) {
+      stage = "persist";
       await saveH1CloudState(state);
       await publishH1CloudState(state);
     }
@@ -92,8 +111,14 @@ export async function POST(request: Request) {
       addedAlerts: merged.addedAlerts,
     }, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error) {
-    console.error("[H1 HISTORY BACKFILL]", { status: "failed", errorClass: error instanceof Error ? error.name : "UnknownError" });
-    return NextResponse.json({ ok: false, error: "H1 history backfill failed." }, { status: 502, headers: { "Cache-Control": "no-store, max-age=0" } });
+    const errorCode = backfillErrorCode(error);
+    console.error("[H1 HISTORY BACKFILL]", {
+      status: "failed",
+      stage,
+      errorCode,
+      errorClass: error instanceof Error ? error.name : "UnknownError",
+    });
+    return NextResponse.json({ ok: false, error: "H1 history backfill failed.", stage, errorCode }, { status: 502, headers: { "Cache-Control": "no-store, max-age=0" } });
   } finally {
     await releaseH1CloudLock(lockToken);
   }

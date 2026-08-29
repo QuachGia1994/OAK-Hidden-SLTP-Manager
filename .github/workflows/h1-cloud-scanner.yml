@@ -112,7 +112,7 @@ jobs:
             https://www.oakgatekeeper.uk/api/h1-scanner/run
 
       - name: Rebuild H1 history after scanner deploy
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         env:
           OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
         run: |

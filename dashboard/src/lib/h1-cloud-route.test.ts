@@ -123,6 +123,10 @@ test("H1 history backfill accepts admin/API or repo-fenced GitHub OIDC, stays si
   assert.match(backfillRoute, /includeMissingCurrentDay: recoverMissingCurrentDay/);
   assert.match(backfillRoute, /recoveredMissingCurrentDay/);
   assert.match(backfillRoute, /addedAlerts > 0 \|\| merged\.addedDays > 0/);
+  assert.match(backfillRoute, /type BackfillStage = "load-state" \| "load-session" \| "fetch-history" \| "reconstruct" \| "merge" \| "persist"/);
+  assert.match(backfillRoute, /errorCode: backfillErrorCode|const errorCode = backfillErrorCode/);
+  assert.match(backfillRoute, /stage, errorCode/);
+  assert.match(workflow, /github\.event_name == 'push' \|\| github\.event_name == 'workflow_dispatch'/);
   assert.doesNotMatch(backfillRoute, /x-h1-timekeeper-key|x-h1-run-ticket|sendTelegram|buildTelegramMessage/);
   assert.doesNotMatch(backfillRoute, /placeCTraderMarketOrder|closeCTraderPositions|amendCTraderPositionProtection|NEW_ORDER_REQ|CLOSE_POSITION_REQ/);
 });
