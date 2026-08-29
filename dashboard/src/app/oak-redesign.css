@@ -1319,9 +1319,9 @@ body.oak-body {
   position: absolute;
   top: calc(100% + .45rem);
   left: 0;
-  z-index: 40;
-  width: min(20.5rem, calc(100vw - 2rem));
-  padding: .7rem;
+  z-index: 80;
+  width: min(15rem, calc(100vw - 1.25rem));
+  padding: .55rem;
   border: 1px solid var(--oak-border-strong);
   border-radius: var(--oak-radius-md);
   color: var(--oak-fg-primary);
@@ -1330,15 +1330,15 @@ body.oak-body {
 }
 .oak-h1-calendar-popover > header {
   display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr) 2rem;
+  grid-template-columns: 1.8rem minmax(0, 1fr) 1.8rem;
   align-items: center;
-  gap: .4rem;
-  margin-bottom: .55rem;
+  gap: .3rem;
+  margin-bottom: .4rem;
 }
-.oak-h1-calendar-popover > header b { text-align: center; font-size: .76rem; text-transform: capitalize; }
+.oak-h1-calendar-popover > header b { text-align: center; font-size: .68rem; text-transform: capitalize; }
 .oak-h1-calendar-popover > header button,
 .oak-h1-calendar-popover > footer button {
-  min-height: 2rem;
+  min-height: 1.8rem;
   border: 1px solid var(--oak-border-subtle);
   border-radius: var(--oak-radius-sm);
   color: var(--oak-fg-primary);
@@ -1347,11 +1347,12 @@ body.oak-body {
 }
 .oak-h1-calendar-popover > header button:disabled { opacity: .35; cursor: not-allowed; }
 .oak-h1-calendar-weekdays,
-.oak-h1-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .2rem; }
+.oak-h1-calendar-grid { display: grid; grid-template-columns: repeat(7, 1.75rem); justify-content: center; gap: .15rem; }
 .oak-h1-calendar-weekdays { margin-bottom: .2rem; }
 .oak-h1-calendar-weekdays span {
   display: grid;
-  min-height: 1.45rem;
+  width: 1.75rem;
+  min-height: 1.25rem;
   place-items: center;
   color: var(--oak-fg-muted);
   font: 800 .5rem "Cascadia Mono", Consolas, monospace;
@@ -1359,7 +1360,8 @@ body.oak-body {
 .oak-h1-calendar-weekdays span[data-sunday="true"] { color: var(--oak-status-danger); }
 .oak-h1-calendar-grid button {
   display: grid;
-  aspect-ratio: 1;
+  width: 1.75rem;
+  height: 1.75rem;
   min-width: 0;
   place-items: center;
   border: 1px solid transparent;
@@ -1373,13 +1375,13 @@ body.oak-body {
 .oak-h1-calendar-grid button:not(:disabled):hover { border-color: var(--oak-accent-command); background: color-mix(in srgb, var(--oak-accent-command) 8%, var(--oak-bg-raised)); }
 .oak-h1-calendar-grid button[data-selected="true"] { color: #fff; border-color: var(--oak-accent-command); background: var(--oak-accent-command); }
 .oak-h1-calendar-grid button:disabled { opacity: .28; cursor: not-allowed; }
-.oak-h1-calendar-popover > footer { display: flex; justify-content: flex-end; margin-top: .55rem; padding-top: .5rem; border-top: 1px solid var(--oak-border-subtle); }
-.oak-h1-calendar-popover > footer button { padding-inline: .7rem; font-size: .6rem; }
+.oak-h1-calendar-popover > footer { display: flex; justify-content: flex-end; margin-top: .4rem; padding-top: .4rem; border-top: 1px solid var(--oak-border-subtle); }
+.oak-h1-calendar-popover > footer button { padding-inline: .6rem; font-size: .55rem; }
 
 @media (max-width: 759px) {
   .oak-h1-calendar-picker { width: 100%; min-width: 0; grid-template-columns: minmax(0, 1fr); }
   .oak-h1-calendar-picker > small { padding: 0 .7rem .55rem; }
-  .oak-h1-calendar-popover { position: fixed; top: auto; right: .65rem; bottom: max(.65rem, env(safe-area-inset-bottom)); left: .65rem; width: auto; }
+  .oak-h1-calendar-popover { position: fixed; top: auto; right: auto; bottom: max(.65rem, env(safe-area-inset-bottom)); left: 50%; width: min(15rem, calc(100vw - 1.25rem)); transform: translateX(-50%); }
 }
 
 @media print {

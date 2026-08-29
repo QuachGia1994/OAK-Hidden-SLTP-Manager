@@ -93,7 +93,9 @@ test("H1 history uses a deterministic Sunday-first calendar without weekday filt
   assert.doesNotMatch(boardSource, /HISTORY_FILTERS|weekdayFilter|oak-h1-history-options|Lọc theo thứ|Filter by weekday/);
   assert.match(redesignCss, /\.oak-h1-calendar-picker \{/);
   assert.match(redesignCss, /\.oak-h1-calendar-weekdays/);
-  assert.match(redesignCss, /grid-template-columns: repeat\(7/);
+  assert.match(redesignCss, /grid-template-columns: repeat\(7, 1\.75rem\)/);
+  assert.match(redesignCss, /width: min\(15rem, calc\(100vw - 1\.25rem\)\)/);
+  assert.doesNotMatch(redesignCss, /width: min\(20\.5rem/);
   assert.doesNotMatch(boardSource, /oak-h1-history-dates/);
 });
 
