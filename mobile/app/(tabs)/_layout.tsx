@@ -7,7 +7,6 @@ const ITEMS = [
   { name: "calendar", title: "H1", icon: "▦" },
   { name: "signals", title: "Signals", icon: "≋" },
   { name: "reports", title: "Reports", icon: "⌁" },
-  { name: "bridge", title: "Bridge", icon: "⌬" },
   { name: "more", title: "More", icon: "▣" },
 ] as const;
 
@@ -78,6 +77,9 @@ export default function TabLayout() {
           }}
         />
       ))}
+      <Tabs.Screen name="alerts" options={{ href: null }} />
+      <Tabs.Screen name="accounts" options={{ href: null }} />
+      <Tabs.Screen name="bridge" options={{ href: null }} />
     </Tabs>
   );
 }

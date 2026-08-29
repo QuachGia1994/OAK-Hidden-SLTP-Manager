@@ -13,6 +13,12 @@ const mobileAppRouteSource = readFileSync(new URL("../app/api/mobile/app/route.t
 const mobileAppBackendSource = readFileSync(new URL("./mobile-app-backend.ts", import.meta.url), "utf8");
 const mobileThemeSource = readFileSync(new URL("../../../mobile/src/lib/theme.ts", import.meta.url), "utf8");
 const mobileDataSource = readFileSync(new URL("../../../mobile/src/state/data.tsx", import.meta.url), "utf8");
+const mobileTabsSource = readFileSync(new URL("../../../mobile/app/(tabs)/_layout.tsx", import.meta.url), "utf8");
+const mobileHomeSource = readFileSync(new URL("../../../mobile/app/(tabs)/index.tsx", import.meta.url), "utf8");
+const mobileCalendarSource = readFileSync(new URL("../../../mobile/app/(tabs)/calendar.tsx", import.meta.url), "utf8");
+const mobileSignalsSource = readFileSync(new URL("../../../mobile/app/(tabs)/signals.tsx", import.meta.url), "utf8");
+const mobileReportsSource = readFileSync(new URL("../../../mobile/app/(tabs)/reports.tsx", import.meta.url), "utf8");
+const mobileMoreSource = readFileSync(new URL("../../../mobile/app/(tabs)/more.tsx", import.meta.url), "utf8");
 
 test("H1 web feed has schema-17 signal and six-block weekday contract without pattern/entry metadata", () => {
   assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 17/);
@@ -119,6 +125,8 @@ test("mobile app backend exposes one authenticated app payload without leaking s
   assert.match(mobileAppBackendSource, /dashboardSummary/);
   assert.match(mobileAppBackendSource, /reportSummary/);
   assert.match(mobileAppBackendSource, /bridgeSummary/);
+  assert.match(mobileAppBackendSource, /systemSummary/);
+  assert.match(mobileAppBackendSource, /payloadVersion: 2/);
   assert.match(mobileAppBackendSource, /isMonthEndBridgeCell/);
   assert.doesNotMatch(mobileAppRouteSource + mobileAppBackendSource, /CTRADER_CLIENT_SECRET|DASHBOARD_API_KEY|UPSTASH_REDIS_REST_TOKEN/);
 });
@@ -130,6 +138,36 @@ test("mobile concept app uses backend summary and forced dark high-contrast pale
   assert.match(mobileThemeSource, /muted: "#A9B8D3"/);
   assert.match(mobileDataSource, /fetchMobileApp/);
   assert.match(mobileDataSource, /App backend fallback/);
+});
+
+test("mobile bottom navigation keeps five primary tabs and hides duplicate legacy routes", () => {
+  assert.match(mobileTabsSource, /name: "index"/);
+  assert.match(mobileTabsSource, /name: "calendar"/);
+  assert.match(mobileTabsSource, /name: "signals"/);
+  assert.match(mobileTabsSource, /name: "reports"/);
+  assert.match(mobileTabsSource, /name: "more"/);
+  assert.doesNotMatch(mobileTabsSource, /name: "bridge", title:/);
+  assert.match(mobileTabsSource, /name="alerts" options=\{\{ href: null \}\}/);
+  assert.match(mobileTabsSource, /name="accounts" options=\{\{ href: null \}\}/);
+  assert.match(mobileTabsSource, /name="bridge" options=\{\{ href: null \}\}/);
+});
+
+test("mobile reverse phase is visualized only by H1 calendar cell highlight", () => {
+  assert.match(mobileCalendarSource, /postSignalInverted \? `\$\{theme\.warning\}20`/);
+  assert.doesNotMatch(mobileHomeSource, /HẬU: ĐẢO|HẬU: GIỮ|BRIDGE/);
+  assert.doesNotMatch(mobileSignalsSource, /phaseLabel|reverse|keep|HẬU/);
+  assert.doesNotMatch(mobileReportsSource, /HẬU ĐẢO|HẬU GIỮ|reversePct|reverseSignals|keepSignals/);
+});
+
+test("mobile More is backend telemetry instead of placeholder settings menu", () => {
+  assert.match(mobileMoreSource, /app\?\.system/);
+  assert.match(mobileMoreSource, /SERVER TIME/);
+  assert.match(mobileMoreSource, /SCHEMA/);
+  assert.match(mobileMoreSource, /RULE/);
+  assert.match(mobileMoreSource, /cTrader/);
+  assert.match(mobileMoreSource, /MT5/);
+  assert.match(mobileMoreSource, /DEFAULT ID/);
+  assert.doesNotMatch(mobileMoreSource, /Cài đặt cảnh báo|Kết nối Telegram|Ngôn ngữ|Quản lý VIP/);
 });
 
 test("engine web surface is H1-only with the compact command header", () => {

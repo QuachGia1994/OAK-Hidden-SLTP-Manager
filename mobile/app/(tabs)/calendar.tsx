@@ -54,7 +54,7 @@ export default function CalendarScreen() {
     <OakScreen
       eyebrow="OAK / H1 CALENDAR"
       title="H1 Calendar"
-      subtitle="Lịch block H1, tín hiệu BUY/SELL và hậu signal theo từng symbol."
+      subtitle="Lịch block H1 và tín hiệu BUY/SELL theo từng symbol."
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.cyan} />}
     >
       <GlassCard>
@@ -109,8 +109,7 @@ export default function CalendarScreen() {
         <View style={styles.legendRow}>
           <Pill label="BUY" tone="buy" />
           <Pill label="SELL" tone="sell" />
-          <Pill label="ĐẢO" tone="warning" />
-          <Text style={[styles.legendCopy, { color: theme.muted }]}>Cell vàng là hậu signal đảo theo rule H1.</Text>
+          <Text style={[styles.legendCopy, { color: theme.muted }]}>Ô nền vàng là block có đảo signal theo rule H1.</Text>
         </View>
       </GlassCard>
 

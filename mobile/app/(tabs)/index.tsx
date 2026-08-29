@@ -67,7 +67,6 @@ export default function DashboardScreen() {
                   <Text style={[styles.signalMeta, { color: theme.muted }]}>H{String(row.slotHour).padStart(2, "0")} · Base {row.baseDirection || "—"}</Text>
                 </View>
                 <Text style={[styles.signal, { color }]}>{row.signal || "—"}</Text>
-                <Pill label={row.postSignalInverted ? "HẬU: ĐẢO" : "HẬU: GIỮ"} tone={row.postSignalInverted ? "warning" : "buy"} />
               </View>
             </GlassCard>
           );
@@ -86,7 +85,6 @@ export default function DashboardScreen() {
           <View style={styles.summaryStats}>
             <Metric label="BUY" value={`${summary?.buySignals || 0}`} tone="buy" />
             <Metric label="SELL" value={`${summary?.sellSignals || 0}`} tone="sell" />
-            <Metric label="BRIDGE" value={`${summary?.bridgeCells || 0}`} tone="accent" />
           </View>
         </View>
       </GlassCard>

@@ -130,7 +130,7 @@ function signalSummary(h1: H1SignalPayload | null) {
     brokerDate,
     today: todayRows,
     recent: allRows,
-    filters: ["all", "buy", "sell", "reverse", "keep"] as const,
+    filters: ["all", "buy", "sell"] as const,
   };
 }
 
@@ -138,7 +138,6 @@ function dashboardSummary(h1: H1SignalPayload | null, accounts: Awaited<ReturnTy
   const brokerDate = latestH1Date(h1);
   const todayRows = alertsForDate(h1, brokerDate);
   const counts = countSignals(todayRows);
-  const bridgeCells = h1 && brokerDate ? h1.hours.filter((hour) => isMonthEndBridgeCell(brokerDate, hour)).length : 0;
   return {
     brokerDate,
     publishedAt: h1?.publishedAt || null,
@@ -148,8 +147,6 @@ function dashboardSummary(h1: H1SignalPayload | null, accounts: Awaited<ReturnTy
     totalSignals: counts.total,
     buySignals: counts.buy,
     sellSignals: counts.sell,
-    reverseSignals: counts.reverse,
-    bridgeCells,
     vipUnlocked: true,
     providerOnline: Boolean(accounts.providers.ctrader.connected || accounts.providers.mt5.connected),
     today: compactSignalRows(todayRows),
@@ -169,11 +166,47 @@ function reportSummary(h1: H1SignalPayload | null) {
     totalSignals: counts.total,
     buySignals: counts.buy,
     sellSignals: counts.sell,
-    reverseSignals: counts.reverse,
-    keepSignals: counts.keep,
     signalBalancePct: counts.total ? Math.round((dominant / counts.total) * 1000) / 10 : 0,
-    reversePct: counts.total ? Math.round((counts.reverse / counts.total) * 1000) / 10 : 0,
     trend,
+  };
+}
+
+function systemSummary(h1: H1SignalPayload | null, accounts: Awaited<ReturnType<typeof accountPayload>>, latencyMs: number) {
+  const dates = h1Dates(h1);
+  const mt5Accounts = accounts.accounts.filter((account) => account.provider === "mt5");
+  const enabledAccounts = accounts.accounts.filter((account) => account.enabled).length;
+  return {
+    payloadVersion: 2,
+    serverTime: new Date().toISOString(),
+    apiStatus: "ONLINE" as const,
+    latencyMs,
+    h1: {
+      ready: Boolean(h1),
+      schemaVersion: h1?.schemaVersion ?? null,
+      signalRuleVersion: h1?.signalRuleVersion ?? null,
+      profile: h1?.profile || null,
+      publishedAt: h1?.publishedAt || null,
+      brokerDate: latestH1Date(h1),
+      historyDays: dates.length,
+      symbolCount: h1?.symbols.length || 0,
+      blockCount: h1?.hours.length || 0,
+    },
+    providers: {
+      ctrader: {
+        connected: accounts.providers.ctrader.connected,
+        scope: accounts.providers.ctrader.scope,
+      },
+      mt5: {
+        connected: accounts.providers.mt5.connected,
+        onlineAccounts: mt5Accounts.filter((account) => account.bridgeOnline).length,
+        totalAccounts: mt5Accounts.length,
+      },
+    },
+    accounts: {
+      total: accounts.accounts.length,
+      enabled: enabledAccounts,
+      defaultAccountId: accounts.defaultAccountId,
+    },
   };
 }
 
@@ -215,5 +248,6 @@ export async function buildMobileAppPayload() {
     dashboard: dashboardSummary(h1, accounts, latencyMs),
     reports: reportSummary(h1),
     bridge: bridgeSummary(accounts, h1),
+    system: systemSummary(h1, accounts, latencyMs),
   };
 }

@@ -54,8 +54,6 @@ export type MobileDashboardPayload = {
   totalSignals: number;
   buySignals: number;
   sellSignals: number;
-  reverseSignals: number;
-  bridgeCells: number;
   vipUnlocked: boolean;
   providerOnline: boolean;
   today: MobileSignalRow[];
@@ -65,10 +63,7 @@ export type MobileReportPayload = {
   totalSignals: number;
   buySignals: number;
   sellSignals: number;
-  reverseSignals: number;
-  keepSignals: number;
   signalBalancePct: number;
-  reversePct: number;
   trend: Array<{ date: string; value: number; index: number }>;
 };
 
@@ -97,7 +92,34 @@ export type MobileSignalsPayload = {
   brokerDate: string;
   today: MobileSignalRow[];
   recent: MobileSignalRow[];
-  filters: Array<"all" | "buy" | "sell" | "reverse" | "keep">;
+  filters: Array<"all" | "buy" | "sell">;
+};
+
+export type MobileSystemPayload = {
+  payloadVersion: number;
+  serverTime: string;
+  apiStatus: "ONLINE";
+  latencyMs: number;
+  h1: {
+    ready: boolean;
+    schemaVersion: number | null;
+    signalRuleVersion: number | null;
+    profile: string | null;
+    publishedAt: string | null;
+    brokerDate: string;
+    historyDays: number;
+    symbolCount: number;
+    blockCount: number;
+  };
+  providers: {
+    ctrader: { connected: boolean; scope: "accounts" | "trading" | null };
+    mt5: { connected: boolean; onlineAccounts: number; totalAccounts: number };
+  };
+  accounts: {
+    total: number;
+    enabled: number;
+    defaultAccountId: string;
+  };
 };
 
 export type Provider = "ctrader" | "mt5";
@@ -157,4 +179,5 @@ export type MobileAppPayload = {
   dashboard: MobileDashboardPayload;
   reports: MobileReportPayload;
   bridge: MobileBridgePayload;
+  system: MobileSystemPayload;
 };

@@ -3,13 +3,13 @@ import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { GlassCard, OakScreen, Pill, SectionTitle } from "@/components/ui";
-import { latestH1Date, phaseLabel, recentAlerts } from "@/lib/h1";
+import { latestH1Date, recentAlerts } from "@/lib/h1";
 import { radius, spacing, useOakTheme } from "@/lib/theme";
 import type { MobileSignalRow } from "@/lib/types";
 import { useOakData } from "@/state/data";
 
-type Filter = "all" | "buy" | "sell" | "reverse" | "keep";
-const FILTERS: Filter[] = ["all", "buy", "sell", "reverse", "keep"];
+type Filter = "all" | "buy" | "sell";
+const FILTERS: Filter[] = ["all", "buy", "sell"];
 
 export default function SignalsScreen() {
   const theme = useOakTheme();
@@ -31,8 +31,6 @@ export default function SignalsScreen() {
     return source.filter((row) => {
       if (filter === "buy") return row.signal === "BUY";
       if (filter === "sell") return row.signal === "SELL";
-      if (filter === "reverse") return row.postSignalInverted;
-      if (filter === "keep") return row.postSignalRule !== "none" && !row.postSignalInverted;
       return true;
     });
   }, [app, h1, filter]);
@@ -41,7 +39,7 @@ export default function SignalsScreen() {
     <OakScreen
       eyebrow="OAK / SIGNALS"
       title="Signals"
-      subtitle="Realtime BUY/SELL radar, phase tags and H1 base candle drill-down."
+      subtitle="Realtime BUY/SELL radar và H1 base candle drill-down."
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.cyan} />}
     >
       <View style={[styles.filters, { borderColor: theme.border, backgroundColor: theme.raised }]}> 
@@ -70,7 +68,6 @@ export default function SignalsScreen() {
                   <Text style={[styles.signal, { color: row.signal === "SELL" ? theme.sell : theme.buy }]}>{row.signal || "—"}</Text>
                 </View>
                 <View style={styles.badges}>
-                  <Pill label={phaseLabel(row)} tone={row.postSignalInverted ? "warning" : "online"} />
                   <Pill label={`BASE ${row.baseDirection || "—"}`} />
                   <Pill label="BACKEND" tone={app?.signals ? "accent" : "muted"} />
                 </View>
