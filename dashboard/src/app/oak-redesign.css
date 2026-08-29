@@ -1633,13 +1633,91 @@ body.oak-body {
   }
 }
 
-@media (max-width: 350px) {
-  .oak-h1-calendar-popover { width: calc(100vw - .5rem); padding-inline: .35rem; }
+/* iPhone/Safari containment: keep the H1 surface inside the visual viewport and
+   make the matrix a real native horizontal scroller. */
+@media (max-width: 759px) {
+  .oak-engine-screen,
+  .oak-h1-board,
+  .oak-h1-board-head,
+  .oak-h1-history,
+  .oak-h1-history-row,
+  .oak-h1-table-scroll {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .oak-h1-board-head > div:first-child {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .oak-h1-board-head p {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .oak-h1-meta {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .oak-h1-calendar-picker {
+    box-sizing: border-box;
+    max-width: 100%;
+  }
+  .oak-h1-table-scroll {
+    position: relative;
+    width: 100%;
+    overflow-x: scroll !important;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+  .oak-h1-table-scroll .oak-h1-table {
+    width: max-content;
+    min-width: max-content;
+  }
+
+  .oak-h1-calendar-popover {
+    box-sizing: border-box;
+    position: fixed;
+    top: max(.6rem, env(safe-area-inset-top));
+    right: max(.55rem, env(safe-area-inset-right));
+    bottom: max(.6rem, env(safe-area-inset-bottom));
+    left: max(.55rem, env(safe-area-inset-left));
+    width: auto;
+    max-width: none;
+    height: max-content;
+    max-height: calc(100dvh - max(1.2rem, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
+    margin-block: auto;
+    padding: .65rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    transform: none;
+  }
   .oak-h1-calendar-weekdays,
-  .oak-h1-calendar-grid { grid-template-columns: repeat(7, 2.35rem); gap: .1rem; }
+  .oak-h1-calendar-grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    width: 100%;
+    gap: .12rem;
+  }
   .oak-h1-calendar-weekdays span,
-  .oak-h1-calendar-grid button { width: 2.35rem; }
-  .oak-h1-calendar-grid button { height: 2.35rem; }
+  .oak-h1-calendar-grid button {
+    width: 100%;
+    max-width: var(--oak-touch-min);
+    margin-inline: auto;
+  }
+  .oak-h1-calendar-grid button {
+    height: auto;
+    min-height: var(--oak-touch-min);
+    aspect-ratio: 1;
+  }
+}
+
+@media (max-width: 350px) {
+  .oak-h1-calendar-popover {
+    right: max(.25rem, env(safe-area-inset-right));
+    left: max(.25rem, env(safe-area-inset-left));
+    padding-inline: .35rem;
+  }
+  .oak-h1-calendar-grid button { min-height: 2.35rem; }
 }
 
 @media print {
