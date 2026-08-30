@@ -2,7 +2,7 @@ import { addBrokerCalendarDays, brokerDateWeekdayIndex, isValidBrokerDateKey, pa
 
 export const H1_CLOUD_STATE_VERSION = 55;
 export const H1_PUBLIC_SCHEMA = 17;
-export const H1_SIGNAL_RULE_VERSION = 53;
+export const H1_SIGNAL_RULE_VERSION = 54;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
 // The state key keeps its historical "v54" suffix on purpose: it is the
 // existing Redis key holding the retained 90-day cloud state. Reads continue
@@ -59,7 +59,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 17;
-  signalRuleVersion: 53;
+  signalRuleVersion: 54;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -160,9 +160,9 @@ export function isLastFridayBrokerDate(brokerDate: string): boolean {
 function monthEndBridgeAnchorFriday(brokerDate: string): string | null {
   const weekday = brokerDateWeekdayIndex(brokerDate);
   if (weekday < 1 || weekday > 3) return null;
-  // Bridge Mon/Tue/Wed belong to the week LEADING INTO the month's last
-  // Friday, not the week after it. Example: 2026-08-24/25/26 -> 2026-08-28.
-  const candidate = addBrokerCalendarDays(brokerDate, 5 - weekday);
+  // Bridge Mon/Tue/Wed inherit the month classification of the final Friday
+  // immediately before them. Example: 2026-08-31/09-01/09-02 -> 2026-08-28.
+  const candidate = addBrokerCalendarDays(brokerDate, -(weekday + 2));
   return isLastFridayBrokerDate(candidate) ? candidate : null;
 }
 
@@ -186,26 +186,39 @@ function postSignalBlockForSlot(slotHour: number): H1PostSignalBlock | null {
   return null;
 }
 
+type H1Weekday = 1 | 2 | 3 | 4 | 5;
 type H1MonthEndBridgeDay = 1 | 2 | 3 | 5;
+type H1PhaseCell = "N" | "C" | "X";
+type H1PhaseRow = readonly [H1PhaseCell, H1PhaseCell, H1PhaseCell, H1PhaseCell, H1PhaseCell, H1PhaseCell];
 
-type H1MonthEndBridgeSlotPolicy = {
+type H1SlotPolicy = {
   bridge: boolean;
   removed: boolean;
   inverted: boolean;
 };
 
-const MONTH_END_BRIDGE_INVERTED_HOURS: Record<H1MonthEndBridgeDay, readonly number[]> = {
-  1: H1_SCAN_HOURS,          // Mon: reverse every remaining block.
-  2: [3, 4, 16],            // Tue: reverse H3/H4 + H16.
-  3: [16],                   // Wed: reverse H16 only.
-  5: [3, 4, 12, 16],        // Final Fri: reverse H3/H4 + H12 + H16.
+// Exact special-Thursday month table, ordered as:
+// [H3/H4, H6, H9, H12, H14, H16]. X removes the block entirely.
+const SPECIAL_MONTH_WEEK_TABLE: Record<H1Weekday, H1PhaseRow> = {
+  1: ["C", "N", "N", "X", "X", "C"], // Mon
+  2: ["N", "C", "N", "X", "X", "C"], // Tue
+  3: ["N", "C", "X", "X", "X", "C"], // Wed
+  4: ["N", "C", "C", "N", "C", "N"], // Thu
+  5: ["N", "C", "C", "N", "C", "C"], // Fri
 };
 
-const MONTH_END_BRIDGE_REMOVED_HOURS: Partial<Record<H1MonthEndBridgeDay, readonly number[]>> = {
-  1: [12, 14],               // Mon: remove H12/H14.
-  2: [12, 14],               // Tue: remove H12/H14.
-  3: [9, 12, 14],            // Wed: remove H9/H12/H14.
+// Final Friday of a special-Thursday month through the following Wednesday.
+const SPECIAL_MONTH_BRIDGE_TABLE: Record<H1MonthEndBridgeDay, H1PhaseRow> = {
+  5: ["N", "C", "C", "N", "C", "N"], // final Fri
+  1: ["N", "C", "C", "X", "X", "N"], // following Mon
+  2: ["C", "C", "N", "X", "X", "N"], // following Tue
+  3: ["N", "C", "X", "X", "X", "N"], // following Wed
 };
+
+function invertPhaseCell(cell: H1PhaseCell): H1PhaseCell {
+  if (cell === "X") return "X";
+  return cell === "N" ? "C" : "N";
+}
 
 function monthEndBridgeDay(brokerDate: string): H1MonthEndBridgeDay | null {
   if (isLastFridayBrokerDate(brokerDate)) return 5;
@@ -214,21 +227,42 @@ function monthEndBridgeDay(brokerDate: string): H1MonthEndBridgeDay | null {
   return null;
 }
 
-export function monthEndBridgeSlotPolicy(brokerDate: string, slotHour: number): H1MonthEndBridgeSlotPolicy {
-  if (postSignalBlockForSlot(slotHour) === null) return { bridge: false, removed: false, inverted: false };
+function phaseCellForBrokerDate(brokerDate: string, slotHour: number): { bridge: boolean; cycleMonth: boolean; cell: H1PhaseCell } | null {
+  const weekday = brokerDateWeekdayIndex(brokerDate);
+  const block = postSignalBlockForSlot(slotHour);
+  if (weekday < 1 || weekday > 5 || block === null) return null;
+
   const bridgeDay = monthEndBridgeDay(brokerDate);
-  if (bridgeDay === null) return { bridge: false, removed: false, inverted: false };
-  const removed = (MONTH_END_BRIDGE_REMOVED_HOURS[bridgeDay] || []).includes(slotHour);
+  const cycleMonth = isCycleMonth(brokerDate);
+  const specialRow = bridgeDay === null
+    ? SPECIAL_MONTH_WEEK_TABLE[weekday as H1Weekday]
+    : SPECIAL_MONTH_BRIDGE_TABLE[bridgeDay];
+  const specialCell = specialRow[block];
   return {
-    bridge: true,
-    removed,
-    inverted: !removed && MONTH_END_BRIDGE_INVERTED_HOURS[bridgeDay].includes(slotHour),
+    bridge: bridgeDay !== null,
+    cycleMonth,
+    cell: cycleMonth ? specialCell : invertPhaseCell(specialCell),
   };
+}
+
+export function h1SlotPolicyForBrokerDate(brokerDate: string, slotHour: number): H1SlotPolicy {
+  const phase = phaseCellForBrokerDate(brokerDate, slotHour);
+  if (!phase) return { bridge: false, removed: false, inverted: false };
+  return {
+    bridge: phase.bridge,
+    removed: phase.cell === "X",
+    inverted: phase.cell === "N",
+  };
+}
+
+export function monthEndBridgeSlotPolicy(brokerDate: string, slotHour: number): H1SlotPolicy {
+  const policy = h1SlotPolicyForBrokerDate(brokerDate, slotHour);
+  return policy.bridge ? policy : { bridge: false, removed: false, inverted: false };
 }
 
 export function isH1SlotActiveForBrokerDate(brokerDate: string, slotHour: number): boolean {
   return (H1_SCAN_HOURS as readonly number[]).includes(slotHour)
-    && !monthEndBridgeSlotPolicy(brokerDate, slotHour).removed;
+    && !h1SlotPolicyForBrokerDate(brokerDate, slotHour).removed;
 }
 
 export function activeH1ScanHoursForBrokerDate(
@@ -243,42 +277,15 @@ export function isMonthEndBridgeCell(brokerDate: string, slotHour: number): bool
   return policy.bridge && policy.inverted && !policy.removed;
 }
 
-// Cycle-month rows, ordered as [H3/H4, H6, H9, H12, H14, H16].
-// N (true) = invert, C (false) = keep.
-const CYCLE_DAY_INVERSION: Record<number, readonly [boolean, boolean, boolean, boolean, boolean, boolean]> = {
-  1: [false, true, true, false, false, false],  // Mon: C N N C C C
-  2: [true, false, true, false, true, false],   // Tue: N C N C N C
-  3: [true, false, false, false, true, false],  // Wed: N C C C N C
-  4: [true, false, false, true, false, true],   // Thu: N C C N C N
-  5: [true, false, false, true, false, false],  // Fri: N C C N C C
-};
-
 export function cycleDecisionFor(base: H1TargetBase, brokerDate: string, slotHour = 3): { inverted: boolean; rule: H1PostSignalRule } {
   void base;
   const none = { inverted: false, rule: "none" as H1PostSignalRule };
-  const weekday = brokerDateWeekdayIndex(brokerDate);
-  const block = postSignalBlockForSlot(slotHour);
-  if (weekday === 0 || weekday === 6 || block === null) return none;
-
-  const cycleMonth = isCycleMonth(brokerDate);
-  const bridge = monthEndBridgeSlotPolicy(brokerDate, slotHour);
-  if (bridge.bridge) {
-    if (bridge.removed) return none;
-    return {
-      inverted: bridge.inverted,
-      rule: cycleMonth
-        ? (bridge.inverted ? "cycle-net-invert" : "cycle-net-keep")
-        : (bridge.inverted ? "regular-net-invert" : "regular-net-keep"),
-    };
-  }
-
-  const dayRow = CYCLE_DAY_INVERSION[weekday];
-  if (!dayRow) return none;
-  const cycleInverted = dayRow[block];
-  const inverted = cycleMonth ? cycleInverted : !cycleInverted;
+  const phase = phaseCellForBrokerDate(brokerDate, slotHour);
+  if (!phase || phase.cell === "X") return none;
+  const inverted = phase.cell === "N";
   return {
     inverted,
-    rule: cycleMonth
+    rule: phase.cycleMonth
       ? (inverted ? "cycle-net-invert" : "cycle-net-keep")
       : (inverted ? "regular-net-invert" : "regular-net-keep"),
   };

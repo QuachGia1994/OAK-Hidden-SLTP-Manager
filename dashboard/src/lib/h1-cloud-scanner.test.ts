@@ -40,10 +40,17 @@ function h1Bars(sequenceNewestFirst: string, newestHour: number, date = "2026-07
   });
 }
 
-test("rule versions stay on state v55 / feed v17 and advance to bridge rule 53", () => {
+function phaseMatrix(date: string): string[] {
+  return [3, 6, 9, 12, 14, 16].map((hour) => {
+    if (!isH1SlotActiveForBrokerDate(date, hour)) return "X";
+    return cycleDecisionFor("XAUUSD", date, hour).inverted ? "N" : "C";
+  });
+}
+
+test("rule versions stay on state v55 / feed v17 and advance to phase-table rule 54", () => {
   assert.equal(H1_CLOUD_STATE_VERSION, 55);
   assert.equal(H1_PUBLIC_SCHEMA, 17);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 53);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 54);
   assert.deepEqual(H1_SCAN_HOURS, [3, 4, 6, 9, 12, 14, 16]);
 });
 
@@ -133,58 +140,43 @@ test("monthly phase applies to all symbols before AUD Tuesday and GBP Thursday e
   assert.deepEqual(cycleDecisionFor("AUDUSD", "2026-06-09"), { inverted: false, rule: "regular-net-keep" });
 });
 
-test("six-block cycle and regular tables map each slot group for every symbol", () => {
-  const check = (date: string, expected: boolean[]) => {
-    for (const base of H1_TARGET_BASES) {
-      assert.deepEqual([3, 6, 12].map((hour) => cycleDecisionFor(base, date, hour).inverted), expected);
-    }
-  };
-  check("2026-07-09", [true, false, true]);  // cycle Thursday: H3/H4 N, H6 C, H12 N
-  check("2026-07-07", [true, false, false]); // cycle Tuesday: H3/H4 N, H6 C, H12 C
-  check("2026-07-06", [false, true, false]); // cycle Monday: H3/H4 C, H6 N, H12 C
-  check("2026-06-04", [false, true, false]); // regular Thursday is the inverse row
+test("special-Thursday month uses the exact N/C/X weekday table", () => {
+  assert.equal(cycleDecisionFor("XAUUSD", "2026-08-20", 3).inverted, cycleDecisionFor("XAUUSD", "2026-08-20", 4).inverted);
+  assert.deepEqual(phaseMatrix("2026-08-20"), ["N", "C", "C", "N", "C", "N"]); // Thu
+  assert.deepEqual(phaseMatrix("2026-08-21"), ["N", "C", "C", "N", "C", "C"]); // Fri
+  assert.deepEqual(phaseMatrix("2026-08-24"), ["C", "N", "N", "X", "X", "C"]); // Mon
+  assert.deepEqual(phaseMatrix("2026-08-25"), ["N", "C", "N", "X", "X", "C"]); // Tue
+  assert.deepEqual(phaseMatrix("2026-08-26"), ["N", "C", "X", "X", "X", "C"]); // Wed
 });
 
-test("six-block matrix resolves independently per hour within a weekday", () => {
-  // Friday 2026-07-03 (cycle): row N C C N C C -> H12 N, H14 C, H16 C.
-  assert.deepEqual([12, 14, 16].map((hour) => cycleDecisionFor("XAUUSD", "2026-07-03", hour).inverted), [true, false, false]);
-  // Wednesday 2026-07-08 (cycle): row N C C C N C -> H6 C, H9 C, H14 N.
-  assert.deepEqual([6, 9, 14].map((hour) => cycleDecisionFor("XAUUSD", "2026-07-08", hour).inverted), [false, false, true]);
+test("normal-Thursday month is the exact N/C inverse while X remains removed", () => {
+  assert.deepEqual(phaseMatrix("2026-06-18"), ["C", "N", "N", "C", "N", "C"]); // Thu
+  assert.deepEqual(phaseMatrix("2026-06-19"), ["C", "N", "N", "C", "N", "N"]); // Fri
+  assert.deepEqual(phaseMatrix("2026-06-22"), ["N", "C", "C", "X", "X", "N"]); // Mon
+  assert.deepEqual(phaseMatrix("2026-06-23"), ["C", "N", "C", "X", "X", "N"]); // Tue
+  assert.deepEqual(phaseMatrix("2026-06-24"), ["C", "N", "X", "X", "X", "N"]); // Wed
 });
 
-test("month-end bridge is the Mon-Wed week leading into the final Friday, with the exact August 2026 policy", () => {
-  const monday = "2026-08-24";
-  const tuesday = "2026-08-25";
-  const wednesday = "2026-08-26";
-  const thursday = "2026-08-27";
+test("special-month bridge runs from final Friday through following Wednesday with the exact table", () => {
   const friday = "2026-08-28";
-
   assert.equal(isLastFridayBrokerDate(friday), true);
-
-  // Mon/Tue remove H12/H14; Wed removes H9/H12/H14.
-  assert.deepEqual(activeH1ScanHoursForBrokerDate(monday), [3, 4, 6, 9, 16]);
-  assert.deepEqual(activeH1ScanHoursForBrokerDate(tuesday), [3, 4, 6, 9, 16]);
-  assert.deepEqual(activeH1ScanHoursForBrokerDate(wednesday), [3, 4, 6, 16]);
-  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isH1SlotActiveForBrokerDate(monday, hour)), [true, true, true, true, false, false, true]);
-  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isH1SlotActiveForBrokerDate(tuesday, hour)), [true, true, true, true, false, false, true]);
-  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isH1SlotActiveForBrokerDate(wednesday, hour)), [true, true, true, false, false, false, true]);
-
-  // Mon all remaining reverse; Tue H3/H4/H16; Wed H16 only.
-  assert.deepEqual(activeH1ScanHoursForBrokerDate(monday).map((hour) => cycleDecisionFor("XAUUSD", monday, hour).inverted), [true, true, true, true, true]);
-  assert.deepEqual(activeH1ScanHoursForBrokerDate(tuesday).map((hour) => cycleDecisionFor("XAUUSD", tuesday, hour).inverted), [true, true, false, false, true]);
-  assert.deepEqual(activeH1ScanHoursForBrokerDate(wednesday).map((hour) => cycleDecisionFor("XAUUSD", wednesday, hour).inverted), [false, false, false, true]);
-  assert.deepEqual(cycleDecisionFor("XAUUSD", monday, 12), { inverted: false, rule: "none" });
-  assert.deepEqual(cycleDecisionFor("XAUUSD", tuesday, 14), { inverted: false, rule: "none" });
-  assert.deepEqual(cycleDecisionFor("XAUUSD", wednesday, 9), { inverted: false, rule: "none" });
-
-  // Thursday is not bridge; final Friday is exact H3/H4/H12/H16 reverse.
-  assert.deepEqual(activeH1ScanHoursForBrokerDate(thursday), [...H1_SCAN_HOURS]);
-  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell(thursday, hour)), [false, false, false, false, false, false, false]);
-  assert.deepEqual(H1_SCAN_HOURS.map((hour) => cycleDecisionFor("XAUUSD", friday, hour).inverted), [true, true, false, false, true, false, true]);
+  assert.deepEqual(phaseMatrix(friday), ["N", "C", "C", "N", "C", "N"]);
+  assert.deepEqual(phaseMatrix("2026-08-31"), ["N", "C", "C", "X", "X", "N"]);
+  assert.deepEqual(phaseMatrix("2026-09-01"), ["C", "C", "N", "X", "X", "N"]);
+  assert.deepEqual(phaseMatrix("2026-09-02"), ["N", "C", "X", "X", "X", "N"]);
   assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell(friday, hour)), [true, true, false, false, true, false, true]);
 });
 
-test("bridge removed slots never enter live evaluation, retained state or public feed", () => {
+test("normal-month bridge is the exact N/C inverse while X remains removed", () => {
+  const friday = "2026-06-26";
+  assert.equal(isLastFridayBrokerDate(friday), true);
+  assert.deepEqual(phaseMatrix(friday), ["C", "N", "N", "C", "N", "C"]);
+  assert.deepEqual(phaseMatrix("2026-06-29"), ["C", "N", "N", "X", "X", "C"]);
+  assert.deepEqual(phaseMatrix("2026-06-30"), ["N", "N", "C", "X", "X", "C"]);
+  assert.deepEqual(phaseMatrix("2026-07-01"), ["C", "N", "X", "X", "X", "C"]);
+});
+
+test("X slots never enter live evaluation, retained state or public feed", () => {
   const monday = "2026-08-24";
   const bars = H1_SCAN_HOURS.map((hour) => ({
     hour,
@@ -194,7 +186,7 @@ test("bridge removed slots never enter live evaluation, retained state or public
   }));
   const fx = evaluateH1SignalsForTarget("GBPUSD", monday, bars, H1_SCAN_HOURS);
   assert.deepEqual(fx.map((alert) => alert.slotHour), [3, 6, 9, 16]);
-  assert.deepEqual(fx.map((alert) => alert.postSignalInverted), [true, true, true, true]);
+  assert.deepEqual(fx.map((alert) => alert.postSignalInverted), [false, true, true, false]);
 
   const stale = emptyCloudState();
   stale.days[monday] = {
@@ -208,9 +200,9 @@ test("bridge removed slots never enter live evaluation, retained state or public
             slotHour,
             brokerDate: monday,
           }),
-          postSignalInverted: false,
-          postSignalRule: "cycle-net-keep" as const,
-          symbolH1Signal: "BUY" as const,
+          postSignalInverted: true,
+          postSignalRule: "cycle-net-invert" as const,
+          symbolH1Signal: "SELL" as const,
         })),
       },
     },
@@ -218,19 +210,17 @@ test("bridge removed slots never enter live evaluation, retained state or public
   const parsed = parseCloudState(JSON.stringify(stale));
   const parsedRows = parsed.days[monday].symbols.GBPUSD!.alerts;
   assert.deepEqual(parsedRows.map((alert) => alert.slotHour), [3, 16]);
-  assert.deepEqual(parsedRows.map((alert) => [alert.postSignalInverted, alert.symbolH1Signal]), [[true, "SELL"], [true, "SELL"]]);
+  assert.deepEqual(parsedRows.map((alert) => [alert.postSignalInverted, alert.symbolH1Signal]), [[false, "BUY"], [false, "BUY"]]);
 
   const feed = buildPublicFeed(stale);
   assert.deepEqual(feed.days[monday].symbols.GBPUSD!.alerts.map((alert) => alert.slotHour), [3, 16]);
 
-  // Even a same-version public snapshot with a stale removed slot is normalized
-  // through the current bridge policy before it can seed cloud state.
   const stalePublic = structuredClone(feed);
   const validRow = stalePublic.days[monday].symbols.GBPUSD!.alerts[0];
-  stalePublic.days[monday].symbols.GBPUSD!.alerts.push({ ...validRow, slotHour: 12, postSignalInverted: false });
+  stalePublic.days[monday].symbols.GBPUSD!.alerts.push({ ...validRow, slotHour: 12, postSignalInverted: true });
   const parsedPublic = parsePublicFeedCloudState(stalePublic)!;
   assert.deepEqual(parsedPublic.days[monday].symbols.GBPUSD!.alerts.map((alert) => alert.slotHour), [3, 16]);
-  assert.deepEqual(parsedPublic.days[monday].symbols.GBPUSD!.alerts.map((alert) => alert.postSignalInverted), [true, true]);
+  assert.deepEqual(parsedPublic.days[monday].symbols.GBPUSD!.alerts.map((alert) => alert.postSignalInverted), [false, false]);
 });
 
 test("special Thursday definition covers both calendar branches", () => {
@@ -395,7 +385,7 @@ test("public feed v17 omits pattern and entry fields and survives feed seeding",
     brokerDate: "2026-07-06",
   }));
   const feed = buildPublicFeed(state, "2026-07-06T17:00:00.000Z");
-  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours], [17, 53, [3, 4, 6, 9, 12, 14, 16]]);
+  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours], [17, 54, [3, 4, 6, 9, 12, 14, 16]]);
   const row = feed.days["2026-07-06"].symbols.GBPUSD!.alerts[0];
   assert.equal(row.signal, "BUY");
   assert.equal(row.baseSignal, "BUY");
