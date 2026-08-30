@@ -122,7 +122,8 @@ test("H1 history backfill accepts admin/API or repo-fenced GitHub OIDC, stays si
   assert.match(backfillRoute, /!state\.days\[current\.dateKey\]/);
   assert.match(backfillRoute, /includeMissingCurrentDay: recoverMissingCurrentDay/);
   assert.match(backfillRoute, /recoveredMissingCurrentDay/);
-  assert.match(backfillRoute, /addedAlerts > 0 \|\| merged\.addedDays > 0/);
+  assert.doesNotMatch(backfillRoute, /addedAlerts > 0 \|\| merged\.addedDays > 0/);
+  assert.match(backfillRoute, /stage = "persist";[\s\S]*await saveH1CloudState\(state\);[\s\S]*await publishH1CloudState\(state\);/);
   assert.match(backfillRoute, /type BackfillStage = "load-state" \| "load-session" \| "fetch-history" \| "reconstruct" \| "merge" \| "persist"/);
   assert.match(backfillRoute, /errorCode: backfillErrorCode|const errorCode = backfillErrorCode/);
   assert.match(backfillRoute, /stage, errorCode/);

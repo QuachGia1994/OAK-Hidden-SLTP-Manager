@@ -85,11 +85,12 @@ export async function POST(request: Request) {
     stage = "merge";
     const merged = mergeHistoricalBackfill(state, reconstructed, current.dateKey, { includeMissingCurrentDay: recoverMissingCurrentDay });
 
-    if (merged.addedAlerts > 0 || merged.addedDays > 0) {
-      stage = "persist";
-      await saveH1CloudState(state);
-      await publishH1CloudState(state);
-    }
+    // Persist and republish after every successful rebuild, even when no new
+    // rows were added. parseCloudState/reconstruction may have normalized an
+    // existing day to a newer N/C/X rule version or removed stale X slots.
+    stage = "persist";
+    await saveH1CloudState(state);
+    await publishH1CloudState(state);
 
     return NextResponse.json({
       ok: true,
