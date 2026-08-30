@@ -2,7 +2,7 @@ import { addBrokerCalendarDays, brokerDateWeekdayIndex, isValidBrokerDateKey, pa
 
 export const H1_CLOUD_STATE_VERSION = 55;
 export const H1_PUBLIC_SCHEMA = 17;
-export const H1_SIGNAL_RULE_VERSION = 54;
+export const H1_SIGNAL_RULE_VERSION = 55;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
 // The state key keeps its historical "v54" suffix on purpose: it is the
 // existing Redis key holding the retained 90-day cloud state. Reads continue
@@ -59,7 +59,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 17;
-  signalRuleVersion: 54;
+  signalRuleVersion: 55;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -187,7 +187,7 @@ function postSignalBlockForSlot(slotHour: number): H1PostSignalBlock | null {
 }
 
 type H1Weekday = 1 | 2 | 3 | 4 | 5;
-type H1MonthEndBridgeDay = 1 | 2 | 3 | 5;
+type H1MonthEndBridgeDay = 1 | 2 | 3;
 type H1PhaseCell = "N" | "C" | "X";
 type H1PhaseRow = readonly [H1PhaseCell, H1PhaseCell, H1PhaseCell, H1PhaseCell, H1PhaseCell, H1PhaseCell];
 
@@ -207,9 +207,9 @@ const SPECIAL_MONTH_WEEK_TABLE: Record<H1Weekday, H1PhaseRow> = {
   5: ["N", "C", "C", "N", "C", "C"], // Fri
 };
 
-// Final Friday of a special-Thursday month through the following Wednesday.
+// Bridge rows start on the Monday after the final Friday. The final Friday
+// itself keeps the normal Friday N/C row; H16 is only the CẦU anchor marker.
 const SPECIAL_MONTH_BRIDGE_TABLE: Record<H1MonthEndBridgeDay, H1PhaseRow> = {
-  5: ["N", "C", "C", "N", "C", "N"], // final Fri
   1: ["N", "C", "C", "X", "X", "N"], // following Mon
   2: ["C", "C", "N", "X", "X", "N"], // following Tue
   3: ["N", "C", "X", "X", "X", "N"], // following Wed
@@ -221,7 +221,6 @@ function invertPhaseCell(cell: H1PhaseCell): H1PhaseCell {
 }
 
 function monthEndBridgeDay(brokerDate: string): H1MonthEndBridgeDay | null {
-  if (isLastFridayBrokerDate(brokerDate)) return 5;
   const weekday = brokerDateWeekdayIndex(brokerDate);
   if ((weekday === 1 || weekday === 2 || weekday === 3) && monthEndBridgeAnchorFriday(brokerDate)) return weekday;
   return null;
@@ -273,8 +272,9 @@ export function activeH1ScanHoursForBrokerDate(
 }
 
 export function isMonthEndBridgeCell(brokerDate: string, slotHour: number): boolean {
-  const policy = monthEndBridgeSlotPolicy(brokerDate, slotHour);
-  return policy.bridge && policy.inverted && !policy.removed;
+  // CẦU is an anchor marker, not another inversion rule. Only H16 on the
+  // final Friday is marked; Mon-Wed use bridge phase rows without CẦU badges.
+  return isLastFridayBrokerDate(brokerDate) && slotHour === 16;
 }
 
 export function cycleDecisionFor(base: H1TargetBase, brokerDate: string, slotHour = 3): { inverted: boolean; rule: H1PostSignalRule } {

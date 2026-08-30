@@ -47,10 +47,10 @@ function phaseMatrix(date: string): string[] {
   });
 }
 
-test("rule versions stay on state v55 / feed v17 and advance to phase-table rule 54", () => {
+test("rule versions stay on state v55 / feed v17 and advance to bridge-anchor rule 55", () => {
   assert.equal(H1_CLOUD_STATE_VERSION, 55);
   assert.equal(H1_PUBLIC_SCHEMA, 17);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 54);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 55);
   assert.deepEqual(H1_SCAN_HOURS, [3, 4, 6, 9, 12, 14, 16]);
 });
 
@@ -157,20 +157,27 @@ test("normal-Thursday month is the exact N/C inverse while X remains removed", (
   assert.deepEqual(phaseMatrix("2026-06-24"), ["C", "N", "X", "X", "X", "N"]); // Wed
 });
 
-test("special-month bridge runs from final Friday through following Wednesday with the exact table", () => {
+test("final Friday keeps its normal row, marks only H16 as CẦU, then Mon-Wed use the special bridge table", () => {
   const friday = "2026-08-28";
   assert.equal(isLastFridayBrokerDate(friday), true);
-  assert.deepEqual(phaseMatrix(friday), ["N", "C", "C", "N", "C", "N"]);
+  // Friday stays on the special-month Friday row N C C N C C.
+  assert.deepEqual(phaseMatrix(friday), ["N", "C", "C", "N", "C", "C"]);
+  assert.deepEqual(cycleDecisionFor("XAUUSD", friday, 16), { inverted: false, rule: "cycle-net-keep" });
+  // CẦU is only the H16 anchor marker, not another inversion marker.
+  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell(friday, hour)), [false, false, false, false, false, false, true]);
   assert.deepEqual(phaseMatrix("2026-08-31"), ["N", "C", "C", "X", "X", "N"]);
   assert.deepEqual(phaseMatrix("2026-09-01"), ["C", "C", "N", "X", "X", "N"]);
   assert.deepEqual(phaseMatrix("2026-09-02"), ["N", "C", "X", "X", "X", "N"]);
-  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell(friday, hour)), [true, true, false, false, true, false, true]);
+  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell("2026-08-31", hour)), [false, false, false, false, false, false, false]);
 });
 
-test("normal-month bridge is the exact N/C inverse while X remains removed", () => {
+test("normal-month final Friday also keeps its normal inverse row before the inverse bridge Mon-Wed", () => {
   const friday = "2026-06-26";
   assert.equal(isLastFridayBrokerDate(friday), true);
-  assert.deepEqual(phaseMatrix(friday), ["C", "N", "N", "C", "N", "C"]);
+  // Inverse of special Friday N C C N C C => C N N C N N.
+  assert.deepEqual(phaseMatrix(friday), ["C", "N", "N", "C", "N", "N"]);
+  assert.deepEqual(cycleDecisionFor("XAUUSD", friday, 16), { inverted: true, rule: "regular-net-invert" });
+  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell(friday, hour)), [false, false, false, false, false, false, true]);
   assert.deepEqual(phaseMatrix("2026-06-29"), ["C", "N", "N", "X", "X", "C"]);
   assert.deepEqual(phaseMatrix("2026-06-30"), ["N", "N", "C", "X", "X", "C"]);
   assert.deepEqual(phaseMatrix("2026-07-01"), ["C", "N", "X", "X", "X", "C"]);
@@ -385,7 +392,7 @@ test("public feed v17 omits pattern and entry fields and survives feed seeding",
     brokerDate: "2026-07-06",
   }));
   const feed = buildPublicFeed(state, "2026-07-06T17:00:00.000Z");
-  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours], [17, 54, [3, 4, 6, 9, 12, 14, 16]]);
+  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours], [17, 55, [3, 4, 6, 9, 12, 14, 16]]);
   const row = feed.days["2026-07-06"].symbols.GBPUSD!.alerts[0];
   assert.equal(row.signal, "BUY");
   assert.equal(row.baseSignal, "BUY");
