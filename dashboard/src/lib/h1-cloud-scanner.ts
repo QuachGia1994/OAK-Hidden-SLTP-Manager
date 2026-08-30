@@ -2,7 +2,7 @@ import { addBrokerCalendarDays, brokerDateWeekdayIndex, isValidBrokerDateKey, pa
 
 export const H1_CLOUD_STATE_VERSION = 55;
 export const H1_PUBLIC_SCHEMA = 17;
-export const H1_SIGNAL_RULE_VERSION = 52;
+export const H1_SIGNAL_RULE_VERSION = 53;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
 // The state key keeps its historical "v54" suffix on purpose: it is the
 // existing Redis key holding the retained 90-day cloud state. Reads continue
@@ -59,7 +59,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 17;
-  signalRuleVersion: 52;
+  signalRuleVersion: 53;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -160,7 +160,9 @@ export function isLastFridayBrokerDate(brokerDate: string): boolean {
 function monthEndBridgeAnchorFriday(brokerDate: string): string | null {
   const weekday = brokerDateWeekdayIndex(brokerDate);
   if (weekday < 1 || weekday > 3) return null;
-  const candidate = addBrokerCalendarDays(brokerDate, -(weekday + 2));
+  // Bridge Mon/Tue/Wed belong to the week LEADING INTO the month's last
+  // Friday, not the week after it. Example: 2026-08-24/25/26 -> 2026-08-28.
+  const candidate = addBrokerCalendarDays(brokerDate, 5 - weekday);
   return isLastFridayBrokerDate(candidate) ? candidate : null;
 }
 
@@ -196,7 +198,7 @@ const MONTH_END_BRIDGE_INVERTED_HOURS: Record<H1MonthEndBridgeDay, readonly numb
   1: H1_SCAN_HOURS,          // Mon: reverse every remaining block.
   2: [3, 4, 16],            // Tue: reverse H3/H4 + H16.
   3: [16],                   // Wed: reverse H16 only.
-  5: [16],                   // Final Fri: reverse H16 only.
+  5: [3, 4, 12, 16],        // Final Fri: reverse H3/H4 + H12 + H16.
 };
 
 const MONTH_END_BRIDGE_REMOVED_HOURS: Partial<Record<H1MonthEndBridgeDay, readonly number[]>> = {
@@ -544,6 +546,8 @@ export function parsePublicFeedCloudState(raw: unknown): H1CloudState | null {
           || typeof baseMinute !== "number" || !Number.isInteger(baseMinute)
           || typeof row.postSignalInverted !== "boolean" || !isPostSignalRule(row.postSignalRule)
         ) continue;
+        if (!isH1SlotActiveForBrokerDate(dateKey, row.slotHour)) continue;
+        const decision = cycleDecisionFor(base, dateKey, row.slotHour);
         alerts.push({
           slotHour: row.slotHour,
           symbol: String(row.symbol || base),
@@ -553,10 +557,12 @@ export function parsePublicFeedCloudState(raw: unknown): H1CloudState | null {
           baseHour,
           baseMinute,
           baseDirection: row.baseDirection,
-          symbolH1Signal: row.signal,
+          symbolH1Signal: row.baseSignal
+            ? (decision.inverted ? invertSignal(row.baseSignal) : row.baseSignal)
+            : row.signal,
           scheduledSignal: row.scheduledSignal === undefined ? null : row.scheduledSignal,
-          postSignalInverted: Boolean(row.postSignalInverted),
-          postSignalRule: row.postSignalRule,
+          postSignalInverted: decision.inverted,
+          postSignalRule: decision.rule,
         });
       }
       alerts.sort((left, right) => left.slotHour - right.slotHour);

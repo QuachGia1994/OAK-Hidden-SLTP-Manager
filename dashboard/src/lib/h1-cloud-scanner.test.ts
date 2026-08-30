@@ -40,10 +40,10 @@ function h1Bars(sequenceNewestFirst: string, newestHour: number, date = "2026-07
   });
 }
 
-test("rule versions stay on state v55 / feed v17 and advance to bridge rule 52", () => {
+test("rule versions stay on state v55 / feed v17 and advance to bridge rule 53", () => {
   assert.equal(H1_CLOUD_STATE_VERSION, 55);
   assert.equal(H1_PUBLIC_SCHEMA, 17);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 52);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 53);
   assert.deepEqual(H1_SCAN_HOURS, [3, 4, 6, 9, 12, 14, 16]);
 });
 
@@ -152,17 +152,16 @@ test("six-block matrix resolves independently per hour within a weekday", () => 
   assert.deepEqual([6, 9, 14].map((hour) => cycleDecisionFor("XAUUSD", "2026-07-08", hour).inverted), [false, false, true]);
 });
 
-test("month-end bridge uses the explicit Fri Mon Tue Wed inversion map, removes slots, then resets Thursday", () => {
-  const friday = "2026-10-30";
-  const monday = "2026-11-02";
-  const tuesday = "2026-11-03";
-  const wednesday = "2026-11-04";
-  const thursday = "2026-11-05";
+test("month-end bridge is the Mon-Wed week leading into the final Friday, with the exact August 2026 policy", () => {
+  const monday = "2026-08-24";
+  const tuesday = "2026-08-25";
+  const wednesday = "2026-08-26";
+  const thursday = "2026-08-27";
+  const friday = "2026-08-28";
 
   assert.equal(isLastFridayBrokerDate(friday), true);
-  assert.deepEqual(H1_SCAN_HOURS.map((hour) => cycleDecisionFor("XAUUSD", friday, hour).inverted), [false, false, false, false, false, false, true]);
-  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell(friday, hour)), [false, false, false, false, false, false, true]);
 
+  // Mon/Tue remove H12/H14; Wed removes H9/H12/H14.
   assert.deepEqual(activeH1ScanHoursForBrokerDate(monday), [3, 4, 6, 9, 16]);
   assert.deepEqual(activeH1ScanHoursForBrokerDate(tuesday), [3, 4, 6, 9, 16]);
   assert.deepEqual(activeH1ScanHoursForBrokerDate(wednesday), [3, 4, 6, 16]);
@@ -170,6 +169,7 @@ test("month-end bridge uses the explicit Fri Mon Tue Wed inversion map, removes 
   assert.deepEqual(H1_SCAN_HOURS.map((hour) => isH1SlotActiveForBrokerDate(tuesday, hour)), [true, true, true, true, false, false, true]);
   assert.deepEqual(H1_SCAN_HOURS.map((hour) => isH1SlotActiveForBrokerDate(wednesday, hour)), [true, true, true, false, false, false, true]);
 
+  // Mon all remaining reverse; Tue H3/H4/H16; Wed H16 only.
   assert.deepEqual(activeH1ScanHoursForBrokerDate(monday).map((hour) => cycleDecisionFor("XAUUSD", monday, hour).inverted), [true, true, true, true, true]);
   assert.deepEqual(activeH1ScanHoursForBrokerDate(tuesday).map((hour) => cycleDecisionFor("XAUUSD", tuesday, hour).inverted), [true, true, false, false, true]);
   assert.deepEqual(activeH1ScanHoursForBrokerDate(wednesday).map((hour) => cycleDecisionFor("XAUUSD", wednesday, hour).inverted), [false, false, false, true]);
@@ -177,13 +177,15 @@ test("month-end bridge uses the explicit Fri Mon Tue Wed inversion map, removes 
   assert.deepEqual(cycleDecisionFor("XAUUSD", tuesday, 14), { inverted: false, rule: "none" });
   assert.deepEqual(cycleDecisionFor("XAUUSD", wednesday, 9), { inverted: false, rule: "none" });
 
-  assert.deepEqual(cycleDecisionFor("XAUUSD", thursday, 3), { inverted: false, rule: "regular-net-keep" });
+  // Thursday is not bridge; final Friday is exact H3/H4/H12/H16 reverse.
   assert.deepEqual(activeH1ScanHoursForBrokerDate(thursday), [...H1_SCAN_HOURS]);
-  assert.equal(isMonthEndBridgeCell(thursday, 16), false);
+  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell(thursday, hour)), [false, false, false, false, false, false, false]);
+  assert.deepEqual(H1_SCAN_HOURS.map((hour) => cycleDecisionFor("XAUUSD", friday, hour).inverted), [true, true, false, false, true, false, true]);
+  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell(friday, hour)), [true, true, false, false, true, false, true]);
 });
 
 test("bridge removed slots never enter live evaluation, retained state or public feed", () => {
-  const monday = "2026-11-02";
+  const monday = "2026-08-24";
   const bars = H1_SCAN_HOURS.map((hour) => ({
     hour,
     brokerDate: monday,
@@ -220,6 +222,15 @@ test("bridge removed slots never enter live evaluation, retained state or public
 
   const feed = buildPublicFeed(stale);
   assert.deepEqual(feed.days[monday].symbols.GBPUSD!.alerts.map((alert) => alert.slotHour), [3, 16]);
+
+  // Even a same-version public snapshot with a stale removed slot is normalized
+  // through the current bridge policy before it can seed cloud state.
+  const stalePublic = structuredClone(feed);
+  const validRow = stalePublic.days[monday].symbols.GBPUSD!.alerts[0];
+  stalePublic.days[monday].symbols.GBPUSD!.alerts.push({ ...validRow, slotHour: 12, postSignalInverted: false });
+  const parsedPublic = parsePublicFeedCloudState(stalePublic)!;
+  assert.deepEqual(parsedPublic.days[monday].symbols.GBPUSD!.alerts.map((alert) => alert.slotHour), [3, 16]);
+  assert.deepEqual(parsedPublic.days[monday].symbols.GBPUSD!.alerts.map((alert) => alert.postSignalInverted), [true, true]);
 });
 
 test("special Thursday definition covers both calendar branches", () => {
@@ -384,7 +395,7 @@ test("public feed v17 omits pattern and entry fields and survives feed seeding",
     brokerDate: "2026-07-06",
   }));
   const feed = buildPublicFeed(state, "2026-07-06T17:00:00.000Z");
-  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours], [17, 52, [3, 4, 6, 9, 12, 14, 16]]);
+  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours], [17, 53, [3, 4, 6, 9, 12, 14, 16]]);
   const row = feed.days["2026-07-06"].symbols.GBPUSD!.alerts[0];
   assert.equal(row.signal, "BUY");
   assert.equal(row.baseSignal, "BUY");
