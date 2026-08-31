@@ -4,6 +4,7 @@ import { readRedisReplicas } from "./redis-core";
 import {
   H1_CLOUD_STATE_KEY,
   H1_SIGNAL_RULE_VERSION,
+  H1_TARGET_BASES,
   buildPublicFeed,
   parseCloudState,
   type H1CloudState,
@@ -70,6 +71,8 @@ function parsePayload(raw: unknown, source: string): H1SignalPayload | null {
       || !payload.publishedAt
       || !Array.isArray(payload.hours)
       || !Array.isArray(payload.symbols)
+      || payload.symbols.length !== H1_TARGET_BASES.length
+      || !H1_TARGET_BASES.every((base, index) => payload.symbols?.[index] === base)
       || !payload.days
       || typeof payload.days !== "object"
     ) {

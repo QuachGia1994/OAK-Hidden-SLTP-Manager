@@ -18,8 +18,8 @@ export const H1_SCAN_END_HOUR = 16;
 export const H1_SIGNAL_END_HOUR = 18;
 export const H1_SCAN_HOURS = [3, 4, 6, 9, 12, 14, 16] as const;
 
-export const H1_TARGET_BASES = ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const;
-export const H1_FX_BASES = ["GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const;
+export const H1_TARGET_BASES = ["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"] as const;
+export const H1_FX_BASES = ["GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"] as const;
 export const H1_ALL_BASES = [...H1_TARGET_BASES, "EURUSD"] as const;
 export type H1TargetBase = typeof H1_TARGET_BASES[number];
 export type H1Base = typeof H1_ALL_BASES[number];
@@ -335,6 +335,8 @@ export function emptyCloudState(): H1CloudState {
   return { version: H1_CLOUD_STATE_VERSION, days: {} };
 }
 
+const RETIRED_H1_TARGET_BASES = new Set(["AUDUSD", "USDCAD", "USDJPY"]);
+
 function isTargetBase(value: string): value is H1TargetBase {
   return (H1_TARGET_BASES as readonly string[]).includes(value);
 }
@@ -431,6 +433,7 @@ export function parseCloudState(raw: unknown): H1CloudState {
     }
     const symbols: H1CloudState["days"][string]["symbols"] = {};
     for (const [base, symbolState] of Object.entries(day.symbols)) {
+      if (RETIRED_H1_TARGET_BASES.has(base)) continue;
       if (!isTargetBase(base) || !symbolState || !Array.isArray(symbolState.alerts)) {
         throw new Error("Invalid H1 cloud symbol state");
       }

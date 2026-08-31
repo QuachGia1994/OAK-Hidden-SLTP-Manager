@@ -63,7 +63,7 @@ test("signal candle lookup is date-scoped and rejects invalid broker dates", () 
 });
 
 test("H3 belongs to FX, H4 to XAUUSD, and later blocks scan all five targets", () => {
-  assert.deepEqual(targetsForBlockHour(3), ["GBPUSD", "AUDUSD", "USDCAD", "USDJPY"]);
+  assert.deepEqual(targetsForBlockHour(3), ["GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"]);
   assert.deepEqual(targetsForBlockHour(4), ["XAUUSD"]);
   for (const hour of [6, 9, 12, 14, 16]) assert.deepEqual(targetsForBlockHour(hour), [...H1_TARGET_BASES]);
 });
@@ -71,7 +71,9 @@ test("H3 belongs to FX, H4 to XAUUSD, and later blocks scan all five targets", (
 test("timed Telegram symbols map to the latest eligible H1 table cell", () => {
   const date = "2026-08-31";
   assert.equal(h1TargetBaseFromSymbol("xauusd+"), "XAUUSD");
-  assert.equal(h1TargetBaseFromSymbol("USDCAD.a"), "USDCAD");
+  assert.equal(h1TargetBaseFromSymbol("GBPCAD.a"), "GBPCAD");
+  assert.equal(h1TargetBaseFromSymbol("gbpaud+"), "GBPAUD");
+  assert.equal(h1TargetBaseFromSymbol("GBPJPY.pro"), "GBPJPY");
   assert.equal(h1TargetBaseFromSymbol("EURUSD"), null);
   assert.equal(scheduledSignalSlotForBrokerHour("XAUUSD", date, 9), 9);
   assert.equal(scheduledSignalSlotForBrokerHour("XAUUSD", date, 5), 4);
@@ -110,8 +112,8 @@ test("stored alert composes base H1 candle direction, matrix phase and no entry/
 
   // 2026-08-27 is a cycle Thursday: block 0 (H3/H4) is N (invert).
   const thursday = buildStoredAlert({
-    base: "AUDUSD",
-    brokerSymbol: "AUDUSD",
+    base: "GBPAUD",
+    brokerSymbol: "GBPAUD",
     baseBar: h1Bars("T", 3, "2026-08-27")[0],
     slotHour: 3,
     brokerDate: "2026-08-27",
@@ -137,18 +139,18 @@ test("evaluateH1SignalsForTarget covers only eligible slots with closed candles"
   assert.deepEqual(missing.map((alert) => alert.slotHour), [4, 6]);
 });
 
-test("monthly phase applies to all symbols before AUD Tuesday and GBP Thursday extra inversions", () => {
+test("monthly phase applies identically across the replacement GBP-cross targets", () => {
   // July is a cycle month: H3/H4 (first block) is N for both Thursday and Tuesday.
   assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-07-02"), { inverted: true, rule: "cycle-net-invert" });
   assert.deepEqual(cycleDecisionFor("GBPUSD", "2026-07-02"), { inverted: true, rule: "cycle-net-invert" });
-  assert.deepEqual(cycleDecisionFor("USDCAD", "2026-07-07"), { inverted: true, rule: "cycle-net-invert" });
-  assert.deepEqual(cycleDecisionFor("AUDUSD", "2026-07-07"), { inverted: true, rule: "cycle-net-invert" });
+  assert.deepEqual(cycleDecisionFor("GBPCAD", "2026-07-07"), { inverted: true, rule: "cycle-net-invert" });
+  assert.deepEqual(cycleDecisionFor("GBPAUD", "2026-07-07"), { inverted: true, rule: "cycle-net-invert" });
 
   // June is a regular month: the inverse rows keep H3/H4 on Thursday and Tuesday.
   assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-06-04"), { inverted: false, rule: "regular-net-keep" });
   assert.deepEqual(cycleDecisionFor("GBPUSD", "2026-06-04"), { inverted: false, rule: "regular-net-keep" });
-  assert.deepEqual(cycleDecisionFor("USDCAD", "2026-06-09"), { inverted: false, rule: "regular-net-keep" });
-  assert.deepEqual(cycleDecisionFor("AUDUSD", "2026-06-09"), { inverted: false, rule: "regular-net-keep" });
+  assert.deepEqual(cycleDecisionFor("GBPCAD", "2026-06-09"), { inverted: false, rule: "regular-net-keep" });
+  assert.deepEqual(cycleDecisionFor("GBPAUD", "2026-06-09"), { inverted: false, rule: "regular-net-keep" });
 });
 
 test("special-Thursday month uses the exact N/C/X weekday table", () => {
@@ -262,7 +264,7 @@ test("special Thursday definition covers both calendar branches", () => {
 });
 
 test("weekday post-signal inversion is applied after the signal decision", () => {
-  const buildFor = (base: "GBPUSD" | "AUDUSD", date: string) => buildStoredAlert({
+  const buildFor = (base: "GBPUSD" | "GBPAUD", date: string) => buildStoredAlert({
     base,
     brokerSymbol: base,
     baseBar: h1Bars("T", 3, date)[0],
@@ -270,7 +272,7 @@ test("weekday post-signal inversion is applied after the signal decision", () =>
     brokerDate: date,
   });
   const thursdayGbp = buildFor("GBPUSD", "2026-08-27");
-  const tuesdayAud = buildFor("AUDUSD", "2026-08-25");
+  const tuesdayAud = buildFor("GBPAUD", "2026-08-25");
   assert.deepEqual(
     [thursdayGbp.postSignalRule, thursdayGbp.postSignalInverted, thursdayGbp.symbolH1Signal],
     ["cycle-net-invert", true, "SELL"],
@@ -376,6 +378,23 @@ test("cloud state v55 round-trips and rejects stale external schemas", () => {
   assert.throws(() => parseCloudState({ ...state, version: 50 }), /schema/);
 });
 
+test("retired AUDUSD/USDCAD/USDJPY rows are ignored during live-state migration", () => {
+  const state = emptyCloudState() as unknown as {
+    version: 55;
+    days: Record<string, { symbols: Record<string, { alerts: unknown[] }> }>;
+  };
+  state.days["2026-08-31"] = {
+    symbols: {
+      AUDUSD: { alerts: [] },
+      USDCAD: { alerts: [] },
+      USDJPY: { alerts: [] },
+      GBPUSD: { alerts: [] },
+    },
+  };
+  const parsed = parseCloudState(state);
+  assert.deepEqual(Object.keys(parsed.days["2026-08-31"].symbols), ["GBPUSD"]);
+});
+
 test("public feed v17 omits pattern and entry fields and survives feed seeding", () => {
   const state = emptyCloudState();
   const { symbol } = ensureSymbolDay(state, "2026-07-06", "GBPUSD");
@@ -422,9 +441,9 @@ test("backfillSuppressedHistory reconstructs closed signal slots and preserves a
   const market = {
     XAUUSD: { displayName: "XAUUSD", bars: h1Bars("TTG", 6, "2026-07-06") },
     GBPUSD: { displayName: "GBPUSD", bars: h1Bars("TTTG", 6, "2026-07-06") },
-    AUDUSD: { displayName: "AUDUSD", bars: h1Bars("TTTG", 6, "2026-07-06") },
-    USDCAD: { displayName: "USDCAD", bars: h1Bars("TTTG", 6, "2026-07-06") },
-    USDJPY: { displayName: "USDJPY", bars: h1Bars("TTTG", 6, "2026-07-06") },
+    GBPAUD: { displayName: "GBPAUD", bars: h1Bars("TTTG", 6, "2026-07-06") },
+    GBPCAD: { displayName: "GBPCAD", bars: h1Bars("TTTG", 6, "2026-07-06") },
+    GBPJPY: { displayName: "GBPJPY", bars: h1Bars("TTTG", 6, "2026-07-06") },
     EURUSD: { displayName: "EURUSD", bars: h1Bars("TTTG", 6, "2026-07-06") },
   } as Parameters<typeof backfillSuppressedHistory>[2];
   const added = backfillSuppressedHistory(state, "2026-07-06", market);

@@ -31,6 +31,9 @@ test("H1 web feed has schema-17 signal and six-block weekday contract without pa
   assert.doesNotMatch(readerSource, /m5Open|m5Middle|m5Position|m5WindowCount/);
   assert.match(readerSource, /robot-sltp:public:h1-signals:latest/);
   assert.match(readerSource, /payload\.schemaVersion !== H1_SIGNAL_PUBLIC_SCHEMA/);
+  assert.match(readerSource, /H1_TARGET_BASES/);
+  assert.match(readerSource, /payload\.symbols\.length !== H1_TARGET_BASES\.length/);
+  assert.match(readerSource, /H1_TARGET_BASES\.every/);
   assert.match(readerSource, /readRedisReplicas<unknown>\(LATEST_KEY\)/);
   assert.match(readerSource, /freshestPayload/);
   assert.match(readerSource, /payloadFreshness/);
@@ -44,6 +47,12 @@ test("H1 web feed has schema-17 signal and six-block weekday contract without pa
   assert.match(redisCoreSource, /Promise\.allSettled/);
   assert.doesNotMatch(readerSource, /await redis\.get\(LATEST_KEY\)/);
   assert.doesNotMatch(readerSource, /sw2|sw3Pure|sw3Normal|mon-block|tue-block|wed-block|tradeAllowed|blockedSlots|reconcileTradeState/);
+});
+
+test("H1 target rows use GBP crosses instead of AUDUSD/USDCAD/USDJPY", () => {
+  const scannerSource = readFileSync(new URL("./h1-cloud-scanner.ts", import.meta.url), "utf8");
+  assert.match(scannerSource, /H1_TARGET_BASES = \["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
+  assert.match(scannerSource, /H1_FX_BASES = \["GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
 });
 
 test("H1 cells publish only the scheduled BUY/SELL side", () => {

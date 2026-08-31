@@ -13,7 +13,7 @@ function h1Bars(date: string): H1DirectionBar[] {
 }
 
 function marketForDates(...dates: string[]) {
-  const bases: H1Base[] = ["GBPUSD", "XAUUSD", "AUDUSD", "USDCAD", "USDJPY", "EURUSD"];
+  const bases: H1Base[] = ["GBPUSD", "XAUUSD", "GBPAUD", "GBPCAD", "GBPJPY", "EURUSD"];
   return Object.fromEntries(bases.map((base) => [base, {
     displayName: base,
     bars: dates.flatMap((date) => h1Bars(date)),
