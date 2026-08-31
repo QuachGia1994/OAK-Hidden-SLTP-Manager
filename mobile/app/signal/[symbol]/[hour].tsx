@@ -53,7 +53,6 @@ export default function SignalDetailScreen() {
               <GlassCard>
                 <View style={styles.heroState}>
                   <View style={styles.badges}>
-                    {alert.postSignalInverted ? <Pill label="REVERSE" tone="warning" /> : null}
                     {alert.baseDirection ? <Pill label={`BASE ${alert.baseDirection}`} /> : null}
                   </View>
                   <Text style={[styles.heroSignal, { color: alert.signal === "SELL" ? theme.sell : theme.buy }]}>
@@ -65,7 +64,6 @@ export default function SignalDetailScreen() {
               <GlassCard>
                 <Row label="Entry H1 base" value={`${alert.baseSymbol} · H${String(alert.baseHour || 0).padStart(2, "0")}:00 · ${alert.baseDirection || "—"}`} />
                 <Row label="Base signal" value={alert.baseSignal || "—"} tone={alert.baseSignal === "SELL" ? "sell" : "buy"} />
-                <Row label="Post-signal" value={`${alert.postSignalInverted ? "ĐẢO" : "GIỮ NGUYÊN"} · ${alert.postSignalRule || "none"}`} tone={alert.postSignalInverted ? "warning" : undefined} />
                 <Row label="Final signal" value={alert.signal || "—"} tone={alert.signal === "SELL" ? "sell" : "buy"} />
               </GlassCard>
 

@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
   H1_CLOUD_STATE_VERSION,
+  H1_MONTH_END_BRIDGE_ENABLED,
+  H1_POST_SIGNAL_ENABLED,
   H1_PUBLIC_SCHEMA,
   H1_SCAN_HOURS,
   H1_SIGNAL_RULE_VERSION,
@@ -11,6 +13,8 @@ import {
   backfillSuppressedHistory,
   buildPublicFeed,
   buildStoredAlert,
+  configuredCycleDecisionFor,
+  configuredMonthEndBridgeCell,
   cycleDecisionFor,
   emptyCloudState,
   ensureSymbolDay,
@@ -43,15 +47,19 @@ function h1Bars(sequenceNewestFirst: string, newestHour: number, date = "2026-07
 function phaseMatrix(date: string): string[] {
   return [3, 6, 9, 12, 14, 16].map((hour) => {
     if (!isH1SlotActiveForBrokerDate(date, hour)) return "X";
-    return cycleDecisionFor("XAUUSD", date, hour).inverted ? "N" : "C";
+    return configuredCycleDecisionFor("XAUUSD", date, hour).inverted ? "N" : "C";
   });
 }
 
-test("rule versions stay on state v55 / feed v17 and advance to full-weekday rule 57", () => {
+test("rule v58 temporarily disables post-signal inversion and CẦU without removing H blocks", () => {
   assert.equal(H1_CLOUD_STATE_VERSION, 55);
   assert.equal(H1_PUBLIC_SCHEMA, 17);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 57);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 58);
+  assert.equal(H1_POST_SIGNAL_ENABLED, false);
+  assert.equal(H1_MONTH_END_BRIDGE_ENABLED, false);
   assert.deepEqual(H1_SCAN_HOURS, [3, 4, 6, 9, 12, 14, 16]);
+  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-08-20", 3), { inverted: false, rule: "none" });
+  assert.equal(isMonthEndBridgeCell("2026-08-28", 16), false);
 });
 
 test("signal candle lookup is date-scoped and rejects invalid broker dates", () => {
@@ -108,9 +116,9 @@ test("stored alert composes base H1 candle direction, matrix phase and no entry/
     slotHour: 3,
     brokerDate: "2026-07-06",
   });
-  assert.deepEqual([monday.postSignalRule, monday.postSignalInverted, monday.symbolH1Signal], ["cycle-net-keep", false, "BUY"]);
+  assert.deepEqual([monday.postSignalRule, monday.postSignalInverted, monday.symbolH1Signal], ["none", false, "BUY"]);
 
-  // 2026-08-27 is a cycle Thursday: block 0 (H3/H4) is N (invert).
+  // The configured phase is N here, but active post-signal inversion is temporarily disabled.
   const thursday = buildStoredAlert({
     base: "GBPAUD",
     brokerSymbol: "GBPAUD",
@@ -118,7 +126,7 @@ test("stored alert composes base H1 candle direction, matrix phase and no entry/
     slotHour: 3,
     brokerDate: "2026-08-27",
   });
-  assert.deepEqual([thursday.postSignalRule, thursday.postSignalInverted, thursday.symbolH1Signal], ["cycle-net-invert", true, "SELL"]);
+  assert.deepEqual([thursday.postSignalRule, thursday.postSignalInverted, thursday.symbolH1Signal], ["none", false, "BUY"]);
 });
 
 test("evaluateH1SignalsForTarget covers only eligible slots with closed candles", () => {
@@ -129,7 +137,7 @@ test("evaluateH1SignalsForTarget covers only eligible slots with closed candles"
   const gold = evaluateH1SignalsForTarget("XAUUSD", "2026-07-06", bars, H1_SCAN_HOURS, 6);
   assert.deepEqual(gold.map((alert) => alert.slotHour), [4, 6]);
   assert.equal(gold[0].symbolH1Signal, "BUY");
-  assert.equal(gold[1].symbolH1Signal, "SELL"); // H6 Monday is N (invert)
+  assert.equal(gold[1].symbolH1Signal, "BUY"); // post-signal inversion is temporarily disabled
 
   const fx = evaluateH1SignalsForTarget("GBPUSD", "2026-07-06", bars, H1_SCAN_HOURS, 6);
   assert.deepEqual(fx.map((alert) => alert.slotHour), [3, 6]);
@@ -139,22 +147,22 @@ test("evaluateH1SignalsForTarget covers only eligible slots with closed candles"
   assert.deepEqual(missing.map((alert) => alert.slotHour), [4, 6]);
 });
 
-test("monthly phase applies identically across the replacement GBP-cross targets", () => {
+test("configured monthly phase stays intact while active post-signal inversion is hidden", () => {
   // July is a cycle month: H3/H4 (first block) is N for both Thursday and Tuesday.
-  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-07-02"), { inverted: true, rule: "cycle-net-invert" });
-  assert.deepEqual(cycleDecisionFor("GBPUSD", "2026-07-02"), { inverted: true, rule: "cycle-net-invert" });
-  assert.deepEqual(cycleDecisionFor("GBPCAD", "2026-07-07"), { inverted: true, rule: "cycle-net-invert" });
-  assert.deepEqual(cycleDecisionFor("GBPAUD", "2026-07-07"), { inverted: true, rule: "cycle-net-invert" });
+  assert.deepEqual(configuredCycleDecisionFor("XAUUSD", "2026-07-02"), { inverted: true, rule: "cycle-net-invert" });
+  assert.deepEqual(configuredCycleDecisionFor("GBPUSD", "2026-07-02"), { inverted: true, rule: "cycle-net-invert" });
+  assert.deepEqual(configuredCycleDecisionFor("GBPCAD", "2026-07-07"), { inverted: true, rule: "cycle-net-invert" });
+  assert.deepEqual(configuredCycleDecisionFor("GBPAUD", "2026-07-07"), { inverted: true, rule: "cycle-net-invert" });
 
   // June is a regular month: the inverse rows keep H3/H4 on Thursday and Tuesday.
-  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-06-04"), { inverted: false, rule: "regular-net-keep" });
-  assert.deepEqual(cycleDecisionFor("GBPUSD", "2026-06-04"), { inverted: false, rule: "regular-net-keep" });
-  assert.deepEqual(cycleDecisionFor("GBPCAD", "2026-06-09"), { inverted: false, rule: "regular-net-keep" });
-  assert.deepEqual(cycleDecisionFor("GBPAUD", "2026-06-09"), { inverted: false, rule: "regular-net-keep" });
+  assert.deepEqual(configuredCycleDecisionFor("XAUUSD", "2026-06-04"), { inverted: false, rule: "regular-net-keep" });
+  assert.deepEqual(configuredCycleDecisionFor("GBPUSD", "2026-06-04"), { inverted: false, rule: "regular-net-keep" });
+  assert.deepEqual(configuredCycleDecisionFor("GBPCAD", "2026-06-09"), { inverted: false, rule: "regular-net-keep" });
+  assert.deepEqual(configuredCycleDecisionFor("GBPAUD", "2026-06-09"), { inverted: false, rule: "regular-net-keep" });
 });
 
 test("special-Thursday month uses the complete six-block N/C weekday table", () => {
-  assert.equal(cycleDecisionFor("XAUUSD", "2026-08-20", 3).inverted, cycleDecisionFor("XAUUSD", "2026-08-20", 4).inverted);
+  assert.equal(configuredCycleDecisionFor("XAUUSD", "2026-08-20", 3).inverted, configuredCycleDecisionFor("XAUUSD", "2026-08-20", 4).inverted);
   assert.deepEqual(phaseMatrix("2026-08-20"), ["N", "C", "C", "N", "C", "N"]); // Thu
   assert.deepEqual(phaseMatrix("2026-08-21"), ["N", "C", "C", "N", "C", "C"]); // Fri
   assert.deepEqual(phaseMatrix("2026-08-24"), ["C", "N", "N", "C", "C", "C"]); // Mon
@@ -174,35 +182,35 @@ test("CẦU is visual-only from final Friday through Wednesday and never changes
   const friday = "2026-08-28";
   assert.equal(isLastFridayBrokerDate(friday), true);
   assert.deepEqual(phaseMatrix(friday), ["N", "C", "C", "N", "C", "C"]);
-  assert.deepEqual(cycleDecisionFor("XAUUSD", friday, 16), { inverted: false, rule: "cycle-net-keep" });
-  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell(friday, hour)), [false, false, false, false, false, false, true]);
+  assert.deepEqual(configuredCycleDecisionFor("XAUUSD", friday, 16), { inverted: false, rule: "cycle-net-keep" });
+  assert.deepEqual(H1_SCAN_HOURS.map((hour) => configuredMonthEndBridgeCell(friday, hour)), [false, false, false, false, false, false, true]);
 
   // Monday is still August, so it uses August's complete special-month Monday row.
   assert.deepEqual(phaseMatrix("2026-08-31"), ["C", "N", "N", "C", "C", "C"]);
-  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell("2026-08-31", hour)), [true, true, true, true, true, true, true]);
+  assert.deepEqual(H1_SCAN_HOURS.map((hour) => configuredMonthEndBridgeCell("2026-08-31", hour)), [true, true, true, true, true, true, true]);
 
   // September is independently classified as a special month; bridge only adds badges.
   assert.deepEqual(phaseMatrix("2026-09-01"), ["N", "C", "N", "C", "N", "C"]);
-  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell("2026-09-01", hour)), [true, true, false, false, false, false, true]);
+  assert.deepEqual(H1_SCAN_HOURS.map((hour) => configuredMonthEndBridgeCell("2026-09-01", hour)), [true, true, false, false, false, false, true]);
   assert.deepEqual(phaseMatrix("2026-09-02"), ["N", "C", "C", "C", "N", "C"]);
-  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell("2026-09-02", hour)), [false, false, false, false, false, false, true]);
+  assert.deepEqual(H1_SCAN_HOURS.map((hour) => configuredMonthEndBridgeCell("2026-09-02", hour)), [false, false, false, false, false, false, true]);
 });
 
 test("CẦU badges stay independent when the month classification changes across the boundary", () => {
   const friday = "2026-06-26";
   assert.equal(isLastFridayBrokerDate(friday), true);
   assert.deepEqual(phaseMatrix(friday), ["C", "N", "N", "C", "N", "N"]);
-  assert.deepEqual(cycleDecisionFor("XAUUSD", friday, 16), { inverted: true, rule: "regular-net-invert" });
-  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell(friday, hour)), [false, false, false, false, false, false, true]);
+  assert.deepEqual(configuredCycleDecisionFor("XAUUSD", friday, 16), { inverted: true, rule: "regular-net-invert" });
+  assert.deepEqual(H1_SCAN_HOURS.map((hour) => configuredMonthEndBridgeCell(friday, hour)), [false, false, false, false, false, false, true]);
 
   assert.deepEqual(phaseMatrix("2026-06-29"), ["N", "C", "C", "N", "N", "N"]);
-  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell("2026-06-29", hour)), [true, true, true, true, true, true, true]);
+  assert.deepEqual(H1_SCAN_HOURS.map((hour) => configuredMonthEndBridgeCell("2026-06-29", hour)), [true, true, true, true, true, true, true]);
   assert.deepEqual(phaseMatrix("2026-06-30"), ["C", "N", "C", "N", "C", "N"]);
-  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell("2026-06-30", hour)), [true, true, false, false, false, false, true]);
+  assert.deepEqual(H1_SCAN_HOURS.map((hour) => configuredMonthEndBridgeCell("2026-06-30", hour)), [true, true, false, false, false, false, true]);
 
   // July is a special month, so Wednesday uses July's own complete row, not June's inverse row.
   assert.deepEqual(phaseMatrix("2026-07-01"), ["N", "C", "C", "C", "N", "C"]);
-  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell("2026-07-01", hour)), [false, false, false, false, false, false, true]);
+  assert.deepEqual(H1_SCAN_HOURS.map((hour) => configuredMonthEndBridgeCell("2026-07-01", hour)), [false, false, false, false, false, false, true]);
 });
 
 test("Monday through Wednesday keep all six blocks in live evaluation, retained state and public feed", () => {
@@ -215,7 +223,7 @@ test("Monday through Wednesday keep all six blocks in live evaluation, retained 
   }));
   const fx = evaluateH1SignalsForTarget("GBPUSD", monday, bars, H1_SCAN_HOURS);
   assert.deepEqual(fx.map((alert) => alert.slotHour), [3, 6, 9, 12, 14, 16]);
-  assert.deepEqual(fx.map((alert) => alert.postSignalInverted), [false, true, true, false, false, false]);
+  assert.deepEqual(fx.map((alert) => alert.postSignalInverted), [false, false, false, false, false, false]);
 
   const stale = emptyCloudState();
   stale.days[monday] = {
@@ -264,7 +272,7 @@ test("special Thursday definition covers both calendar branches", () => {
   assert.equal(isSpecialThursdayBrokerDate("2026-10-05"), false); // Monday, never a Thursday
 });
 
-test("weekday post-signal inversion is applied after the signal decision", () => {
+test("configured weekday inversion remains stored in code while active alerts stay uninverted", () => {
   const buildFor = (base: "GBPUSD" | "GBPAUD", date: string) => buildStoredAlert({
     base,
     brokerSymbol: base,
@@ -276,12 +284,12 @@ test("weekday post-signal inversion is applied after the signal decision", () =>
   const tuesdayAud = buildFor("GBPAUD", "2026-08-25");
   assert.deepEqual(
     [thursdayGbp.postSignalRule, thursdayGbp.postSignalInverted, thursdayGbp.symbolH1Signal],
-    ["cycle-net-invert", true, "SELL"],
+    ["none", false, "BUY"],
   );
-  // 2026-08-25 is a cycle Tuesday: H3/H4 is N (invert).
+  // 2026-08-25 is configured N, but active output remains the base BUY.
   assert.deepEqual(
     [tuesdayAud.postSignalRule, tuesdayAud.postSignalInverted, tuesdayAud.symbolH1Signal],
-    ["cycle-net-invert", true, "SELL"],
+    ["none", false, "BUY"],
   );
 });
 
@@ -296,9 +304,9 @@ test("XAUUSD cycle month applies the six-block weekday phase across weeks", () =
     ["2026-07-10", true, "cycle-net-invert"],
   ] as const;
   for (const [date, inverted, rule] of expected) {
-    assert.deepEqual(cycleDecisionFor("XAUUSD", date), { inverted, rule });
+    assert.deepEqual(configuredCycleDecisionFor("XAUUSD", date), { inverted, rule });
   }
-  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-07-04"), { inverted: false, rule: "none" });
+  assert.deepEqual(configuredCycleDecisionFor("XAUUSD", "2026-07-04"), { inverted: false, rule: "none" });
 });
 
 test("XAUUSD regular month flips the six-block weekday phase across weeks", () => {
@@ -312,9 +320,9 @@ test("XAUUSD regular month flips the six-block weekday phase across weeks", () =
     ["2026-06-16", false, "regular-net-keep"],
   ] as const;
   for (const [date, inverted, rule] of expected) {
-    assert.deepEqual(cycleDecisionFor("XAUUSD", date), { inverted, rule });
+    assert.deepEqual(configuredCycleDecisionFor("XAUUSD", date), { inverted, rule });
   }
-  assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-06-07"), { inverted: false, rule: "none" });
+  assert.deepEqual(configuredCycleDecisionFor("XAUUSD", "2026-06-07"), { inverted: false, rule: "none" });
 });
 
 test("cloud state v54 migrates to v55 by stripping pattern and entry fields", () => {
@@ -357,7 +365,7 @@ test("cloud state v54 migrates to v55 by stripping pattern and entry fields", ()
   const alert = migrated.days["2026-07-06"].symbols.GBPUSD!.alerts[0];
   assert.deepEqual(
     [alert.slotHour, alert.symbolH1Signal, alert.postSignalRule, alert.baseHour],
-    [3, "BUY", "cycle-net-keep", 5],
+    [3, "BUY", "none", 5],
   );
   assert.equal("pattern" in alert, false);
   assert.equal("entryTime" in alert, false);
@@ -407,11 +415,11 @@ test("public feed v17 omits pattern and entry fields and survives feed seeding",
     brokerDate: "2026-07-06",
   }));
   const feed = buildPublicFeed(state, "2026-07-06T17:00:00.000Z");
-  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours], [17, 57, [3, 4, 6, 9, 12, 14, 16]]);
+  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours], [17, 58, [3, 4, 6, 9, 12, 14, 16]]);
   const row = feed.days["2026-07-06"].symbols.GBPUSD!.alerts[0];
   assert.equal(row.signal, "BUY");
   assert.equal(row.baseSignal, "BUY");
-  assert.equal(row.postSignalRule, "cycle-net-keep");
+  assert.equal(row.postSignalRule, "none");
   assert.equal("pattern" in (row as Record<string, unknown>), false);
   assert.equal("entryTime" in (row as Record<string, unknown>), false);
 

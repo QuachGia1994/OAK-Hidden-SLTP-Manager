@@ -20,7 +20,7 @@ function marketForDates(...dates: string[]) {
   }])) as Record<H1Base, { displayName: string; bars: H1DirectionBar[] }>;
 }
 
-test("historical reconstruction applies the block schedule, H1 base and XAU cycle", () => {
+test("historical reconstruction keeps every block while post-signal inversion is temporarily disabled", () => {
   const history = reconstructHistoricalDays(marketForDates("2026-07-06", "2026-07-04"));
   // Weekend broker dates are never reconstructed.
   assert.ok(history["2026-07-06"]);
@@ -32,8 +32,8 @@ test("historical reconstruction applies the block schedule, H1 base and XAU cycl
   assert.deepEqual(gold.map((alert) => alert.slotHour), [4, 6, 9, 12, 14, 16]);
   assert.deepEqual(fx.map((alert) => alert.slotHour), [3, 6, 9, 12, 14, 16]);
 
-  // All-T H1 candles give BUY base on every active slot. July special-month
-  // Monday row is C N N C C C: keep H3/H4, invert H6/H9, keep H12/H14/H16.
+  // All-T H1 candles give BUY base on every active slot. The configured monthly
+  // matrix remains in code, but rule v58 temporarily suppresses post-signal inversion.
   for (const alert of [...gold, ...fx]) {
     assert.equal(alert.baseH1Signal, "BUY");
     assert.equal(alert.symbol, alert.baseSymbol);
@@ -42,12 +42,10 @@ test("historical reconstruction applies the block schedule, H1 base and XAU cycl
     assert.equal("patternKind" in alert, false);
   }
   assert.deepEqual(gold.map((alert) => [alert.postSignalRule, alert.symbolH1Signal]), [
-    ["cycle-net-keep", "BUY"], ["cycle-net-invert", "SELL"], ["cycle-net-invert", "SELL"],
-    ["cycle-net-keep", "BUY"], ["cycle-net-keep", "BUY"], ["cycle-net-keep", "BUY"],
+    ["none", "BUY"], ["none", "BUY"], ["none", "BUY"], ["none", "BUY"], ["none", "BUY"], ["none", "BUY"],
   ]);
   assert.deepEqual(fx.map((alert) => [alert.postSignalRule, alert.symbolH1Signal]), [
-    ["cycle-net-keep", "BUY"], ["cycle-net-invert", "SELL"], ["cycle-net-invert", "SELL"],
-    ["cycle-net-keep", "BUY"], ["cycle-net-keep", "BUY"], ["cycle-net-keep", "BUY"],
+    ["none", "BUY"], ["none", "BUY"], ["none", "BUY"], ["none", "BUY"], ["none", "BUY"], ["none", "BUY"],
   ]);
 });
 

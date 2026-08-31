@@ -8,7 +8,7 @@ import type { H1SignalAlert } from "@/lib/types";
 import { radius, spacing, useOakTheme } from "@/lib/theme";
 import { useOakData } from "@/state/data";
 
-type Filter = "all" | "buy" | "sell" | "reverse" | "keep";
+type Filter = "all" | "buy" | "sell";
 
 type FilterItem = { key: Filter; label: string };
 
@@ -16,20 +16,11 @@ const FILTERS: readonly FilterItem[] = [
   { key: "all", label: "ALL" },
   { key: "buy", label: "BUY" },
   { key: "sell", label: "SELL" },
-  { key: "reverse", label: "ĐẢO" },
-  { key: "keep", label: "GIỮ" },
 ];
 
 function matchesFilter(alert: H1SignalAlert, filter: Filter): boolean {
   if (filter === "all") return true;
-  if (filter === "buy" || filter === "sell") return alert.signal === filter.toUpperCase();
-  if (filter === "reverse") return alert.postSignalInverted === true;
-  return alert.postSignalInverted !== true;
-}
-
-function phaseLabel(alert: H1SignalAlert): string {
-  const family = alert.postSignalRule?.startsWith("cycle-") ? "CHU KỲ" : alert.postSignalRule?.startsWith("regular-") ? "THÁNG THƯỜNG" : "PHA";
-  return `${alert.postSignalInverted ? "ĐẢO" : "GIỮ"} · ${family}`;
+  return alert.signal === filter.toUpperCase();
 }
 
 function baseCandleLabel(alert: H1SignalAlert): string {
@@ -102,7 +93,6 @@ export default function AlertsScreen() {
                 <Text style={[styles.signal, { color: signalColor }]}>{signal}</Text>
               </View>
               <View style={styles.badges}>
-                <Pill label={phaseLabel(alert)} />
                 <Pill label={`BLOCK H${String(alert.slotHour).padStart(2, "0")}`} />
               </View>
               <Text style={[styles.meta, { color: theme.muted }]}>{baseCandleLabel(alert)} · {alert.profile}</Text>

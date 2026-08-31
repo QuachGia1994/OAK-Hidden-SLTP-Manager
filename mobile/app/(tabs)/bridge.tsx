@@ -42,14 +42,6 @@ export default function BridgeScreen() {
         </GlassCard>
       </View>
 
-      <SectionTitle title="Month-end bridge" meta={bridge?.brokerDate || "—"} />
-      <GlassCard glow={bridge?.bridgeCells.length ? "warning" : "muted"}>
-        <View style={styles.bridgeCopy}>
-          <Pill label={`${bridge?.bridgeCells.length || 0} CẦU CELL`} tone={bridge?.bridgeCells.length ? "warning" : "muted"} />
-          <Text style={[styles.bridgeTitle, { color: theme.text }]}>Cầu nối cuối tháng</Text>
-          <Text style={[styles.bridgeText, { color: theme.muted }]}>H16 thứ 6 cuối tháng và H thứ 2–3–4 sau đó giữ phase tháng cũ; thứ 5 đầu tháng reset tháng mới.</Text>
-        </View>
-      </GlassCard>
 
       <SectionTitle title="Accounts" meta={`${accounts?.accounts.length || 0} total`} />
       <View style={styles.list}>

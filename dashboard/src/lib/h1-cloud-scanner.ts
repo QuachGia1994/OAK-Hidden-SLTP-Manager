@@ -2,7 +2,9 @@ import { addBrokerCalendarDays, brokerDateWeekdayIndex, isValidBrokerDateKey, pa
 
 export const H1_CLOUD_STATE_VERSION = 55;
 export const H1_PUBLIC_SCHEMA = 17;
-export const H1_SIGNAL_RULE_VERSION = 57;
+export const H1_SIGNAL_RULE_VERSION = 58;
+export const H1_POST_SIGNAL_ENABLED = false;
+export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
 // The state key keeps its historical "v54" suffix on purpose: it is the
 // existing Redis key holding the retained 90-day cloud state. Reads continue
@@ -59,7 +61,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 17;
-  signalRuleVersion: 57;
+  signalRuleVersion: 58;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -233,7 +235,7 @@ export function h1SlotPolicyForBrokerDate(brokerDate: string, slotHour: number):
   if (!phase) return { removed: false, inverted: false };
   return {
     removed: false,
-    inverted: phase.cell === "N",
+    inverted: H1_POST_SIGNAL_ENABLED && phase.cell === "N",
   };
 }
 
@@ -249,7 +251,7 @@ export function activeH1ScanHoursForBrokerDate(
   return hours.filter((hour) => isH1SlotActiveForBrokerDate(brokerDate, hour));
 }
 
-export function isMonthEndBridgeCell(brokerDate: string, slotHour: number): boolean {
+export function configuredMonthEndBridgeCell(brokerDate: string, slotHour: number): boolean {
   if (!(H1_SCAN_HOURS as readonly number[]).includes(slotHour)) return false;
   if (isLastFridayBrokerDate(brokerDate)) return slotHour === 16;
 
@@ -261,7 +263,11 @@ export function isMonthEndBridgeCell(brokerDate: string, slotHour: number): bool
   return weekday === 3 && slotHour === 16 && isH1SlotActiveForBrokerDate(brokerDate, slotHour);
 }
 
-export function cycleDecisionFor(base: H1TargetBase, brokerDate: string, slotHour = 3): { inverted: boolean; rule: H1PostSignalRule } {
+export function isMonthEndBridgeCell(brokerDate: string, slotHour: number): boolean {
+  return H1_MONTH_END_BRIDGE_ENABLED && configuredMonthEndBridgeCell(brokerDate, slotHour);
+}
+
+export function configuredCycleDecisionFor(base: H1TargetBase, brokerDate: string, slotHour = 3): { inverted: boolean; rule: H1PostSignalRule } {
   void base;
   const none = { inverted: false, rule: "none" as H1PostSignalRule };
   const phase = phaseCellForBrokerDate(brokerDate, slotHour);
@@ -273,6 +279,12 @@ export function cycleDecisionFor(base: H1TargetBase, brokerDate: string, slotHou
       ? (inverted ? "cycle-net-invert" : "cycle-net-keep")
       : (inverted ? "regular-net-invert" : "regular-net-keep"),
   };
+}
+
+export function cycleDecisionFor(base: H1TargetBase, brokerDate: string, slotHour = 3): { inverted: boolean; rule: H1PostSignalRule } {
+  return H1_POST_SIGNAL_ENABLED
+    ? configuredCycleDecisionFor(base, brokerDate, slotHour)
+    : { inverted: false, rule: "none" };
 }
 
 // ---------------------------------------------------------------------------

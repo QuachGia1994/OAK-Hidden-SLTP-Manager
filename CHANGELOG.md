@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Temporarily disabled active H1 post-signal inversion and month-end CẦU/BRIDGE presentation. Signal rule advanced to v58; live/history signals now stay on their base H1 BUY/SELL direction, all bridge badges/highlights/derived summaries are hidden, and the configured N/C matrix plus bridge calendar helpers remain intact for later re-enable.
 - Restored every previously removed Monday/Tuesday/Wednesday H1 block so all weekdays now keep the full six-block schedule. Cycle-month rows are Monday `C N N C C C`, Tuesday `N C N C N C`, Wednesday `N C C C N C`, Thursday `N C C N C N`, Friday `N C C N C C`; regular months use the exact inverse. Signal rule advanced to v57 and history rebuild fills previously missing H slots.
 - Replaced the H1 table/scanner FX targets `AUDUSD`, `USDCAD`, `USDJPY` with `GBPAUD`, `GBPCAD`, `GBPJPY`. Timed Telegram BUY/SELL mapping and cTrader history/scanner resolution now target the GBP-cross rows; retained legacy rows are ignored instead of corrupting the current state.
 - Reworked H1 Telegram/table flow: the scanner no longer sends `BLOCK ĐÃ ĐẾN` or H1 signal Telegram notifications. A future manual timed `BUY`/`SELL` Telegram entry now writes its side immediately into the matching H1 web-table cell using IC Markets broker-wall time; for example `buy XAUUSD 0.01 13h00 @fxce` on 2026-08-31 maps to XAUUSD H09. Scanner/backfill refreshes preserve the manual `scheduledSignal`.
