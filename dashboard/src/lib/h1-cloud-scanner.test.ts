@@ -303,12 +303,18 @@ test("XAUUSD regular month flips the six-block weekday phase across weeks", () =
   assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-06-07"), { inverted: false, rule: "none" });
 });
 
-test("block reminders announce weekday phase and user-set appointment guidance", () => {
+test("block reminders announce weekday phase, CẦU badge, and user-set appointment guidance", () => {
   const message = buildTelegramBlockReminder("2026-07-10", 12);
   assert.match(message, /BLOCK ĐÃ ĐẾN · Thứ 6 · HIỆN TẠI H12/);
   assert.match(message, /Hậu signal: ĐẢO/);
   assert.match(message, /Block: H12 · pha chu kỳ tháng/);
+  assert.doesNotMatch(message, /🌉 CẦU/);
   assert.match(message, /Giờ vào\/đóng lệnh do bạn tự đặt qua lệnh Telegram/);
+
+  const bridgeMessage = buildTelegramBlockReminder("2026-08-31", 3);
+  assert.match(bridgeMessage, /BLOCK ĐÃ ĐẾN · Thứ 2 · HIỆN TẠI H03/);
+  assert.match(bridgeMessage, /Block: H3\/H4 · pha chu kỳ tháng/);
+  assert.match(bridgeMessage, /🌉 CẦU/);
 });
 
 test("signal telegram message keeps block, phase and base candle without pattern/entry lines", () => {
@@ -325,7 +331,18 @@ test("signal telegram message keeps block, phase and base candle without pattern
   assert.match(message, /Base H1 candle: H04:00 T → BUY/);
   assert.match(message, /Signal XAUUSD H1: BUY/);
   assert.match(message, /Giờ vào\/đóng lệnh do bạn tự đặt qua lệnh Telegram/);
+  assert.doesNotMatch(message, /🌉 CẦU/);
   assert.doesNotMatch(message, /pattern|Pattern|entry|Entry|M15|m15/);
+
+  const bridgeAlert = buildStoredAlert({
+    base: "XAUUSD",
+    brokerSymbol: "XAUUSD",
+    baseBar: h1Bars("T", 4, "2026-08-31")[0],
+    slotHour: 4,
+    brokerDate: "2026-08-31",
+  });
+  const bridgeMessage = buildTelegramMessage("XAUUSD", "2026-08-31", bridgeAlert);
+  assert.match(bridgeMessage, /🌉 CẦU/);
 });
 
 test("cloud state v54 migrates to v55 by stripping pattern and entry fields", () => {

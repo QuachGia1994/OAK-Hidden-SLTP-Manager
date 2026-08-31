@@ -330,6 +330,7 @@ function brokerWeekdayLabel(brokerDate: string): string {
 export function buildTelegramBlockReminder(brokerDate: string, slotHour: number): string {
   const decision = cycleDecisionFor(H1_TARGET_BASES[0], brokerDate, slotHour);
   const phase = decision.rule.startsWith("cycle-") ? "pha chu kỳ tháng" : "pha tháng thường";
+  const bridge = isMonthEndBridgeCell(brokerDate, slotHour);
   const blockLabel = slotHour === 3 || slotHour === 4
     ? "H3/H4"
     : `H${String(slotHour).padStart(2, "0")}`;
@@ -337,6 +338,7 @@ export function buildTelegramBlockReminder(brokerDate: string, slotHour: number)
     `⏰ BLOCK ĐÃ ĐẾN · ${brokerWeekdayLabel(brokerDate)} · HIỆN TẠI H${String(slotHour).padStart(2, "0")}`,
     `• Hậu signal: ${decision.inverted ? "ĐẢO" : "GIỮ NGUYÊN"}`,
     `• Block: ${blockLabel} · ${phase}`,
+    ...(bridge ? ["🌉 CẦU"] : []),
     "• Giờ vào/đóng lệnh do bạn tự đặt qua lệnh Telegram (hẹn giờ).",
   ].join("\n");
 }
@@ -362,6 +364,7 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
     "• Giờ vào/đóng lệnh do bạn tự đặt qua lệnh Telegram (hẹn giờ).",
   ];
   if (cycleLine) rows.push(cycleLine);
+  if (isMonthEndBridgeCell(brokerDate, alert.slotHour)) rows.push("🌉 CẦU");
   rows.push(`• Signal ${base} H1: ${alert.symbolH1Signal}`);
   return rows.join("\n");
 }
