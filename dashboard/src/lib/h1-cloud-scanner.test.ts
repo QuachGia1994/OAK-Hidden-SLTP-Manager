@@ -47,10 +47,10 @@ function phaseMatrix(date: string): string[] {
   });
 }
 
-test("rule versions stay on state v55 / feed v17 and advance to visual-bridge rule 56", () => {
+test("rule versions stay on state v55 / feed v17 and advance to full-weekday rule 57", () => {
   assert.equal(H1_CLOUD_STATE_VERSION, 55);
   assert.equal(H1_PUBLIC_SCHEMA, 17);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 56);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 57);
   assert.deepEqual(H1_SCAN_HOURS, [3, 4, 6, 9, 12, 14, 16]);
 });
 
@@ -153,38 +153,38 @@ test("monthly phase applies identically across the replacement GBP-cross targets
   assert.deepEqual(cycleDecisionFor("GBPAUD", "2026-06-09"), { inverted: false, rule: "regular-net-keep" });
 });
 
-test("special-Thursday month uses the exact N/C/X weekday table", () => {
+test("special-Thursday month uses the complete six-block N/C weekday table", () => {
   assert.equal(cycleDecisionFor("XAUUSD", "2026-08-20", 3).inverted, cycleDecisionFor("XAUUSD", "2026-08-20", 4).inverted);
   assert.deepEqual(phaseMatrix("2026-08-20"), ["N", "C", "C", "N", "C", "N"]); // Thu
   assert.deepEqual(phaseMatrix("2026-08-21"), ["N", "C", "C", "N", "C", "C"]); // Fri
-  assert.deepEqual(phaseMatrix("2026-08-24"), ["C", "N", "N", "X", "X", "C"]); // Mon
-  assert.deepEqual(phaseMatrix("2026-08-25"), ["N", "C", "N", "X", "X", "C"]); // Tue
-  assert.deepEqual(phaseMatrix("2026-08-26"), ["N", "C", "X", "X", "X", "C"]); // Wed
+  assert.deepEqual(phaseMatrix("2026-08-24"), ["C", "N", "N", "C", "C", "C"]); // Mon
+  assert.deepEqual(phaseMatrix("2026-08-25"), ["N", "C", "N", "C", "N", "C"]); // Tue
+  assert.deepEqual(phaseMatrix("2026-08-26"), ["N", "C", "C", "C", "N", "C"]); // Wed
 });
 
-test("normal-Thursday month is the exact N/C inverse while X remains removed", () => {
+test("normal-Thursday month is the exact complete N/C inverse", () => {
   assert.deepEqual(phaseMatrix("2026-06-18"), ["C", "N", "N", "C", "N", "C"]); // Thu
   assert.deepEqual(phaseMatrix("2026-06-19"), ["C", "N", "N", "C", "N", "N"]); // Fri
-  assert.deepEqual(phaseMatrix("2026-06-22"), ["N", "C", "C", "X", "X", "N"]); // Mon
-  assert.deepEqual(phaseMatrix("2026-06-23"), ["C", "N", "C", "X", "X", "N"]); // Tue
-  assert.deepEqual(phaseMatrix("2026-06-24"), ["C", "N", "X", "X", "X", "N"]); // Wed
+  assert.deepEqual(phaseMatrix("2026-06-22"), ["N", "C", "C", "N", "N", "N"]); // Mon
+  assert.deepEqual(phaseMatrix("2026-06-23"), ["C", "N", "C", "N", "C", "N"]); // Tue
+  assert.deepEqual(phaseMatrix("2026-06-24"), ["C", "N", "N", "N", "C", "N"]); // Wed
 });
 
-test("CẦU is visual-only from final Friday through Wednesday and never changes the monthly N/C/X table", () => {
+test("CẦU is visual-only from final Friday through Wednesday and never changes the complete monthly N/C table", () => {
   const friday = "2026-08-28";
   assert.equal(isLastFridayBrokerDate(friday), true);
   assert.deepEqual(phaseMatrix(friday), ["N", "C", "C", "N", "C", "C"]);
   assert.deepEqual(cycleDecisionFor("XAUUSD", friday, 16), { inverted: false, rule: "cycle-net-keep" });
   assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell(friday, hour)), [false, false, false, false, false, false, true]);
 
-  // Monday is still August, so it uses August's special-month Monday row.
-  assert.deepEqual(phaseMatrix("2026-08-31"), ["C", "N", "N", "X", "X", "C"]);
-  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell("2026-08-31", hour)), [true, true, true, true, false, false, true]);
+  // Monday is still August, so it uses August's complete special-month Monday row.
+  assert.deepEqual(phaseMatrix("2026-08-31"), ["C", "N", "N", "C", "C", "C"]);
+  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell("2026-08-31", hour)), [true, true, true, true, true, true, true]);
 
   // September is independently classified as a special month; bridge only adds badges.
-  assert.deepEqual(phaseMatrix("2026-09-01"), ["N", "C", "N", "X", "X", "C"]);
+  assert.deepEqual(phaseMatrix("2026-09-01"), ["N", "C", "N", "C", "N", "C"]);
   assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell("2026-09-01", hour)), [true, true, false, false, false, false, true]);
-  assert.deepEqual(phaseMatrix("2026-09-02"), ["N", "C", "X", "X", "X", "C"]);
+  assert.deepEqual(phaseMatrix("2026-09-02"), ["N", "C", "C", "C", "N", "C"]);
   assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell("2026-09-02", hour)), [false, false, false, false, false, false, true]);
 });
 
@@ -195,17 +195,17 @@ test("CẦU badges stay independent when the month classification changes across
   assert.deepEqual(cycleDecisionFor("XAUUSD", friday, 16), { inverted: true, rule: "regular-net-invert" });
   assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell(friday, hour)), [false, false, false, false, false, false, true]);
 
-  assert.deepEqual(phaseMatrix("2026-06-29"), ["N", "C", "C", "X", "X", "N"]);
-  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell("2026-06-29", hour)), [true, true, true, true, false, false, true]);
-  assert.deepEqual(phaseMatrix("2026-06-30"), ["C", "N", "C", "X", "X", "N"]);
+  assert.deepEqual(phaseMatrix("2026-06-29"), ["N", "C", "C", "N", "N", "N"]);
+  assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell("2026-06-29", hour)), [true, true, true, true, true, true, true]);
+  assert.deepEqual(phaseMatrix("2026-06-30"), ["C", "N", "C", "N", "C", "N"]);
   assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell("2026-06-30", hour)), [true, true, false, false, false, false, true]);
 
-  // July is a special month, so Wednesday uses July's own row, not June's inverse row.
-  assert.deepEqual(phaseMatrix("2026-07-01"), ["N", "C", "X", "X", "X", "C"]);
+  // July is a special month, so Wednesday uses July's own complete row, not June's inverse row.
+  assert.deepEqual(phaseMatrix("2026-07-01"), ["N", "C", "C", "C", "N", "C"]);
   assert.deepEqual(H1_SCAN_HOURS.map((hour) => isMonthEndBridgeCell("2026-07-01", hour)), [false, false, false, false, false, false, true]);
 });
 
-test("X slots never enter live evaluation, retained state or public feed", () => {
+test("Monday through Wednesday keep all six blocks in live evaluation, retained state and public feed", () => {
   const monday = "2026-08-24";
   const bars = H1_SCAN_HOURS.map((hour) => ({
     hour,
@@ -214,8 +214,8 @@ test("X slots never enter live evaluation, retained state or public feed", () =>
     direction: "T" as const,
   }));
   const fx = evaluateH1SignalsForTarget("GBPUSD", monday, bars, H1_SCAN_HOURS);
-  assert.deepEqual(fx.map((alert) => alert.slotHour), [3, 6, 9, 16]);
-  assert.deepEqual(fx.map((alert) => alert.postSignalInverted), [false, true, true, false]);
+  assert.deepEqual(fx.map((alert) => alert.slotHour), [3, 6, 9, 12, 14, 16]);
+  assert.deepEqual(fx.map((alert) => alert.postSignalInverted), [false, true, true, false, false, false]);
 
   const stale = emptyCloudState();
   stale.days[monday] = {
@@ -238,18 +238,19 @@ test("X slots never enter live evaluation, retained state or public feed", () =>
   };
   const parsed = parseCloudState(JSON.stringify(stale));
   const parsedRows = parsed.days[monday].symbols.GBPUSD!.alerts;
-  assert.deepEqual(parsedRows.map((alert) => alert.slotHour), [3, 16]);
-  assert.deepEqual(parsedRows.map((alert) => [alert.postSignalInverted, alert.symbolH1Signal]), [[false, "BUY"], [false, "BUY"]]);
+  assert.deepEqual(parsedRows.map((alert) => alert.slotHour), [3, 12, 14, 16]);
+  assert.deepEqual(parsedRows.map((alert) => [alert.postSignalInverted, alert.symbolH1Signal]), [
+    [false, "BUY"], [false, "BUY"], [false, "BUY"], [false, "BUY"],
+  ]);
 
   const feed = buildPublicFeed(stale);
-  assert.deepEqual(feed.days[monday].symbols.GBPUSD!.alerts.map((alert) => alert.slotHour), [3, 16]);
+  assert.deepEqual(feed.days[monday].symbols.GBPUSD!.alerts.map((alert) => alert.slotHour), [3, 12, 14, 16]);
 
   const stalePublic = structuredClone(feed);
-  const validRow = stalePublic.days[monday].symbols.GBPUSD!.alerts[0];
-  stalePublic.days[monday].symbols.GBPUSD!.alerts.push({ ...validRow, slotHour: 12, postSignalInverted: true });
+  for (const row of stalePublic.days[monday].symbols.GBPUSD!.alerts) row.postSignalInverted = true;
   const parsedPublic = parsePublicFeedCloudState(stalePublic)!;
-  assert.deepEqual(parsedPublic.days[monday].symbols.GBPUSD!.alerts.map((alert) => alert.slotHour), [3, 16]);
-  assert.deepEqual(parsedPublic.days[monday].symbols.GBPUSD!.alerts.map((alert) => alert.postSignalInverted), [false, false]);
+  assert.deepEqual(parsedPublic.days[monday].symbols.GBPUSD!.alerts.map((alert) => alert.slotHour), [3, 12, 14, 16]);
+  assert.deepEqual(parsedPublic.days[monday].symbols.GBPUSD!.alerts.map((alert) => alert.postSignalInverted), [false, false, false, false]);
 });
 
 test("special Thursday definition covers both calendar branches", () => {
@@ -406,7 +407,7 @@ test("public feed v17 omits pattern and entry fields and survives feed seeding",
     brokerDate: "2026-07-06",
   }));
   const feed = buildPublicFeed(state, "2026-07-06T17:00:00.000Z");
-  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours], [17, 56, [3, 4, 6, 9, 12, 14, 16]]);
+  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours], [17, 57, [3, 4, 6, 9, 12, 14, 16]]);
   const row = feed.days["2026-07-06"].symbols.GBPUSD!.alerts[0];
   assert.equal(row.signal, "BUY");
   assert.equal(row.baseSignal, "BUY");

@@ -2,7 +2,7 @@ import { addBrokerCalendarDays, brokerDateWeekdayIndex, isValidBrokerDateKey, pa
 
 export const H1_CLOUD_STATE_VERSION = 55;
 export const H1_PUBLIC_SCHEMA = 17;
-export const H1_SIGNAL_RULE_VERSION = 56;
+export const H1_SIGNAL_RULE_VERSION = 57;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
 // The state key keeps its historical "v54" suffix on purpose: it is the
 // existing Redis key holding the retained 90-day cloud state. Reads continue
@@ -59,7 +59,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 17;
-  signalRuleVersion: 56;
+  signalRuleVersion: 57;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -193,7 +193,7 @@ function postSignalBlockForSlot(slotHour: number): H1PostSignalBlock | null {
 }
 
 type H1Weekday = 1 | 2 | 3 | 4 | 5;
-type H1PhaseCell = "N" | "C" | "X";
+type H1PhaseCell = "N" | "C";
 type H1PhaseRow = readonly [H1PhaseCell, H1PhaseCell, H1PhaseCell, H1PhaseCell, H1PhaseCell, H1PhaseCell];
 
 type H1SlotPolicy = {
@@ -202,17 +202,16 @@ type H1SlotPolicy = {
 };
 
 // Exact special-Thursday month table, ordered as:
-// [H3/H4, H6, H9, H12, H14, H16]. X removes the block entirely.
+// [H3/H4, H6, H9, H12, H14, H16]. Every weekday keeps all six blocks.
 const SPECIAL_MONTH_WEEK_TABLE: Record<H1Weekday, H1PhaseRow> = {
-  1: ["C", "N", "N", "X", "X", "C"], // Mon
-  2: ["N", "C", "N", "X", "X", "C"], // Tue
-  3: ["N", "C", "X", "X", "X", "C"], // Wed
+  1: ["C", "N", "N", "C", "C", "C"], // Mon
+  2: ["N", "C", "N", "C", "N", "C"], // Tue
+  3: ["N", "C", "C", "C", "N", "C"], // Wed
   4: ["N", "C", "C", "N", "C", "N"], // Thu
   5: ["N", "C", "C", "N", "C", "C"], // Fri
 };
 
 function invertPhaseCell(cell: H1PhaseCell): H1PhaseCell {
-  if (cell === "X") return "X";
   return cell === "N" ? "C" : "N";
 }
 
@@ -233,7 +232,7 @@ export function h1SlotPolicyForBrokerDate(brokerDate: string, slotHour: number):
   const phase = phaseCellForBrokerDate(brokerDate, slotHour);
   if (!phase) return { removed: false, inverted: false };
   return {
-    removed: phase.cell === "X",
+    removed: false,
     inverted: phase.cell === "N",
   };
 }
@@ -266,7 +265,7 @@ export function cycleDecisionFor(base: H1TargetBase, brokerDate: string, slotHou
   void base;
   const none = { inverted: false, rule: "none" as H1PostSignalRule };
   const phase = phaseCellForBrokerDate(brokerDate, slotHour);
-  if (!phase || phase.cell === "X") return none;
+  if (!phase) return none;
   const inverted = phase.cell === "N";
   return {
     inverted,

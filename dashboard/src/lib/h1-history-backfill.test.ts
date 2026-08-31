@@ -28,12 +28,12 @@ test("historical reconstruction applies the block schedule, H1 base and XAU cycl
 
   const gold = history["2026-07-06"].symbols.XAUUSD?.alerts ?? [];
   const fx = history["2026-07-06"].symbols.GBPUSD?.alerts ?? [];
-  // XAUUSD owns H4 and FX starts at H3. Monday X slots remove H12/H14 for both.
-  assert.deepEqual(gold.map((alert) => alert.slotHour), [4, 6, 9, 16]);
-  assert.deepEqual(fx.map((alert) => alert.slotHour), [3, 6, 9, 16]);
+  // XAUUSD owns H4 and FX starts at H3. Monday now keeps every H1 block.
+  assert.deepEqual(gold.map((alert) => alert.slotHour), [4, 6, 9, 12, 14, 16]);
+  assert.deepEqual(fx.map((alert) => alert.slotHour), [3, 6, 9, 12, 14, 16]);
 
   // All-T H1 candles give BUY base on every active slot. July special-month
-  // Monday row is C N N X X C: keep H3/H4, invert H6/H9, remove H12/H14, keep H16.
+  // Monday row is C N N C C C: keep H3/H4, invert H6/H9, keep H12/H14/H16.
   for (const alert of [...gold, ...fx]) {
     assert.equal(alert.baseH1Signal, "BUY");
     assert.equal(alert.symbol, alert.baseSymbol);
@@ -42,10 +42,12 @@ test("historical reconstruction applies the block schedule, H1 base and XAU cycl
     assert.equal("patternKind" in alert, false);
   }
   assert.deepEqual(gold.map((alert) => [alert.postSignalRule, alert.symbolH1Signal]), [
-    ["cycle-net-keep", "BUY"], ["cycle-net-invert", "SELL"], ["cycle-net-invert", "SELL"], ["cycle-net-keep", "BUY"],
+    ["cycle-net-keep", "BUY"], ["cycle-net-invert", "SELL"], ["cycle-net-invert", "SELL"],
+    ["cycle-net-keep", "BUY"], ["cycle-net-keep", "BUY"], ["cycle-net-keep", "BUY"],
   ]);
   assert.deepEqual(fx.map((alert) => [alert.postSignalRule, alert.symbolH1Signal]), [
-    ["cycle-net-keep", "BUY"], ["cycle-net-invert", "SELL"], ["cycle-net-invert", "SELL"], ["cycle-net-keep", "BUY"],
+    ["cycle-net-keep", "BUY"], ["cycle-net-invert", "SELL"], ["cycle-net-invert", "SELL"],
+    ["cycle-net-keep", "BUY"], ["cycle-net-keep", "BUY"], ["cycle-net-keep", "BUY"],
   ]);
 });
 

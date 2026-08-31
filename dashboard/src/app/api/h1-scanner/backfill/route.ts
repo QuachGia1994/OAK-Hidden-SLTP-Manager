@@ -87,7 +87,7 @@ export async function POST(request: Request) {
 
     // Persist and republish after every successful rebuild, even when no new
     // rows were added. parseCloudState/reconstruction may have normalized an
-    // existing day to a newer N/C/X rule version or removed stale X slots.
+    // existing day to a newer complete N/C rule version or restored missing slots.
     stage = "persist";
     await saveH1CloudState(state);
     await publishH1CloudState(state);

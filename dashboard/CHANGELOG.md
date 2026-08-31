@@ -14,6 +14,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Restored all Monday/Tuesday/Wednesday H1 blocks that were previously `X/remove`, so every weekday now uses the complete six-block N/C matrix. Signal rule advanced to v57 and the deploy history rebuild restores missing retained H slots without changing Telegram-scheduled BUY/SELL cells.
 - Replaced H1 FX targets `AUDUSD`, `USDCAD`, `USDJPY` with `GBPAUD`, `GBPCAD`, `GBPJPY` across scanner, history feed, timed Telegram table writes and UI rows. Legacy retained rows are ignored during state migration so current XAUUSD/GBPUSD data survives until the GBP-cross history is rebuilt.
 - The H1 scanner no longer sends `BLOCK ĐÃ ĐẾN` or H1 signal Telegram notifications. Future manual timed `BUY`/`SELL` entries now publish their side immediately into the matching H1 cell using IC Markets broker-wall time; on 2026-08-31, `buy XAUUSD 0.01 13h00 @fxce` maps to XAUUSD H09. Scanner/backfill refreshes preserve the manual `scheduledSignal`.
 - Redis failover now has one shared authority across Vercel serverless invocations. Once a failoverable primary Redis error promotes backup, later webhook/tick invocations keep reading and writing that backup, primary-to-backup sync is blocked until recovery instead of overwriting newer failover state, and scheduled intents more than two minutes late expire instead of executing stale trades.
