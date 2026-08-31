@@ -506,6 +506,10 @@ test("15 local canonical IDs stay namespaced while short numeric operator IDs re
     assert.equal(parseLocalTelegramCommand("/approve 1").type, "approve-local");
     assert.equal(parseLocalTelegramCommand("/del 1").type, "delete-local");
     assert.match(state.commands["151:0"].outcome, /intent #1 saved/);
+    assert.match(state.commands["151:0"].outcome, /Entry: BUY/);
+    assert.match(state.commands["151:0"].outcome, /Symbol: EURUSD/);
+    assert.match(state.commands["151:0"].outcome, /Profile: acct-a/);
+    assert.match(state.commands["151:0"].outcome, /Time: immediate/);
     assert.match(state.commands["151:0"].outcome, /\/del 1/);
     await h.runtime.processTelegramUpdate(h.config, state, { update_id: 152, message: { chat: { id: 123 }, text: "/approve 1" } }, statuses);
     assert.equal(h.eaExecutions, 1);
@@ -570,6 +574,10 @@ test("19 timed schedule auto-arms, stays PC-owned across handback, and immediate
     await h.runtime.processTelegramUpdate(h.config, state, { update_id: 191, message: { chat: { id: 123 }, text: "/buy EURUSD 0.01 23:59 @acct-a" } }, statuses);
     const scheduledId = Object.keys(state.intents)[0];
     assert.equal(state.intents[scheduledId].status, "scheduled");
+    assert.match(state.commands["191:0"].outcome, /Entry: BUY/);
+    assert.match(state.commands["191:0"].outcome, /Symbol: EURUSD/);
+    assert.match(state.commands["191:0"].outcome, /Profile: acct-a/);
+    assert.match(state.commands["191:0"].outcome, /Time: 23:59/);
     assert.equal(h.eaExecutions, 0);
     await h.runtime.processTelegramUpdate(h.config, state, { update_id: 193, message: { chat: { id: 123 }, text: "/sell GBPUSD 0.01 @acct-a" } }, statuses);
     const unapprovedId = Object.keys(state.intents).find((id) => id !== scheduledId);

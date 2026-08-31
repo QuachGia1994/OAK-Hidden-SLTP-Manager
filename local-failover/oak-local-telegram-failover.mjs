@@ -1014,6 +1014,16 @@ export function createLocalFailoverRuntime(options = {}) {
     for (const intent of due) await executeIntent(config, state, intent, statuses);
   }
 
+  function localIntentTimeText(intent) {
+    if (!Number.isFinite(Number(intent?.dueAt)) || Number(intent.dueAt) <= 0) return "immediate";
+    return new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Ho_Chi_Minh",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).format(new Date(Number(intent.dueAt)));
+  }
+
   async function createIntent(config, state, parsed, statuses, updateId, commandIndex) {
     const requested = targetFromPayload(parsed.payload);
     const { account } = selectAccount(config, statuses, requested);
@@ -1062,13 +1072,27 @@ export function createLocalFailoverRuntime(options = {}) {
     if (status === "scheduled") intent.scheduledAt = clock();
     scheduleWebSignalSync(state, intent);
     await saveState(state);
+    if (parsed.kind === "entry") {
+      return [
+        `✅ Local intent #${shortId} saved`,
+        `• Entry: ${String(payload.side || "").toUpperCase()}`,
+        `• Symbol: ${String(payload.symbol || "").toUpperCase()}`,
+        `• Profile: ${account.label}`,
+        `• Time: ${localIntentTimeText(intent)}`,
+        `• Lot: ${payload.lot}`,
+        ...(protection ? [`• Protection: SL ${protection.slPoints}pt · TP ${protection.tpPoints}pt`] : []),
+        `• Status: ${status}`,
+        `• ID: ${shortId} · cancel with /del ${shortId}`,
+        ...(status === "scheduled" ? ["• Auto: armed; executes at due time without /approve"] : [`• Confirm: /approve ${shortId}`]),
+      ].join("\n");
+    }
     return [
       `✅ ${config.controlMode === LOCAL_PRIMARY_MODE ? "Local" : "Local failover"} intent #${shortId} saved`,
-      `• ID: ${shortId} · cancel with /del ${shortId}`,
-      `• ${parsed.kind} @${account.label}`,
-      `• ${parsed.dueText}`,
-      ...(protection ? [`• Protection: SL ${protection.slPoints}pt · TP ${protection.tpPoints}pt`] : []),
+      `• Action: ${parsed.kind}`,
+      `• Profile: ${account.label}`,
+      `• Time: ${localIntentTimeText(intent)}`,
       `• Status: ${status}`,
+      `• ID: ${shortId} · cancel with /del ${shortId}`,
       ...(status === "scheduled" ? ["• Auto: armed; executes at due time without /approve"] : [`• Confirm: /approve ${shortId}`]),
     ].join("\n");
   }

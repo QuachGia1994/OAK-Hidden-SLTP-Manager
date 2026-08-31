@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Reformatted PC-local Telegram entry confirmations for operator scanning: saved intents now show explicit `Entry`, `Symbol`, `Profile`, and Vietnam-local `Time` fields, while retaining lot, SL/TP protection, status, short ID and `/del ID` cancellation.
 - Local Telegram intents now expose short numeric operator IDs while keeping canonical `L-<epoch>-<seq>` IDs internally for ledger/idempotency. `/pending` shows `#1`, new intents include `ID: 1`, and operators can use `/del 1` or `/approve 1`; long IDs remain diagnostic-compatible.
 - Temporarily disabled active H1 post-signal inversion and month-end CẦU/BRIDGE presentation. Signal rule advanced to v58; live/history signals now stay on their base H1 BUY/SELL direction, all bridge badges/highlights/derived summaries are hidden, and the configured N/C matrix plus bridge calendar helpers remain intact for later re-enable.
 - Restored every previously removed Monday/Tuesday/Wednesday H1 block so all weekdays now keep the full six-block schedule. Cycle-month rows are Monday `C N N C C C`, Tuesday `N C N C N C`, Wednesday `N C C C N C`, Thursday `N C C N C N`, Friday `N C C N C C`; regular months use the exact inverse. Signal rule advanced to v57 and history rebuild fills previously missing H slots.
