@@ -99,6 +99,7 @@ export function buildLocalConfig(bundle, upstashUrl, upstashToken, options = {})
       v: 3,
       controlMode: "local-primary",
       takeTelegramOwnership: options.takeTelegramOwnership !== false,
+      scheduledEntryExecution: "mt5-ui",
       telegramWebhookSecret: bundle.telegramWebhookSecret,
       webhookUrl: bundle.webhookUrl,
       webSignalUrl: options.webSignalUrl || WEB_SIGNAL_URL,
@@ -169,6 +170,7 @@ async function upgradeExistingLocalPrimaryConfig(configPath = CONFIG_PATH, commo
     v: 3,
     controlMode: "local-primary",
     takeTelegramOwnership: true,
+    scheduledEntryExecution: "mt5-ui",
     telegramToken: existing.telegramToken,
     telegramChatId: String(existing.telegramChatId),
     telegramWebhookSecret: existing.telegramWebhookSecret,
@@ -228,7 +230,7 @@ export async function main({ localPrimary = process.argv.includes("--local-prima
   if (result.localPrimary) {
     console.log(`Local-primary control config (v3) written to ${result.configPath} with ${result.accountCount} MT5 account definition(s).`);
     console.log("The PC controller will take over Telegram (webhook removed) and own MT5 execution; cloud execution is fenced while it runs.");
-    console.log("Attach EA 1.05+ first: local-primary refuses terminals that do not report a providerAccountId.");
+    console.log("Attach EA 1.08+ first: scheduled UI entry requires entry_prepare and position-comment verification.");
   } else {
     console.log(`Local failover config written to ${result.configPath} with ${result.accountCount} MT5 account snapshot(s).`);
     console.log("Secrets were copied locally but were not printed. Re-bootstrap after credential/account changes or when the snapshot expires.");

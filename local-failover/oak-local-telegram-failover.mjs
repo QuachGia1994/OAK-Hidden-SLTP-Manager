@@ -32,6 +32,7 @@ import {
   sanitizeOperatorError,
   telegramMt5OriginKey,
 } from "./oak-local-failover-domain.mjs";
+import { createMt5UiEntryAdapter, shouldUseMt5UiEntry } from "./mt5-ui-entry-adapter.mjs";
 
 const APP_LOCAL = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
 const APP_ROAMING = process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
@@ -287,6 +288,7 @@ export function createLocalFailoverRuntime(options = {}) {
   const telegram = options.telegram || real.telegram;
   const upstash = options.upstash || real.upstash;
   const eaAdapter = options.eaAdapter || { dispatch: defaultMailboxDispatch };
+  const mt5UiEntryAdapter = options.mt5UiEntryAdapter || createMt5UiEntryAdapter();
   const webSignal = options.webSignal || {
     async publish(config, signal) {
       if (!config.webSignalUrl || (!config.dashboardApiKey && !config.telegramWebhookSecret)) return { ok: false, skipped: "not-configured" };
@@ -346,9 +348,12 @@ export function createLocalFailoverRuntime(options = {}) {
       if (!config.telegramWebhookSecret || !config.webhookUrl) throw new Error("Failover mode requires the production Telegram webhook identity");
       if (!config.upstashUrl || !config.upstashToken) throw new Error("Failover mode requires Upstash REST credentials for write probing/recovery fencing");
     }
+    const scheduledEntryExecution = String(config.scheduledEntryExecution || "ea").trim().toLowerCase();
+    if (!["ea", "mt5-ui"].includes(scheduledEntryExecution)) throw new Error(`Unsupported scheduled entry execution driver: ${scheduledEntryExecution}`);
     return {
       ...config,
       controlMode,
+      scheduledEntryExecution,
       takeTelegramOwnership: controlMode === LOCAL_PRIMARY_MODE ? config.takeTelegramOwnership !== false : false,
       cloudFailureThreshold: Math.max(1, Number(config.cloudFailureThreshold || DEFAULT_CLOUD_FAILURE_THRESHOLD)),
       writeFailureThreshold: Math.max(1, Number(config.writeFailureThreshold || DEFAULT_WRITE_FAILURE_THRESHOLD)),
@@ -832,7 +837,15 @@ export function createLocalFailoverRuntime(options = {}) {
 
   async function dispatchTask(task, config) {
     const files = mailboxPaths(paths.commonDir, task.bridgeProfile, task.login, task.ledgerKey);
-    return eaAdapter.dispatch({ task, files, timeoutMs: config.localTaskTimeoutMs, clock, sleep, fs, paths });
+    const dispatchArgs = { task, files, timeoutMs: config.localTaskTimeoutMs, clock, sleep, fs, paths, config };
+    if (!shouldUseMt5UiEntry(task, config)) return eaAdapter.dispatch(dispatchArgs);
+    return mt5UiEntryAdapter.dispatch({
+      ...dispatchArgs,
+      dispatchEa(innerTask) {
+        const innerFiles = mailboxPaths(paths.commonDir, innerTask.bridgeProfile, innerTask.login, innerTask.ledgerKey);
+        return eaAdapter.dispatch({ ...dispatchArgs, task: innerTask, files: innerFiles });
+      },
+    });
   }
 
   // Realtime scheduler: the controller loop wakes at the nearest scheduled dueAt
@@ -894,6 +907,8 @@ export function createLocalFailoverRuntime(options = {}) {
       action: intent.kind,
       payload: intent.payload,
       protection: intent.protection,
+      dueAt: intent.dueAt,
+      terminalPath: intent.terminalPath || "",
       createdAt: clock(),
     };
   }
@@ -1057,6 +1072,7 @@ export function createLocalFailoverRuntime(options = {}) {
       login: account.login,
       server: account.server,
       environment: account.environment,
+      terminalPath: String(account.terminalPath || ""),
       sourceUpdateId: updateId,
       sourceCommandIndex: commandIndex,
       originKey,
@@ -1366,6 +1382,7 @@ export function createLocalFailoverRuntime(options = {}) {
       localPrimaryEaStatuses: fresh.filter((row) => row.localPrimary === true && row.localReady !== false).length,
       eaVersions: [...new Set(fresh.map((row) => String(row.eaVersion || "unknown")))],
       webSignalSyncConfigured: Boolean(config.webSignalUrl && (config.dashboardApiKey || config.telegramWebhookSecret)),
+      scheduledEntryExecution: config.scheduledEntryExecution,
       pendingWebSync: Object.keys(state.pendingWebSync || {}).length,
       fenceHeartbeatConfigured: Boolean(config.upstashUrl && config.upstashToken),
       lastFenceHeartbeatAt: Number(state.lastFenceHeartbeatAt || 0),

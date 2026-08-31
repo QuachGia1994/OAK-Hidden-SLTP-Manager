@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.07"
+#property version   "1.08"
 #property description "OAK local-only MT5 execution manager"
 
 // OAK Local Manager EA
@@ -59,7 +59,7 @@ input string InpPartialPercents            = "50";      // 1 pct = current-volum
 #define OAK_HEARTBEAT_PREFIX  "oak:mt5:bridge:heartbeat:v1:"
 #define OAK_TASK_TTL          604800
 #define OAK_HEARTBEAT_TTL     45
-#define OAK_EA_VERSION        "1.07"
+#define OAK_EA_VERSION        "1.08"
 #define OAK_LOCAL_DIR         "OAKLocalFailover\\"
 
 string g_profile = "";
@@ -698,7 +698,7 @@ bool ValidateBridgeTaskEnvelope(const string task,string &detail)
    if(StringLen(task)<=0 || StringLen(task)>16384) { detail="task payload size is invalid"; return false; }
    if(JsonLong(task,"version",0)!=2) { detail="task version must be 2"; return false; }
    string action=Lower(JsonString(task,"action"));
-   if(action!="positions" && action!="entry" && action!="close" && action!="modify" && action!="partial") { detail="unsupported MT5 task action"; return false; }
+   if(action!="positions" && action!="entry" && action!="entry_prepare" && action!="close" && action!="modify" && action!="partial") { detail="unsupported MT5 task action"; return false; }
    string source=Lower(JsonString(task,"source"));
    if(source!="local-primary") { detail="local-only EA accepts local-primary tasks only"; return false; }
    if(Lower(JsonString(task,"bridgeProfile"))!=ProfileKey()) { detail="bridge profile mismatch"; return false; }
@@ -717,12 +717,13 @@ bool ValidateBridgeTaskEnvelope(const string task,string &detail)
    if(!CanonicalOriginMatchesAccount(origin,provider)) { detail="origin/account identity mismatch"; return false; }
    if(!ValidOriginLedger(origin,ledger)) { detail="origin ledger hash mismatch"; return false; }
    if(!IsLowerHex(digest,64)) { detail="task digest is invalid"; return false; }
-   if(action=="entry")
+   if(action=="entry" || action=="entry_prepare")
    {
       string protection=JsonRaw(task,"protection");
       if(JsonDouble(protection,"slPoints",0)<=0 || JsonDouble(protection,"tpPoints",0)<=0) { detail="entry protection must contain positive SL/TP points"; return false; }
       string side=Upper(JsonString(payload,"side"));
       if((side!="BUY" && side!="SELL") || JsonString(payload,"symbol")=="" || JsonDouble(payload,"lot",0)<=0) { detail="entry payload is invalid"; return false; }
+      if(action=="entry_prepare" && !IsLowerHex(JsonString(payload,"entryLedgerKey"),40)) { detail="entry_prepare requires the final entry ledger key"; return false; }
    }
    return true;
 }
@@ -1147,15 +1148,27 @@ bool WaitForUsableTick(const string symbol, MqlTick &tick, string &detail)
    return false;
 }
 
-bool SendMarketEntry(const string symbol, bool buy, double lots, double sl_points, double tp_points, const string comment, ulong &broker_ref, string &detail)
+bool PrepareMarketEntryFields(
+   const string symbol,
+   bool buy,
+   double requested_lots,
+   double sl_points,
+   double tp_points,
+   double &lots,
+   double &price,
+   double &sl_price,
+   double &tp_price,
+   int &digits,
+   string &detail
+)
 {
-   if(lots<=0) { detail="lot must be positive"; return false; }
-   if(InpMaxLotPerTrade>0 && lots>InpMaxLotPerTrade+1e-10) { detail="lot exceeds EA max-lot guard"; return false; }
+   if(requested_lots<=0) { detail="lot must be positive"; return false; }
+   if(InpMaxLotPerTrade>0 && requested_lots>InpMaxLotPerTrade+1e-10) { detail="lot exceeds EA max-lot guard"; return false; }
    double minv=SymbolInfoDouble(symbol,SYMBOL_VOLUME_MIN);
    double maxv=SymbolInfoDouble(symbol,SYMBOL_VOLUME_MAX);
    double step=SymbolInfoDouble(symbol,SYMBOL_VOLUME_STEP);
    if(minv<=0 || maxv<=0 || step<=0) { detail="symbol volume constraints unavailable"; return false; }
-   lots=NormalizeVolume(symbol,lots);
+   lots=NormalizeVolume(symbol,requested_lots);
 
    if(InpMaxExposurePerSymbol>0)
    {
@@ -1168,20 +1181,31 @@ bool SendMarketEntry(const string symbol, bool buy, double lots, double sl_point
       if(exposure+lots>InpMaxExposurePerSymbol+1e-10) { detail="symbol exposure guard exceeded"; return false; }
    }
 
-   ulong existing=0;
-   if(comment!="" && EntryCommentExists(symbol,comment,existing))
-   { broker_ref=existing; detail="existing entry reconciled by comment"; return true; }
-
    string net_detail="";
    if(!PreEntryNet(symbol,buy,net_detail)) { detail=net_detail; return false; }
    MqlTick tick;
    if(!WaitForUsableTick(symbol,tick,detail)) return false;
    double point=SymbolInfoDouble(symbol,SYMBOL_POINT);
-   int digits=(int)SymbolInfoInteger(symbol,SYMBOL_DIGITS);
-   double price=(buy?tick.ask:tick.bid);
+   digits=(int)SymbolInfoInteger(symbol,SYMBOL_DIGITS);
+   price=(buy?tick.ask:tick.bid);
    if(price<=0 || point<=0) { detail="price/point unavailable"; return false; }
    if(sl_points<=0 || tp_points<=0) DefaultProtection(symbol,sl_points,tp_points);
    if(sl_points<=0 || tp_points<=0) { detail="SL/TP points must be positive"; return false; }
+   sl_price=NormalizeDouble(buy ? price-sl_points*point : price+sl_points*point,digits);
+   tp_price=NormalizeDouble(buy ? price+tp_points*point : price-tp_points*point,digits);
+   detail="entry fields prepared";
+   return true;
+}
+
+bool SendMarketEntry(const string symbol, bool buy, double requested_lots, double sl_points, double tp_points, const string comment, ulong &broker_ref, string &detail)
+{
+   ulong existing=0;
+   if(comment!="" && EntryCommentExists(symbol,comment,existing))
+   { broker_ref=existing; detail="existing entry reconciled by comment"; return true; }
+
+   double lots=0,price=0,sl_price=0,tp_price=0;
+   int digits=0;
+   if(!PrepareMarketEntryFields(symbol,buy,requested_lots,sl_points,tp_points,lots,price,sl_price,tp_price,digits,detail)) return false;
 
    MqlTradeRequest req; MqlTradeResult res; ZeroMemory(req); ZeroMemory(res);
    req.action=TRADE_ACTION_DEAL;
@@ -1189,8 +1213,8 @@ bool SendMarketEntry(const string symbol, bool buy, double lots, double sl_point
    req.volume=lots;
    req.type=(buy?ORDER_TYPE_BUY:ORDER_TYPE_SELL);
    req.price=price;
-   req.sl=NormalizeDouble(buy ? price-sl_points*point : price+sl_points*point,digits);
-   req.tp=NormalizeDouble(buy ? price+tp_points*point : price-tp_points*point,digits);
+   req.sl=sl_price;
+   req.tp=tp_price;
    req.deviation=InpDeviationPoints;
    req.magic=(ulong)InpTradeMagic;
    req.type_time=ORDER_TIME_GTC;
@@ -1410,10 +1434,47 @@ string PositionSnapshotJson()
          +",\"openPrice\":"+DoubleToString(PositionGetDouble(POSITION_PRICE_OPEN),10)
          +",\"currentPrice\":"+DoubleToString(PositionGetDouble(POSITION_PRICE_CURRENT),10)
          +",\"sl\":"+DoubleToString(PositionGetDouble(POSITION_SL),10)
-         +",\"tp\":"+DoubleToString(PositionGetDouble(POSITION_TP),10)+"}";
+         +",\"tp\":"+DoubleToString(PositionGetDouble(POSITION_TP),10)
+         +",\"comment\":"+JsonQuote(PositionGetString(POSITION_COMMENT))+"}";
    }
    out+="]";
    return out;
+}
+
+string ExecuteEntryPrepareTask(const string task)
+{
+   string payload=JsonRaw(task,"payload");
+   string protection=JsonRaw(task,"protection");
+   string side=Upper(JsonString(payload,"side"));
+   string symbol=ResolveSymbol(JsonString(payload,"symbol"));
+   double requested_lots=JsonDouble(payload,"lot",0);
+   double slp=JsonDouble(protection,"slPoints",0);
+   double tpp=JsonDouble(protection,"tpPoints",0);
+   string entry_ledger=JsonString(payload,"entryLedgerKey");
+   if(symbol=="" || (side!="BUY" && side!="SELL") || !IsLowerHex(entry_ledger,40))
+      return ResultJson(false,"entry_prepare","invalid symbol/side/final entry ledger");
+
+   string comment="OAK:"+StringSubstr(entry_ledger,0,16);
+   ulong existing=0;
+   if(EntryCommentExists(symbol,comment,existing))
+      return ResultJson(false,"entry_prepare","entry comment already exists; UI replay refused",true,IntegerToString((long)existing));
+
+   double lots=0,price=0,sl_price=0,tp_price=0;
+   int digits=0;
+   string detail="";
+   if(!PrepareMarketEntryFields(symbol,side=="BUY",requested_lots,slp,tpp,lots,price,sl_price,tp_price,digits,detail))
+      return ResultJson(false,"entry_prepare",detail);
+
+   return "{\"ok\":true"
+      +",\"action\":\"entry_prepare\""
+      +",\"detail\":\"EA guards passed; MT5 UI fields prepared\""
+      +",\"resolvedSymbol\":"+JsonQuote(symbol)
+      +",\"side\":"+JsonQuote(side)
+      +",\"volumeText\":"+JsonQuote(DoubleToString(lots,8))
+      +",\"slText\":"+JsonQuote(DoubleToString(sl_price,digits))
+      +",\"tpText\":"+JsonQuote(DoubleToString(tp_price,digits))
+      +",\"comment\":"+JsonQuote(comment)
+      +"}";
 }
 
 string ExecuteEntryTask(const string task)
@@ -1521,6 +1582,7 @@ string ExecuteTask(const string task)
 {
    string action=Lower(JsonString(task,"action"));
    if(action=="positions") return ResultJson(true,"positions",IntegerToString(PositionsTotal())+" open position(s)",false,"",PositionSnapshotJson());
+   if(action=="entry_prepare") return ExecuteEntryPrepareTask(task);
    if(action=="entry") return ExecuteEntryTask(task);
    if(action=="close") return ExecuteCloseTask(task);
    if(action=="modify") return ExecuteModifyTask(task);

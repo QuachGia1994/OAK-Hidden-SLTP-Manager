@@ -5,16 +5,16 @@
 ## Runtime flow
 
 ```text
-Telegram -> PC local controller -> MetaTrader FILE_COMMON -> OAK EA -> MT5 broker
-                                  \
-                                   -> optional H1 website signal sync
+Scheduled ENTRY -> controller -> EA entry_prepare -> targeted MT5 order-window messages -> broker
+Other actions   -> controller -> MetaTrader FILE_COMMON -> OAK EA -> broker
+Website signal  -> optional non-blocking H1 sync
 ```
 
 The local controller owns Telegram timing and durable intent state. The website sync is visibility-only and cannot block broker dispatch. If the PC/terminal is offline at the scheduled time, the local stale-window rule fails closed rather than blindly replaying an old broker mutation.
 
 ## Features
 
-- Local `entry`, `close`, `closeall`, `modify`, `partial`, and `positions` through FILE_COMMON.
+- Local `entry`, `close`, `closeall`, `modify`, `partial`, and `positions` through FILE_COMMON; EA v1.08 also exposes internal `entry_prepare` for scheduled UI entry.
 - Automatic SL/TP on managed positions opened by EA, manual, mobile, or other permitted sources when protection is missing.
 - Entry netting policy: skip same direction, close opposite positions, remove opposite pending orders before a new entry.
 - Break-even at configurable R with optional point offset.
@@ -27,6 +27,7 @@ The local controller owns Telegram timing and durable intent state. The website 
 - Market entry waits up to 2.5 seconds for symbol synchronization and a usable bid/ask before building the broker request. There is no blind broker retry after an ambiguous transport result.
 - EA v1.06 removed all cloud bridge settings from MT5 Properties and stopped cloud polling from `OnTimer`.
 - EA v1.07 lowers the local FILE_COMMON poll default to `100ms` and makes all partial closes round DOWN to broker volume step while always retaining at least one broker minimum-volume remainder.
+- EA v1.08 adds internal `entry_prepare`: it preserves the existing same-direction skip, opposite-position/pending cleanup, exposure/lot/symbol/tick guards and absolute SL/TP calculation, then returns exact fields for the controller. Only a due scheduled entry may use those fields to click the exact MT5 Buy/Sell control via targeted window messages; immediate entries and all management actions remain EA-executed. No global mouse or keyboard injection is used.
 
 ## Install
 
@@ -40,10 +41,11 @@ The local controller owns Telegram timing and durable intent state. The website 
    - `InpLocalPollMsV107`: default `100`; clamped to `100..5000` ms. The v1.07 variable name intentionally changed so already-attached charts do not preserve the old 250ms value.
 6. Configure SL/TP, netting, BE/R and exposure guards as required.
 7. Keep the PC local controller running 24/5. Use `/status`, `/profiles`, and `/positions @ACCOUNT` for read-only verification before any broker mutation.
+8. For `scheduledEntryExecution: "mt5-ui"`, run the controller and each MT5 terminal at the same Windows integrity level. Prefer opening MT5 normally rather than **Run as administrator**; Windows blocks targeted messages from a lower-integrity controller to an elevated terminal.
 
 ## Security
 
-EA v1.07 contains no Upstash/cloud token Input and no cloud broker-execution polling path. Local runtime secrets such as the Telegram bot token and dashboard sync API key stay outside Git under the Windows user-only local runtime directory. Do not share populated local configuration or screenshots containing secrets.
+EA v1.08 contains no Upstash/cloud token Input and no cloud broker-execution polling path. Local runtime secrets such as the Telegram bot token and dashboard sync API key stay outside Git under the Windows user-only local runtime directory. Do not share populated local configuration or screenshots containing secrets.
 
 Local-only execution improves privacy by keeping broker mutations inside the user's MT5 terminal, but it is not a claim that an EA or its orders are undetectable to a broker.
 

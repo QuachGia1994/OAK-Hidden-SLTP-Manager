@@ -6,6 +6,8 @@ All notable changes to the dashboard are recorded here.
 
 ### Added
 
+- Added the PC-local scheduled MT5 entry driver and EA v1.08 preparation contract. Only due `entry` intents may use targeted MT5 order-window messages with no global mouse/keyboard injection; immediate entry and every management action remain on the EA mailbox path, while ambiguous submit outcomes are durably `UNCERTAIN` and never replayed automatically.
+
 - Added idempotent Telegram entry scheduling support for live H1 operations. Existing pending H1 intents are backfilled for notification when their entry time is near, fixed lots are 0.05 for FX and 0.01 for XAUUSD on the $5,000 sizing policy, and pending H1 intent lots are normalized before approval. H1 history now uses a visual native calendar picker with weekday filters and broker-date bounds. Scanner-originated block/signal Telegram reminders were subsequently retired in favor of operator-entered timed commands feeding the web table.
 
 - Reworked the H1 core as state v54 / public feed schema 16 / signal rule 49. Entry signals use the broker H1 candle one hour before entry (`08:00` and `08:25` both read `H07:00`) as the base direction for all FX and XAUUSD; M5 Bollinger is no longer authoritative. The six-block weekday inversion/keep matrix is applied uniformly across symbols and weeks, with cycle-month Thu/Fri, Tue/Wed and Monday groups matching the published rule, and non-cycle Thursday months using the inverse matrix. Fixed lots remain `0.05` FX / `0.01` XAUUSD; the `/approve ID` broker-mutation boundary is unchanged.

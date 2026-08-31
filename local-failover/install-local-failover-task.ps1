@@ -30,9 +30,9 @@ function Get-NodeInfo {
 }
 
 function Test-NodeImportGraph([string]$NodePath) {
-  $domainUri = ([Uri]$Domain).AbsoluteUri
-  & $NodePath --input-type=module -e "await import(process.argv[1]);" $domainUri | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw "Node cannot import the local failover dependency graph (including dashboard .ts modules)" }
+  $controllerUri = ([Uri]$Script).AbsoluteUri
+  & $NodePath --input-type=module -e "await import(process.argv[1]);" $controllerUri | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw "Node cannot import the local failover controller dependency graph (including the MT5 UI adapter)" }
 }
 
 function Test-ConfigAcl {
@@ -41,8 +41,16 @@ function Test-ConfigAcl {
   $configFull = [IO.Path]::GetFullPath($ConfigPath)
   if ($configFull.StartsWith($repoRoot, [StringComparison]::OrdinalIgnoreCase)) { throw "Runtime config must be outside the Git repository" }
   $config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
-  if ($config.v -ne 2 -or -not $config.telegramToken -or -not $config.telegramChatId -or -not $config.telegramWebhookSecret -or -not $config.upstashUrl -or -not $config.upstashToken) {
-    throw "Local failover config v2 is incomplete"
+  if (@(2, 3) -notcontains [int]$config.v -or -not $config.telegramToken -or -not $config.telegramChatId -or -not $config.telegramWebhookSecret) {
+    throw "Local failover config v2/v3 is incomplete"
+  }
+  if ([int]$config.v -eq 2 -and (-not $config.upstashUrl -or -not $config.upstashToken)) {
+    throw "Local failover config v2 requires Upstash REST credentials"
+  }
+  if ([int]$config.v -eq 3) {
+    if ([string]$config.controlMode -ne "local-primary") { throw "Local failover config v3 requires controlMode=local-primary" }
+    $driver = if ($config.scheduledEntryExecution) { [string]$config.scheduledEntryExecution } else { "ea" }
+    if (@("ea", "mt5-ui") -notcontains $driver.ToLowerInvariant()) { throw "Local failover config v3 has an unsupported scheduled-entry driver" }
   }
   $acl = Get-Acl -LiteralPath $ConfigPath
   if (-not $acl.AreAccessRulesProtected) { throw "Runtime config ACL still inherits permissions; bootstrap must apply user-only ACL" }

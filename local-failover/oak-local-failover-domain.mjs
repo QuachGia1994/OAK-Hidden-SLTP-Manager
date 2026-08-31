@@ -11,7 +11,7 @@ export const FAILOVER_MODES = Object.freeze({
   BLOCKED_UNCERTAIN: "BLOCKED_UNCERTAIN",
 });
 export const DEFAULT_SNAPSHOT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-const MUTATIONS = new Set(["entry", "close", "modify", "partial"]);
+const MUTATIONS = new Set(["entry", "entry_prepare", "close", "modify", "partial"]);
 const TERMINAL = new Set(["executed", "failed", "uncertain", "cancelled", "expired"]);
 const LOCAL_ID_RE = /^L-(\d+)-(\d+)$/;
 const LOCAL_SHORT_ID_RE = /^\d+$/;

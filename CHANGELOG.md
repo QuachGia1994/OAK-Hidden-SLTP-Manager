@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added the production PC-local scheduled-entry driver: only due MT5 `entry` intents retain EA v1.08 preparation/netting/exposure/SLTP guards and then submit through exact MT5 order-window messages without global mouse or keyboard injection. Immediate entry and all close/modify/partial/position-management paths remain EA-executed; durable claim/result evidence and EA position-comment verification fail closed as `UNCERTAIN` instead of replaying an ambiguous submit.
+
 - Split H1 Live from History navigation: Live is now pinned to the latest/current broker day with no date picker or retained-day coverage controls, while the History route exclusively owns the Sunday-first broker calendar and historical date selection.
 - Reformatted PC-local Telegram entry confirmations for operator scanning: saved intents now show explicit `Entry`, `Symbol`, `Profile`, and Vietnam-local `Time` fields, while retaining lot, SL/TP protection, status, short ID and `/del ID` cancellation.
 - Local Telegram intents now expose short numeric operator IDs while keeping canonical `L-<epoch>-<seq>` IDs internally for ledger/idempotency. `/pending` shows `#1`, new intents include `ID: 1`, and operators can use `/del 1` or `/approve 1`; long IDs remain diagnostic-compatible.

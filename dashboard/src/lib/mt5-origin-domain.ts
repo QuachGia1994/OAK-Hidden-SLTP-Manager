@@ -80,7 +80,7 @@ export function mt5BrokerTaskDigest(args: {
     payload: brokerPayload,
     protection: args.protection || null,
   };
-  if (!immutable.bridgeProfile || !Number.isSafeInteger(immutable.login) || immutable.login <= 0 || !immutable.server || !["entry", "close", "modify", "partial"].includes(immutable.action)) {
+  if (!immutable.bridgeProfile || !Number.isSafeInteger(immutable.login) || immutable.login <= 0 || !immutable.server || !["entry", "entry_prepare", "close", "modify", "partial"].includes(immutable.action)) {
     throw new Error("complete MT5 broker task identity is required");
   }
   return createHash("sha256").update(canonicalJson(immutable), "utf8").digest("hex");

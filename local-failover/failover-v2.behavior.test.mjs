@@ -109,6 +109,7 @@ async function createHarness(name, options = {}) {
     accountSnapshotMaxAgeMs: 7 * 24 * 60 * 60 * 1000,
     webhookCheckIntervalMs: 1,
     localTaskTimeoutMs: 50,
+    scheduledEntryExecution: options.scheduledEntryExecution || "ea",
     webSyncTimeoutMs: 5_000,
     ...(options.webSignalUrl ? { webSignalUrl: options.webSignalUrl, dashboardApiKey: "test-dashboard-key" } : {}),
     accounts: options.accounts || [{ ...ACCOUNT_A }],
@@ -202,6 +203,13 @@ async function createHarness(name, options = {}) {
       return { status: "done", result: { ok: true, action: task.action, detail: "synthetic execution", brokerRef: "TEST" } };
     },
   };
+  const mt5UiTasks = [];
+  const mt5UiEntryAdapter = {
+    async dispatch({ task }) {
+      mt5UiTasks.push(task);
+      return { status: "done", result: { ok: true, action: "entry", detail: "synthetic no-mouse UI execution", brokerRef: "UI-TEST" } };
+    },
+  };
 
   const webSignal = {
     publishes: [],
@@ -219,6 +227,7 @@ async function createHarness(name, options = {}) {
     sleep: async () => {},
     telegram,
     upstash,
+    mt5UiEntryAdapter,
     logger: async () => {},
   };
   if (options.webSignal) runtimeOptions.webSignal = webSignal;
@@ -232,7 +241,7 @@ async function createHarness(name, options = {}) {
   for (const row of options.statuses || []) await writeStatus(row);
 
   return {
-    root, paths, config, runtime, telegram, upstash, calls, sent, eaTasks, webSignal,
+    root, paths, config, runtime, telegram, upstash, calls, sent, eaTasks, mt5UiTasks, webSignal,
     get eaExecutions() { return eaExecutions; },
     get now() { return nowRef.value; },
     advance(ms) { nowRef.value += ms; },
@@ -1080,5 +1089,30 @@ test("38 cloud fence heartbeat renews after its throttle window and expires serv
     h.advance(61_000);
     await h.runtime.runOneIteration(h.config, state);
     assert.equal(h.calls.filter((call) => call === "redis:SET").length, first + 1);
+  } finally { await h.cleanup(); }
+});
+
+test("scheduled-entry driver never captures immediate entry or non-entry mutations", { concurrency: false }, async () => {
+  const h = await createHarness("ui-entry-routing", {
+    controlMode: "local-primary",
+    scheduledEntryExecution: "mt5-ui",
+  });
+  try {
+    const scheduled = mutationTask({ id: "L-900-ui-scheduled", dueAt: BASE_NOW + 1_000 });
+    const scheduledEnvelope = await h.runtime.dispatchTask(scheduled, h.config);
+    assert.equal(scheduledEnvelope.status, "done");
+    assert.equal(h.mt5UiTasks.length, 1);
+    assert.equal(h.mt5UiTasks[0].action, "entry");
+    assert.equal(h.eaTasks.length, 0);
+
+    const immediate = mutationTask({ id: "L-900-ui-immediate", dueAt: null });
+    await h.runtime.dispatchTask(immediate, h.config);
+    assert.equal(h.mt5UiTasks.length, 1);
+    assert.equal(h.eaTasks.at(-1).action, "entry");
+
+    const scheduledClose = mutationTask({ id: "L-900-ui-close", action: "close", dueAt: BASE_NOW + 2_000 });
+    await h.runtime.dispatchTask(scheduledClose, h.config);
+    assert.equal(h.mt5UiTasks.length, 1);
+    assert.equal(h.eaTasks.at(-1).action, "close");
   } finally { await h.cleanup(); }
 });

@@ -8,6 +8,7 @@ const bridge = readFileSync(new URL("./mt5-bridge.ts", import.meta.url), "utf8")
 const execution = readFileSync(new URL("./telegram-cloud-execution.ts", import.meta.url), "utf8");
 const ea = readFileSync(new URL("../../../mt5/OAK_Cloud_Manager_EA.mq5", import.meta.url), "utf8");
 const localFailover = readFileSync(new URL("../../../local-failover/oak-local-telegram-failover.mjs", import.meta.url), "utf8");
+const localInstaller = readFileSync(new URL("../../../local-failover/install-local-failover-task.ps1", import.meta.url), "utf8");
 
 test("legacy cTrader target ids migrate to namespaced provider ids", () => {
   assert.equal(normalizeProviderAccountId(12345), "ctrader:12345");
@@ -42,8 +43,8 @@ test("web accepts only OAK MQL5 EA heartbeats for MT5 bridge execution", () => {
   assert.match(ea, /StateSet\(id,"pp_armed",1\.0\)/);
 });
 
-test("OAK MQL5 EA v1.07 exposes local-only Inputs and 100ms mailbox polling", () => {
-  assert.match(ea, /#property version\s+"1\.07"/);
+test("OAK MQL5 EA v1.08 exposes local-only Inputs, guarded UI preparation and 100ms polling", () => {
+  assert.match(ea, /#property version\s+"1\.08"/);
   assert.match(ea, /input group "Local PC Control"/);
   assert.match(ea, /InpLocalPollMsV107\s*= 100/);
   assert.doesNotMatch(ea, /input group "OAK Cloud Bridge"/);
@@ -52,6 +53,9 @@ test("OAK MQL5 EA v1.07 exposes local-only Inputs and 100ms mailbox polling", ()
   assert.match(ea, /const string InpUpstashRestUrl\s*= ""/);
   assert.match(ea, /const string InpUpstashRestToken\s*= ""/);
   assert.match(ea, /broker mutations are never blindly retried/i);
+  assert.match(ea, /action=="entry_prepare"/);
+  assert.match(ea, /ExecuteEntryPrepareTask\(task\)/);
+  assert.match(ea, /POSITION_COMMENT/);
   assert.doesNotMatch(ea, /PositionClosePartial/);
   assert.doesNotMatch(ea, /const char &input\[\]/);
 });
@@ -100,6 +104,13 @@ test("MT5 local-only mutations use a per-origin atomic FILE_COMMON claim boundar
   assert.match(ea, /ExecuteMutationWithOriginFence\(task\)/);
   assert.match(ea, /source!="local-primary"/);
   assert.match(localFailover, /source: config\.controlMode === LOCAL_PRIMARY_MODE \? "local-primary" : "local-failover"/);
+});
+
+test("scheduled-task doctor validates the full controller graph and local-primary config v3", () => {
+  assert.match(localInstaller, /await import\(process\.argv\[1\]\)/);
+  assert.match(localInstaller, /@\(2, 3\) -notcontains/);
+  assert.match(localInstaller, /scheduledEntryExecution/);
+  assert.match(localInstaller, /controlMode=local-primary/);
 });
 
 test("PC Telegram failover uses a write canary, preserves pending updates, and fences recovery before webhook restore", () => {
