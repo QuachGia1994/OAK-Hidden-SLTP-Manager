@@ -88,7 +88,14 @@ test("cloud receiver requires explicit approve before broker mutation", () => {
   assert.match(ctrader, /relativeTakeProfit/);
 });
 
-test("due scheduler executes only pre-approved scheduled intents with one task-list read per tick", () => {
+test("due scheduler self-heals missing webhook config and executes only pre-approved scheduled intents with one task-list read per tick", () => {
+  assert.match(tick, /ensureTelegramControlConfig/);
+  assert.match(tick, /randomBytes\(32\)\.toString\("base64url"\)/);
+  assert.match(tick, /setWebhook/);
+  assert.match(tick, /TELEGRAM_CLOUD_WEBHOOK_URL/);
+  assert.match(tick, /drop_pending_updates: false/);
+  assert.match(tick, /await saveH1CloudConfig\(repaired\)/);
+  assert.match(tick, /activeConfig\?\.telegramControlEnabled/);
   assert.match(tick, /const tasks = await listCloudIntents\(\)/);
   assert.equal((tick.match(/listCloudIntents\(\)/g) || []).length, 1);
   assert.doesNotMatch(tick, /listDueScheduledIntents/);

@@ -1,9 +1,10 @@
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { redis, releaseOwnedRedisLock, requireAuth } from "@/lib/redis-core";
-import { loadH1CloudConfig } from "@/lib/h1-cloud-config";
+import { loadH1CloudConfig, saveH1CloudConfig, type H1CloudConfig } from "@/lib/h1-cloud-config";
 import { runCTraderAccountManager } from "@/lib/ctrader-account-manager";
 import { TELEGRAM_CLOUD_PROFILE, isDueScheduledIntent } from "@/lib/telegram-cloud-domain";
+import { TELEGRAM_CLOUD_WEBHOOK_URL } from "@/lib/telegram-cloud-config";
 import { renderCloudExecutionResult, runCloudIntentExecution } from "@/lib/telegram-cloud-runner";
 import { appendTelegramAudit, listCloudIntents, markDueNotification } from "@/lib/telegram-cloud-store";
 import { verifyTelegramCloudGitHubOidc } from "@/lib/telegram-cloud-oidc";
@@ -38,6 +39,38 @@ async function authorize(request: Request): Promise<NextResponse | null> {
   return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
 }
 
+async function installTelegramWebhook(token: string, secret: string): Promise<void> {
+  const response = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      url: TELEGRAM_CLOUD_WEBHOOK_URL,
+      secret_token: secret,
+      allowed_updates: ["message", "callback_query"],
+      drop_pending_updates: false,
+    }),
+    cache: "no-store",
+  });
+  const payload = await response.json().catch(() => ({})) as { ok?: boolean; description?: string };
+  if (!response.ok || payload.ok !== true) throw new Error(payload.description || `Telegram setWebhook failed (${response.status})`);
+}
+
+async function ensureTelegramControlConfig(config: H1CloudConfig | null): Promise<H1CloudConfig | null> {
+  if (!config?.telegramToken || !config.telegramChatId) return config;
+  if (config.telegramWebhookSecret) return { ...config, telegramControlEnabled: true };
+
+  const secret = randomBytes(32).toString("base64url");
+  await installTelegramWebhook(config.telegramToken, secret);
+  const repaired: H1CloudConfig = {
+    ...config,
+    telegramWebhookSecret: secret,
+    telegramControlEnabled: true,
+    savedAt: Date.now(),
+  };
+  await saveH1CloudConfig(repaired);
+  return repaired;
+}
+
 async function sendTelegram(token: string, chatId: string, text: string): Promise<void> {
   const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
@@ -70,9 +103,10 @@ export async function POST(request: Request) {
   if (!await acquireLock(lock)) return NextResponse.json({ ok: true, enabled: true, skipped: "already-running", notified: 0 });
 
   try {
+    const activeConfig = await ensureTelegramControlConfig(config);
     const now = Date.now();
     const ctraderManager = await runCTraderAccountManager(now);
-    if (!config?.telegramControlEnabled) {
+    if (!activeConfig?.telegramControlEnabled || !activeConfig.telegramWebhookSecret) {
       return NextResponse.json({ ok: true, enabled: false, notified: 0, ctraderManager });
     }
     const tasks = await listCloudIntents();
@@ -81,7 +115,7 @@ export async function POST(request: Request) {
     for (const task of due) {
       const finished = await runCloudIntentExecution(task.id, now);
       if (!finished) continue;
-      await sendTelegram(config.telegramToken, config.telegramChatId, [
+      await sendTelegram(activeConfig.telegramToken, activeConfig.telegramChatId, [
         `⏰ ${TELEGRAM_CLOUD_PROFILE} · intent #${task.id} đã tới giờ`,
         renderCloudExecutionResult(finished),
       ].join("\n"));
@@ -93,7 +127,7 @@ export async function POST(request: Request) {
       .slice(0, 20);
     let reminded = 0;
     for (const task of unapprovedDue) {
-      await sendTelegram(config.telegramToken, config.telegramChatId, [
+      await sendTelegram(activeConfig.telegramToken, activeConfig.telegramChatId, [
         `⚠️ ${TELEGRAM_CLOUD_PROFILE} · intent #${task.id} đã tới giờ nhưng chưa được xác nhận`,
         `• Mốc: ${task.dueText}`,
         `• Dùng /approve ${task.id} để execute ngay; cloud không tự vượt bước xác nhận.`,
