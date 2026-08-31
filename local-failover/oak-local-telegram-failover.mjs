@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import {
   TELEGRAM_MULTI_COMMAND_LIMIT,
   approvedStatusForDueAt,
+  initialCloudIntentStatus,
   splitCloudTelegramCommands,
 } from "../dashboard/src/lib/telegram-cloud-domain.ts";
 import {
@@ -560,7 +561,7 @@ export function createLocalFailoverRuntime(options = {}) {
     state.webhookVerifiedEmptyAt = 0;
     state.lastWebhookCheckAt = clock();
     await transition(state, FAILOVER_MODES.STANDBY);
-    state.pendingSystemMessages.push("✅ OAK Cloud RESTORED\nLocally handled Telegram updates were fenced before the production webhook was restored. Approved local schedules remain PC-owned until terminal state.");
+    state.pendingSystemMessages.push("✅ OAK Cloud RESTORED\nLocally handled Telegram updates were fenced before the production webhook was restored. Local scheduled intents remain PC-owned until terminal state.");
     await saveState(state);
     await log("Cloud webhook restored and verified after Redis fencing");
   }
@@ -579,7 +580,7 @@ export function createLocalFailoverRuntime(options = {}) {
       "• Cloud remains primary; local activates only after EA failures + repeated independent Redis write failures.",
       "• /status · /profiles · /positions [@ACCOUNT] · /pending",
       "• /buy, /sell, /close, /closeall, /modify, /partial",
-      "• Broker mutations require two steps: create intent, then /approve L-<epoch>-<seq>.",
+      "• Timed entry/close intents auto-arm when saved; immediate mutations still require /approve L-<epoch>-<seq>.",
       "• /del L-<epoch>-<seq> [...] | /del all",
       "• Bare numeric cloud intent IDs are never accepted in local mode.",
       "• More than 10 non-empty command lines rejects the whole Telegram message.",
@@ -788,10 +789,11 @@ export function createLocalFailoverRuntime(options = {}) {
       payload,
       protection: protection || null,
     });
+    const status = initialCloudIntentStatus("Telegram Cloud", parsed.dueAt, clock());
     const intent = {
       id,
       kind: parsed.kind,
-      status: "approval_required",
+      status,
       accountLabel: account.label,
       providerAccountId: account.providerAccountId,
       bridgeProfile: account.bridgeProfile,
@@ -816,8 +818,8 @@ export function createLocalFailoverRuntime(options = {}) {
       `• ${parsed.kind} @${account.label}`,
       `• ${parsed.dueText}`,
       ...(protection ? [`• Protection: SL ${protection.slPoints}pt · TP ${protection.tpPoints}pt`] : []),
-      "• Status: approval_required",
-      `• Confirm: /approve ${id}`,
+      `• Status: ${status}`,
+      ...(status === "scheduled" ? ["• Auto: armed; executes at due time without /approve"] : [`• Confirm: /approve ${id}`]),
     ].join("\n");
   }
 
@@ -1016,7 +1018,7 @@ export function createLocalFailoverRuntime(options = {}) {
       return;
     }
 
-    // After successful handback, already-approved local schedules stay PC-owned.
+    // After successful handback, local scheduled intents stay PC-owned.
     await dispatchDueIntents(config, state, refreshed);
   }
 

@@ -14,6 +14,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Manual Telegram timed entry/close commands now auto-arm future `HH:MM` / `HHhMM` intents as `scheduled` and run through the existing due tick without `/approve`. Immediate commands, stale/past explicit times and H1 Scanner intents keep the approval boundary, and already-saved `approval_required` intents are not converted into late trades.
 - Preserved valid H1 Pattern 2 alerts when entry-relative M15 evidence is flat; once a pattern supplies its entry time, only the prior H1 base-candle lookup gates publication. The H1 table now sizes itself from the active seven hour columns instead of stretching across the legacy 79rem grid.
 - Decoupled H1 signal/history persistence from trading-automation readiness. The public table now advances even when the exact cTrader scanner account or Telegram control is unavailable, while intent creation and Telegram delivery remain fail-closed and the route reports the skipped reason.
 - Fixed cTrader M15 normalization to key candles by broker date, hour and minute. This prevents cross-hour `:00/:15/:30/:45` collisions that reduced every historical day to four M15 candles and left the H1 table empty; deployment backfill now reconstructs BUY/SELL from the complete provider history.

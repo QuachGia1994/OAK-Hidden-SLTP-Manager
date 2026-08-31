@@ -326,8 +326,9 @@ async function handleCommand(text: string, chatId: string, updateId: number, sou
       ...protectionRows,
       ...intentRows,
       `• Trạng thái: ${task.status}`,
-      `• Xác nhận: /approve ${task.id}`,
-      task.dueAt !== null ? "• Có thể approve trước; đến giờ cloud tự execute." : "• Sau /approve, cloud execute ngay một lần.",
+      ...(task.status === "scheduled"
+        ? ["• Tự động: đã arm; tới giờ cloud execute, không cần /approve."]
+        : [`• Xác nhận: /approve ${task.id}`, "• Sau /approve, cloud execute ngay một lần."]),
     ].join("\n");
   }
   await appendTelegramAudit({ action: "command_rejected", rawText: text, reason: command.reason });

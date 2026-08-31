@@ -73,8 +73,10 @@ test("local failover secret export is POST-only and one-time ticket fenced", () 
   assert.doesNotMatch(localFailoverBootstrap, /export async function GET/);
 });
 
-test("cloud receiver requires explicit approve before broker mutation", () => {
+test("timed cloud mutations auto-arm while immediate mutations retain explicit approve", () => {
   assert.match(webhook, /command\.type === "approve"/);
+  assert.match(store, /initialCloudIntentStatus\(source, args\.dueAt, createdAt\)/);
+  assert.match(webhook, /task\.status === "scheduled"[\s\S]*không cần \/approve/);
   assert.match(webhook, /for \(const id of command\.ids\)/);
   assert.match(webhook, /approveCloudIntent/);
   assert.match(webhook, /Batch delete/);
@@ -88,7 +90,7 @@ test("cloud receiver requires explicit approve before broker mutation", () => {
   assert.match(ctrader, /relativeTakeProfit/);
 });
 
-test("due scheduler self-heals missing webhook config and executes only pre-approved scheduled intents with one task-list read per tick", () => {
+test("due scheduler self-heals missing webhook config and executes armed scheduled intents with one task-list read per tick", () => {
   assert.match(tick, /ensureTelegramControlConfig/);
   assert.match(tick, /randomBytes\(32\)\.toString\("base64url"\)/);
   assert.match(tick, /setWebhook/);

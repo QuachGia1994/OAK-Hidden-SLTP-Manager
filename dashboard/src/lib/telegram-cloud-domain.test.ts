@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   approvedStatusForDueAt,
   canCancelCloudIntentStatus,
+  initialCloudIntentStatus,
   isDueScheduledIntent,
   parseCloudTelegramCommand,
   renderHelp,
@@ -54,7 +55,7 @@ test("desktop-style Buy command accepts HHhMM and legacy Vantage profile alias",
   assert.equal(parsed.payload.symbol, "GBPUSD+");
   assert.equal(parsed.payload.lot, 0.01);
   assert.equal(parsed.payload.legacyProfile, "Vantage");
-  assert.equal(parsed.payload.executionMode, "confirm_required");
+  assert.equal(parsed.payload.executionMode, "scheduled_auto_immediate_confirm");
   assert.equal(parsed.dueText, "2026-08-21 14:55:00 Asia/Ho_Chi_Minh");
 });
 
@@ -77,7 +78,7 @@ test("close and delete management commands stay cloud-control only", () => {
   if (close.type === "intent") {
     assert.equal(close.kind, "close");
     assert.equal(close.payload.scope, "XAUUSD");
-    assert.equal(close.payload.executionMode, "confirm_required");
+    assert.equal(close.payload.executionMode, "scheduled_auto_immediate_confirm");
   }
   assert.deepEqual(parseCloudTelegramCommand("/del all"), { type: "delete", all: true, ids: [] });
   assert.deepEqual(parseCloudTelegramCommand("/del 42"), { type: "delete", all: false, ids: [42] });
@@ -91,7 +92,7 @@ test("manual entry requires one explicit confirm and accepts explicit account la
   if (parsed.type !== "intent") return;
   assert.equal(parsed.dueAt, null);
   assert.equal(parsed.dueText, "ngay khi xác nhận");
-  assert.equal(parsed.payload.executionMode, "confirm_required");
+  assert.equal(parsed.payload.executionMode, "scheduled_auto_immediate_confirm");
   assert.equal(parsed.payload.legacyProfile, "main");
   assert.equal(parsed.payload.sl, 500);
   assert.equal(parsed.payload.tp, 2000);
@@ -166,7 +167,23 @@ test("one Telegram message can carry multiple commands one per line", () => {
   for (const line of lines) assert.equal(parseCloudTelegramCommand(line).type, "intent");
 });
 
-test("confirmation state machine arms future intents and executes due ones only", () => {
+test("timed Telegram intents auto-arm while immediate and H1 intents keep approval gating", () => {
+  const now = Date.UTC(2026, 7, 21, 7, 0, 0);
+  assert.equal(initialCloudIntentStatus("Telegram Cloud", null, now), "approval_required");
+  assert.equal(initialCloudIntentStatus("Telegram Cloud", now - 1, now), "approval_required");
+  assert.equal(initialCloudIntentStatus("Telegram Cloud", now + 60_000, now), "scheduled");
+  assert.equal(initialCloudIntentStatus("H1 Scanner", now + 60_000, now), "approval_required");
+
+  const screenshotNow = Date.UTC(2026, 7, 31, 1, 57, 0); // 08:57 VN
+  const screenshotCommand = parseCloudTelegramCommand("buy GBPAUD 0.05 9h04 @fxce", screenshotNow);
+  assert.equal(screenshotCommand.type, "intent");
+  if (screenshotCommand.type === "intent") {
+    assert.equal(screenshotCommand.dueAt, Date.UTC(2026, 7, 31, 2, 4, 0));
+    assert.equal(initialCloudIntentStatus("Telegram Cloud", screenshotCommand.dueAt, screenshotNow), "scheduled");
+  }
+});
+
+test("confirmation state machine executes armed future intents only when due", () => {
   const now = Date.UTC(2026, 7, 21, 7, 0, 0);
   assert.equal(approvedStatusForDueAt(null, now), "approved");
   assert.equal(approvedStatusForDueAt(now - 1, now), "approved");
@@ -190,7 +207,8 @@ test("help/start expose cloud and NeoTech command guidance", () => {
   assert.match(help, /Xem trang 2: \/check @neotech 2/);
   assert.match(help, /Trong group: \/check@TênBot @neotech/);
   assert.match(help, /\/approve ID/);
-  assert.match(help, /approve trước/);
+  assert.match(help, /không cần \/approve/);
+  assert.match(help, /không có giờ vẫn cần \/approve/);
   assert.match(help, /SL\/TP mặc định/);
   assert.match(help, /\/partial TICKET\|SYMBOL/);
   assert.doesNotMatch(help, /approval_required/);

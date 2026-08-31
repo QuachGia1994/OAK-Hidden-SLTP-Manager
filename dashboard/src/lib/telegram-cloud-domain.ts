@@ -1,5 +1,5 @@
 export const TELEGRAM_CLOUD_PROFILE = "OAK Multi-Provider Cloud";
-export const TELEGRAM_CLOUD_EXECUTION_MODE = "confirm_required" as const;
+export const TELEGRAM_CLOUD_EXECUTION_MODE = "scheduled_auto_immediate_confirm" as const;
 
 export type CloudIntentKind = "entry" | "close" | "modify" | "partial";
 export type CloudIntentStatus = "approval_required" | "scheduled" | "approved" | "executing" | "executed" | "partial" | "failed" | "uncertain" | "cancelled" | "expired";
@@ -39,6 +39,10 @@ export function normalizeProviderAccountId(value: unknown): string {
   if (/^ctrader:\d+$/.test(text)) return text;
   if (/^mt5:[A-Za-z0-9_-]{8,80}$/.test(text)) return text;
   return "";
+}
+
+export function initialCloudIntentStatus(source: CloudIntent["source"], dueAt: number | null, nowMs: number): "approval_required" | "scheduled" {
+  return source === "Telegram Cloud" && dueAt !== null && dueAt > nowMs ? "scheduled" : "approval_required";
 }
 
 export function approvedStatusForDueAt(dueAt: number | null, nowMs: number): "approved" | "scheduled" {
@@ -335,7 +339,7 @@ export function renderHelp(): string {
     "• /pending buy|sell SYMBOL LOT [YYYY-MM-DD] HH:MM [SL] [TP] [@ACCOUNT]",
     "• /buy SYMBOL LOT [HH:MM|HHhMM] [SL] [TP] [@ACCOUNT]",
     "• /sell SYMBOL LOT [HH:MM|HHhMM] [SL] [TP] [@ACCOUNT]",
-    "• /approve ID [ID ...] — xác nhận một hoặc nhiều intent; lệnh hẹn giờ sẽ tự chạy khi đến mốc",
+    "• /approve ID [ID ...] — xác nhận intent chạy ngay; lệnh có giờ được arm tự động khi lưu",
     "• /closeall [YYYY-MM-DD] [HH:MM|HHhMM] [SYMBOL] [@ACCOUNT]",
     "• Cú pháp desktop cũ vẫn nhận: Buy GBPUSD+ 0.01 14h55 Vantage",
     "• /modify sl|tp SYMBOL VALUE [@ACCOUNT]",
@@ -350,6 +354,6 @@ export function renderHelp(): string {
     "• Xem trang 2: /check @neotech 2",
     "• Trong group: /check@TênBot @neotech",
     "",
-    "Lệnh tác động broker cần /approve ID một lần. Có thể approve nhiều ID cùng lúc và approve trước lệnh hẹn giờ; tới mốc cloud tự chạy, không hỏi lại. Nếu bỏ SL/TP, cloud snapshot SL/TP mặc định theo từng account trước khi xác nhận.",
+    "Lệnh có giờ được arm ngay khi bot lưu và tự chạy khi tới mốc, không cần /approve. Lệnh không có giờ vẫn cần /approve ID một lần. Nếu bỏ SL/TP, cloud snapshot SL/TP mặc định theo từng account khi tạo intent.",
   ].join("\n");
 }

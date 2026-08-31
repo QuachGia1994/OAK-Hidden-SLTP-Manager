@@ -5,6 +5,7 @@ import { pushTrimmedRedisList, redis, releaseOwnedRedisLock } from "@/lib/redis-
 import {
   TELEGRAM_CLOUD_PROFILE,
   approvedStatusForDueAt,
+  initialCloudIntentStatus,
   canCancelCloudIntentStatus,
   isDueScheduledIntent,
   normalizeProviderAccountId,
@@ -102,16 +103,18 @@ export async function createCloudIntent(args: {
     }
   }
   const id = Number(await redis.incr(TASK_SEQ_KEY));
+  const source = args.source || "Telegram Cloud";
+  const createdAt = Date.now();
   const task: CloudIntent = {
     id,
     kind: args.kind,
-    status: "approval_required",
+    status: initialCloudIntentStatus(source, args.dueAt, createdAt),
     profile: TELEGRAM_CLOUD_PROFILE,
-    source: args.source || "Telegram Cloud",
+    source,
     automationKey: automationKey || undefined,
     chatId: args.chatId,
     rawText: args.rawText,
-    createdAt: Date.now(),
+    createdAt,
     sourceUpdateId: args.sourceUpdateId,
     sourceCommandIndex,
     dueAt: args.dueAt,

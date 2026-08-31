@@ -508,15 +508,15 @@ test("18 account identity, stale snapshot and cTrader target mismatch reject", (
   assert.throws(() => chooseLocalMt5Account([ACCOUNT_A, ctrader], [fresh], "ct", { now: BASE_NOW, snapshotAt: BASE_NOW }), /cTrader/i);
 });
 
-test("19 approved scheduled stays PC-owned across handback and unapproved expires", { concurrency: false }, async () => {
+test("19 timed schedule auto-arms, stays PC-owned across handback, and immediate unapproved expires", { concurrency: false }, async () => {
   const h = await createHarness("19", { webhook: "", statuses: [statusFor()] });
   try {
     const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
     let statuses = await h.runtime.loadEaStatuses();
     await h.runtime.processTelegramUpdate(h.config, state, { update_id: 191, message: { chat: { id: 123 }, text: "/buy EURUSD 0.01 23:59 @acct-a" } }, statuses);
     const scheduledId = Object.keys(state.intents)[0];
-    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 192, message: { chat: { id: 123 }, text: `/approve ${scheduledId}` } }, statuses);
     assert.equal(state.intents[scheduledId].status, "scheduled");
+    assert.equal(h.eaExecutions, 0);
     await h.runtime.processTelegramUpdate(h.config, state, { update_id: 193, message: { chat: { id: 123 }, text: "/sell GBPUSD 0.01 @acct-a" } }, statuses);
     const unapprovedId = Object.keys(state.intents).find((id) => id !== scheduledId);
     await h.writeStatus(statusFor(ACCOUNT_A, { cloudOk: true, cloudFailureStreak: 0, cloudSuccessStreak: 3 }, h.now));
