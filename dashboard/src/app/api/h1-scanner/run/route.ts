@@ -170,6 +170,7 @@ export async function POST(request: Request) {
       }, { headers: { "Cache-Control": "no-store, max-age=0" } });
     }
     const { state, source } = await loadH1CloudState(market.brokerDate, market.brokerHour);
+    const hadCurrentDay = Boolean(state.days[market.brokerDate]);
     let recoveryDaySeeded = false;
     if (recoverySeedHour && !state.days[market.brokerDate]) {
       state.days[market.brokerDate] = { suppressedThroughHour: market.brokerHour, symbols: {} };
@@ -261,6 +262,8 @@ export async function POST(request: Request) {
         }
       }
     }
+
+    if (!hadCurrentDay && state.days[market.brokerDate]) changed = true;
 
     if (!dryRun) {
       if (changed || source === "public-seed") await saveH1CloudState(state);

@@ -48,6 +48,10 @@ test("cloud scanner setup uses one-time tickets and encrypted server-side Telegr
 
 test("cloud scanner persists every closed signal slot and sends its telegram message once", () => {
   assert.match(route, /loadH1CloudState/);
+  assert.match(cloudStore, /readRedisReplicas/);
+  assert.match(cloudStore, /loadFreshestH1Candidate/);
+  assert.match(cloudStore, /parsePublicFeedCloudState/);
+  assert.match(cloudStore, /stateProgress/);
   assert.match(cloudStore, /seedCloudStateFromPublic/);
   assert.match(route, /x-h1-run-ticket/);
   assert.match(route, /getdel/);
@@ -60,6 +64,8 @@ test("cloud scanner persists every closed signal slot and sends its telegram mes
   assert.match(telegramCloudStore, /H1_BLOCK_REMINDER_PREFIX/);
   assert.match(telegramCloudStore, /nx: true/);
   assert.match(route, /symbolState\.alerts\.push\(alert\)/);
+  assert.match(route, /const hadCurrentDay = Boolean\(state\.days\[market\.brokerDate\]\)/);
+  assert.match(route, /if \(!hadCurrentDay && state\.days\[market\.brokerDate\]\) changed = true/);
   assert.match(route, /await saveH1CloudState\(state\)/);
   assert.match(route, /deliveredNow && telegramConfigured/);
   assert.doesNotMatch(route, /if \(alert\.tradeAllowed\)|if \(!alert\.tradeAllowed\)|blockedTradeSlots|reconcileTradeState/);

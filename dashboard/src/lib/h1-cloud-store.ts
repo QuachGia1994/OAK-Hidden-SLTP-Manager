@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { redis, releaseOwnedRedisLock } from "./redis-core";
+import { readRedisReplicas, redis, releaseOwnedRedisLock } from "./redis-core";
 import {
   H1_CLOUD_LOCK_KEY,
   H1_CLOUD_PROFILE,
@@ -19,22 +19,78 @@ import {
 const PUBLIC_PROFILE_KEY = `robot-sltp:public:h1-signals:${H1_CLOUD_PROFILE}`;
 export const H1_CLOUD_LOCK_SECONDS = 90;
 
+type H1StateCandidate = {
+  state: H1CloudState;
+  source: "cloud" | "public-seed";
+};
+
+function stateProgress(state: H1CloudState): [string, number, number] {
+  const latestDate = Object.keys(state.days).sort().at(-1) || "";
+  if (!latestDate) return ["", -1, 0];
+  const alerts = Object.values(state.days[latestDate]?.symbols || {}).flatMap((symbol) => symbol?.alerts || []);
+  const latestHour = alerts.reduce((max, alert) => Math.max(max, alert.slotHour), -1);
+  return [latestDate, latestHour, alerts.length];
+}
+
+function compareStateProgress(left: H1CloudState, right: H1CloudState): number {
+  const a = stateProgress(left);
+  const b = stateProgress(right);
+  if (a[0] !== b[0]) return a[0].localeCompare(b[0]);
+  if (a[1] !== b[1]) return a[1] - b[1];
+  return a[2] - b[2];
+}
+
+function parseCloudCandidate(raw: unknown): H1StateCandidate | null {
+  if (!raw) return null;
+  try {
+    return { state: parseCloudState(raw), source: "cloud" };
+  } catch {
+    return null;
+  }
+}
+
+function parsePublicCandidate(raw: unknown): H1StateCandidate | null {
+  try {
+    const state = parsePublicFeedCloudState(raw);
+    return state ? { state, source: "public-seed" } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function loadFreshestH1Candidate(): Promise<H1StateCandidate | null> {
+  const [stateReplicas, feedReplicas] = await Promise.all([
+    readRedisReplicas<unknown>(H1_CLOUD_STATE_KEY),
+    readRedisReplicas<unknown>(H1_PUBLIC_LATEST_KEY),
+  ]);
+  const candidates = [
+    parseCloudCandidate(stateReplicas.primary),
+    parseCloudCandidate(stateReplicas.backup),
+    parsePublicCandidate(feedReplicas.primary),
+    parsePublicCandidate(feedReplicas.backup),
+  ].filter((candidate): candidate is H1StateCandidate => Boolean(candidate));
+
+  return candidates.reduce<H1StateCandidate | null>((best, candidate) => {
+    if (!best) return candidate;
+    const progress = compareStateProgress(candidate.state, best.state);
+    if (progress > 0) return candidate;
+    if (progress === 0 && candidate.source === "cloud" && best.source !== "cloud") return candidate;
+    return best;
+  }, null);
+}
+
 export async function loadH1CloudState(
   brokerDate: string,
   brokerHour: number,
 ): Promise<{ state: H1CloudState; source: "cloud" | "public-seed" }> {
-  const existing = await redis.get<unknown>(H1_CLOUD_STATE_KEY);
-  if (existing) return { state: parseCloudState(existing), source: "cloud" };
-  const publicFeed = await redis.get<unknown>(H1_PUBLIC_LATEST_KEY);
-  return { state: seedCloudStateFromPublic(publicFeed, brokerDate, brokerHour), source: "public-seed" };
+  const freshest = await loadFreshestH1Candidate();
+  if (freshest) return freshest;
+  return { state: seedCloudStateFromPublic(null, brokerDate, brokerHour), source: "public-seed" };
 }
 
 export async function loadH1CloudHistoryState(): Promise<{ state: H1CloudState; source: "cloud" | "public-seed" | "empty" }> {
-  const existing = await redis.get<unknown>(H1_CLOUD_STATE_KEY);
-  if (existing) return { state: parseCloudState(existing), source: "cloud" };
-  const publicFeed = await redis.get<unknown>(H1_PUBLIC_LATEST_KEY);
-  const seeded = parsePublicFeedCloudState(publicFeed);
-  return seeded ? { state: seeded, source: "public-seed" } : { state: emptyCloudState(), source: "empty" };
+  const freshest = await loadFreshestH1Candidate();
+  return freshest || { state: emptyCloudState(), source: "empty" };
 }
 
 export async function saveH1CloudState(state: H1CloudState): Promise<void> {
