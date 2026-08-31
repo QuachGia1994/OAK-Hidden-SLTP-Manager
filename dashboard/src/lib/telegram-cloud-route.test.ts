@@ -73,6 +73,10 @@ test("local failover secret export is POST-only and one-time ticket fenced", () 
   assert.match(localFailoverBootstrap, /body\.purpose !== TELEGRAM_LOCAL_FAILOVER_BOOTSTRAP_PURPOSE/);
   assert.match(localFailoverBootstrap, /telegramToken: config\.telegramToken/);
   assert.match(localFailoverBootstrap, /telegramWebhookSecret: config\.telegramWebhookSecret/);
+  assert.match(localFailoverBootstrap, /TEMP_LOCAL_PRIMARY_REFRESH_MODE = "local-primary-telegram-refresh"/);
+  assert.match(localFailoverBootstrap, /x-telegram-bot-api-secret-token/);
+  assert.match(localFailoverBootstrap, /safeEqual\(presented, config\.telegramWebhookSecret\)/);
+  assert.match(localFailoverBootstrap, /body\.mode === TEMP_LOCAL_PRIMARY_REFRESH_MODE/);
   assert.match(localFailoverBootstrap, /Cache-Control/);
   assert.doesNotMatch(localFailoverBootstrap, /export async function GET/);
 });

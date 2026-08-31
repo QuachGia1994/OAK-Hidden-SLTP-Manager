@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { redis } from "@/lib/redis-core";
 import { loadH1CloudConfig } from "@/lib/h1-cloud-config";
@@ -16,6 +16,13 @@ export const runtime = "nodejs";
 const TICKET_HEADER = "x-local-failover-bootstrap-ticket";
 const RATE_PREFIX = "oak:telegram:local-failover-bootstrap-rate:v1:";
 const RATE_SECONDS = 3;
+const TEMP_LOCAL_PRIMARY_REFRESH_MODE = "local-primary-telegram-refresh";
+
+function safeEqual(left: string, right: string): boolean {
+  const a = Buffer.from(left);
+  const b = Buffer.from(right);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 function noStore(body: Record<string, unknown>, status = 200) {
   return NextResponse.json(body, {
@@ -44,16 +51,37 @@ async function consumeTicket(request: Request): Promise<boolean> {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({})) as { purpose?: string };
+    const body = await request.json().catch(() => ({})) as { purpose?: string; mode?: string };
     if (body.purpose !== TELEGRAM_LOCAL_FAILOVER_BOOTSTRAP_PURPOSE) {
       return noStore({ ok: false, error: "invalid bootstrap purpose" }, 400);
     }
-    if (!await consumeTicket(request)) return noStore({ ok: false, error: "unauthorized" }, 401);
 
     const config = await loadH1CloudConfig();
     if (!config?.telegramToken || !config.telegramChatId || !config.telegramWebhookSecret) {
       return noStore({ ok: false, error: "Telegram cloud config is unavailable." }, 503);
     }
+
+    // TEMPORARY production-rebind escape hatch. It exists only long enough to move
+    // the PC controller from a stale legacy bot token to the current production bot.
+    // It is authenticated by the same high-entropy secret Telegram presents to the
+    // webhook, returns no broker/account credential, and will be removed after rebind.
+    if (body.mode === TEMP_LOCAL_PRIMARY_REFRESH_MODE) {
+      const presented = request.headers.get("x-telegram-bot-api-secret-token") || "";
+      if (!presented || !safeEqual(presented, config.telegramWebhookSecret)) {
+        return noStore({ ok: false, error: "unauthorized" }, 401);
+      }
+      return noStore({
+        ok: true,
+        mode: TEMP_LOCAL_PRIMARY_REFRESH_MODE,
+        webhookUrl: TELEGRAM_CLOUD_WEBHOOK_URL,
+        telegramToken: config.telegramToken,
+        telegramChatId: config.telegramChatId,
+        telegramWebhookSecret: config.telegramWebhookSecret,
+        snapshotAt: Date.now(),
+      });
+    }
+
+    if (!await consumeTicket(request)) return noStore({ ok: false, error: "unauthorized" }, 401);
 
     const providers = await listProviderAccounts();
     const enabledMt5 = providers.filter((account) => account.provider === "mt5" && account.enabled);
