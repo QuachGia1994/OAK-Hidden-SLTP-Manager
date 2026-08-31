@@ -144,6 +144,19 @@ test("approve command is the explicit broker mutation boundary and supports batc
 });
 
 test("one Telegram message can carry multiple commands one per line", () => {
+  const screenshotNow = Date.UTC(2026, 7, 31, 1, 8, 0); // 08:08 VN
+  const screenshotLines = splitCloudTelegramCommands("Buy GBPCAD 0.05 8h25 @fxce\nBuy gbpjpy 0.05 8h25 @fxce");
+  assert.deepEqual(screenshotLines, ["Buy GBPCAD 0.05 8h25 @fxce", "Buy gbpjpy 0.05 8h25 @fxce"]);
+  for (const line of screenshotLines) {
+    const parsed = parseCloudTelegramCommand(line, screenshotNow);
+    assert.equal(parsed.type, "intent");
+    if (parsed.type !== "intent") continue;
+    assert.equal(parsed.kind, "entry");
+    assert.equal(parsed.payload.legacyProfile, "fxce");
+    assert.equal(parsed.payload.lot, 0.05);
+    assert.equal(parsed.dueText, "2026-08-31 08:25:00 Asia/Ho_Chi_Minh");
+  }
+
   const lines = splitCloudTelegramCommands("Buy GBPUSD 0.01 16h05 @FXCE\nBUY AUDUSD 0.01 16h05 @FXCE\nSELL USDCAD 0.01 16h05 @FXCE\n\n");
   assert.deepEqual(lines, [
     "Buy GBPUSD 0.01 16h05 @FXCE",

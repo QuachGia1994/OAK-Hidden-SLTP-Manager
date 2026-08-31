@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
-import { redis } from "@/lib/redis-core";
+import { readRedisReplicas, redis } from "@/lib/redis-core";
 
 const CONFIG_KEY = "oak:h1:cloud-config:v1";
 const DOMAIN = "oak-h1-cloud-config-v1\0";
@@ -74,12 +74,32 @@ function decryptConfig(value: unknown): H1CloudConfig {
   if (parsed.telegramControlEnabled !== undefined && typeof parsed.telegramControlEnabled !== "boolean") {
     throw new Error("Invalid Telegram cloud-control flag");
   }
-  return parsed as H1CloudConfig;
+  return {
+    ...parsed,
+    // Older H1 setup saves accidentally dropped telegramControlEnabled while
+    // preserving the installed webhook secret. Treat that exact legacy shape
+    // as control-enabled so Telegram commands recover without rotating secrets.
+    telegramControlEnabled: parsed.telegramControlEnabled ?? Boolean(parsed.telegramWebhookSecret),
+  } as H1CloudConfig;
+}
+
+function tryDecryptConfig(raw: unknown): H1CloudConfig | null {
+  if (!raw) return null;
+  try {
+    return decryptConfig(raw);
+  } catch {
+    return null;
+  }
 }
 
 export async function loadH1CloudConfig(): Promise<H1CloudConfig | null> {
-  const raw = await redis.get<unknown>(CONFIG_KEY);
-  return raw ? decryptConfig(raw) : null;
+  const replicas = await readRedisReplicas<unknown>(CONFIG_KEY);
+  const candidates = [tryDecryptConfig(replicas.primary), tryDecryptConfig(replicas.backup)]
+    .filter((value): value is H1CloudConfig => Boolean(value));
+  return candidates.reduce<H1CloudConfig | null>((best, candidate) => {
+    if (!best || candidate.savedAt > best.savedAt) return candidate;
+    return best;
+  }, null);
 }
 
 export async function saveH1CloudConfig(record: H1CloudConfig): Promise<void> {

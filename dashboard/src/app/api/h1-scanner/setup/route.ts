@@ -50,7 +50,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Invalid Telegram webhook secret." }, { status: 400 });
     }
 
-    const saved = { enabled, telegramToken, telegramChatId, telegramWebhookSecret, savedAt: Date.now() };
+    const saved = {
+      enabled,
+      telegramToken,
+      telegramChatId,
+      telegramWebhookSecret,
+      telegramControlEnabled: current?.telegramControlEnabled ?? Boolean(telegramWebhookSecret),
+      savedAt: Date.now(),
+    };
     await saveH1CloudConfig(saved);
     return NextResponse.json({ ok: true, ...safeH1CloudConfigStatus(saved) }, {
       headers: { "Cache-Control": "no-store, max-age=0" },

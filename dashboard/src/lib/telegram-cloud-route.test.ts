@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 
 const webhook = readFileSync(new URL("../app/api/telegram/webhook/route.ts", import.meta.url), "utf8");
 const setup = readFileSync(new URL("../app/api/telegram/setup/route.ts", import.meta.url), "utf8");
+const h1Setup = readFileSync(new URL("../app/api/h1-scanner/setup/route.ts", import.meta.url), "utf8");
+const cloudConfig = readFileSync(new URL("./h1-cloud-config.ts", import.meta.url), "utf8");
 const localFailoverBootstrap = readFileSync(new URL("../app/api/telegram/local-failover-bootstrap/route.ts", import.meta.url), "utf8");
 const tick = readFileSync(new URL("../app/api/telegram/tick/route.ts", import.meta.url), "utf8");
 const store = readFileSync(new URL("./telegram-cloud-store.ts", import.meta.url), "utf8");
@@ -37,6 +39,13 @@ test("Telegram help/start are handled before the cloud-only chat fence", () => {
   assert.ok(helpBranchIndex > helpParseIndex);
   assert.ok(chatFenceIndex > helpBranchIndex);
   assert.match(webhook, /if \(publicCommand\.type === "help"\)[\s\S]*sendTelegram\(config\.telegramToken, chatId, renderHelp\(\)\)/);
+});
+
+test("H1 setup preserves Telegram control and config failover chooses the freshest replica", () => {
+  assert.match(h1Setup, /telegramControlEnabled: current\?\.telegramControlEnabled \?\? Boolean\(telegramWebhookSecret\)/);
+  assert.match(cloudConfig, /readRedisReplicas<unknown>\(CONFIG_KEY\)/);
+  assert.match(cloudConfig, /candidate\.savedAt > best\.savedAt/);
+  assert.match(cloudConfig, /telegramControlEnabled: parsed\.telegramControlEnabled \?\? Boolean\(parsed\.telegramWebhookSecret\)/);
 });
 
 test("Telegram webhook bootstrap is one-time authorized and never returns the secret", () => {
