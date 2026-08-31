@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const readerSource = readFileSync(new URL("./h1-signals.ts", import.meta.url), "utf8");
+const redisCoreSource = readFileSync(new URL("./redis-core.ts", import.meta.url), "utf8");
 const boardSource = readFileSync(new URL("../components/H1SignalBoard.tsx", import.meta.url), "utf8");
 const redesignCss = readFileSync(new URL("../app/oak-redesign.css", import.meta.url), "utf8");
 const vipSource = readFileSync(new URL("./vip.ts", import.meta.url), "utf8");
@@ -30,11 +31,18 @@ test("H1 web feed has schema-17 signal and six-block weekday contract without pa
   assert.doesNotMatch(readerSource, /m5Open|m5Middle|m5Position|m5WindowCount/);
   assert.match(readerSource, /robot-sltp:public:h1-signals:latest/);
   assert.match(readerSource, /payload\.schemaVersion !== H1_SIGNAL_PUBLIC_SCHEMA/);
-  assert.match(readerSource, /const latest = parsePayload/);
+  assert.match(readerSource, /readRedisReplicas<unknown>\(LATEST_KEY\)/);
+  assert.match(readerSource, /freshestPayload/);
+  assert.match(readerSource, /payloadFreshness/);
   assert.match(readerSource, /maskFutureH1Signals\(latest\)/);
-  assert.match(readerSource, /H1_CLOUD_STATE_KEY/);
-  assert.match(readerSource, /buildPublicFeed\(parseCloudState\(cloudState\)\)/);
+  assert.match(readerSource, /readRedisReplicas<unknown>\(H1_CLOUD_STATE_KEY\)/);
+  assert.match(readerSource, /freshestState/);
+  assert.match(readerSource, /stateProgress/);
+  assert.match(readerSource, /buildPublicFeed\(state\)/);
   assert.match(readerSource, /payload\.signalRuleVersion !== H1_SIGNAL_RULE_VERSION/);
+  assert.match(redisCoreSource, /export async function readRedisReplicas/);
+  assert.match(redisCoreSource, /Promise\.allSettled/);
+  assert.doesNotMatch(readerSource, /await redis\.get\(LATEST_KEY\)/);
   assert.doesNotMatch(readerSource, /sw2|sw3Pure|sw3Normal|mon-block|tue-block|wed-block|tradeAllowed|blockedSlots|reconcileTradeState/);
 });
 

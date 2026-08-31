@@ -69,6 +69,25 @@ export const redis = new Proxy(primaryRedis, {
   },
 }) as Redis;
 
+export type RedisReplicaValues<T> = {
+  primary: T | null;
+  backup: T | null;
+};
+
+export async function readRedisReplicas<T>(key: string): Promise<RedisReplicaValues<T>> {
+  const primaryRead = primaryRedis.get<T>(key);
+  const backupRead = backupRedis ? backupRedis.get<T>(key) : Promise.resolve<T | null>(null);
+  const [primary, backup] = await Promise.allSettled([primaryRead, backupRead]);
+
+  if (primary.status === "rejected" && backup.status === "rejected") {
+    throw primary.reason;
+  }
+  return {
+    primary: primary.status === "fulfilled" ? primary.value : null,
+    backup: backup.status === "fulfilled" ? backup.value : null,
+  };
+}
+
 type RedisBackupSnapshot =
   | { type: "string"; value: unknown; ttlMs: number }
   | { type: "hash"; value: Record<string, unknown>; ttlMs: number }
