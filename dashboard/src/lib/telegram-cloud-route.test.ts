@@ -149,9 +149,11 @@ test("Telegram due scheduler uses Cloudflare minute clock with GitHub OIDC fallb
   assert.doesNotMatch(workflow, /secrets\./);
 });
 
-test("local-primary fence fails cloud execution closed on every broker-mutation path", () => {
+test("local-only trading fails cloud execution closed on every broker-mutation path", () => {
+  assert.match(fence, /LOCAL_ONLY_TRADING = true/);
   assert.match(fence, /LOCAL_PRIMARY_FENCE_KEY = "oak:telegram:local-primary:active:v1"/);
   assert.match(fence, /LOCAL_PRIMARY_FENCE_TTL_SECONDS = 300/);
+  assert.match(fence, /if \(LOCAL_ONLY_TRADING\) return true/);
   assert.match(fence, /export async function isLocalPrimaryActive/);
   // Choke point: no cloud broker mutation can start while the fence is active.
   assert.match(runner, /if \(await isLocalPrimaryActive\(\)\)/);
@@ -174,10 +176,13 @@ test("local-primary fence fails cloud execution closed on every broker-mutation 
   assert.match(tick, /expireScheduledCloudIntent/);
 });
 
-test("local H1 signal sync endpoint is API-key fenced, POST-only and never blocks on broker state", () => {
+test("local H1 signal sync endpoint is server-secret fenced, POST-only and never blocks on broker state", () => {
   assert.doesNotMatch(localSignal, /export async function GET/);
   assert.match(localSignal, /export async function POST/);
   assert.match(localSignal, /DASHBOARD_API_KEY/);
+  assert.match(localSignal, /x-telegram-bot-api-secret-token/);
+  assert.match(localSignal, /loadH1CloudConfig/);
+  assert.match(localSignal, /telegramWebhookSecret/);
   assert.match(localSignal, /timingSafeEqual/);
   assert.match(localSignal, /requireAuth\(request\)/);
   assert.match(localSignal, /SIDES\.has\(side\)/);

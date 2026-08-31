@@ -288,14 +288,17 @@ export function createLocalFailoverRuntime(options = {}) {
   const eaAdapter = options.eaAdapter || { dispatch: defaultMailboxDispatch };
   const webSignal = options.webSignal || {
     async publish(config, signal) {
-      if (!config.webSignalUrl || !config.dashboardApiKey) return { ok: false, skipped: "not-configured" };
+      if (!config.webSignalUrl || (!config.dashboardApiKey && !config.telegramWebhookSecret)) return { ok: false, skipped: "not-configured" };
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), config.webSyncTimeoutMs || DEFAULT_WEB_SYNC_TIMEOUT_MS);
       try {
+        const authHeaders = config.dashboardApiKey
+          ? { Authorization: `Bearer ${config.dashboardApiKey}` }
+          : { "x-telegram-bot-api-secret-token": config.telegramWebhookSecret };
         const response = await fetchImpl(config.webSignalUrl, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${config.dashboardApiKey}`,
+            ...authHeaders,
             "Content-Type": "application/json",
           },
           body: JSON.stringify(signal),
@@ -1315,7 +1318,7 @@ export function createLocalFailoverRuntime(options = {}) {
       freshEaStatuses: fresh.length,
       localPrimaryEaStatuses: fresh.filter((row) => row.localPrimary === true && row.localReady !== false).length,
       eaVersions: [...new Set(fresh.map((row) => String(row.eaVersion || "unknown")))],
-      webSignalSyncConfigured: Boolean(config.webSignalUrl && config.dashboardApiKey),
+      webSignalSyncConfigured: Boolean(config.webSignalUrl && (config.dashboardApiKey || config.telegramWebhookSecret)),
       pendingWebSync: Object.keys(state.pendingWebSync || {}).length,
       fenceHeartbeatConfigured: Boolean(config.upstashUrl && config.upstashToken),
       lastFenceHeartbeatAt: Number(state.lastFenceHeartbeatAt || 0),

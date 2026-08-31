@@ -11,6 +11,7 @@ const ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const ENV_PATH = process.env.OAK_DASHBOARD_ENV || path.join(ROOT, "dashboard", ".env.local");
 const LOCAL_ROOT = process.env.OAK_LOCAL_FAILOVER_HOME || path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"), "OAK Gatekeeper");
 const CONFIG_PATH = process.env.OAK_LOCAL_FAILOVER_CONFIG || path.join(LOCAL_ROOT, "telegram-failover-config.json");
+const COMMON_DIR = process.env.OAK_MT5_COMMON_FAILOVER_DIR || path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), "MetaQuotes", "Terminal", "Common", "Files", "OAKLocalFailover");
 const BOOTSTRAP_URL = process.env.OAK_LOCAL_FAILOVER_BOOTSTRAP_URL || "https://www.oakgatekeeper.uk/api/telegram/local-failover-bootstrap";
 const WEB_SIGNAL_URL = "https://www.oakgatekeeper.uk/api/telegram/local-signal";
 const TICKET_PREFIX = "oak:telegram:local-failover-bootstrap-ticket:";
@@ -98,6 +99,8 @@ export function buildLocalConfig(bundle, upstashUrl, upstashToken, options = {})
       v: 3,
       controlMode: "local-primary",
       takeTelegramOwnership: options.takeTelegramOwnership !== false,
+      telegramWebhookSecret: bundle.telegramWebhookSecret,
+      webhookUrl: bundle.webhookUrl,
       webSignalUrl: options.webSignalUrl || WEB_SIGNAL_URL,
       ...(options.dashboardApiKey ? { dashboardApiKey: options.dashboardApiKey } : {}),
       ...(upstashUrl && upstashToken ? { upstashUrl, upstashToken } : {}),
@@ -118,7 +121,76 @@ export function buildLocalConfig(bundle, upstashUrl, upstashToken, options = {})
   };
 }
 
+async function upgradeExistingLocalPrimaryConfig(configPath = CONFIG_PATH, commonDir = COMMON_DIR) {
+  let existing;
+  try {
+    existing = JSON.parse(await fs.readFile(configPath, "utf8"));
+  } catch {
+    return null;
+  }
+  if (![2, 3].includes(Number(existing?.v)) || !existing.telegramToken || !existing.telegramChatId || !existing.telegramWebhookSecret) return null;
+
+  const names = await fs.readdir(commonDir).catch(() => []);
+  const statuses = [];
+  for (const name of names) {
+    if (!/^status_[a-z0-9_-]+\.json$/i.test(name)) continue;
+    try {
+      const row = JSON.parse(await fs.readFile(path.join(commonDir, name), "utf8"));
+      if (row?.localPrimary === true && row?.localReady !== false && row?.providerAccountId && row?.login && row?.server) statuses.push(row);
+    } catch {
+      // Ignore a partially-written status file; another fresh terminal row may exist.
+    }
+  }
+  if (!statuses.length) return null;
+
+  const priorAccounts = Array.isArray(existing.accounts) ? existing.accounts : [];
+  const accounts = statuses.map((status) => {
+    const prior = priorAccounts.find((row) => Number(row?.login) === Number(status.login))
+      || priorAccounts.find((row) => String(row?.server || "").trim().toLowerCase() === String(status.server || "").trim().toLowerCase());
+    return {
+      ...(prior || {}),
+      provider: "mt5",
+      providerAccountId: String(status.providerAccountId),
+      label: String(prior?.label || status.profile),
+      bridgeProfile: String(status.profile),
+      login: Number(status.login),
+      server: String(status.server),
+      environment: String(prior?.environment || "live"),
+      enabled: true,
+      fxSlPoints: Number(status.fxSlPoints || prior?.fxSlPoints || 0),
+      fxTpPoints: Number(status.fxTpPoints || prior?.fxTpPoints || 0),
+      goldSlPoints: Number(status.goldSlPoints || prior?.goldSlPoints || 0),
+      goldTpPoints: Number(status.goldTpPoints || prior?.goldTpPoints || 0),
+      updatedAt: Date.now(),
+    };
+  });
+
+  const local = {
+    v: 3,
+    controlMode: "local-primary",
+    takeTelegramOwnership: true,
+    telegramToken: existing.telegramToken,
+    telegramChatId: String(existing.telegramChatId),
+    telegramWebhookSecret: existing.telegramWebhookSecret,
+    webhookUrl: existing.webhookUrl || "https://www.oakgatekeeper.uk/api/telegram/webhook",
+    webSignalUrl: WEB_SIGNAL_URL,
+    snapshotAt: Date.now(),
+    accountSnapshotMaxAgeMs: ACCOUNT_SNAPSHOT_MAX_AGE_MS,
+    accounts,
+    unsupportedAccounts: [],
+    webSyncTimeoutMs: 5_000,
+    bootstrappedAt: Date.now(),
+  };
+  await fs.writeFile(configPath, JSON.stringify(local, null, 2), { encoding: "utf8", mode: 0o600 });
+  await applyWindowsUserOnlyAcl(configPath);
+  return { configPath, accountCount: accounts.length, localPrimary: true, source: "existing-local" };
+}
+
 export async function bootstrapLocalFailover({ envPath = ENV_PATH, configPath = CONFIG_PATH, fetchImpl = fetch, localPrimary = false } = {}) {
+  if (localPrimary) {
+    const upgraded = await upgradeExistingLocalPrimaryConfig(configPath, COMMON_DIR);
+    if (upgraded) return upgraded;
+  }
   const env = parseEnv(await fs.readFile(envPath, "utf8"));
   const upstashUrl = env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_REDIS_REST_URL || "";
   const upstashToken = env.UPSTASH_REDIS_REST_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";

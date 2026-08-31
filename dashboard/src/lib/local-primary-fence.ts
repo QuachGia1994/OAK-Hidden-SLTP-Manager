@@ -2,9 +2,10 @@ import "server-only";
 
 import { redis } from "./redis-core";
 
-// Local-primary fence: the PC-local controller heartbeats this key while it owns
-// Telegram timing and MT5 execution. Cloud execution routes must fail closed while
-// the key exists so a re-registered webhook can never produce duplicate orders.
+// Local-only trading is the production default. Cloud broker-mutation routes stay
+// fail-closed even if Redis/fence heartbeat is unavailable. The Redis fence is kept
+// as rollback/diagnostic evidence but is no longer required for safety.
+export const LOCAL_ONLY_TRADING = true;
 export const LOCAL_PRIMARY_FENCE_KEY = "oak:telegram:local-primary:active:v1";
 export const LOCAL_PRIMARY_FENCE_TTL_SECONDS = 300;
 
@@ -27,5 +28,6 @@ export async function readLocalPrimaryFence(): Promise<LocalPrimaryFence | null>
 }
 
 export async function isLocalPrimaryActive(): Promise<boolean> {
+  if (LOCAL_ONLY_TRADING) return true;
   return (await readLocalPrimaryFence()) !== null;
 }
