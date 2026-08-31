@@ -156,7 +156,7 @@ function canonicalSymbol(value: string): string {
   return upper;
 }
 
-const LEGACY_PROFILE_ALIASES = new Set(["vantage", "vantagedemo", "darwinex", "th5ers"]);
+const LEGACY_PROFILE_ALIASES = new Set(["fxce", "vantage", "vantagedemo", "darwinex", "th5ers"]);
 const PLAIN_COMMANDS = new Set(["start", "help", "myid", "status", "profiles", "positions", "pending", "approve", "buy", "sell", "close", "closeall", "modify", "partial", "del"]);
 export const TELEGRAM_MULTI_COMMAND_LIMIT = 10;
 
@@ -181,6 +181,39 @@ function splitLegacyProfile(tokens: string[]): { tokens: string[]; legacyProfile
   const legacy = LEGACY_PROFILE_ALIASES.has(last.toLowerCase());
   if (!explicit && !legacy) return { tokens, legacyProfile: "" };
   return { tokens: tokens.slice(0, -1), legacyProfile: explicit ? last.slice(1) : last };
+}
+
+function parseEntryScheduleAndProtection(tokens: string[], nowMs: number): { dueAt: number | null; dueText: string; sl: number; tp: number } | null {
+  const numericProtection = (values: string[]) => {
+    if (values.length > 2) return null;
+    const sl = values[0] !== undefined ? Number(values[0]) : 0;
+    const tp = values[1] !== undefined ? Number(values[1]) : 0;
+    if (!Number.isFinite(sl) || !Number.isFinite(tp)) return null;
+    return { sl, tp };
+  };
+
+  // Preferred/current syntax: TIME first, then optional SL/TP.
+  const leadingWhen = parseDateAndTime(tokens, nowMs);
+  if (leadingWhen.consumed > 0) {
+    const protection = numericProtection(tokens.slice(leadingWhen.consumed));
+    if (protection) return { dueAt: leadingWhen.dueAt, dueText: leadingWhen.dueText, ...protection };
+  }
+
+  // Desktop legacy syntax: optional SL/TP first, TIME last.
+  for (const protectionCount of [2, 1]) {
+    if (tokens.length <= protectionCount) continue;
+    const protection = numericProtection(tokens.slice(0, protectionCount));
+    if (!protection) continue;
+    const trailingWhen = parseDateAndTime(tokens.slice(protectionCount), nowMs);
+    if (trailingWhen.consumed > 0 && protectionCount + trailingWhen.consumed === tokens.length) {
+      return { dueAt: trailingWhen.dueAt, dueText: trailingWhen.dueText, ...protection };
+    }
+  }
+
+  // Immediate command: zero, one or two numeric protection values.
+  const protection = numericProtection(tokens);
+  if (protection) return { dueAt: null, dueText: "ngay khi xác nhận", ...protection };
+  return null;
 }
 
 export function parseCloudTelegramCommand(text: string, nowMs = Date.now()): ParsedCloudCommand {
@@ -234,23 +267,16 @@ export function parseCloudTelegramCommand(text: string, nowMs = Date.now()): Par
     const commandArgs = scoped.tokens;
     const symbol = canonicalSymbol(commandArgs[0] || "");
     const lot = Number(commandArgs[1]);
-    if (!symbol || !Number.isFinite(lot) || lot <= 0) {
-      return { type: "unknown", reason: `Cú pháp: ${command} SYMBOL LOT [HH:MM|HHhMM] [SL] [TP] [PROFILE]` };
-    }
-    const when = parseDateAndTime(commandArgs.slice(2), nowMs);
-    const tail = commandArgs.slice(2 + when.consumed);
-    if (tail.length > 2) {
-      return { type: "unknown", reason: `Cú pháp: ${command} SYMBOL LOT [HH:MM|HHhMM] [SL] [TP] [PROFILE]` };
-    }
-    const sl = tail[0] !== undefined ? Number(tail[0]) : 0;
-    const tp = tail[1] !== undefined ? Number(tail[1]) : 0;
-    if (!Number.isFinite(sl) || !Number.isFinite(tp)) return { type: "unknown", reason: "SL/TP phải là số" };
+    const syntax = `Cú pháp: ${command} SYMBOL LOT [TIME] [SL] [TP] [PROFILE] hoặc ${command} SYMBOL LOT [SL] [TP] [TIME] [PROFILE]`;
+    if (!symbol || !Number.isFinite(lot) || lot <= 0) return { type: "unknown", reason: syntax };
+    const parsedTail = parseEntryScheduleAndProtection(commandArgs.slice(2), nowMs);
+    if (!parsedTail) return { type: "unknown", reason: syntax };
     return {
       type: "intent",
       kind: "entry",
-      dueAt: when.dueAt,
-      dueText: when.dueText,
-      payload: { side: command === "/buy" ? "BUY" : "SELL", symbol, lot, sl, tp, legacyProfile: scoped.legacyProfile || null, executionMode: TELEGRAM_CLOUD_EXECUTION_MODE },
+      dueAt: parsedTail.dueAt,
+      dueText: parsedTail.dueText,
+      payload: { side: command === "/buy" ? "BUY" : "SELL", symbol, lot, sl: parsedTail.sl, tp: parsedTail.tp, legacyProfile: scoped.legacyProfile || null, executionMode: TELEGRAM_CLOUD_EXECUTION_MODE },
     };
   }
   if (command === "/closeall" || command === "/close") {
@@ -348,8 +374,8 @@ export function renderHelp(): string {
     "• /positions — vị thế trên các account đang bật",
     "• /pending — danh sách lệnh đang chờ/đang chạy",
     "• /pending buy|sell SYMBOL LOT [YYYY-MM-DD] HH:MM [SL] [TP] [@ACCOUNT]",
-    "• /buy SYMBOL LOT [HH:MM|HHhMM] [SL] [TP] [@ACCOUNT]",
-    "• /sell SYMBOL LOT [HH:MM|HHhMM] [SL] [TP] [@ACCOUNT]",
+    "• /buy SYMBOL LOT [HH:MM|HHhMM] [SL] [TP] [@ACCOUNT] — hoặc đặt SL TP trước giờ",
+    "• /sell SYMBOL LOT [HH:MM|HHhMM] [SL] [TP] [@ACCOUNT] — hoặc đặt SL TP trước giờ",
     "• /approve ID [ID ...] — xác nhận intent chạy ngay; lệnh có giờ được arm tự động khi lưu",
     "• /closeall [YYYY-MM-DD] [HH:MM|HHhMM] [SYMBOL] [@ACCOUNT]",
     "• Cú pháp desktop cũ vẫn nhận: Buy GBPUSD+ 0.01 14h55 Vantage",

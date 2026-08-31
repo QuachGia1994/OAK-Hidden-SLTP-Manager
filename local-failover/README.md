@@ -103,7 +103,7 @@ A real `-Action Install` is a separate operator-authorized step. Its task defini
 
 ## Local command surface during failover
 
-The same Telegram bot accepts the core MT5 grammar: `/status`, `/profiles`, `/positions [@ACCOUNT]`, `/pending`, `/buy`, `/sell`, `/close`, `/closeall`, `/modify`, `/partial`, `/approve`, and `/del`. Scheduled `HH:MM` / `HHhMM` entry/close syntax auto-arms on creation and executes at the due time without `/approve`; a delay beyond two minutes expires the intent instead of placing a stale trade. Immediate mutations keep the separate approval step, for example `/approve L-<epoch>-<seq>`.
+The same Telegram bot accepts the core MT5 grammar: `/status`, `/profiles`, `/positions [@ACCOUNT]`, `/pending`, `/buy`, `/sell`, `/close`, `/closeall`, `/modify`, `/partial`, `/approve`, and `/del`. BUY/SELL accepts both `SYMBOL LOT TIME [SL] [TP] [@ACCOUNT]` and legacy `SYMBOL LOT [SL] [TP] TIME [@ACCOUNT]`; bare `FXCE`/`Vantage` account aliases remain accepted without `@`. Scheduled `HH:MM` / `HHhMM` entry/close syntax auto-arms on creation and executes at the due time without `/approve`; a delay beyond two minutes expires the intent instead of placing a stale trade. Immediate mutations keep the separate approval step, for example `/approve L-<epoch>-<seq>`.
 
 ## Verification and production boundary
 

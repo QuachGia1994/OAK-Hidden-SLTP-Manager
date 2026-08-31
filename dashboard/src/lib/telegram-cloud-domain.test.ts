@@ -60,6 +60,29 @@ test("desktop-style Buy command accepts HHhMM and legacy Vantage profile alias",
   assert.equal(parsed.dueText, "2026-08-21 14:55:00 Asia/Ho_Chi_Minh");
 });
 
+test("screenshot Sell syntax accepts bare FXCE, defaults, and time before or after SL TP", () => {
+  const now = Date.UTC(2026, 7, 31, 10, 53, 0); // 17:53 VN
+  const cases = [
+    ["Sell xauusd 0.01 18h05 fxce", 0, 0],
+    ["Sell xauusd 0.01 1000 20000 18h05 fxce", 1000, 20000],
+    ["/sell xauusd 0.01 18h05 1000 20000 FxCe", 1000, 20000],
+  ] as const;
+  for (const [text, sl, tp] of cases) {
+    const parsed = parseCloudTelegramCommand(text, now);
+    assert.equal(parsed.type, "intent", text);
+    if (parsed.type !== "intent") continue;
+    assert.equal(parsed.kind, "entry");
+    assert.equal(parsed.payload.side, "SELL");
+    assert.equal(parsed.payload.symbol, "XAUUSD");
+    assert.equal(parsed.payload.lot, 0.01);
+    assert.equal(parsed.payload.sl, sl);
+    assert.equal(parsed.payload.tp, tp);
+    assert.equal(String(parsed.payload.legacyProfile).toLowerCase(), "fxce");
+    assert.equal(parsed.dueAt, Date.UTC(2026, 7, 31, 11, 5, 0));
+    assert.equal(parsed.dueText, "2026-08-31 18:05:00 Asia/Ho_Chi_Minh");
+  }
+});
+
 test("plain legacy control commands do not require slash prefixes", () => {
   const now = Date.UTC(2026, 7, 21, 6, 15, 0);
   const close = parseCloudTelegramCommand("Closeall 15h30 Vantage", now);
@@ -227,5 +250,6 @@ test("help/start expose cloud and NeoTech command guidance", () => {
   assert.match(help, /không có giờ vẫn cần \/approve/);
   assert.match(help, /SL\/TP mặc định/);
   assert.match(help, /\/partial TICKET\|SYMBOL/);
+  assert.match(help, /đặt SL TP trước giờ/);
   assert.doesNotMatch(help, /approval_required/);
 });

@@ -684,6 +684,7 @@ export function createLocalFailoverRuntime(options = {}) {
         : "• Cloud remains primary; local activates only after EA failures + repeated independent Redis write failures.",
       "• /status · /profiles · /positions [@ACCOUNT] · /pending",
       "• /buy, /sell, /close, /closeall, /modify, /partial",
+      "• Entry: /buy|/sell SYMBOL LOT [TIME] [SL] [TP] [@ACCOUNT]; SL TP may also appear before TIME. Bare FXCE/Vantage aliases are accepted.",
       "• Timed entry/close intents auto-arm when saved; immediate mutations still require /approve L-<epoch>-<seq>.",
       "• /del L-<epoch>-<seq> [...] | /del all",
       "• Bare numeric cloud intent IDs are never accepted in local mode.",

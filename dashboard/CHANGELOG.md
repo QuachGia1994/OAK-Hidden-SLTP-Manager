@@ -14,6 +14,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Telegram BUY/SELL parser now accepts bare `FXCE`/`FxCe` like `Vantage`, and scheduled entries accept both `TIME SL TP` and legacy `SL TP TIME` layouts. This fixes commands such as `Sell XAUUSD 0.01 18h05 FXCE`, with omitted SL/TP still using the selected account defaults.
 - Temporarily disabled active H1 post-signal inversion and CẦU/BRIDGE output. Signal rule v58 keeps all live/history H1 directions equal to their base BUY/SELL, suppresses bridge badges/highlights/derived summaries, and leaves the configured N/C matrix plus bridge-calendar helpers in place for fast re-enable.
 - Restored all Monday/Tuesday/Wednesday H1 blocks that were previously `X/remove`, so every weekday now uses the complete six-block N/C matrix. Signal rule advanced to v57 and the deploy history rebuild restores missing retained H slots without changing Telegram-scheduled BUY/SELL cells.
 - Replaced H1 FX targets `AUDUSD`, `USDCAD`, `USDJPY` with `GBPAUD`, `GBPCAD`, `GBPJPY` across scanner, history feed, timed Telegram table writes and UI rows. Legacy retained rows are ignored during state migration so current XAUUSD/GBPUSD data survives until the GBP-cross history is rebuilt.
