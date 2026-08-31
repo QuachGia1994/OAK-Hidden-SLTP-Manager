@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.06"
+#property version   "1.07"
 #property description "OAK local-only MT5 execution manager"
 
 // OAK Local Manager EA
@@ -12,7 +12,7 @@
 input group "Local PC Control"
 input string InpLocalProfile               = "";        // Optional local label; blank = local_<login>
 input string InpLocalProviderAccountId     = "";        // Optional mt5:<suffix>; blank = deterministic login/server hash
-input int    InpLocalPollMs                = 250;       // FILE_COMMON mailbox poll interval in ms (clamped 100..5000)
+input int    InpLocalPollMsV107            = 100;       // FILE_COMMON mailbox poll interval in ms (clamped 100..5000)
 
 // Legacy cloud symbols stay compile-time disabled so older helper code cannot
 // appear in MT5 Inputs and cannot perform network polling in local-only mode.
@@ -59,7 +59,7 @@ input string InpPartialPercents            = "50";      // 1 pct = current-volum
 #define OAK_HEARTBEAT_PREFIX  "oak:mt5:bridge:heartbeat:v1:"
 #define OAK_TASK_TTL          604800
 #define OAK_HEARTBEAT_TTL     45
-#define OAK_EA_VERSION        "1.06"
+#define OAK_EA_VERSION        "1.07"
 #define OAK_LOCAL_DIR         "OAKLocalFailover\\"
 
 string g_profile = "";
@@ -754,7 +754,7 @@ void WriteLocalStatus(const bool ignored_cloud_ok=false)
       +",\"at\":"+IntegerToString(NowMs())
       +",\"localPrimary\":true"
       +",\"localReady\":"+((g_profile!="" && g_provider_account_id!="")?"true":"false")
-      +",\"localPollMs\":"+IntegerToString(MathMax(100,MathMin(5000,InpLocalPollMs)))
+      +",\"localPollMs\":"+IntegerToString(MathMax(100,MathMin(5000,InpLocalPollMsV107)))
       +",\"fxSlPoints\":"+DoubleToString(InpFxSLPoints,2)
       +",\"fxTpPoints\":"+DoubleToString(InpFxTPPoints,2)
       +",\"goldSlPoints\":"+DoubleToString(InpGoldSLPoints,2)
@@ -954,15 +954,31 @@ bool ClosePositionVolume(const ulong ticket, double requested_volume, bool keep_
    long ptype=PositionGetInteger(POSITION_TYPE);
    double minv=SymbolInfoDouble(symbol,SYMBOL_VOLUME_MIN);
    double step=SymbolInfoDouble(symbol,SYMBOL_VOLUME_STEP);
-   double volume=MathMin(requested_volume,current);
-   if(keep_min_remainder && volume>=current-1e-10)
+   if(step<=0) step=(minv>0?minv:0.01);
+   double reserve=(keep_min_remainder ? (minv>0?minv:step) : 0.0);
+   if(keep_min_remainder && current<=reserve+1e-10)
    {
-      if(current<=minv+1e-10) { detail="position already at minimum volume; partial skipped"; return false; }
-      volume=current-minv;
+      detail="position already at minimum volume; partial skipped";
+      return false;
    }
-   if(step>0) volume=MathRound(volume/step)*step;
-   volume=NormalizeDouble(volume,VolumeDigits(step>0?step:0.01));
+
+   double max_close=(keep_min_remainder ? current-reserve : current);
+   double volume=MathMin(requested_volume,max_close);
+   // Partial semantics always round DOWN to the broker step. Example:
+   // 0.05 * 50% = 0.025 with 0.01 step -> close 0.02, leave 0.03.
+   double units=MathFloor((volume/step)+1e-9);
+   volume=NormalizeDouble(units*step,VolumeDigits(step));
    if(volume<=0 || (minv>0 && volume<minv-1e-10)) { detail="partial volume below broker minimum"; return false; }
+   if(keep_min_remainder && current-volume<reserve-1e-10)
+   {
+      double safe_units=MathFloor(((current-reserve)/step)+1e-9);
+      volume=NormalizeDouble(safe_units*step,VolumeDigits(step));
+   }
+   if(volume<=0 || (keep_min_remainder && current-volume<reserve-1e-10))
+   {
+      detail="partial would violate minimum remainder";
+      return false;
+   }
 
    MqlTick tick;
    if(!SymbolInfoTick(symbol,tick)) { detail="tick unavailable"; return false; }
@@ -1304,7 +1320,7 @@ void ManageSelectedPosition(const ulong ticket)
          double pct=(i<ArraySize(g_partial_pct)?g_partial_pct[i]:g_partial_pct[ArraySize(g_partial_pct)-1]);
          double requested=(original_mode?original:volume)*(pct/100.0);
          string detail="";
-         if(ClosePositionVolume(ticket,requested,pct<99.9,detail))
+         if(ClosePositionVolume(ticket,requested,true,detail))
          {
             mask|=bit; StateSet(id,"rmask",(double)mask);
             if(!PositionSelectByTicket(ticket)) return;
@@ -1613,7 +1629,7 @@ void PollLocalOnce()
    // Monotonic ms throttle (GetTickCount64): broker TimeCurrent() has 1s resolution
    // and would cap scheduled-entry dispatch latency at whole seconds.
    ulong now_ms=GetTickCount64();
-   ulong interval=(ulong)MathMax(100,MathMin(5000,InpLocalPollMs));
+   ulong interval=(ulong)MathMax(100,MathMin(5000,InpLocalPollMsV107));
    if(g_last_local_poll_ms!=0 && now_ms-g_last_local_poll_ms<interval) return;
    g_last_local_poll_ms=now_ms;
    if(g_last_local_status_ms==0 || now_ms-g_last_local_status_ms>=5000)
@@ -1789,7 +1805,7 @@ int OnInit()
    PrintFormat("[OAK-EA] Local-only mailbox enabled profile=%s provider=%s",g_profile,g_provider_account_id);
 
    // Millisecond timer drives the local FILE_COMMON mailbox near-realtime.
-   int timer_ms=(InpLocalPollMs>0?MathMax(100,MathMin(5000,InpLocalPollMs)):250);
+   int timer_ms=(InpLocalPollMsV107>0?MathMax(100,MathMin(5000,InpLocalPollMsV107)):100);
    if(!EventSetMillisecondTimer(timer_ms))
    {
       PrintFormat("[OAK-EA] EventSetMillisecondTimer failed err=%d; falling back to 1s timer",GetLastError());

@@ -25,7 +25,8 @@ The local controller owns Telegram timing and durable intent state. The website 
 - Runtime identity is derived locally from terminal login/server. Blank `InpLocalProfile` becomes `local_<login>`; blank `InpLocalProviderAccountId` becomes deterministic `mt5:<sha256-32>`.
 - Broker mutations pass through a durable FILE_COMMON per-origin claim/result ledger. A retained result is reconciled without re-execution; a retained claim without a result is `UNCERTAIN` and is never replayed automatically.
 - Market entry waits up to 2.5 seconds for symbol synchronization and a usable bid/ask before building the broker request. There is no blind broker retry after an ambiguous transport result.
-- EA v1.06 removes all cloud bridge settings from MT5 Properties and never calls cloud polling from `OnTimer`.
+- EA v1.06 removed all cloud bridge settings from MT5 Properties and stopped cloud polling from `OnTimer`.
+- EA v1.07 lowers the local FILE_COMMON poll default to `100ms` and makes all partial closes round DOWN to broker volume step while always retaining at least one broker minimum-volume remainder.
 
 ## Install
 
@@ -36,13 +37,13 @@ The local controller owns Telegram timing and durable intent state. The website 
 5. Local PC Control:
    - `InpLocalProfile`: leave blank for `local_<login>` unless a stable local label is explicitly required.
    - `InpLocalProviderAccountId`: leave blank for deterministic terminal-derived identity.
-   - `InpLocalPollMs`: default `250`; clamped to `100..5000` ms. Lower values reduce mailbox pickup latency but increase timer activity.
+   - `InpLocalPollMsV107`: default `100`; clamped to `100..5000` ms. The v1.07 variable name intentionally changed so already-attached charts do not preserve the old 250ms value.
 6. Configure SL/TP, netting, BE/R and exposure guards as required.
 7. Keep the PC local controller running 24/5. Use `/status`, `/profiles`, and `/positions @ACCOUNT` for read-only verification before any broker mutation.
 
 ## Security
 
-EA v1.06 contains no Upstash/cloud token Input and no cloud broker-execution polling path. Local runtime secrets such as the Telegram bot token and dashboard sync API key stay outside Git under the Windows user-only local runtime directory. Do not share populated local configuration or screenshots containing secrets.
+EA v1.07 contains no Upstash/cloud token Input and no cloud broker-execution polling path. Local runtime secrets such as the Telegram bot token and dashboard sync API key stay outside Git under the Windows user-only local runtime directory. Do not share populated local configuration or screenshots containing secrets.
 
 Local-only execution improves privacy by keeping broker mutations inside the user's MT5 terminal, but it is not a claim that an EA or its orders are undetectable to a broker.
 
@@ -50,7 +51,7 @@ Local-only execution improves privacy by keeping broker mutations inside the use
 
 `R` is based on the position's initial risk distance: existing SL distance when the EA first sees the position, otherwise the configured default SL points. That risk is persisted before BE moves, so moving SL to entry does not redefine R.
 
-For one configured partial percentage, each R trigger closes that percentage of the then-current volume. For multiple percentages, each percentage is based on the original managed volume. Partial closes respect the broker's minimum volume/step and retain at least the broker minimum when the rule is explicitly partial.
+For one configured partial percentage, each R trigger closes that percentage of the then-current volume. For multiple percentages, each percentage is based on the original managed volume. Every partial close is floored to the broker volume step rather than rounded to nearest: with current `0.05`, a 50% raw amount of `0.025` on a `0.01` step closes `0.02` and leaves `0.03`. Partial semantics always retain at least one broker minimum-volume remainder; if the position is already at the minimum (for example `0.01` when broker min is `0.01`), the partial is skipped. Explicit full-close actions and `InpCloseAtR` remain full-close semantics.
 
 `InpManageMagic=-1` manages positions regardless of origin, including manual/mobile orders. Set a specific magic or `InpManagedSymbols` if the EA must not touch all positions on the account.
 

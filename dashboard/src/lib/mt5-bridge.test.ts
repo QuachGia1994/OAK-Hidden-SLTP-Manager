@@ -42,10 +42,10 @@ test("web accepts only OAK MQL5 EA heartbeats for MT5 bridge execution", () => {
   assert.match(ea, /StateSet\(id,"pp_armed",1\.0\)/);
 });
 
-test("OAK MQL5 EA v1.06 exposes local-only Inputs and no cloud credentials", () => {
-  assert.match(ea, /#property version\s+"1\.06"/);
+test("OAK MQL5 EA v1.07 exposes local-only Inputs and 100ms mailbox polling", () => {
+  assert.match(ea, /#property version\s+"1\.07"/);
   assert.match(ea, /input group "Local PC Control"/);
-  assert.match(ea, /InpLocalPollMs\s*= 250/);
+  assert.match(ea, /InpLocalPollMsV107\s*= 100/);
   assert.doesNotMatch(ea, /input group "OAK Cloud Bridge"/);
   assert.doesNotMatch(ea, /input string InpUpstashRestUrl/);
   assert.doesNotMatch(ea, /input string InpUpstashRestToken/);
@@ -67,7 +67,7 @@ test("MT5 EA derives local identity from terminal login and server", () => {
 
 test("MT5 EA local timer drives FILE_COMMON without cloud polling", () => {
   assert.match(ea, /EventSetMillisecondTimer\(timer_ms\)/);
-  assert.match(ea, /InpLocalPollMs/);
+  assert.match(ea, /InpLocalPollMsV107/);
   assert.match(ea, /void OnTimer\(\)[\s\S]*ManageAccount\(\);[\s\S]*PollLocalOnce\(\);/);
   assert.doesNotMatch(ea, /void OnTimer\(\)[\s\S]*PollCloudOnce\(\);/);
   assert.match(ea, /void OnTick\(\)[\s\S]*ManageAccount\(\)/);
@@ -82,6 +82,14 @@ test("MT5 entry waits for symbol synchronization before using a broker tick", ()
   assert.match(ea, /tick\.bid>0 && tick\.ask>0/);
   assert.match(ea, /if\(!WaitForUsableTick\(symbol,tick,detail\)\) return false/);
   assert.match(ea, /tick unavailable after sync wait/);
+});
+
+test("MT5 partial closes round down and always preserve the broker minimum remainder", () => {
+  assert.match(ea, /MathFloor\(\(volume\/step\)\+1e-9\)/);
+  assert.match(ea, /position already at minimum volume; partial skipped/);
+  assert.match(ea, /partial would violate minimum remainder/);
+  assert.match(ea, /ClosePositionVolume\(ticket,requested,true,detail\)/);
+  assert.doesNotMatch(ea, /ClosePositionVolume\(ticket,requested,pct<99\.9,detail\)/);
 });
 
 test("MT5 local-only mutations use a per-origin atomic FILE_COMMON claim boundary", () => {
