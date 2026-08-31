@@ -6,6 +6,7 @@ import { activeH1ScanHoursForBrokerDate, cycleDecisionFor, H1_SCAN_HOURS, H1_TAR
 import type { H1SignalAlert, H1SignalPayload } from "@/lib/h1-signals";
 
 type Locale = "EN" | "VN";
+type H1BoardMode = "live" | "history";
 type ShareArtifact = { date: string; blob: Blob };
 
 const H1_SHARE_SCALE = 2;
@@ -320,21 +321,22 @@ function SundayCalendarPicker({
   );
 }
 
-export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1SignalPayload | null; degraded?: boolean; locale: Locale; unlocked: boolean }) {
+export function H1SignalBoard({ data, degraded, locale, unlocked, mode = "live" }: { data: H1SignalPayload | null; degraded?: boolean; locale: Locale; unlocked: boolean; mode?: H1BoardMode }) {
+  const historyMode = mode === "history";
   const [selectedDate, setSelectedDate] = useState(() => data ? selectHistoryDate(data.days, "all", "") : "");
   const [shareArtifact, setShareArtifact] = useState<ShareArtifact | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const hasData = Boolean(data);
   const allDates = data ? historyDatesForWeekday(data.days, "all") : [];
-  const date = data ? selectHistoryDate(data.days, "all", selectedDate) : selectedDate;
-  const day = date && data ? data.days[date] : undefined;
   const earliestDate = allDates.at(-1) || "";
   const latestDate = allDates[0] || "";
+  const date = data ? (historyMode ? selectHistoryDate(data.days, "all", selectedDate) : latestDate) : selectedDate;
+  const day = date && data ? data.days[date] : undefined;
   const copy = locale === "EN"
     ? {
-        title: "H1 Block Schedule",
-        sub: "H1 block signals · six-block weekday phase · 90-day broker history",
+        title: historyMode ? "H1 Broker History" : "H1 Live Blocks",
+        sub: historyMode ? "Retained H1 block signals · choose a broker date to review" : "Current broker day · latest H1 block signals",
         awaiting: "Awaiting H1 live feed",
         locked: "XAUUSD BUY/SELL signals require VIP · FX remains free",
         dateGroup: "Broker date",
@@ -342,8 +344,8 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
         coverage: `${allDates.length} trading days · ${earliestDate || "—"} → ${latestDate || "—"}`,
       }
     : {
-        title: "Lịch block H1 trong ngày",
-        sub: "Tín hiệu theo block H1 · hậu signal theo 6 block/thứ · lịch sử broker 90 ngày",
+        title: historyMode ? "Lịch sử block H1" : "H1 Live",
+        sub: historyMode ? "Dữ liệu H1 đã lưu · chọn ngày broker để xem lại" : "Ngày broker hiện tại · tín hiệu block H1 mới nhất",
         awaiting: "Đang chờ feed H1 live",
         locked: "Tín hiệu BUY/SELL XAUUSD cần VIP · các cặp FX vẫn free",
         dateGroup: "Ngày broker",
@@ -352,9 +354,9 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
       };
 
   useEffect(() => {
-    if (!data || selectedDate === date) return;
+    if (!historyMode || !data || selectedDate === date) return;
     setSelectedDate(date);
-  }, [data, date, selectedDate]);
+  }, [historyMode, data, date, selectedDate]);
 
   useEffect(() => {
     if (!date) return;
@@ -378,7 +380,7 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
   }, [data, date, locale]);
 
   const chooseDate = (nextDate: string) => {
-    if (!nextDate || nextDate === selectedDate) return;
+    if (!historyMode || !nextDate || nextDate === selectedDate) return;
     setSelectedDate(nextDate);
   };
 
@@ -405,10 +407,9 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
   };
 
   if (!data) {
-    // No live feed yet (storage degraded, primary quota, or awaiting) — keep a
-    // real date picker alive so the calendar affordance never disappears on
-    // mobile. The selected fallback date controls the phase matrix only; cells
-    // remain empty until historical feed data returns.
+    // History keeps a usable fallback calendar while storage recovers. Live is
+    // intentionally date-less: it stays pinned to the current broker day and
+    // never becomes a second history navigator.
     const today = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Ho_Chi_Minh",
       year: "numeric",
@@ -416,19 +417,19 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
       day: "2-digit",
     }).format(new Date());
     const fallbackMinDate = addIsoCalendarDays(today, -89);
-    const fallbackDate = selectedDate && selectedDate >= fallbackMinDate && selectedDate <= today ? selectedDate : today;
+    const fallbackDate = historyMode && selectedDate && selectedDate >= fallbackMinDate && selectedDate <= today ? selectedDate : today;
     const fallbackHours = activeH1ScanHoursForBrokerDate(fallbackDate, H1_SCAN_HOURS);
     return (
       <section className="oak-h1-board">
         <header className="oak-h1-board-head">
-          <div><span className="oak-eyebrow">H1 / LIVE</span><h2>{copy.title}</h2><p>{copy.sub}</p></div>
+          <div><span className="oak-eyebrow">H1 / {historyMode ? "HISTORY" : "LIVE"}</span><h2>{copy.title}</h2><p>{copy.sub}</p></div>
           <div className="oak-h1-meta">
             <span><small>BROKER DAY</small><b>{fallbackDate}</b></span>
-            <span><small>{locale === "EN" ? "PHASE BASIS" : "CƠ SỞ PHA"}</small><b>{locale === "EN" ? "selected date" : "ngày đang chọn"}</b></span>
+            <span><small>{historyMode ? (locale === "EN" ? "PHASE BASIS" : "CƠ SỞ PHA") : "STATUS"}</small><b>{historyMode ? (locale === "EN" ? "selected date" : "ngày đang chọn") : (locale === "EN" ? "current day" : "ngày hiện tại")}</b></span>
           </div>
         </header>
         {!unlocked && <div className="oak-h1-locked">{copy.locked}</div>}
-        <div className="oak-h1-history" data-empty="true">
+        {historyMode && <div className="oak-h1-history" data-empty="true">
           <div className="oak-h1-history-row">
             <span className="oak-h1-history-label">{copy.dateGroup}</span>
             <SundayCalendarPicker
@@ -442,9 +443,11 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
             />
           </div>
           <p className="oak-h1-history-coverage">{copy.coverage}</p>
-        </div>
+        </div>}
         {degraded
-          ? <p className="oak-h1-degraded" role="alert">{locale === "EN" ? "Live storage is temporarily unavailable. Calendar stays available while recovery runs automatically…" : "Kho live tạm không khả dụng. Calendar vẫn bấm được trong khi hệ thống tự phục hồi…"}</p>
+          ? <p className="oak-h1-degraded" role="alert">{historyMode
+            ? (locale === "EN" ? "History storage is temporarily unavailable. Calendar stays available while recovery runs automatically…" : "Kho lịch sử tạm không khả dụng. Calendar vẫn bấm được trong khi hệ thống tự phục hồi…")
+            : (locale === "EN" ? "Live storage is temporarily unavailable. Waiting for the current broker-day feed to recover…" : "Kho live tạm không khả dụng. Đang chờ feed ngày broker hiện tại tự phục hồi…")}</p>
           : <p className="oak-h1-awaiting">{copy.awaiting}</p>}
         <p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe horizontally for later blocks" : "Vuốt ngang để xem H12 · H14 · H16"}</p>
         <div ref={tableScrollRef} className="oak-h1-table-scroll lux-scroll">
@@ -476,7 +479,7 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
     <>
       <section className="oak-h1-board">
         <header className="oak-h1-board-head">
-          <div><span className="oak-eyebrow">H1 / LIVE</span><h2>{copy.title}</h2><p>{copy.sub}</p></div>
+          <div><span className="oak-eyebrow">H1 / {historyMode ? "HISTORY" : "LIVE"}</span><h2>{copy.title}</h2><p>{copy.sub}</p></div>
           <div className="oak-h1-meta">
             <span><small>BROKER DAY</small><b>{date || "—"}</b></span>
             <span><small>UPDATED</small><b>{formatPublished(data.publishedAt, locale)}</b></span>
@@ -487,7 +490,7 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
           </div>
         </header>
         {!unlocked && <div className="oak-h1-locked">{copy.locked}</div>}
-        <div className="oak-h1-history">
+        {historyMode && <div className="oak-h1-history">
           <div className="oak-h1-history-row">
             <span className="oak-h1-history-label">{copy.dateGroup}</span>
             <SundayCalendarPicker
@@ -503,7 +506,7 @@ export function H1SignalBoard({ data, degraded, locale, unlocked }: { data: H1Si
             />
           </div>
           <p className="oak-h1-history-coverage">{copy.coverage}</p>
-        </div>
+        </div>}
         {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : <><p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe horizontally for later blocks" : "Vuốt ngang để xem H12 · H14 · H16"}</p><div ref={tableScrollRef} className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
             <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{activeHours.map((hour) => {

@@ -81,7 +81,7 @@ function payload() {
 }
 
 function render(locale) {
-  return renderToStaticMarkup(React.createElement(H1SignalBoard, { data: payload(), locale, unlocked: true }));
+  return renderToStaticMarkup(React.createElement(H1SignalBoard, { data: payload(), locale, unlocked: true, mode: "history" }));
 }
 
 test("H1 history renders one custom calendar trigger with newest date and coverage", () => {
@@ -108,8 +108,18 @@ test("scheduled Telegram side renders in the matching H1 table cell", () => {
   assert.match(markup, /data-side="buy">BUY<\/span>/);
 });
 
-test("H1 empty live state keeps the fallback calendar interactive", () => {
-  const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data: null, degraded: true, locale: "VN", unlocked: true }));
+test("H1 empty live state stays current-day only without history calendar", () => {
+  const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data: null, degraded: true, locale: "VN", unlocked: true, mode: "live" }));
+  assert.match(markup, /H1 \/ LIVE/);
+  assert.match(markup, /ngày hiện tại/);
+  assert.doesNotMatch(markup, /oak-h1-history/);
+  assert.doesNotMatch(markup, /oak-h1-calendar-trigger/);
+  assert.doesNotMatch(markup, /calendar dự phòng/);
+});
+
+test("H1 empty history state keeps the fallback calendar interactive", () => {
+  const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data: null, degraded: true, locale: "VN", unlocked: true, mode: "history" }));
+  assert.match(markup, /H1 \/ HISTORY/);
   assert.match(markup, /oak-h1-history/);
   assert.match(markup, /oak-h1-calendar-trigger/);
   assert.match(markup, /aria-haspopup="dialog"/);
@@ -118,10 +128,10 @@ test("H1 empty live state keeps the fallback calendar interactive", () => {
   assert.doesNotMatch(markup, /oak-h1-calendar-trigger[^>]*disabled/);
 });
 
-test("fallback history selection is not reset to today while live data is unavailable", () => {
-  assert.match(h1SignalBoardSource, /const date = data \? selectHistoryDate\(data\.days, "all", selectedDate\) : selectedDate;/);
-  assert.match(h1SignalBoardSource, /if \(!data \|\| selectedDate === date\) return;/);
-  assert.doesNotMatch(h1SignalBoardSource, /const date = data \? selectHistoryDate\(data\.days, "all", selectedDate\) : "";/);
+test("live pins latest broker date while history preserves selected-date navigation", () => {
+  assert.match(h1SignalBoardSource, /const date = data \? \(historyMode \? selectHistoryDate\(data\.days, "all", selectedDate\) : latestDate\) : selectedDate;/);
+  assert.match(h1SignalBoardSource, /if \(!historyMode \|\| !data \|\| selectedDate === date\) return;/);
+  assert.match(h1SignalBoardSource, /\{historyMode && <div className="oak-h1-history"/);
 });
 
 test("historical cTrader trendbars use DST-aware broker dates and hours", () => {

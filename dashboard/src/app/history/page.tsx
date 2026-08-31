@@ -24,7 +24,7 @@ export default async function HistoryPage() {
         <h1>{locale === "EN" ? "H1 History" : "Lịch sử H1"}</h1>
         <p>{locale === "EN" ? "Browse retained broker days without leaving the history workspace." : "Xem lại các ngày broker đã lưu mà không cần quay về màn hình live."}</p>
       </header>
-      <H1SignalBoard data={data} degraded={read.ok === false} locale={locale} unlocked={access.unlocked} />
+      <H1SignalBoard data={data} degraded={read.ok === false} locale={locale} unlocked={access.unlocked} mode="history" />
     </div>
   );
 }

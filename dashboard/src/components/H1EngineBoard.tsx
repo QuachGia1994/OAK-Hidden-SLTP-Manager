@@ -135,6 +135,6 @@ export function H1EngineBoard({ h1Data, degraded, locale, access }: { h1Data: H1
     </header>
 
     <VipGate access={access} locale={locale} />
-    <H1SignalBoard data={h1Data} degraded={degraded} locale={locale} unlocked={access.unlocked} />
+    <H1SignalBoard data={h1Data} degraded={degraded} locale={locale} unlocked={access.unlocked} mode="live" />
   </div>;
 }
