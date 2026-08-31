@@ -126,10 +126,10 @@ export async function POST(request: Request) {
   const dryRun = url.searchParams.get("dryRun") === "1";
   const cloudConfig = await loadH1CloudConfig();
   const enabled = Boolean(cloudConfig?.enabled);
-  if (!enabled && !dryRun) {
-    return NextResponse.json({ ok: true, enabled: false, skipped: "disabled" }, { headers: { "Cache-Control": "no-store" } });
-  }
 
+  // Table/history publication must remain live even when Telegram automation is
+  // disabled or failover Redis carries a stale disabled config. `enabled` gates
+  // Telegram side effects only; scanner state/public feed still advances.
   const nowMs = Date.now();
   const wall = brokerWallParts(nowMs);
   const recoverySeedHour = wall.weekday !== 0 && wall.weekday !== 6 && wall.hour === 5;
@@ -186,7 +186,7 @@ export async function POST(request: Request) {
     // block hour ahead of its closed candle; they are independent from any
     // user-scheduled entry/close appointments.
     let blockReminderSent = false;
-    const telegramConfigured = Boolean(!dryRun && cloudConfig?.telegramToken && cloudConfig?.telegramChatId);
+    const telegramConfigured = Boolean(enabled && !dryRun && cloudConfig?.telegramToken && cloudConfig?.telegramChatId);
     const isScheduledBlock = (H1_SCAN_HOURS as readonly number[]).includes(market.brokerHour)
       && isH1SlotActiveForBrokerDate(market.brokerDate, market.brokerHour);
     if (telegramConfigured && isScheduledBlock && cloudConfig) {

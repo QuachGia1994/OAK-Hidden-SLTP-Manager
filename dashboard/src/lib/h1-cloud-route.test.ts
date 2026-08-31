@@ -17,7 +17,7 @@ const cloudConfig = readFileSync(new URL("./h1-cloud-config.ts", import.meta.url
 const timekeeper = readFileSync(new URL("../../../cloudflare/h1-timekeeper/src/index.js", import.meta.url), "utf8");
 const timekeeperConfig = readFileSync(new URL("../../../cloudflare/h1-timekeeper/wrangler.jsonc", import.meta.url), "utf8");
 
-test("cloud scanner route is private, disabled by default, and singleton locked", () => {
+test("cloud scanner route is private, table-live when automation is disabled, and singleton locked", () => {
   assert.match(route, /verifyH1ScannerGitHubOidc/);
   assert.match(route, /requireAuth/);
   assert.match(route, /Authorization|authorization/);
@@ -27,6 +27,9 @@ test("cloud scanner route is private, disabled by default, and singleton locked"
   assert.match(route, /timingSafeEqual/);
   assert.match(route, /loadH1CloudConfig/);
   assert.match(route, /Boolean\(cloudConfig\?\.enabled\)/);
+  assert.doesNotMatch(route, /skipped:\s*"disabled"/);
+  assert.match(route, /Boolean\(enabled && !dryRun && cloudConfig\?\.telegramToken && cloudConfig\?\.telegramChatId\)/);
+  assert.match(route, /Table\/history publication must remain live/);
   assert.match(route, /acquireH1CloudLock/);
   assert.match(route, /releaseH1CloudLock/);
   assert.match(cloudStore, /H1_CLOUD_LOCK_KEY/);
