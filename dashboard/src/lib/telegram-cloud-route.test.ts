@@ -55,7 +55,7 @@ test("Telegram webhook bootstrap is one-time authorized and never returns the se
   assert.match(setup, /setWebhook/);
   assert.match(setup, /secret_token: secret/);
   assert.match(setup, /drop_pending_updates: false/);
-  assert.ok(setup.indexOf("saveH1CloudConfig(saved)") < setup.indexOf("installWebhook(current.telegramToken, secret)"));
+  assert.ok(setup.indexOf("installWebhook(current.telegramToken, secret)") < setup.indexOf("saveH1CloudConfig(saved)"));
   assert.match(setup, /TELEGRAM_CLOUD_WEBHOOK_URL/);
   assert.match(setup, /webhookUrl: TELEGRAM_CLOUD_WEBHOOK_URL,[\s\S]*\.\.\.safeH1CloudConfigStatus\(saved\)/);
   assert.doesNotMatch(setup, /webhookUrl: TELEGRAM_CLOUD_WEBHOOK_URL,[\s\S]*telegramWebhookSecret:/);
@@ -95,6 +95,12 @@ test("due scheduler self-heals missing webhook config and executes only pre-appr
   assert.match(tick, /TELEGRAM_CLOUD_WEBHOOK_URL/);
   assert.match(tick, /drop_pending_updates: false/);
   assert.match(tick, /await saveH1CloudConfig\(repaired\)/);
+  assert.match(tick, /WEBHOOK_SYNC_PREFIX/);
+  assert.match(tick, /WEBHOOK_SYNC_SECONDS = 6 \* 60 \* 60/);
+  assert.match(tick, /webhookSyncKey/);
+  assert.match(tick, /redis\.get<string>\(syncKey\)/);
+  assert.match(tick, /installTelegramWebhook\(config\.telegramToken, secret\)/);
+  assert.match(tick, /redis\.set\(syncKey, "ok", \{ ex: WEBHOOK_SYNC_SECONDS \}\)/);
   assert.match(tick, /activeConfig\?\.telegramControlEnabled/);
   assert.match(tick, /const tasks = await listCloudIntents\(\)/);
   assert.equal((tick.match(/listCloudIntents\(\)/g) || []).length, 1);

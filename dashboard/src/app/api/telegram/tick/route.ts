@@ -16,6 +16,8 @@ const LOCK_KEY = "oak:telegram:cloud:tick-lock";
 const LOCK_SECONDS = 90;
 const CF_TICK_HASH_KEY = "oak:telegram:cloud:cf-tick:sha256";
 const CF_TICK_HEADER = "x-telegram-timekeeper-key";
+const WEBHOOK_SYNC_PREFIX = "oak:telegram:cloud:webhook-sync:";
+const WEBHOOK_SYNC_SECONDS = 6 * 60 * 60;
 
 function safeHexEqual(left: string, right: string): boolean {
   if (!/^[a-f0-9]{64}$/i.test(left) || !/^[a-f0-9]{64}$/i.test(right)) return false;
@@ -55,12 +57,29 @@ async function installTelegramWebhook(token: string, secret: string): Promise<vo
   if (!response.ok || payload.ok !== true) throw new Error(payload.description || `Telegram setWebhook failed (${response.status})`);
 }
 
+function webhookSyncKey(token: string, secret: string): string {
+  const fingerprint = createHash("sha256")
+    .update(TELEGRAM_CLOUD_WEBHOOK_URL)
+    .update("\0")
+    .update(token)
+    .update("\0")
+    .update(secret)
+    .digest("hex");
+  return `${WEBHOOK_SYNC_PREFIX}${fingerprint}`;
+}
+
 async function ensureTelegramControlConfig(config: H1CloudConfig | null): Promise<H1CloudConfig | null> {
   if (!config?.telegramToken || !config.telegramChatId) return config;
-  if (config.telegramWebhookSecret) return { ...config, telegramControlEnabled: true };
 
-  const secret = randomBytes(32).toString("base64url");
-  await installTelegramWebhook(config.telegramToken, secret);
+  const secret = config.telegramWebhookSecret || randomBytes(32).toString("base64url");
+  const syncKey = webhookSyncKey(config.telegramToken, secret);
+  const synced = await redis.get<string>(syncKey);
+  if (synced !== "ok") {
+    await installTelegramWebhook(config.telegramToken, secret);
+    await redis.set(syncKey, "ok", { ex: WEBHOOK_SYNC_SECONDS });
+  }
+
+  if (config.telegramWebhookSecret) return { ...config, telegramControlEnabled: true };
   const repaired: H1CloudConfig = {
     ...config,
     telegramWebhookSecret: secret,

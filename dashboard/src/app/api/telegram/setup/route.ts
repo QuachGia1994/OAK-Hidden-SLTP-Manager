@@ -52,8 +52,10 @@ export async function POST(request: Request) {
     }
     const secret = current.telegramWebhookSecret || randomBytes(32).toString("base64url");
     const saved = { ...current, telegramWebhookSecret: secret, telegramControlEnabled: true, savedAt: Date.now() };
-    await saveH1CloudConfig(saved);
+    // Install first so a failed Telegram API call can never persist a secret
+    // that Telegram itself is not using.
     await installWebhook(current.telegramToken, secret);
+    await saveH1CloudConfig(saved);
     return NextResponse.json({
       ok: true,
       webhookUrl: TELEGRAM_CLOUD_WEBHOOK_URL,
