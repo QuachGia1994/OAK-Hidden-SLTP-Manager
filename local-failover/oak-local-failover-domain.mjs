@@ -14,6 +14,7 @@ export const DEFAULT_SNAPSHOT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const MUTATIONS = new Set(["entry", "close", "modify", "partial"]);
 const TERMINAL = new Set(["executed", "failed", "uncertain", "cancelled", "expired"]);
 const LOCAL_ID_RE = /^L-(\d+)-(\d+)$/;
+const LOCAL_SHORT_ID_RE = /^\d+$/;
 
 export function defaultFailoverState(now = Date.now()) {
   return {
@@ -101,6 +102,18 @@ export function isLocalIntentId(value) {
   return LOCAL_ID_RE.test(String(value || ""));
 }
 
+export function localIntentShortId(value) {
+  const match = String(value || "").match(LOCAL_ID_RE);
+  if (!match) return "";
+  const seq = Number(match[2]);
+  return Number.isSafeInteger(seq) && seq > 0 ? String(seq) : "";
+}
+
+function isLocalIntentReference(value) {
+  const text = String(value || "").trim();
+  return isLocalIntentId(text) || (LOCAL_SHORT_ID_RE.test(text) && Number.isSafeInteger(Number(text)) && Number(text) > 0);
+}
+
 export const telegramMt5OriginKey = mt5TelegramOriginKey;
 export const originLedgerKey = mt5OriginLedgerKey;
 export const brokerTaskDigest = mt5BrokerTaskDigest;
@@ -118,15 +131,15 @@ export function parseLocalTelegramCommand(text, nowMs = Date.now()) {
   const command = String(tokens[0] || "").toLowerCase().split("@")[0];
   const args = tokens.slice(1);
   if (command === "/approve" || command === "approve") {
-    if (!args.length || args.some((id) => !isLocalIntentId(id))) {
-      return { type: "unknown", reason: "Local /approve requires L-<epoch>-<seq> intent IDs; bare numeric cloud IDs are rejected." };
+    if (!args.length || args.some((id) => !isLocalIntentReference(id))) {
+      return { type: "unknown", reason: "Local /approve requires a local intent ID, e.g. /approve 1." };
     }
     return { type: "approve-local", ids: [...new Set(args)] };
   }
   if (command === "/del" || command === "del") {
     if (args.length === 1 && args[0].toLowerCase() === "all") return { type: "delete-local", all: true, ids: [] };
-    if (!args.length || args.some((id) => !isLocalIntentId(id))) {
-      return { type: "unknown", reason: "Local /del requires L-<epoch>-<seq> intent IDs or /del all; bare numeric cloud IDs are rejected." };
+    if (!args.length || args.some((id) => !isLocalIntentReference(id))) {
+      return { type: "unknown", reason: "Local /del requires a local intent ID, e.g. /del 1, or /del all." };
     }
     return { type: "delete-local", all: false, ids: [...new Set(args)] };
   }

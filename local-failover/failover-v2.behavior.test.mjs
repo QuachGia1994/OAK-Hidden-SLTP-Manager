@@ -495,18 +495,21 @@ test("14 reply failure resends stored outcome without recreating command", { con
   } finally { await h.cleanup(); }
 });
 
-test("15 local IDs are namespaced and bare numeric cloud IDs are rejected", { concurrency: false }, async () => {
+test("15 local canonical IDs stay namespaced while short numeric operator IDs resolve safely", { concurrency: false }, async () => {
   const h = await createHarness("15", { statuses: [statusFor()] });
   try {
     const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
     const statuses = await h.runtime.loadEaStatuses();
     await h.runtime.processTelegramUpdate(h.config, state, { update_id: 151, message: { chat: { id: 123 }, text: "/buy EURUSD 0.01 @acct-a" } }, statuses);
     const [id] = Object.keys(state.intents);
-    assert.match(id, /^L-\d+-\d+$/);
-    assert.equal(parseLocalTelegramCommand("/approve 12").type, "unknown");
-    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 152, message: { chat: { id: 123 }, text: "/approve 12" } }, statuses);
-    assert.equal(h.eaExecutions, 0);
-    assert.equal(state.intents[id].status, "approval_required");
+    assert.match(id, /^L-\d+-1$/);
+    assert.equal(parseLocalTelegramCommand("/approve 1").type, "approve-local");
+    assert.equal(parseLocalTelegramCommand("/del 1").type, "delete-local");
+    assert.match(state.commands["151:0"].outcome, /intent #1 saved/);
+    assert.match(state.commands["151:0"].outcome, /\/del 1/);
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 152, message: { chat: { id: 123 }, text: "/approve 1" } }, statuses);
+    assert.equal(h.eaExecutions, 1);
+    assert.equal(state.intents[id].status, "executed");
   } finally { await h.cleanup(); }
 });
 
@@ -519,8 +522,9 @@ test("16 mutation requires approval and delete-cancel never executes", { concurr
     const [id] = Object.keys(state.intents);
     assert.equal(state.intents[id].status, "approval_required");
     assert.equal(h.eaExecutions, 0);
-    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 162, message: { chat: { id: 123 }, text: `/del ${id}` } }, statuses);
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 162, message: { chat: { id: 123 }, text: "/del 1" } }, statuses);
     assert.equal(state.intents[id].status, "cancelled");
+    assert.match(state.commands["162:0"].outcome, /#1: cancelled/);
     assert.equal(h.eaExecutions, 0);
   } finally { await h.cleanup(); }
 });

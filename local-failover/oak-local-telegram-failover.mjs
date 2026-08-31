@@ -22,6 +22,7 @@ import {
   isBrokerMutation,
   isTerminalIntentStatus,
   localIntentId,
+  localIntentShortId,
   newFailoverEpoch,
   newFenceToken,
   normalizeFailoverState,
@@ -685,9 +686,9 @@ export function createLocalFailoverRuntime(options = {}) {
       "• /status · /profiles · /positions [@ACCOUNT] · /pending",
       "• /buy, /sell, /close, /closeall, /modify, /partial",
       "• Entry: /buy|/sell SYMBOL LOT [TIME] [SL] [TP] [@ACCOUNT]; SL TP may also appear before TIME. Bare FXCE/Vantage aliases are accepted.",
-      "• Timed entry/close intents auto-arm when saved; immediate mutations still require /approve L-<epoch>-<seq>.",
-      "• /del L-<epoch>-<seq> [...] | /del all",
-      "• Bare numeric cloud intent IDs are never accepted in local mode.",
+      "• Timed entry/close intents auto-arm when saved; immediate mutations still require /approve ID.",
+      "• Local intent IDs are short numbers: /del 1 or /approve 1; /del all is also supported.",
+      "• ID dài L-<epoch>-<seq> chỉ giữ nội bộ/diagnostic và vẫn tương thích nếu cần.",
       "• More than 10 non-empty command lines rejects the whole Telegram message.",
       "• cTrader execution is disabled in PC-local mode; broker mutations go through MT5 EA only.",
     ].join("\n");
@@ -747,12 +748,27 @@ export function createLocalFailoverRuntime(options = {}) {
     return state.mode === FAILOVER_MODES.STANDBY ? "cloud" : state.mode;
   }
 
+  function shortIntentId(value) {
+    return localIntentShortId(typeof value === "string" ? value : value?.id) || String(typeof value === "string" ? value : value?.id || "");
+  }
+
+  function resolveLocalIntentReference(state, reference) {
+    const raw = String(reference || "").trim();
+    if (state.intents?.[raw]) return raw;
+    if (/^\d+$/.test(raw) && Number.isSafeInteger(Number(raw)) && Number(raw) > 0 && state.epoch) {
+      const canonical = localIntentId(state.epoch, Number(raw));
+      if (state.intents?.[canonical]) return canonical;
+    }
+    return "";
+  }
+
   function renderPending(state) {
     const rows = Object.values(state.intents || {}).filter((intent) => ACTIVE_INTENT_STATUSES.has(intent.status));
     if (!rows.length) return "🖥 Local control: no pending local intent.";
     return [
       `🖥 Local control · ${rows.length} pending`,
-      ...rows.slice(0, 30).map((intent) => `• ${intent.id} ${intent.status} · ${intent.kind} @${intent.accountLabel}${intent.dueText ? ` · ${intent.dueText}` : ""}`),
+      ...rows.slice(0, 30).map((intent) => `• #${shortIntentId(intent)} ${intent.status} · ${intent.kind} @${intent.accountLabel}${intent.dueText ? ` · ${intent.dueText}` : ""}`),
+      "• Hủy: /del ID",
     ].join("\n");
   }
 
@@ -763,7 +779,7 @@ export function createLocalFailoverRuntime(options = {}) {
     if (Number.isFinite(Number(intent.dueToDispatchMs))) timing.push(`dispatch ${intent.dueToDispatchMs >= 0 ? "+" : ""}${Math.round(intent.dueToDispatchMs)}ms vs due`);
     if (Number.isFinite(Number(intent.dispatchLatencyMs))) timing.push(`EA round-trip ${Math.round(intent.dispatchLatencyMs)}ms`);
     return [
-      `🖥 Local intent ${intent.id} · ${status}`,
+      `🖥 Local intent #${shortIntentId(intent)} · ${status}`,
       `• @${intent.accountLabel}: ${result.ok ? "OK" : result.uncertain ? "UNCERTAIN" : "FAILED"}${result.brokerRef ? ` · ${result.brokerRef}` : ""}`,
       `• ${result.detail || "no detail"}`,
       ...(timing.length ? [`• Timing: ${timing.join(" · ")}`] : []),
@@ -988,7 +1004,7 @@ export function createLocalFailoverRuntime(options = {}) {
       intent.executionFinishedAt = now;
       intent.executionError = "Scheduled execution window expired before local execution.";
       delete state.pendingWebSync[intent.id];
-      state.pendingSystemMessages.push(`⌛ Local intent ${intent.id} expired at ${intent.dueText}; late execution was blocked.`);
+      state.pendingSystemMessages.push(`⌛ Local intent #${shortIntentId(intent)} expired at ${intent.dueText}; late execution was blocked.`);
       expired = true;
     }
     if (expired) await saveState(state);
@@ -1002,7 +1018,8 @@ export function createLocalFailoverRuntime(options = {}) {
     const requested = targetFromPayload(parsed.payload);
     const { account } = selectAccount(config, statuses, requested);
     if (!state.epoch) state.epoch = newFailoverEpoch(clock());
-    const id = localIntentId(state.epoch, state.nextIntentSeq++);
+    const shortId = state.nextIntentSeq++;
+    const id = localIntentId(state.epoch, shortId);
     const originKey = telegramMt5OriginKey(updateId, commandIndex, account.providerAccountId);
     const protection = parsed.kind === "entry"
       ? resolveProtectionSnapshot(account, String(parsed.payload.symbol || ""), parsed.payload)
@@ -1046,21 +1063,24 @@ export function createLocalFailoverRuntime(options = {}) {
     scheduleWebSignalSync(state, intent);
     await saveState(state);
     return [
-      `✅ ${config.controlMode === LOCAL_PRIMARY_MODE ? "Local" : "Local failover"} intent ${id} saved`,
+      `✅ ${config.controlMode === LOCAL_PRIMARY_MODE ? "Local" : "Local failover"} intent #${shortId} saved`,
+      `• ID: ${shortId} · cancel with /del ${shortId}`,
       `• ${parsed.kind} @${account.label}`,
       `• ${parsed.dueText}`,
       ...(protection ? [`• Protection: SL ${protection.slPoints}pt · TP ${protection.tpPoints}pt`] : []),
       `• Status: ${status}`,
-      ...(status === "scheduled" ? ["• Auto: armed; executes at due time without /approve"] : [`• Confirm: /approve ${id}`]),
+      ...(status === "scheduled" ? ["• Auto: armed; executes at due time without /approve"] : [`• Confirm: /approve ${shortId}`]),
     ].join("\n");
   }
 
   async function approveLocal(config, state, ids, statuses) {
     const messages = [];
-    for (const id of ids) {
-      const intent = state.intents[id];
+    for (const reference of ids) {
+      const id = resolveLocalIntentReference(state, reference);
+      const intent = id ? state.intents[id] : null;
+      const display = intent ? shortIntentId(intent) : String(reference);
       if (!intent || intent.status !== "approval_required") {
-        messages.push(`• ${id}: not approval_required`);
+        messages.push(`• #${display}: not approval_required`);
         continue;
       }
       intent.approvedAt = clock();
@@ -1071,27 +1091,29 @@ export function createLocalFailoverRuntime(options = {}) {
         const envelope = await executeIntent(config, state, intent, statuses);
         messages.push(renderExecution(intent, envelope));
       } else {
-        messages.push(`• ${id}: scheduled · ${intent.dueText}`);
+        messages.push(`• #${display}: scheduled · ${intent.dueText}`);
       }
     }
     return [`✅ Local approve`, ...messages].join("\n");
   }
 
   async function deleteLocal(state, parsed) {
-    const ids = parsed.all
+    const references = parsed.all
       ? Object.values(state.intents || {}).filter((intent) => ["approval_required", "scheduled", "approved"].includes(intent.status)).map((intent) => intent.id)
       : parsed.ids;
     const messages = [];
-    for (const id of ids) {
-      const intent = state.intents[id];
+    for (const reference of references) {
+      const id = resolveLocalIntentReference(state, reference);
+      const intent = id ? state.intents[id] : null;
+      const display = intent ? shortIntentId(intent) : String(reference);
       if (!intent || !["approval_required", "scheduled", "approved"].includes(intent.status)) {
-        messages.push(`• ${id}: cannot cancel`);
+        messages.push(`• #${display}: cannot cancel`);
         continue;
       }
       intent.status = "cancelled";
       intent.executionFinishedAt = clock();
       delete state.pendingWebSync[id];
-      messages.push(`• ${id}: cancelled`);
+      messages.push(`• #${display}: cancelled`);
     }
     await saveState(state);
     return [`🗑 Local delete`, ...messages].join("\n");
