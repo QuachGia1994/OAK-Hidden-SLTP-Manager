@@ -45,7 +45,7 @@ test("H1 setup preserves Telegram control and config failover chooses the freshe
   assert.match(h1Setup, /telegramControlEnabled: current\?\.telegramControlEnabled \?\? Boolean\(telegramWebhookSecret\)/);
   assert.match(cloudConfig, /readRedisReplicas<unknown>\(CONFIG_KEY\)/);
   assert.match(cloudConfig, /candidate\.savedAt > best\.savedAt/);
-  assert.match(cloudConfig, /telegramControlEnabled: parsed\.telegramControlEnabled \?\? Boolean\(parsed\.telegramWebhookSecret\)/);
+  assert.match(cloudConfig, /telegramControlEnabled: Boolean\(parsed\.telegramWebhookSecret\)/);
 });
 
 test("Telegram webhook bootstrap is one-time authorized and never returns the secret", () => {

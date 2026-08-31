@@ -76,10 +76,11 @@ function decryptConfig(value: unknown): H1CloudConfig {
   }
   return {
     ...parsed,
-    // Older H1 setup saves accidentally dropped telegramControlEnabled while
-    // preserving the installed webhook secret. Treat that exact legacy shape
-    // as control-enabled so Telegram commands recover without rotating secrets.
-    telegramControlEnabled: parsed.telegramControlEnabled ?? Boolean(parsed.telegramWebhookSecret),
+    // Telegram setup has no disable path: an installed webhook secret is the
+    // authoritative signal that cloud command control is enabled. Historical
+    // H1 config rewrites could persist false/missing here while keeping the
+    // webhook installed, which made Telegram silently return 503.
+    telegramControlEnabled: Boolean(parsed.telegramWebhookSecret),
   } as H1CloudConfig;
 }
 
