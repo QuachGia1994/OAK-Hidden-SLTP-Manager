@@ -8,6 +8,8 @@ import {
   TELEGRAM_MULTI_COMMAND_LIMIT,
   approvedStatusForDueAt,
   initialCloudIntentStatus,
+  isDueScheduledIntent,
+  isExpiredScheduledIntent,
   splitCloudTelegramCommands,
 } from "../dashboard/src/lib/telegram-cloud-domain.ts";
 import {
@@ -763,8 +765,18 @@ export function createLocalFailoverRuntime(options = {}) {
   async function dispatchDueIntents(config, state, statuses) {
     if (![FAILOVER_MODES.LOCAL_ACTIVE, FAILOVER_MODES.STANDBY].includes(state.mode)) return;
     const now = clock();
+    let expired = false;
+    for (const intent of Object.values(state.intents || {})) {
+      if (!isExpiredScheduledIntent(intent, now)) continue;
+      intent.status = "expired";
+      intent.executionFinishedAt = now;
+      intent.executionError = "Scheduled execution window expired before local execution.";
+      state.pendingSystemMessages.push(`⌛ Local intent ${intent.id} expired at ${intent.dueText}; late execution was blocked.`);
+      expired = true;
+    }
+    if (expired) await saveState(state);
     const due = Object.values(state.intents || {}).filter((intent) =>
-      intent.status === "approved" || (intent.status === "scheduled" && intent.dueAt !== null && Number(intent.dueAt) <= now),
+      intent.status === "approved" || isDueScheduledIntent(intent, now),
     );
     for (const intent of due) await executeIntent(config, state, intent, statuses);
   }

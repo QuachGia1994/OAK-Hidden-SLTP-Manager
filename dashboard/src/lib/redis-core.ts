@@ -1,6 +1,6 @@
 import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
-import { isRedisFailoverError } from "./redis-failover";
+import { REDIS_FAILOVER_MARKER_VALUE, isRedisFailoverError, shouldUseRedisBackup } from "./redis-failover";
 
 const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL || "";
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || "";
@@ -8,6 +8,7 @@ const BACKUP_REDIS_URL = process.env.UPSTASH_BACKUP_REDIS_REST_URL || "";
 const BACKUP_REDIS_TOKEN = process.env.UPSTASH_BACKUP_REDIS_REST_TOKEN || "";
 const API_KEY = process.env.DASHBOARD_API_KEY || "";
 const FAILOVER_COOLDOWN_MS = Math.max(60_000, Number(process.env.UPSTASH_FAILOVER_COOLDOWN_MS || 600_000));
+const SHARED_FAILOVER_KEY = "oak:redis:failover:authority:v1";
 
 const primaryRedis = new Redis({ url: REDIS_URL, token: REDIS_TOKEN });
 const backupRedis = BACKUP_REDIS_URL && BACKUP_REDIS_TOKEN
@@ -35,10 +36,30 @@ async function callBackup(property: PropertyKey, args: unknown[]): Promise<unkno
   return method(...args);
 }
 
+async function sharedFailoverMarker(): Promise<unknown> {
+  if (!backupRedis) return null;
+  try {
+    return await backupRedis.get<unknown>(SHARED_FAILOVER_KEY);
+  } catch (error) {
+    console.warn("[redis] shared failover marker read failed", { error: String(error) });
+    return null;
+  }
+}
+
+async function activateSharedBackupAuthority(methodName: string): Promise<void> {
+  primaryUnavailableUntil = Date.now() + FAILOVER_COOLDOWN_MS;
+  if (!backupRedis) return;
+  try {
+    await backupRedis.set(SHARED_FAILOVER_KEY, REDIS_FAILOVER_MARKER_VALUE);
+  } catch (error) {
+    console.warn("[redis] shared failover marker write failed", { method: methodName, error: String(error) });
+  }
+}
+
 async function callRedis(property: PropertyKey, args: unknown[]): Promise<unknown> {
   const methodName = String(property).toLowerCase();
-  const useBackup = Boolean(backupRedis && Date.now() < primaryUnavailableUntil);
-  if (useBackup) return callBackup(property, args);
+  const marker = backupRedis && primaryUnavailableUntil <= Date.now() ? await sharedFailoverMarker() : null;
+  if (backupRedis && shouldUseRedisBackup(primaryUnavailableUntil, marker)) return callBackup(property, args);
 
   const primaryMethod = redisMethod(primaryRedis, property);
   if (!primaryMethod) throw new Error(`Unsupported Redis method: ${String(property)}`);
@@ -55,8 +76,8 @@ async function callRedis(property: PropertyKey, args: unknown[]): Promise<unknow
     return result;
   } catch (error) {
     if (!backupRedis || !isRedisFailoverError(error)) throw error;
-    primaryUnavailableUntil = Date.now() + FAILOVER_COOLDOWN_MS;
-    console.warn("[redis] primary unavailable; using backup", { method: methodName, cooldownMs: FAILOVER_COOLDOWN_MS });
+    await activateSharedBackupAuthority(methodName);
+    console.warn("[redis] primary unavailable; backup promoted to shared authority", { method: methodName });
     return callBackup(property, args);
   }
 }
@@ -130,6 +151,9 @@ async function replaceBackupKey(key: string, snapshot: RedisBackupSnapshot): Pro
 
 export async function syncRedisBackup(): Promise<{ scanned: number; copied: number; skipped: number }> {
   if (!backupRedis) throw new Error("Upstash backup is not configured");
+  if (await backupRedis.get<unknown>(SHARED_FAILOVER_KEY) === REDIS_FAILOVER_MARKER_VALUE) {
+    throw new Error("Upstash backup is the active failover authority; primary-to-backup sync is blocked");
+  }
   let cursor = 0;
   let scanned = 0;
   let copied = 0;

@@ -1,3 +1,9 @@
+export const REDIS_FAILOVER_MARKER_VALUE = "backup-active";
+
+export function shouldUseRedisBackup(localUnavailableUntil: number, sharedMarker: unknown, nowMs = Date.now()): boolean {
+  return localUnavailableUntil > nowMs || sharedMarker === REDIS_FAILOVER_MARKER_VALUE;
+}
+
 export function isRedisFailoverError(error: unknown): boolean {
   const status = Number((error as { status?: unknown; statusCode?: unknown } | null)?.status
     ?? (error as { statusCode?: unknown } | null)?.statusCode);

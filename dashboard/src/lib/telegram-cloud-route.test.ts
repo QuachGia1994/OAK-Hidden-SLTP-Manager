@@ -107,6 +107,9 @@ test("due scheduler self-heals missing webhook config and executes armed schedul
   assert.match(tick, /const tasks = await listCloudIntents\(\)/);
   assert.equal((tick.match(/listCloudIntents\(\)/g) || []).length, 1);
   assert.doesNotMatch(tick, /listDueScheduledIntents/);
+  assert.match(tick, /isExpiredScheduledIntent\(task, now\)/);
+  assert.match(tick, /expireScheduledCloudIntent/);
+  assert.match(tick, /tránh vào lệnh trễ/);
   assert.match(tick, /isDueScheduledIntent\(task, now\)/);
   assert.match(tick, /runCloudIntentExecution/);
   assert.match(store, /isDueScheduledIntent\(task, nowMs\)/);
@@ -115,7 +118,7 @@ test("due scheduler self-heals missing webhook config and executes armed schedul
   assert.match(tick, /nx: true, ex: LOCK_SECONDS/);
   assert.match(tick, /releaseOwnedRedisLock\(LOCK_KEY, value\)/);
   assert.match(tick, /managerActivity/);
-  assert.match(tick, /if \(due\.length > 0 \|\| unapprovedDue\.length > 0/);
+  assert.match(tick, /if \(expiredScheduled\.length > 0 \|\| due\.length > 0 \|\| unapprovedDue\.length > 0/);
   assert.doesNotMatch(tick, /Broker execution: chưa tự động/);
 });
 

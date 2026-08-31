@@ -17,7 +17,7 @@
   {"id":16,"name":"Immediate broker mutation requires approval and delete-cancel never executes"},
   {"id":17,"name":"Entry protection uses snapshot defaults and rejects missing protection"},
   {"id":18,"name":"Account identity, stale snapshot and cTrader target mismatches are rejected"},
-  {"id":19,"name":"Timed intent auto-arms and remains PC-owned across recovery while immediate unapproved expires"},
+  {"id":19,"name":"Timed intent auto-arms, remains PC-owned across recovery and expires instead of executing too late"},
   {"id":20,"name":"Canonical origin matches cloud-local and differs by line and account"},
   {"id":21,"name":"Mutation origin is mandatory while positions remains read-only"},
   {"id":22,"name":"Cloud-local race for one origin has one atomic claim winner and one execution"},

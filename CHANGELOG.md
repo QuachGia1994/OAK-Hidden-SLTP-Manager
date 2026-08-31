@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixed Redis failover split-brain across Vercel serverless invocations. A failoverable primary Redis error now promotes the configured backup to a shared persistent authority, so a Telegram webhook that stores a scheduled intent on backup and a later minute tick read the same dataset. Primary-to-backup sync is blocked while backup is authoritative to prevent stale primary data from overwriting live failover state; scheduled intents more than two minutes late now expire instead of executing as stale trades.
 - Fixed manual Telegram timed entry/close commands so future `HH:MM` / `HHhMM` intents auto-arm as `scheduled` when saved and execute from the existing due tick without `/approve`; immediate commands, stale/past explicit times and H1 Scanner intents remain approval-gated. PC-local failover mirrors the same split, and existing already-saved `approval_required` intents are not migrated into late executions.
 - Added idempotent Telegram entry scheduling notifications for live H1 alerts. Existing pending H1 intents are backfilled for notification when their entry time is near, fixed lots are 0.05 for FX and 0.01 for XAUUSD on the $5,000 sizing policy, and pending H1 intent lots are normalized before approval. Telegram block reminders now show the broker weekday/current H, post-signal action, block time and an explicit `Entry time` preparation line.
 - Replaced H1 history date chips with a visual native calendar picker while retaining weekday filters and broker-date bounds.

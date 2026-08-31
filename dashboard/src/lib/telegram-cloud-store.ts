@@ -184,6 +184,17 @@ export async function markScheduledNotification(task: CloudIntent, nowMs = Date.
   await appendTelegramAudit({ action: "intent_scheduled_notified", taskId: task.id, kind: task.kind, dueAt: task.dueAt });
 }
 
+export async function expireScheduledCloudIntent(task: CloudIntent, nowMs = Date.now()): Promise<CloudIntent> {
+  const current = await getCloudIntent(task.id) || task;
+  if (current.status !== "scheduled") return current;
+  current.status = "expired";
+  current.executionFinishedAt = nowMs;
+  current.executionError = "Scheduled execution window expired before a worker could claim it.";
+  await redis.hset(TASKS_KEY, { [String(current.id)]: JSON.stringify(current) });
+  await appendTelegramAudit({ action: "intent_expired", taskId: current.id, kind: current.kind, dueAt: current.dueAt });
+  return current;
+}
+
 export async function claimH1BlockReminder(reminderKey: string, nowMs = Date.now()): Promise<boolean> {
   const normalizedKey = String(reminderKey || "").trim();
   if (!normalizedKey) return false;

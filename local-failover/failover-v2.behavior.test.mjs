@@ -529,6 +529,16 @@ test("19 timed schedule auto-arms, stays PC-owned across handback, and immediate
     await h.runtime.runOneIteration(h.config, state);
     assert.equal(state.intents[scheduledId].status, "executed");
     assert.equal(h.eaExecutions, 1);
+
+    statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 194, message: { chat: { id: 123 }, text: "/buy USDJPY 0.01 23:59 @acct-a" } }, statuses);
+    const staleId = Object.keys(state.intents).find((id) => ![scheduledId, unapprovedId].includes(id));
+    assert.equal(state.intents[staleId].status, "scheduled");
+    h.setNow(state.intents[staleId].dueAt + 120_001);
+    await h.writeStatus(statusFor(ACCOUNT_A, { cloudOk: true, cloudFailureStreak: 0, cloudSuccessStreak: 3 }, h.now));
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(state.intents[staleId].status, "expired");
+    assert.equal(h.eaExecutions, 1);
   } finally { await h.cleanup(); }
 });
 

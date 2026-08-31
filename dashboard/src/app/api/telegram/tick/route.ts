@@ -3,10 +3,10 @@ import { NextResponse } from "next/server";
 import { redis, releaseOwnedRedisLock, requireAuth } from "@/lib/redis-core";
 import { loadH1CloudConfig, saveH1CloudConfig, type H1CloudConfig } from "@/lib/h1-cloud-config";
 import { runCTraderAccountManager } from "@/lib/ctrader-account-manager";
-import { TELEGRAM_CLOUD_PROFILE, isDueScheduledIntent } from "@/lib/telegram-cloud-domain";
+import { TELEGRAM_CLOUD_PROFILE, isDueScheduledIntent, isExpiredScheduledIntent } from "@/lib/telegram-cloud-domain";
 import { TELEGRAM_CLOUD_WEBHOOK_URL } from "@/lib/telegram-cloud-config";
 import { renderCloudExecutionResult, runCloudIntentExecution } from "@/lib/telegram-cloud-runner";
-import { appendTelegramAudit, listCloudIntents, markDueNotification } from "@/lib/telegram-cloud-store";
+import { appendTelegramAudit, expireScheduledCloudIntent, listCloudIntents, markDueNotification } from "@/lib/telegram-cloud-store";
 import { verifyTelegramCloudGitHubOidc } from "@/lib/telegram-cloud-oidc";
 
 export const dynamic = "force-dynamic";
@@ -129,6 +129,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, enabled: false, notified: 0, ctraderManager });
     }
     const tasks = await listCloudIntents();
+    const expiredScheduled = tasks.filter((task) => isExpiredScheduledIntent(task, now)).slice(0, 50);
+    let expired = 0;
+    for (const task of expiredScheduled) {
+      const finished = await expireScheduledCloudIntent(task, now);
+      await sendTelegram(activeConfig.telegramToken, activeConfig.telegramChatId, [
+        `⌛ ${TELEGRAM_CLOUD_PROFILE} · intent #${task.id} đã quá cửa sổ execute`,
+        `• Mốc: ${task.dueText}`,
+        "• Đã hủy tự động để tránh vào lệnh trễ.",
+      ].join("\n"));
+      if (finished.status === "expired") expired += 1;
+    }
+
     const due = tasks.filter((task) => isDueScheduledIntent(task, now)).slice(0, 50);
     let executed = 0;
     for (const task of due) {
@@ -155,10 +167,10 @@ export async function POST(request: Request) {
       reminded += 1;
     }
     const managerActivity = ctraderManager.mutations > 0 || ctraderManager.uncertain > 0 || ctraderManager.errors.length > 0;
-    if (due.length > 0 || unapprovedDue.length > 0 || executed > 0 || reminded > 0 || managerActivity) {
-      await appendTelegramAudit({ action: "due_tick", scheduledDue: due.length, executed, unapprovedDue: unapprovedDue.length, reminded, ctraderManager });
+    if (expiredScheduled.length > 0 || due.length > 0 || unapprovedDue.length > 0 || expired > 0 || executed > 0 || reminded > 0 || managerActivity) {
+      await appendTelegramAudit({ action: "due_tick", expiredScheduled: expiredScheduled.length, expired, scheduledDue: due.length, executed, unapprovedDue: unapprovedDue.length, reminded, ctraderManager });
     }
-    return NextResponse.json({ ok: true, enabled: true, executed, reminded, ctraderManager });
+    return NextResponse.json({ ok: true, enabled: true, expired, executed, reminded, ctraderManager });
   } catch (error) {
     console.error("[TELEGRAM CLOUD TICK]", error instanceof Error ? error.message : String(error));
     return NextResponse.json({ ok: false, error: "Telegram cloud tick failed." }, { status: 502 });

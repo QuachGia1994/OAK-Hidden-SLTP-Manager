@@ -53,8 +53,19 @@ export function canCancelCloudIntentStatus(status: CloudIntentStatus): boolean {
   return status === "approval_required" || status === "scheduled" || status === "approved";
 }
 
+export const SCHEDULED_EXECUTION_GRACE_MS = 2 * 60 * 1000;
+
 export function isDueScheduledIntent(task: Pick<CloudIntent, "status" | "dueAt">, nowMs: number): boolean {
-  return task.status === "scheduled" && task.dueAt !== null && task.dueAt <= nowMs;
+  return task.status === "scheduled"
+    && task.dueAt !== null
+    && task.dueAt <= nowMs
+    && nowMs - task.dueAt <= SCHEDULED_EXECUTION_GRACE_MS;
+}
+
+export function isExpiredScheduledIntent(task: Pick<CloudIntent, "status" | "dueAt">, nowMs: number): boolean {
+  return task.status === "scheduled"
+    && task.dueAt !== null
+    && nowMs - task.dueAt > SCHEDULED_EXECUTION_GRACE_MS;
 }
 
 export type ParsedCloudCommand =
@@ -354,6 +365,6 @@ export function renderHelp(): string {
     "• Xem trang 2: /check @neotech 2",
     "• Trong group: /check@TênBot @neotech",
     "",
-    "Lệnh có giờ được arm ngay khi bot lưu và tự chạy khi tới mốc, không cần /approve. Lệnh không có giờ vẫn cần /approve ID một lần. Nếu bỏ SL/TP, cloud snapshot SL/TP mặc định theo từng account khi tạo intent.",
+    "Lệnh có giờ được arm ngay khi bot lưu và tự chạy khi tới mốc, không cần /approve. Nếu worker trễ quá 2 phút, intent tự hết hạn để tránh vào lệnh muộn. Lệnh không có giờ vẫn cần /approve ID một lần. Nếu bỏ SL/TP, cloud snapshot SL/TP mặc định theo từng account khi tạo intent.",
   ].join("\n");
 }

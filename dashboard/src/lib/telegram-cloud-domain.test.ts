@@ -5,6 +5,7 @@ import {
   canCancelCloudIntentStatus,
   initialCloudIntentStatus,
   isDueScheduledIntent,
+  isExpiredScheduledIntent,
   parseCloudTelegramCommand,
   renderHelp,
   resolveVietnamDueAt,
@@ -189,6 +190,10 @@ test("confirmation state machine executes armed future intents only when due", (
   assert.equal(approvedStatusForDueAt(now - 1, now), "approved");
   assert.equal(approvedStatusForDueAt(now + 60_000, now), "scheduled");
   assert.equal(isDueScheduledIntent({ status: "scheduled", dueAt: now }, now), true);
+  assert.equal(isDueScheduledIntent({ status: "scheduled", dueAt: now - 120_000 }, now), true);
+  assert.equal(isDueScheduledIntent({ status: "scheduled", dueAt: now - 120_001 }, now), false);
+  assert.equal(isExpiredScheduledIntent({ status: "scheduled", dueAt: now - 120_001 }, now), true);
+  assert.equal(isExpiredScheduledIntent({ status: "scheduled", dueAt: now - 120_000 }, now), false);
   assert.equal(isDueScheduledIntent({ status: "scheduled", dueAt: now + 1 }, now), false);
   assert.equal(isDueScheduledIntent({ status: "approval_required", dueAt: now }, now), false);
   assert.equal(canCancelCloudIntentStatus("scheduled"), true);
@@ -208,6 +213,7 @@ test("help/start expose cloud and NeoTech command guidance", () => {
   assert.match(help, /Trong group: \/check@TênBot @neotech/);
   assert.match(help, /\/approve ID/);
   assert.match(help, /không cần \/approve/);
+  assert.match(help, /trễ quá 2 phút/);
   assert.match(help, /không có giờ vẫn cần \/approve/);
   assert.match(help, /SL\/TP mặc định/);
   assert.match(help, /\/partial TICKET\|SYMBOL/);
