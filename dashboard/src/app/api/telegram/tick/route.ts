@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypt
 import { NextResponse } from "next/server";
 import { redis, releaseOwnedRedisLock, requireAuth } from "@/lib/redis-core";
 import { loadH1CloudConfig, saveH1CloudConfig, type H1CloudConfig } from "@/lib/h1-cloud-config";
+import { isLocalPrimaryActive } from "@/lib/local-primary-fence";
 import { runCTraderAccountManager } from "@/lib/ctrader-account-manager";
 import { TELEGRAM_CLOUD_PROFILE, isDueScheduledIntent, isExpiredScheduledIntent } from "@/lib/telegram-cloud-domain";
 import { TELEGRAM_CLOUD_WEBHOOK_URL } from "@/lib/telegram-cloud-config";
@@ -70,6 +71,10 @@ function webhookSyncKey(token: string, secret: string): string {
 
 async function ensureTelegramControlConfig(config: H1CloudConfig | null): Promise<H1CloudConfig | null> {
   if (!config?.telegramToken || !config.telegramChatId) return config;
+
+  // Local-primary owns Telegram while fenced: reinstalling the webhook here would
+  // silently steal ownership back from the PC controller and re-split execution.
+  if (await isLocalPrimaryActive()) return config;
 
   const secret = config.telegramWebhookSecret || randomBytes(32).toString("base64url");
   const syncKey = webhookSyncKey(config.telegramToken, secret);
@@ -142,8 +147,12 @@ export async function POST(request: Request) {
     }
 
     const due = tasks.filter((task) => isDueScheduledIntent(task, now)).slice(0, 50);
+    // Fail-closed: while the PC-local controller owns execution, the cloud tick must
+    // not execute broker mutations even if a stale armed intent is still due.
+    const localPrimaryActive = await isLocalPrimaryActive();
     let executed = 0;
     for (const task of due) {
+      if (localPrimaryActive) break;
       const finished = await runCloudIntentExecution(task.id, now);
       if (!finished) continue;
       await sendTelegram(activeConfig.telegramToken, activeConfig.telegramChatId, [
@@ -170,7 +179,7 @@ export async function POST(request: Request) {
     if (expiredScheduled.length > 0 || due.length > 0 || unapprovedDue.length > 0 || expired > 0 || executed > 0 || reminded > 0 || managerActivity) {
       await appendTelegramAudit({ action: "due_tick", expiredScheduled: expiredScheduled.length, expired, scheduledDue: due.length, executed, unapprovedDue: unapprovedDue.length, reminded, ctraderManager });
     }
-    return NextResponse.json({ ok: true, enabled: true, expired, executed, reminded, ctraderManager });
+    return NextResponse.json({ ok: true, enabled: true, expired, executed, reminded, localPrimaryFence: localPrimaryActive, ctraderManager });
   } catch (error) {
     console.error("[TELEGRAM CLOUD TICK]", error instanceof Error ? error.message : String(error));
     return NextResponse.json({ ok: false, error: "Telegram cloud tick failed." }, { status: 502 });

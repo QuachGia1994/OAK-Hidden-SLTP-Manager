@@ -1,60 +1,50 @@
-# OAK Cloud Manager EA
+# OAK Local Manager EA
 
-`OAK_Cloud_Manager_EA.mq5` is the standalone MT5 execution/runtime for ROBOT SLTP. Attach one EA instance to one chart per MT5 terminal; v1.04 automatically rebinds when that terminal changes account, so switching among registered accounts does not require detaching or attaching the EA again. MT5 execution is owned by this EA; there is no maintained desktop/Python broker worker in the repository.
+`OAK_Cloud_Manager_EA.mq5` is the local-only MT5 execution/runtime for ROBOT SLTP. Attach one EA instance to one chart per MT5 terminal. From v1.06, broker-control execution is exclusively `PC controller -> FILE_COMMON -> EA -> MT5`; the EA exposes no Upstash/cloud bridge credentials in Inputs and does not poll a cloud mailbox.
 
 ## Runtime flow
 
 ```text
-Telegram / dashboard schedule
-        |
-        v
-Vercel control plane -> Upstash mailbox -> OAK_Cloud_Manager_EA -> MT5 broker
+Telegram -> PC local controller -> MetaTrader FILE_COMMON -> OAK EA -> MT5 broker
+                                  \
+                                   -> optional H1 website signal sync
 ```
 
-The cloud remains the source of truth for Telegram intents, `/approve`, target accounts, and scheduled due times. For future entry/close intents, approve once; the cloud dispatches the task at the due time and the EA executes it. This avoids maintaining a second competing scheduler inside the terminal.
-
-If the terminal/PC is offline at the due time, the bridge heartbeat expires and the mutation fails closed. The cloud does not blindly replay a task whose broker result is uncertain.
+The local controller owns Telegram timing and durable intent state. The website sync is visibility-only and cannot block broker dispatch. If the PC/terminal is offline at the scheduled time, the local stale-window rule fails closed rather than blindly replaying an old broker mutation.
 
 ## Features
 
-- Cloud `entry`, `close`, `modify`, `positions` using the existing provider-account registry and Upstash mailbox.
-- Automatic SL/TP on cloud entries and on managed positions opened manually/mobile/web when protection is missing.
+- Local `entry`, `close`, `closeall`, `modify`, `partial`, and `positions` through FILE_COMMON.
+- Automatic SL/TP on managed positions opened by EA, manual, mobile, or other permitted sources when protection is missing.
 - Entry netting policy: skip same direction, close opposite positions, remove opposite pending orders before a new entry.
 - Break-even at configurable R with optional point offset.
 - Full close at configurable R (`InpCloseAtR`).
 - R-level partial closes using `InpPartialRLevels` and `InpPartialPercents`.
-- Telegram/cloud dynamic partial by floating profit or absolute price:
-  - `/partial 123456 profit 200 0.02 @Vantage` arms ticket `123456` to close `0.02` lots once floating profit reaches account-currency `200`.
-  - `/partial XAUUSD price 3456.70 0.01 @Vantage` arms the only matching XAUUSD position to close `0.01` lots when the directional target price is reached. If multiple positions match the symbol, use a ticket.
-- Per-position management state persists in MT5 terminal Global Variables using `POSITION_IDENTIFIER`, so initial risk/R state survives EA reloads and netting ticket replacement.
-- Account identity binding: `InpAutoBindAccount=true` resolves the live login/server to the registered provider account and bridge profile through the cloud auto-bind registry. If no unique safe mapping exists, cloud execution stays unbound while the EA remains attached and local Account Manager logic continues. `InpExpectedLogin` is retained only for explicit fixed-mode fallback.
-- Cloud queue arbitration still fences task ownership in Redis, but broker mutations also pass through the EA's shared FILE_COMMON per-origin ledger. Cloud and PC-local `entry`, `close`, `modify`, and `partial` use the same canonical Telegram origin/digest and must win the same atomic claim before the broker-facing call.
-- A retained result for the same origin/digest is reconciled without re-execution. A retained claim without a result is `UNCERTAIN` and is never replayed automatically. `positions` is read-only and bypasses the mutation claim. This is a durable fail-closed fence, not an absolute exactly-once guarantee at the broker.
-- Upstash traffic is bounded: local position management stays tick-driven, while the cloud mailbox is checked every 10 seconds by default (runtime-clamped to 10–15 seconds). Heartbeat refresh and queue peek share one atomic Redis command, avoiding the previous 1-second idle polling load.
-- Cloud market entry waits up to 2.5 seconds for the selected symbol to synchronize and expose a positive bid/ask tick before building the broker request. This handles Market Watch warm-up races without retrying any broker mutation.
-- EA v1.04 keeps `InpLocalFailoverEnabled=true` by default and adds account auto-bind without weakening the local/cloud mutation fence. The EA writes cloud-health/status and accepts PC-local tasks through MetaTrader `FILE_COMMON`; the companion `local-failover/` controller may take Telegram ownership only after fresh matching EA failure evidence plus repeated independent Redis `SET ... EX` write-canary failures. Normal cloud ownership remains primary.
+- Dynamic partial by floating profit or absolute price.
+- Per-position management state persists in MT5 terminal Global Variables using `POSITION_IDENTIFIER`.
+- Runtime identity is derived locally from terminal login/server. Blank `InpLocalProfile` becomes `local_<login>`; blank `InpLocalProviderAccountId` becomes deterministic `mt5:<sha256-32>`.
+- Broker mutations pass through a durable FILE_COMMON per-origin claim/result ledger. A retained result is reconciled without re-execution; a retained claim without a result is `UNCERTAIN` and is never replayed automatically.
+- Market entry waits up to 2.5 seconds for symbol synchronization and a usable bid/ask before building the broker request. There is no blind broker retry after an ambiguous transport result.
+- EA v1.06 removes all cloud bridge settings from MT5 Properties and never calls cloud polling from `OnTimer`.
 
 ## Install
 
 1. Open the target broker's MT5 terminal and log in to the intended account.
-2. Open MetaEditor (`F4`). Copy `OAK_Cloud_Manager_EA.mq5` into the terminal's `MQL5/Experts/OAK/` folder and compile it.
-3. In MT5 go to **Tools -> Options -> Expert Advisors**. Enable algorithmic trading and add the exact `https://...upstash.io` REST base URL used by ROBOT SLTP to **Allow WebRequest for listed URL**.
-4. Attach `OAK_Cloud_Manager_EA` to one chart. One EA instance is enough for the terminal; keep it attached when switching accounts.
-5. Set:
-   - `InpAutoBindAccount` = keep `true`. Register/enable each MT5 account in `/accounts`; set its MT5 server when known. A unique login can use the safe login-only fallback, while duplicate logins require exact server identity.
-   - `InpBridgeProfile` and `InpExpectedLogin` are used only when `InpAutoBindAccount=false` for deliberate fixed-mode operation.
-   - `InpUpstashRestUrl` and `InpUpstashRestToken` = the same bridge Redis REST credentials as the cloud control plane.
-   - `InpCloudPollSeconds` = keep `10` for the normal balance of command usage and cloud execution latency. The runtime clamps this value to 10–15 seconds; `InpPollSeconds` remains the local manager timer and does not control Redis queue frequency.
-   - `InpLocalFailoverEnabled` = keep `true` on the PC/VPS terminal if the `local-failover/` watchdog is installed. This adds no Redis traffic; it only exposes a local FILE_COMMON mailbox and health file.
-   - SL/TP, netting, BE/R and exposure guards as required.
-6. Keep **Algo Trading** enabled. `/accounts` and `/status` should show the bridge online after the EA heartbeat appears.
-7. Verify with `/positions @ACCOUNT` before approving any live broker mutation.
+2. Copy/compile `OAK_Cloud_Manager_EA.mq5` into that terminal's `MQL5/Experts/` folder.
+3. Enable **Algo Trading**. No Upstash URL and no cloud WebRequest allow-list entry is required for this EA.
+4. Attach one EA instance to one chart.
+5. Local PC Control:
+   - `InpLocalProfile`: leave blank for `local_<login>` unless a stable local label is explicitly required.
+   - `InpLocalProviderAccountId`: leave blank for deterministic terminal-derived identity.
+   - `InpLocalPollMs`: default `250`; clamped to `100..5000` ms. Lower values reduce mailbox pickup latency but increase timer activity.
+6. Configure SL/TP, netting, BE/R and exposure guards as required.
+7. Keep the PC local controller running 24/5. Use `/status`, `/profiles`, and `/positions @ACCOUNT` for read-only verification before any broker mutation.
 
 ## Security
 
-`InpUpstashRestToken` is a secret. Never commit it, paste it into screenshots, or save/share a populated `.set` file. The repo ignores MT5 `.set` and compiled `.ex5` files. A dedicated Upstash database/token for broker execution is preferable to reusing a database that contains unrelated application state.
+EA v1.06 contains no Upstash/cloud token Input and no cloud broker-execution polling path. Local runtime secrets such as the Telegram bot token and dashboard sync API key stay outside Git under the Windows user-only local runtime directory. Do not share populated local configuration or screenshots containing secrets.
 
-The EA validates the auto-bound provider account, bridge profile, live MT5 login and server before executing a cloud task. Dynamic `/partial` commands are accepted by the cloud only when the heartbeat identifies the runtime as `mql5-ea`.
+Local-only execution improves privacy by keeping broker mutations inside the user's MT5 terminal, but it is not a claim that an EA or its orders are undetectable to a broker.
 
 ## Management semantics
 

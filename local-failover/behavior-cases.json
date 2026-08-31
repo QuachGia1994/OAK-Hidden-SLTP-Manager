@@ -24,5 +24,17 @@
   {"id":23,"name":"Existing final result reconciles without executing again"},
   {"id":24,"name":"Existing claim without result becomes UNCERTAIN and is never replayed"},
   {"id":25,"name":"Recovery fences before setWebhook, blocks on fence failure and verifies exact URL"},
-  {"id":26,"name":"Restart, v1 migration and corrupted evidence fail closed without blind replay"}
+  {"id":26,"name":"Restart, v1 migration and corrupted evidence fail closed without blind replay"},
+  {"id":27,"name":"Local-primary takes Telegram ownership, verifies the empty webhook and polls updates"},
+  {"id":28,"name":"Local-primary without takeover consent stays blocked while a webhook is active"},
+  {"id":29,"name":"Local-primary mutations use runtime EA identity and the local-primary task source"},
+  {"id":30,"name":"Optional web H1 signal sync succeeds, defers on failure and drops cancelled intents"},
+  {"id":31,"name":"Local-primary heartbeats the cloud fence with throttling and tolerates missing Upstash"},
+  {"id":32,"name":"Overdue local-primary scheduled intents expire without broker execution"},
+  {"id":33,"name":"Scheduled dispatch is driven by the exact dueAt, not a minute scheduler, with timing evidence"},
+  {"id":34,"name":"Controller restart before dueAt reloads durable state and dispatches exactly once"},
+  {"id":35,"name":"Telegram outage does not block scheduled execution and reconnect resumes update processing"},
+  {"id":36,"name":"Web H1 sync outage never delays or blocks broker dispatch"},
+  {"id":37,"name":"Multiple MT5 accounts route deterministically via explicit @ACCOUNT targeting"},
+  {"id":38,"name":"Cloud fence heartbeat renews after its throttle window and expires server-side by TTL"}
 ]

@@ -4,6 +4,7 @@ import { getFreshCTraderTokens } from "@/lib/ctrader-vault";
 import { fetchCTraderAccountReadSnapshot, type CTraderScannerSession } from "@/lib/ctrader-json";
 import { loadH1CloudConfig } from "@/lib/h1-cloud-config";
 import { writeTelegramScheduledSignal } from "@/lib/h1-cloud-store";
+import { isLocalPrimaryActive } from "@/lib/local-primary-fence";
 import { TELEGRAM_CLOUD_WEBHOOK_URL } from "@/lib/telegram-cloud-config";
 import { parseNeoTechCheckCallback, parseNeoTechCheckCommand } from "@/lib/neotech-compliance-domain";
 import { getNeoTechTelegramPage } from "@/lib/neotech-compliance-telegram";
@@ -143,7 +144,10 @@ function renderPending(tasks: CloudIntent[]): string {
   ].join("\n");
 }
 
+const LOCAL_PRIMARY_REFUSAL = "🖥 Local-primary đang sở hữu thực thi trên PC; cloud chỉ đọc. Tắt local-primary hoặc dùng lệnh local (/help).";
+
 async function approveIntentAndRender(id: number): Promise<string> {
+  if (await isLocalPrimaryActive()) return `⚠️ Intent #${id} không được duyệt: ${LOCAL_PRIMARY_REFUSAL}`;
   const approved = await approveCloudIntent(id);
   if (!approved) return `⚠️ Intent #${id} không tồn tại hoặc không còn chờ xác nhận.`;
   if (approved.status === "scheduled") {
@@ -264,6 +268,10 @@ async function handleCommand(text: string, chatId: string, updateId: number, sou
     return rows.join("\n");
   }
   if (command.type === "intent") {
+    if (await isLocalPrimaryActive()) {
+      await appendTelegramAudit({ action: "command_rejected_local_primary_fence", rawText: text });
+      return `⚠️ Không tạo intent cloud: ${LOCAL_PRIMARY_REFUSAL}`;
+    }
     const accounts = await listProviderAccounts();
     const alias = String(command.payload.legacyProfile || "");
     const targets = resolveEnabledProviderTargets(accounts, alias);

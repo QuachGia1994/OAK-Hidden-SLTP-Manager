@@ -42,8 +42,15 @@ const DEFAULT_CLOUD_RECOVERY_THRESHOLD = 3;
 const DEFAULT_WRITE_PROBE_MIN_INTERVAL_MS = 15_000;
 const DEFAULT_WEBHOOK_CHECK_INTERVAL_MS = 10_000;
 const DEFAULT_LOCAL_TASK_TIMEOUT_MS = 30_000;
+const DEFAULT_WEB_SYNC_TIMEOUT_MS = 5_000;
 const LOOP_MS = 1_000;
+const MIN_LOOP_MS = 50;
 const MAX_LOG_BYTES = 1_000_000;
+const LOCAL_PRIMARY_MODE = "local-primary";
+const FAILOVER_MODE = "failover";
+const LOCAL_PRIMARY_FENCE_KEY = "oak:telegram:local-primary:active:v1";
+const LOCAL_PRIMARY_FENCE_TTL_SECONDS = 300;
+const FENCE_HEARTBEAT_MIN_INTERVAL_MS = 60_000;
 
 const ACTIVE_INTENT_STATUSES = new Set(["approval_required", "scheduled", "approved", "executing", "uncertain"]);
 
@@ -274,10 +281,35 @@ export function createLocalFailoverRuntime(options = {}) {
   const paths = options.paths || resolveRuntimePaths();
   const clock = options.clock || (() => Date.now());
   const sleep = options.sleep || delay;
-  const real = createRealAdapters(options.fetchImpl || globalThis.fetch);
+  const fetchImpl = options.fetchImpl || globalThis.fetch;
+  const real = createRealAdapters(fetchImpl);
   const telegram = options.telegram || real.telegram;
   const upstash = options.upstash || real.upstash;
   const eaAdapter = options.eaAdapter || { dispatch: defaultMailboxDispatch };
+  const webSignal = options.webSignal || {
+    async publish(config, signal) {
+      if (!config.webSignalUrl || !config.dashboardApiKey) return { ok: false, skipped: "not-configured" };
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), config.webSyncTimeoutMs || DEFAULT_WEB_SYNC_TIMEOUT_MS);
+      try {
+        const response = await fetchImpl(config.webSignalUrl, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${config.dashboardApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(signal),
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok || body?.ok !== true) throw new Error(`Web H1 sync failed (${response.status})`);
+        return body;
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+  };
 
   async function log(message) {
     const safe = sanitizeOperatorError(message);
@@ -300,19 +332,27 @@ export function createLocalFailoverRuntime(options = {}) {
 
   async function loadConfig() {
     const config = await readJson(paths.configPath, null);
-    if (!config || config.v !== 2 || !config.telegramToken || !config.telegramChatId || !config.telegramWebhookSecret || !config.webhookUrl) {
-      throw new Error(`Local failover config v2 is missing/incomplete at ${paths.configPath}`);
+    if (!config || ![2, 3].includes(Number(config.v)) || !config.telegramToken || !config.telegramChatId) {
+      throw new Error(`Local control config v2/v3 is missing/incomplete at ${paths.configPath}`);
     }
-    if (!config.upstashUrl || !config.upstashToken) throw new Error("Local failover config is missing Upstash REST credentials for write probing/recovery fencing");
-    if (!Array.isArray(config.accounts)) throw new Error("Local failover config is missing MT5 account snapshot");
+    if (!Array.isArray(config.accounts)) throw new Error("Local control config is missing MT5 account definitions");
+    const controlMode = Number(config.v) >= 3 ? String(config.controlMode || LOCAL_PRIMARY_MODE) : FAILOVER_MODE;
+    if (![LOCAL_PRIMARY_MODE, FAILOVER_MODE].includes(controlMode)) throw new Error(`Unsupported local control mode: ${controlMode}`);
+    if (controlMode === FAILOVER_MODE) {
+      if (!config.telegramWebhookSecret || !config.webhookUrl) throw new Error("Failover mode requires the production Telegram webhook identity");
+      if (!config.upstashUrl || !config.upstashToken) throw new Error("Failover mode requires Upstash REST credentials for write probing/recovery fencing");
+    }
     return {
       ...config,
+      controlMode,
+      takeTelegramOwnership: controlMode === LOCAL_PRIMARY_MODE ? config.takeTelegramOwnership !== false : false,
       cloudFailureThreshold: Math.max(1, Number(config.cloudFailureThreshold || DEFAULT_CLOUD_FAILURE_THRESHOLD)),
       writeFailureThreshold: Math.max(1, Number(config.writeFailureThreshold || DEFAULT_WRITE_FAILURE_THRESHOLD)),
       cloudRecoveryThreshold: Math.max(1, Number(config.cloudRecoveryThreshold || DEFAULT_CLOUD_RECOVERY_THRESHOLD)),
       writeProbeMinIntervalMs: Math.max(1_000, Number(config.writeProbeMinIntervalMs || DEFAULT_WRITE_PROBE_MIN_INTERVAL_MS)),
       webhookCheckIntervalMs: Math.max(1_000, Number(config.webhookCheckIntervalMs || DEFAULT_WEBHOOK_CHECK_INTERVAL_MS)),
       localTaskTimeoutMs: Math.max(250, Number(config.localTaskTimeoutMs || DEFAULT_LOCAL_TASK_TIMEOUT_MS)),
+      webSyncTimeoutMs: Math.max(500, Number(config.webSyncTimeoutMs || DEFAULT_WEB_SYNC_TIMEOUT_MS)),
       accountSnapshotMaxAgeMs: Math.max(60_000, Number(config.accountSnapshotMaxAgeMs || 7 * 24 * 60 * 60 * 1000)),
       unsupportedAccounts: Array.isArray(config.unsupportedAccounts) ? config.unsupportedAccounts : [],
     };
@@ -389,7 +429,7 @@ export function createLocalFailoverRuntime(options = {}) {
   }
 
   function selectAccount(config, statuses, requested) {
-    return chooseLocalMt5Account(
+    const selection = chooseLocalMt5Account(
       [...config.accounts, ...config.unsupportedAccounts],
       freshEaStatuses(statuses),
       requested,
@@ -397,8 +437,28 @@ export function createLocalFailoverRuntime(options = {}) {
         now: clock(),
         snapshotAt: config.snapshotAt,
         maxAgeMs: config.accountSnapshotMaxAgeMs,
+        requireSnapshot: config.controlMode !== LOCAL_PRIMARY_MODE,
+        allowRuntimeProfile: config.controlMode === LOCAL_PRIMARY_MODE,
       },
     );
+    if (config.controlMode !== LOCAL_PRIMARY_MODE) return selection;
+    const heartbeat = selection.heartbeat;
+    const runtimeProviderAccountId = String(heartbeat?.providerAccountId || "").trim();
+    if (!/^mt5:[A-Za-z0-9_-]{8,80}$/.test(runtimeProviderAccountId)) {
+      throw new Error(`@${selection.account.label}: local-primary EA heartbeat is missing a valid providerAccountId`);
+    }
+    return {
+      heartbeat,
+      account: {
+        ...selection.account,
+        bridgeProfile: String(heartbeat.profile || "").trim(),
+        providerAccountId: runtimeProviderAccountId,
+        fxSlPoints: Number(heartbeat.fxSlPoints || selection.account.fxSlPoints || 0),
+        fxTpPoints: Number(heartbeat.fxTpPoints || selection.account.fxTpPoints || 0),
+        goldSlPoints: Number(heartbeat.goldSlPoints || selection.account.goldSlPoints || 0),
+        goldTpPoints: Number(heartbeat.goldTpPoints || selection.account.goldTpPoints || 0),
+      },
+    };
   }
 
   async function writeCapabilityProbe(config, state) {
@@ -434,7 +494,43 @@ export function createLocalFailoverRuntime(options = {}) {
     return info;
   }
 
+  async function ensureLocalPrimaryOwnership(config, state) {
+    const before = await observeWebhook(config, state);
+    const actual = webhookUrl(before);
+    if (actual !== "") {
+      if (!config.takeTelegramOwnership) {
+        return transition(state, FAILOVER_MODES.BLOCKED_UNCERTAIN, `Local-primary ownership blocked by active Telegram webhook: ${actual}`);
+      }
+      await telegram.deleteWebhook(config);
+      const after = await observeWebhook(config, state);
+      if (webhookUrl(after) !== "") {
+        return transition(state, FAILOVER_MODES.BLOCKED_UNCERTAIN, "Local-primary takeover requested but Telegram webhook deletion was not confirmed");
+      }
+    }
+    if (!state.epoch) state.epoch = newFailoverEpoch(clock());
+    state.writeProbeFailureStreak = 0;
+    state.operatorAlert = "";
+    await transition(state, FAILOVER_MODES.LOCAL_ACTIVE);
+    await refreshLocalPrimaryFence(config, state);
+  }
+
+  async function refreshLocalPrimaryFence(config, state) {
+    if (!config.upstashUrl || !config.upstashToken) return;
+    if (clock() - Number(state.lastFenceHeartbeatAt || 0) < FENCE_HEARTBEAT_MIN_INTERVAL_MS) return;
+    state.lastFenceHeartbeatAt = clock();
+    try {
+      await upstash.command(config, ["SET", LOCAL_PRIMARY_FENCE_KEY, JSON.stringify({ at: clock(), epoch: String(state.epoch || "") }), "EX", String(LOCAL_PRIMARY_FENCE_TTL_SECONDS)]);
+    } catch (error) {
+      await log(`Local-primary fence heartbeat failed; the cloud kill-switch may lapse within ${LOCAL_PRIMARY_FENCE_TTL_SECONDS}s: ${sanitizeOperatorError(error)}`);
+    }
+    await saveState(state);
+  }
+
   async function reconcileStartup(config, state) {
+    if (config.controlMode === LOCAL_PRIMARY_MODE) {
+      await ensureLocalPrimaryOwnership(config, state);
+      return;
+    }
     const info = await observeWebhook(config, state);
     const actual = webhookUrl(info);
     const expected = config.webhookUrl;
@@ -576,46 +672,82 @@ export function createLocalFailoverRuntime(options = {}) {
     await continueRecovery(config, state);
   }
 
-  function localHelp() {
+  function localHelp(config) {
+    const localPrimary = config.controlMode === LOCAL_PRIMARY_MODE;
     return [
-      "🖥 OAK PC Local Failover",
-      "• Cloud remains primary; local activates only after EA failures + repeated independent Redis write failures.",
+      localPrimary ? "🖥 OAK PC Local Primary" : "🖥 OAK PC Local Failover",
+      localPrimary
+        ? "• PC local owns Telegram timing and MT5 execution; cloud is not on the broker-mutation path."
+        : "• Cloud remains primary; local activates only after EA failures + repeated independent Redis write failures.",
       "• /status · /profiles · /positions [@ACCOUNT] · /pending",
       "• /buy, /sell, /close, /closeall, /modify, /partial",
       "• Timed entry/close intents auto-arm when saved; immediate mutations still require /approve L-<epoch>-<seq>.",
       "• /del L-<epoch>-<seq> [...] | /del all",
       "• Bare numeric cloud intent IDs are never accepted in local mode.",
       "• More than 10 non-empty command lines rejects the whole Telegram message.",
-      "• cTrader execution is not available in PC-local mode.",
+      "• cTrader execution is disabled in PC-local mode; broker mutations go through MT5 EA only.",
     ].join("\n");
   }
 
   function renderProfiles(config, statuses) {
     const fresh = freshEaStatuses(statuses);
     const rows = config.accounts.filter((row) => row.provider === "mt5" && row.enabled !== false).map((account) => {
-      const heartbeat = fresh.find((row) => String(row.profile).toLowerCase() === String(account.bridgeProfile).toLowerCase() && Number(row.login) === Number(account.login));
-      return `• @${account.label} · MT5 ${account.environment} · login ${account.login} · ${heartbeat ? `online ${heartbeat.server}` : "offline/mismatch"}`;
+      const heartbeat = fresh.find((row) =>
+        Number(row.login) === Number(account.login)
+        && String(row.server || "").trim() === String(account.server || "").trim()
+        && (config.controlMode === LOCAL_PRIMARY_MODE || String(row.profile).toLowerCase() === String(account.bridgeProfile).toLowerCase()),
+      );
+      return `• @${account.label} · MT5 ${account.environment} · login ${account.login} · ${heartbeat ? `online ${heartbeat.server}${heartbeat.localPrimary ? " · LOCAL" : ""}` : "offline/mismatch"}`;
     });
-    return ["🖥 Local MT5 profiles", ...(rows.length ? rows : ["• No enabled MT5 account in bootstrap snapshot"])].join("\n");
+    return ["🖥 Local MT5 profiles", ...(rows.length ? rows : ["• No enabled MT5 account in local config"])].join("\n");
+  }
+
+  function nearestDueText(state, now = clock()) {
+    let nearest = Number.POSITIVE_INFINITY;
+    for (const intent of Object.values(state.intents || {})) {
+      if (intent.status !== "scheduled" || !Number.isFinite(Number(intent.dueAt))) continue;
+      nearest = Math.min(nearest, Number(intent.dueAt));
+    }
+    if (!Number.isFinite(nearest)) return "";
+    const deltaMs = nearest - now;
+    return `${new Date(nearest).toISOString()} (${deltaMs >= 0 ? `in ${Math.round(deltaMs / 1000)}s` : `${Math.round(-deltaMs / 1000)}s late`})`;
   }
 
   function renderStatus(state, config, statuses) {
-    const fresh = matchingHealthRows(config, statuses);
+    const fresh = config.controlMode === LOCAL_PRIMARY_MODE
+      ? freshEaStatuses(statuses).filter((row) => row.localReady !== false)
+      : matchingHealthRows(config, statuses);
+    const pendingIntents = Object.values(state.intents || {}).filter((intent) => ACTIVE_INTENT_STATUSES.has(intent.status)).length;
+    const eaVersions = [...new Set(fresh.map((row) => String(row.eaVersion || "unknown")))].join(", ");
     return [
-      `🖥 OAK Local Failover: ${state.mode}`,
+      `🖥 OAK Local Control: ${config.controlMode} · ${state.mode}`,
+      `• Telegram ownership: ${webhookStateText(state)} · controller alive, last loop ${state.lastLoopAt > 0 ? new Date(state.lastLoopAt).toISOString() : "n/a"}`,
+      `• Single-instance owner: ${state.lockOwner ? `pid ${state.lockOwner.pid}` : "lock held by this process"}`,
       "• Account Manager: MT5 terminal-local / independent of Upstash",
       `• Snapshot MT5 accounts: ${config.accounts.filter((row) => row.provider === "mt5" && row.enabled !== false).length}`,
-      `• Fresh matching EA heartbeat(s): ${fresh.length}`,
-      `• Redis write-probe failure streak: ${state.writeProbeFailureStreak}/${config.writeFailureThreshold}`,
+      `• Fresh matching EA heartbeat(s): ${fresh.length}${eaVersions ? ` · EA ${eaVersions}` : ""}${fresh.every((row) => Number(row.login) > 0 && String(row.server || "").trim() !== "") && fresh.length > 0 ? " · login/server matched" : ""}`,
+      `• Pending intents: ${pendingIntents}${nearestDueText(state) ? ` · nearest due ${nearestDueText(state)}` : ""}`,
+      ...(config.controlMode === LOCAL_PRIMARY_MODE
+        ? [
+          `• Pending optional web sync: ${Object.keys(state.pendingWebSync || {}).length}`,
+          `• Cloud fence heartbeat: ${config.upstashUrl && config.upstashToken ? (state.lastFenceHeartbeatAt > 0 ? `sent ${new Date(state.lastFenceHeartbeatAt).toISOString()}` : "pending") : "off (no Upstash configured)"}`,
+        ]
+        : [`• Redis write-probe failure streak: ${state.writeProbeFailureStreak}/${config.writeFailureThreshold}`]),
       ...(state.operatorAlert ? [`• ALERT: ${state.operatorAlert}`] : []),
     ].join("\n");
   }
 
+  function webhookStateText(state) {
+    if (state.mode === FAILOVER_MODES.LOCAL_ACTIVE) return "local (webhook empty verified)";
+    if (state.mode === FAILOVER_MODES.BLOCKED_UNCERTAIN) return "blocked/uncertain";
+    return state.mode === FAILOVER_MODES.STANDBY ? "cloud" : state.mode;
+  }
+
   function renderPending(state) {
     const rows = Object.values(state.intents || {}).filter((intent) => ACTIVE_INTENT_STATUSES.has(intent.status));
-    if (!rows.length) return "🖥 Local failover: no pending local intent.";
+    if (!rows.length) return "🖥 Local control: no pending local intent.";
     return [
-      `🖥 Local failover · ${rows.length} pending`,
+      `🖥 Local control · ${rows.length} pending`,
       ...rows.slice(0, 30).map((intent) => `• ${intent.id} ${intent.status} · ${intent.kind} @${intent.accountLabel}${intent.dueText ? ` · ${intent.dueText}` : ""}`),
     ].join("\n");
   }
@@ -623,10 +755,14 @@ export function createLocalFailoverRuntime(options = {}) {
   function renderExecution(intent, envelope) {
     const result = envelope?.result || intent.executionResult || {};
     const status = String(envelope?.status || intent.status || "unknown").toUpperCase();
+    const timing = [];
+    if (Number.isFinite(Number(intent.dueToDispatchMs))) timing.push(`dispatch ${intent.dueToDispatchMs >= 0 ? "+" : ""}${Math.round(intent.dueToDispatchMs)}ms vs due`);
+    if (Number.isFinite(Number(intent.dispatchLatencyMs))) timing.push(`EA round-trip ${Math.round(intent.dispatchLatencyMs)}ms`);
     return [
       `🖥 Local intent ${intent.id} · ${status}`,
       `• @${intent.accountLabel}: ${result.ok ? "OK" : result.uncertain ? "UNCERTAIN" : "FAILED"}${result.brokerRef ? ` · ${result.brokerRef}` : ""}`,
       `• ${result.detail || "no detail"}`,
+      ...(timing.length ? [`• Timing: ${timing.join(" · ")}`] : []),
     ].join("\n");
   }
 
@@ -640,9 +776,75 @@ export function createLocalFailoverRuntime(options = {}) {
     ].join("\n");
   }
 
+  function scheduleWebSignalSync(state, intent) {
+    const side = String(intent?.payload?.side || "").toUpperCase();
+    const symbol = String(intent?.payload?.symbol || "").trim();
+    if (intent?.kind !== "entry" || !intent?.dueAt || !symbol || !["BUY", "SELL"].includes(side)) return;
+    state.pendingWebSync[intent.id] = {
+      id: intent.id,
+      symbol,
+      side,
+      dueAt: intent.dueAt,
+      createdAt: clock(),
+      attempts: Number(state.pendingWebSync[intent.id]?.attempts || 0),
+      lastError: "",
+    };
+  }
+
+  async function flushWebSignalSync(config, state) {
+    const entries = Object.entries(state.pendingWebSync || {});
+    for (const [id, item] of entries) {
+      try {
+        const result = await webSignal.publish(config, { symbol: item.symbol, side: item.side, dueAt: item.dueAt });
+        if (result?.skipped === "not-configured") return;
+        delete state.pendingWebSync[id];
+        await saveState(state);
+      } catch (error) {
+        item.attempts = Number(item.attempts || 0) + 1;
+        item.lastAttemptAt = clock();
+        item.lastError = sanitizeOperatorError(error);
+        await saveState(state);
+        await log(`Optional web H1 signal sync deferred for ${id}: ${item.lastError}`);
+        return;
+      }
+    }
+  }
+
   async function dispatchTask(task, config) {
     const files = mailboxPaths(paths.commonDir, task.bridgeProfile, task.login, task.ledgerKey);
     return eaAdapter.dispatch({ task, files, timeoutMs: config.localTaskTimeoutMs, clock, sleep, fs, paths });
+  }
+
+  // Realtime scheduler: the controller loop wakes at the nearest scheduled dueAt
+  // instead of waiting a full fixed tick. Wall-clock remains authoritative for
+  // dueAt (it is a wall-clock target); duplicate execution is prevented by the
+  // durable scheduled->executing status transition plus the FILE_COMMON origin
+  // fence, not by clock monotonicity. A clock jump forward can only pull dispatch
+  // earlier (still bounded by the max-late window); a jump backward cannot
+  // re-dispatch because the persisted status has already left "scheduled".
+  function nextWakeMs(state, now = clock()) {
+    let nearest = Number.POSITIVE_INFINITY;
+    for (const intent of Object.values(state.intents || {})) {
+      if (intent.status !== "scheduled" || !Number.isFinite(Number(intent.dueAt))) continue;
+      const dueAt = Number(intent.dueAt);
+      if (dueAt <= now) return 0;
+      if (dueAt - now < nearest) nearest = dueAt - now;
+    }
+    if (!Number.isFinite(nearest)) return LOOP_MS;
+    return Math.max(MIN_LOOP_MS, Math.min(LOOP_MS, Math.ceil(nearest)));
+  }
+
+  async function readMailboxTiming(intent) {
+    try {
+      const files = mailboxPaths(paths.commonDir, intent.bridgeProfile, intent.login, intent.ledgerKey);
+      const [claim, result] = await Promise.all([readJson(files.claim, null), readJson(files.result, null)]);
+      return {
+        eaClaimedAt: claim && Number.isFinite(Number(claim.at)) ? Number(claim.at) : null,
+        eaFinishedAt: result && Number.isFinite(Number(result.at)) ? Number(result.at) : null,
+      };
+    } catch {
+      return { eaClaimedAt: null, eaFinishedAt: null };
+    }
   }
 
   function taskForIntent(intent) {
@@ -661,7 +863,7 @@ export function createLocalFailoverRuntime(options = {}) {
       id: intent.id,
       taskId: intent.id,
       intentId: intent.id,
-      source: "local-failover",
+      source: intent.controlMode === LOCAL_PRIMARY_MODE ? "local-primary" : "local-failover",
       originKey: intent.originKey,
       ledgerKey: intent.ledgerKey,
       taskDigest,
@@ -696,6 +898,10 @@ export function createLocalFailoverRuntime(options = {}) {
 
     intent.status = "executing";
     intent.executionStartedAt = clock();
+    intent.dispatchStartedAt = intent.executionStartedAt;
+    if (Number.isFinite(Number(intent.dueAt)) && Number(intent.dueAt) > 0) {
+      intent.dueToDispatchMs = intent.dispatchStartedAt - Number(intent.dueAt);
+    }
     await saveState(state);
     let envelope;
     try {
@@ -704,6 +910,12 @@ export function createLocalFailoverRuntime(options = {}) {
       envelope = { status: "failed", result: { ok: false, action: intent.kind, detail: sanitizeOperatorError(error) } };
     }
     const normalized = applyEnvelopeToIntent(intent, envelope);
+    const timing = await readMailboxTiming(intent);
+    if (timing.eaClaimedAt !== null) intent.eaClaimedAt = timing.eaClaimedAt;
+    if (timing.eaFinishedAt !== null) {
+      intent.eaFinishedAt = timing.eaFinishedAt;
+      intent.dispatchLatencyMs = Math.max(0, timing.eaFinishedAt - intent.dispatchStartedAt);
+    }
     await saveState(state);
     return normalized;
   }
@@ -771,6 +983,7 @@ export function createLocalFailoverRuntime(options = {}) {
       intent.status = "expired";
       intent.executionFinishedAt = now;
       intent.executionError = "Scheduled execution window expired before local execution.";
+      delete state.pendingWebSync[intent.id];
       state.pendingSystemMessages.push(`⌛ Local intent ${intent.id} expired at ${intent.dueText}; late execution was blocked.`);
       expired = true;
     }
@@ -806,6 +1019,7 @@ export function createLocalFailoverRuntime(options = {}) {
       id,
       kind: parsed.kind,
       status,
+      controlMode: config.controlMode,
       accountLabel: account.label,
       providerAccountId: account.providerAccountId,
       bridgeProfile: account.bridgeProfile,
@@ -824,9 +1038,11 @@ export function createLocalFailoverRuntime(options = {}) {
       protection,
     };
     state.intents[id] = intent;
+    if (status === "scheduled") intent.scheduledAt = clock();
+    scheduleWebSignalSync(state, intent);
     await saveState(state);
     return [
-      `✅ Local failover intent ${id} saved`,
+      `✅ ${config.controlMode === LOCAL_PRIMARY_MODE ? "Local" : "Local failover"} intent ${id} saved`,
       `• ${parsed.kind} @${account.label}`,
       `• ${parsed.dueText}`,
       ...(protection ? [`• Protection: SL ${protection.slPoints}pt · TP ${protection.tpPoints}pt`] : []),
@@ -845,6 +1061,7 @@ export function createLocalFailoverRuntime(options = {}) {
       }
       intent.approvedAt = clock();
       intent.status = approvedStatusForDueAt(intent.dueAt, clock());
+      if (intent.status === "scheduled") intent.scheduledAt = clock();
       await saveState(state);
       if (intent.status === "approved") {
         const envelope = await executeIntent(config, state, intent, statuses);
@@ -869,6 +1086,7 @@ export function createLocalFailoverRuntime(options = {}) {
       }
       intent.status = "cancelled";
       intent.executionFinishedAt = clock();
+      delete state.pendingWebSync[id];
       messages.push(`• ${id}: cancelled`);
     }
     await saveState(state);
@@ -885,7 +1103,7 @@ export function createLocalFailoverRuntime(options = {}) {
       version: 2,
       id,
       taskId: id,
-      source: "local-failover",
+      source: config.controlMode === LOCAL_PRIMARY_MODE ? "local-primary" : "local-failover",
       originKey: "",
       ledgerKey,
       providerAccountId: account.providerAccountId,
@@ -901,7 +1119,7 @@ export function createLocalFailoverRuntime(options = {}) {
 
   async function handleCommand(config, state, raw, statuses, updateId, commandIndex) {
     const parsed = parseLocalTelegramCommand(raw, clock());
-    if (parsed.type === "help") return localHelp();
+    if (parsed.type === "help") return localHelp(config);
     if (parsed.type === "myid") return `Chat ID: ${config.telegramChatId}`;
     if (parsed.type === "status") return renderStatus(state, config, statuses);
     if (parsed.type === "profiles") return renderProfiles(config, statuses);
@@ -1000,9 +1218,35 @@ export function createLocalFailoverRuntime(options = {}) {
   }
 
   async function runOneIteration(config, state) {
+    const now = clock();
+    if (now - Number(state.lastLoopAt || 0) >= 5_000) {
+      state.lastLoopAt = now;
+      await saveState(state);
+    }
     const statuses = await loadEaStatuses();
     await reconcileExecutingIntents(config, state);
     await flushSystemMessages(config, state);
+
+    if (config.controlMode === LOCAL_PRIMARY_MODE) {
+      if (state.mode !== FAILOVER_MODES.LOCAL_ACTIVE) await ensureLocalPrimaryOwnership(config, state);
+      if (state.mode !== FAILOVER_MODES.LOCAL_ACTIVE) return;
+      if (!await verifyLocalOwnership(config, state)) return;
+      await refreshLocalPrimaryFence(config, state);
+      const refreshed = await loadEaStatuses();
+      await dispatchDueIntents(config, state, refreshed);
+      await flushWebSignalSync(config, state);
+      await flushPendingReplies(config, state);
+      const updates = await telegram.getUpdates(config, state.lastUpdateId + 1).catch(async (error) => {
+        await log(`Telegram getUpdates failed in LOCAL_PRIMARY: ${sanitizeOperatorError(error)}`);
+        return [];
+      });
+      for (const update of updates || []) {
+        await processTelegramUpdate(config, state, update, refreshed);
+        await flushWebSignalSync(config, state);
+        await flushPendingReplies(config, state);
+      }
+      return;
+    }
 
     if (state.mode === FAILOVER_MODES.RECOVERING) {
       await continueRecovery(config, state);
@@ -1018,6 +1262,7 @@ export function createLocalFailoverRuntime(options = {}) {
     if (state.mode === FAILOVER_MODES.LOCAL_ACTIVE) {
       if (!await verifyLocalOwnership(config, state)) return;
       await dispatchDueIntents(config, state, refreshed);
+      await flushWebSignalSync(config, state);
       await flushPendingReplies(config, state);
       const updates = await telegram.getUpdates(config, state.lastUpdateId + 1).catch(async (error) => {
         await log(`Telegram getUpdates failed in LOCAL_ACTIVE: ${sanitizeOperatorError(error)}`);
@@ -1025,6 +1270,7 @@ export function createLocalFailoverRuntime(options = {}) {
       });
       for (const update of updates || []) {
         await processTelegramUpdate(config, state, update, refreshed);
+        await flushWebSignalSync(config, state);
         await flushPendingReplies(config, state);
       }
       return;
@@ -1032,6 +1278,7 @@ export function createLocalFailoverRuntime(options = {}) {
 
     // After successful handback, local scheduled intents stay PC-owned.
     await dispatchDueIntents(config, state, refreshed);
+    await flushWebSignalSync(config, state);
   }
 
   async function doctor(config, state, { dryRun = false } = {}) {
@@ -1042,16 +1289,39 @@ export function createLocalFailoverRuntime(options = {}) {
     } catch {
       webhook = { url: "unavailable" };
     }
+    const fresh = config.controlMode === LOCAL_PRIMARY_MODE
+      ? freshEaStatuses(statuses).filter((row) => row.localReady !== false)
+      : matchingHealthRows(config, statuses);
     return {
       ok: true,
+      controlMode: config.controlMode,
       mode: state.mode,
       webhookUrl: webhookUrl(webhook),
-      expectedWebhookUrl: config.webhookUrl,
+      expectedWebhookUrl: config.webhookUrl || "",
+      telegramOwnershipReady: webhookUrl(webhook) === "",
+      controllerAlive: true,
+      lastLoopAt: Number(state.lastLoopAt || 0),
+      lockOwner: state.lockOwner || { pid: process.pid, endpoint: "", since: 0 },
+      nearestDueAt: (() => {
+        let nearest = Number.POSITIVE_INFINITY;
+        for (const intent of Object.values(state.intents || {})) {
+          if (intent.status !== "scheduled" || !Number.isFinite(Number(intent.dueAt))) continue;
+          nearest = Math.min(nearest, Number(intent.dueAt));
+        }
+        return Number.isFinite(nearest) ? nearest : 0;
+      })(),
+      pendingIntents: Object.values(state.intents || {}).filter((intent) => ACTIVE_INTENT_STATUSES.has(intent.status)).length,
       mt5SnapshotAccounts: config.accounts.filter((row) => row.provider === "mt5" && row.enabled !== false).length,
-      freshEaStatuses: matchingHealthRows(config, statuses).length,
-      cloudFailureEvidence: cloudLooksFailed(config, statuses),
-      cloudRecoveryEvidence: cloudLooksRecovered(config, statuses),
-      wouldWriteProbe: dryRun && state.mode === FAILOVER_MODES.STANDBY && cloudLooksFailed(config, statuses),
+      freshEaStatuses: fresh.length,
+      localPrimaryEaStatuses: fresh.filter((row) => row.localPrimary === true && row.localReady !== false).length,
+      eaVersions: [...new Set(fresh.map((row) => String(row.eaVersion || "unknown")))],
+      webSignalSyncConfigured: Boolean(config.webSignalUrl && config.dashboardApiKey),
+      pendingWebSync: Object.keys(state.pendingWebSync || {}).length,
+      fenceHeartbeatConfigured: Boolean(config.upstashUrl && config.upstashToken),
+      lastFenceHeartbeatAt: Number(state.lastFenceHeartbeatAt || 0),
+      cloudFailureEvidence: config.controlMode === FAILOVER_MODE ? cloudLooksFailed(config, statuses) : false,
+      cloudRecoveryEvidence: config.controlMode === FAILOVER_MODE ? cloudLooksRecovered(config, statuses) : false,
+      wouldWriteProbe: config.controlMode === FAILOVER_MODE && dryRun && state.mode === FAILOVER_MODES.STANDBY && cloudLooksFailed(config, statuses),
       mutationsPerformed: 0,
     };
   }
@@ -1065,6 +1335,7 @@ export function createLocalFailoverRuntime(options = {}) {
     reconcileStartup,
     reconcileExecutingIntents,
     runOneIteration,
+    nextWakeMs,
     doctor,
     dispatchTask,
     processTelegramUpdate,
@@ -1128,6 +1399,8 @@ export async function main() {
   try {
     const config = await runtime.loadConfig();
     const state = await runtime.loadState();
+    state.lockOwner = { pid: process.pid, endpoint: lock.endpoint, since: Date.now() };
+    await runtime.saveState(state);
     await fs.mkdir(paths.commonDir, { recursive: true });
 
     if (process.argv.includes("--doctor") || process.argv.includes("--dry-run")) {
@@ -1153,7 +1426,9 @@ export async function main() {
       } catch (error) {
         console.error(`OAK local failover iteration failed: ${sanitizeOperatorError(error)}`);
       }
-      await delay(LOOP_MS);
+      // Realtime scheduler: wake at the nearest scheduled dueAt (bounded to the
+      // normal loop interval) instead of waiting a fixed tick.
+      await delay(runtime.nextWakeMs(state));
     }
   } finally {
     await lock.release();

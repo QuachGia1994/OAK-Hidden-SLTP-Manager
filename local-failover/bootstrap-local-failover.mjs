@@ -12,6 +12,7 @@ const ENV_PATH = process.env.OAK_DASHBOARD_ENV || path.join(ROOT, "dashboard", "
 const LOCAL_ROOT = process.env.OAK_LOCAL_FAILOVER_HOME || path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"), "OAK Gatekeeper");
 const CONFIG_PATH = process.env.OAK_LOCAL_FAILOVER_CONFIG || path.join(LOCAL_ROOT, "telegram-failover-config.json");
 const BOOTSTRAP_URL = process.env.OAK_LOCAL_FAILOVER_BOOTSTRAP_URL || "https://www.oakgatekeeper.uk/api/telegram/local-failover-bootstrap";
+const WEB_SIGNAL_URL = "https://www.oakgatekeeper.uk/api/telegram/local-signal";
 const TICKET_PREFIX = "oak:telegram:local-failover-bootstrap-ticket:";
 const TICKET_VALUE = "pc-local-failover-v1";
 const TICKET_TTL_SECONDS = 60;
@@ -81,32 +82,47 @@ export async function applyWindowsUserOnlyAcl(file, options = {}) {
   await exec("icacls.exe", [file, "/inheritance:r", "/grant:r", `${principal}:(F)`], { windowsHide: true });
 }
 
-export function buildLocalConfig(bundle, upstashUrl, upstashToken) {
-  return {
-    v: 2,
+export function buildLocalConfig(bundle, upstashUrl, upstashToken, options = {}) {
+  const base = {
     telegramToken: bundle.telegramToken,
     telegramChatId: String(bundle.telegramChatId),
-    telegramWebhookSecret: bundle.telegramWebhookSecret,
-    webhookUrl: bundle.webhookUrl,
-    upstashUrl,
-    upstashToken,
     snapshotAt: Number(bundle.snapshotAt),
     accountSnapshotMaxAgeMs: ACCOUNT_SNAPSHOT_MAX_AGE_MS,
     accounts: bundle.accounts,
     unsupportedAccounts: Array.isArray(bundle.unsupportedAccounts) ? bundle.unsupportedAccounts : [],
+    bootstrappedAt: Date.now(),
+  };
+  if (options.localPrimary === true) {
+    return {
+      ...base,
+      v: 3,
+      controlMode: "local-primary",
+      takeTelegramOwnership: options.takeTelegramOwnership !== false,
+      webSignalUrl: options.webSignalUrl || WEB_SIGNAL_URL,
+      ...(options.dashboardApiKey ? { dashboardApiKey: options.dashboardApiKey } : {}),
+      ...(upstashUrl && upstashToken ? { upstashUrl, upstashToken } : {}),
+      webSyncTimeoutMs: 5_000,
+    };
+  }
+  return {
+    ...base,
+    v: 2,
+    telegramWebhookSecret: bundle.telegramWebhookSecret,
+    webhookUrl: bundle.webhookUrl,
+    upstashUrl,
+    upstashToken,
     cloudFailureThreshold: 3,
     writeFailureThreshold: 3,
     cloudRecoveryThreshold: 3,
     writeProbeMinIntervalMs: 15_000,
-    bootstrappedAt: Date.now(),
   };
 }
 
-export async function bootstrapLocalFailover({ envPath = ENV_PATH, configPath = CONFIG_PATH, fetchImpl = fetch } = {}) {
+export async function bootstrapLocalFailover({ envPath = ENV_PATH, configPath = CONFIG_PATH, fetchImpl = fetch, localPrimary = false } = {}) {
   const env = parseEnv(await fs.readFile(envPath, "utf8"));
   const upstashUrl = env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_REDIS_REST_URL || "";
   const upstashToken = env.UPSTASH_REDIS_REST_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";
-  if (!upstashUrl || !upstashToken) throw new Error("dashboard/.env.local must contain Upstash REST URL/token");
+  if (!localPrimary && (!upstashUrl || !upstashToken)) throw new Error("dashboard/.env.local must contain Upstash REST URL/token");
 
   const ticket = crypto.randomBytes(32).toString("base64url");
   const ticketResult = await upstashCommand(upstashUrl, upstashToken, [
@@ -116,21 +132,35 @@ export async function bootstrapLocalFailover({ envPath = ENV_PATH, configPath = 
     "NX",
     "EX",
     String(TICKET_TTL_SECONDS),
-  ], fetchImpl);
+  ], fetchImpl).catch((error) => {
+    if (localPrimary && (!upstashUrl || !upstashToken)) {
+      throw new Error("Bootstrap ticket minting requires Upstash REST credentials even in local-primary mode");
+    }
+    throw error;
+  });
   if (ticketResult !== "OK") throw new Error("Could not mint one-time local failover bootstrap ticket");
 
   const telegram = await fetchBootstrapBundle(ticket, fetchImpl);
-  const local = buildLocalConfig(telegram, upstashUrl, upstashToken);
+  const local = buildLocalConfig(telegram, upstashUrl, upstashToken, {
+    localPrimary,
+    dashboardApiKey: env.DASHBOARD_API_KEY || process.env.DASHBOARD_API_KEY || "",
+  });
   await fs.mkdir(path.dirname(configPath), { recursive: true });
   await fs.writeFile(configPath, JSON.stringify(local, null, 2), { encoding: "utf8", mode: 0o600 });
   await applyWindowsUserOnlyAcl(configPath);
-  return { configPath, accountCount: local.accounts.length };
+  return { configPath, accountCount: local.accounts.length, localPrimary };
 }
 
-export async function main() {
-  const result = await bootstrapLocalFailover();
-  console.log(`Local failover config written to ${result.configPath} with ${result.accountCount} MT5 account snapshot(s).`);
-  console.log("Secrets were copied locally but were not printed. Re-bootstrap after credential/account changes or when the snapshot expires.");
+export async function main({ localPrimary = process.argv.includes("--local-primary") } = {}) {
+  const result = await bootstrapLocalFailover({ localPrimary });
+  if (result.localPrimary) {
+    console.log(`Local-primary control config (v3) written to ${result.configPath} with ${result.accountCount} MT5 account definition(s).`);
+    console.log("The PC controller will take over Telegram (webhook removed) and own MT5 execution; cloud execution is fenced while it runs.");
+    console.log("Attach EA 1.05+ first: local-primary refuses terminals that do not report a providerAccountId.");
+  } else {
+    console.log(`Local failover config written to ${result.configPath} with ${result.accountCount} MT5 account snapshot(s).`);
+    console.log("Secrets were copied locally but were not printed. Re-bootstrap after credential/account changes or when the snapshot expires.");
+  }
 }
 
 const invoked = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : "";

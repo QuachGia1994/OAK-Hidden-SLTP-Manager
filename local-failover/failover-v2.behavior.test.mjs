@@ -22,8 +22,8 @@ import { mt5BrokerTaskDigest } from "../dashboard/src/lib/mt5-origin-domain.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const manifest = JSON.parse(await fs.readFile(path.join(HERE, "behavior-cases.json"), "utf8"));
-assert.equal(manifest.length, 26);
-assert.deepEqual(manifest.map((row) => row.id), Array.from({ length: 26 }, (_, index) => index + 1));
+assert.equal(manifest.length, 38);
+assert.deepEqual(manifest.map((row) => row.id), Array.from({ length: 38 }, (_, index) => index + 1));
 
 const WEBHOOK_URL = "https://www.oakgatekeeper.uk/api/telegram/webhook";
 const BASE_NOW = Date.UTC(2026, 7, 24, 11, 57, 0);
@@ -60,6 +60,21 @@ function statusFor(account = ACCOUNT_A, overrides = {}, now = BASE_NOW) {
   };
 }
 
+const LOCAL_PRIMARY_PROVIDER_ACCOUNT_ID = "mt5:localtest01";
+
+function localPrimaryStatusFor(account = ACCOUNT_A, overrides = {}, now = BASE_NOW) {
+  return statusFor(account, {
+    providerAccountId: LOCAL_PRIMARY_PROVIDER_ACCOUNT_ID,
+    localPrimary: true,
+    localReady: true,
+    fxSlPoints: 500,
+    fxTpPoints: 10000,
+    goldSlPoints: 1000,
+    goldTpPoints: 20000,
+    ...overrides,
+  }, now);
+}
+
 function redisError(status, serverError, networkError = false) {
   const error = new Error(serverError || `Redis ${status}`);
   error.status = status;
@@ -82,7 +97,23 @@ async function createHarness(name, options = {}) {
     statePath: path.join(runtimeDir, "state.json"),
     logPath: path.join(runtimeDir, "controller.log"),
   };
-  const config = {
+  const localPrimary = options.controlMode === "local-primary";
+  const config = localPrimary ? {
+    v: 3,
+    controlMode: "local-primary",
+    telegramToken: "test-token-not-live",
+    telegramChatId: "123",
+    takeTelegramOwnership: options.takeTelegramOwnership !== false,
+    ...(options.noUpstash ? {} : { upstashUrl: "https://example.invalid/upstash", upstashToken: "test-upstash-not-live" }),
+    snapshotAt: nowRef.value,
+    accountSnapshotMaxAgeMs: 7 * 24 * 60 * 60 * 1000,
+    webhookCheckIntervalMs: 1,
+    localTaskTimeoutMs: 50,
+    webSyncTimeoutMs: 5_000,
+    ...(options.webSignalUrl ? { webSignalUrl: options.webSignalUrl, dashboardApiKey: "test-dashboard-key" } : {}),
+    accounts: options.accounts || [{ ...ACCOUNT_A }],
+    unsupportedAccounts: options.unsupportedAccounts || [],
+  } : {
     v: 2,
     telegramToken: "test-token-not-live",
     telegramChatId: "123",
@@ -104,6 +135,7 @@ async function createHarness(name, options = {}) {
   let webhook = options.webhook ?? WEBHOOK_URL;
   let updates = [...(options.updates || [])];
   let sendFailures = options.sendFailures || 0;
+  let getUpdatesFailures = options.getUpdatesFailures || 0;
   const calls = [];
   const sent = [];
   const eaTasks = [];
@@ -126,6 +158,10 @@ async function createHarness(name, options = {}) {
     },
     async getUpdates(_config, offset) {
       calls.push(`telegram:getUpdates:${offset}`);
+      if (getUpdatesFailures > 0) {
+        getUpdatesFailures -= 1;
+        throw new Error("synthetic Telegram outage");
+      }
       return updates.filter((update) => Number(update.update_id) >= Number(offset));
     },
     async sendMessage(_config, text) {
@@ -167,6 +203,16 @@ async function createHarness(name, options = {}) {
     },
   };
 
+  const webSignal = {
+    publishes: [],
+    failure: options.webSignalError || "",
+    async publish(_config, signal) {
+      webSignal.publishes.push(signal);
+      if (webSignal.failure) throw new Error(webSignal.failure);
+      return { ok: true };
+    },
+  };
+
   const runtimeOptions = {
     paths,
     clock: () => nowRef.value,
@@ -175,6 +221,7 @@ async function createHarness(name, options = {}) {
     upstash,
     logger: async () => {},
   };
+  if (options.webSignal) runtimeOptions.webSignal = webSignal;
   if (!options.realMailbox) runtimeOptions.eaAdapter = eaAdapter;
   const runtime = createLocalFailoverRuntime(runtimeOptions);
 
@@ -185,13 +232,14 @@ async function createHarness(name, options = {}) {
   for (const row of options.statuses || []) await writeStatus(row);
 
   return {
-    root, paths, config, runtime, telegram, upstash, calls, sent, eaTasks,
+    root, paths, config, runtime, telegram, upstash, calls, sent, eaTasks, webSignal,
     get eaExecutions() { return eaExecutions; },
     get now() { return nowRef.value; },
     advance(ms) { nowRef.value += ms; },
     setNow(value) { nowRef.value = value; },
     setWebhook(value) { webhook = value; },
     setUpdates(value) { updates = [...value]; },
+    setGetUpdatesFailures(value) { getUpdatesFailures = value; },
     writeStatus,
     state(mode = FAILOVER_MODES.STANDBY) {
       const state = defaultFailoverState(nowRef.value);
@@ -500,9 +548,11 @@ test("17 snapshot defaults protect entry and absent defaults reject", { concurre
 
 test("18 account identity, stale snapshot and cTrader target mismatch reject", () => {
   const fresh = statusFor();
+  // Identity-mismatched heartbeats are filtered out by login/server/profile matching,
+  // so rejection surfaces as missing fresh heartbeat evidence (still fail-closed).
   assert.throws(() => chooseLocalMt5Account([ACCOUNT_A], [{ ...fresh, profile: "wrong" }], "acct-a", { now: BASE_NOW, snapshotAt: BASE_NOW }), /heartbeat|profile|available/i);
-  assert.throws(() => chooseLocalMt5Account([ACCOUNT_A], [{ ...fresh, login: 999 }], "acct-a", { now: BASE_NOW, snapshotAt: BASE_NOW }), /login|available/i);
-  assert.throws(() => chooseLocalMt5Account([ACCOUNT_A], [{ ...fresh, server: "wrong" }], "acct-a", { now: BASE_NOW, snapshotAt: BASE_NOW }), /server|available/i);
+  assert.throws(() => chooseLocalMt5Account([ACCOUNT_A], [{ ...fresh, login: 999 }], "acct-a", { now: BASE_NOW, snapshotAt: BASE_NOW }), /login|available|fresh/i);
+  assert.throws(() => chooseLocalMt5Account([ACCOUNT_A], [{ ...fresh, server: "wrong" }], "acct-a", { now: BASE_NOW, snapshotAt: BASE_NOW }), /server|available|fresh/i);
   assert.throws(() => chooseLocalMt5Account([ACCOUNT_A], [fresh], "acct-a", { now: BASE_NOW, snapshotAt: BASE_NOW - 8 * 24 * 60 * 60 * 1000 }), /stale/i);
   const ctrader = { provider: "ctrader", providerAccountId: "ctrader:123", label: "ct", enabled: true };
   assert.throws(() => chooseLocalMt5Account([ACCOUNT_A, ctrader], [fresh], "ct", { now: BASE_NOW, snapshotAt: BASE_NOW }), /cTrader/i);
@@ -689,5 +739,334 @@ test("26 restart, v1 migration and corrupted evidence fail closed without blind 
     await h.runtime.reconcileExecutingIntents(h.config, state);
     assert.equal(state.intents[task.id].status, "uncertain");
     assert.equal(h.eaExecutions, 0);
+  } finally { await h.cleanup(); }
+});
+
+test("27 local-primary takes Telegram ownership, verifies the empty webhook and polls updates", { concurrency: false }, async () => {
+  const h = await createHarness("27", {
+    controlMode: "local-primary",
+    webhook: WEBHOOK_URL,
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+    updates: [{ update_id: 271, message: { chat: { id: 123 }, text: "/status" } }],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.STANDBY);
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(state.mode, FAILOVER_MODES.LOCAL_ACTIVE);
+    const deleteIndex = h.calls.indexOf("telegram:deleteWebhook:drop=false");
+    const emptyVerifyIndex = h.calls.findIndex((call, index) => index > deleteIndex && call === "telegram:getWebhookInfo:");
+    const pollIndex = h.calls.findIndex((call) => call.startsWith("telegram:getUpdates:"));
+    assert.ok(deleteIndex >= 0 && emptyVerifyIndex > deleteIndex && pollIndex > emptyVerifyIndex);
+    assert.ok(state.handledUpdateIds.includes(271));
+    assert.ok(h.sent.some((text) => text.includes("local-primary")));
+    assert.equal(h.eaExecutions, 0);
+  } finally { await h.cleanup(); }
+});
+
+test("28 local-primary without takeover consent stays blocked while a webhook is active", { concurrency: false }, async () => {
+  const h = await createHarness("28", {
+    controlMode: "local-primary",
+    takeTelegramOwnership: false,
+    webhook: WEBHOOK_URL,
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.STANDBY);
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(state.mode, FAILOVER_MODES.BLOCKED_UNCERTAIN);
+    assert.match(state.operatorAlert, /blocked by active Telegram webhook/i);
+    assert.equal(h.calls.some((call) => call.includes("deleteWebhook")), false);
+    assert.equal(h.calls.some((call) => call.startsWith("telegram:getUpdates")), false);
+    assert.equal(h.eaExecutions, 0);
+  } finally { await h.cleanup(); }
+});
+
+test("29 local-primary mutations use runtime EA identity and the local-primary task source", { concurrency: false }, async () => {
+  const h = await createHarness("29", {
+    controlMode: "local-primary",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 291, message: { chat: { id: 123 }, text: "/buy EURUSD 0.01 @acct-a" } }, statuses);
+    const [id] = Object.keys(state.intents);
+    assert.equal(state.intents[id].providerAccountId, LOCAL_PRIMARY_PROVIDER_ACCOUNT_ID);
+    assert.equal(state.intents[id].controlMode, "local-primary");
+    assert.deepEqual(state.intents[id].protection, { slPoints: 500, tpPoints: 10000 });
+    assert.equal(h.eaExecutions, 0);
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 292, message: { chat: { id: 123 }, text: `/approve ${id}` } }, statuses);
+    assert.equal(h.eaExecutions, 1);
+    assert.equal(h.eaTasks[0].source, "local-primary");
+    assert.equal(h.eaTasks[0].providerAccountId, LOCAL_PRIMARY_PROVIDER_ACCOUNT_ID);
+    assert.equal(state.intents[id].status, "executed");
+  } finally { await h.cleanup(); }
+});
+
+test("30 optional web H1 signal sync succeeds, defers on failure and drops cancelled intents", { concurrency: false }, async () => {
+  const failing = await createHarness("30-fail", {
+    controlMode: "local-primary",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+    webSignal: true,
+    webSignalError: "synthetic web outage",
+  });
+  try {
+    const state = failing.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await failing.runtime.loadEaStatuses();
+    await failing.runtime.processTelegramUpdate(failing.config, state, { update_id: 301, message: { chat: { id: 123 }, text: "/buy EURUSD 0.01 23:59 @acct-a" } }, statuses);
+    const scheduledId = Object.keys(state.intents)[0];
+    assert.equal(Object.keys(state.pendingWebSync).length, 1);
+    await failing.runtime.runOneIteration(failing.config, state);
+    assert.equal(Object.keys(state.pendingWebSync).length, 1);
+    assert.equal(state.pendingWebSync[scheduledId].attempts, 1);
+    assert.match(state.pendingWebSync[scheduledId].lastError, /synthetic web outage/);
+    failing.webSignal.failure = "";
+    failing.advance(1_000);
+    await failing.runtime.runOneIteration(failing.config, state);
+    assert.equal(Object.keys(state.pendingWebSync).length, 0);
+    assert.equal(failing.webSignal.publishes.length, 2);
+    assert.deepEqual(failing.webSignal.publishes[0], { symbol: "EURUSD", side: "BUY", dueAt: state.intents[scheduledId].dueAt });
+  } finally { await failing.cleanup(); }
+
+  const cancelled = await createHarness("30-cancel", {
+    controlMode: "local-primary",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+    webSignal: true,
+  });
+  try {
+    const state = cancelled.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await cancelled.runtime.loadEaStatuses();
+    await cancelled.runtime.processTelegramUpdate(cancelled.config, state, { update_id: 302, message: { chat: { id: 123 }, text: "/sell GBPUSD 0.01 23:59 @acct-a" } }, statuses);
+    const scheduledId = Object.keys(state.intents)[0];
+    assert.equal(Object.keys(state.pendingWebSync).length, 1);
+    await cancelled.runtime.processTelegramUpdate(cancelled.config, state, { update_id: 303, message: { chat: { id: 123 }, text: `/del ${scheduledId}` } }, statuses);
+    assert.equal(state.intents[scheduledId].status, "cancelled");
+    assert.equal(Object.keys(state.pendingWebSync).length, 0);
+    assert.equal(cancelled.webSignal.publishes.length, 0);
+  } finally { await cancelled.cleanup(); }
+});
+
+test("31 local-primary heartbeats the cloud fence with throttling and tolerates missing Upstash", { concurrency: false }, async () => {
+  const h = await createHarness("31", {
+    controlMode: "local-primary",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    await h.runtime.runOneIteration(h.config, state);
+    const firstStreak = h.calls.filter((call) => call === "redis:SET").length;
+    assert.ok(firstStreak >= 1);
+    assert.ok(state.lastFenceHeartbeatAt > 0);
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(h.calls.filter((call) => call === "redis:SET").length, firstStreak);
+  } finally { await h.cleanup(); }
+
+  const noUpstash = await createHarness("31b", {
+    controlMode: "local-primary",
+    noUpstash: true,
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+  });
+  try {
+    const state = noUpstash.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    await noUpstash.runtime.runOneIteration(noUpstash.config, state);
+    assert.equal(state.mode, FAILOVER_MODES.LOCAL_ACTIVE);
+    assert.equal(noUpstash.calls.filter((call) => call === "redis:SET").length, 0);
+    const report = await noUpstash.runtime.doctor(noUpstash.config, state);
+    assert.equal(report.fenceHeartbeatConfigured, false);
+    assert.equal(report.controlMode, "local-primary");
+  } finally { await noUpstash.cleanup(); }
+});
+
+test("32 overdue local-primary scheduled intents expire without broker execution", { concurrency: false }, async () => {
+  const h = await createHarness("32", {
+    controlMode: "local-primary",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 321, message: { chat: { id: 123 }, text: "/buy EURUSD 0.01 23:59 @acct-a" } }, statuses);
+    const [id] = Object.keys(state.intents);
+    assert.equal(state.intents[id].status, "scheduled");
+    h.setNow(state.intents[id].dueAt + 120_001);
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(state.intents[id].status, "expired");
+    assert.equal(Object.keys(state.pendingWebSync).length, 0);
+    assert.equal(h.eaExecutions, 0);
+  } finally { await h.cleanup(); }
+});
+
+test("33 scheduled dispatch is driven by the exact dueAt, not a minute scheduler, with timing evidence", { concurrency: false }, async () => {
+  const h = await createHarness("33", {
+    controlMode: "local-primary",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 331, message: { chat: { id: 123 }, text: "/buy EURUSD 0.01 12:00 @acct-a" } }, statuses);
+    const [id] = Object.keys(state.intents);
+    const dueAt = state.intents[id].dueAt;
+    assert.equal(state.intents[id].status, "scheduled");
+    assert.ok(state.intents[id].scheduledAt > 0);
+
+    // The realtime scheduler wakes exactly at the nearest dueAt (ms granularity,
+    // bounded below by the 50ms anti-busy-spin floor). The EA keeps heartbeating,
+    // so the status file is refreshed as the clock advances.
+    h.setNow(dueAt - 300);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    assert.equal(h.runtime.nextWakeMs(state), 300);
+    h.advance(299);
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(h.eaExecutions, 0);
+    assert.equal(h.runtime.nextWakeMs(state), 50);
+    h.advance(1);
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(h.eaExecutions, 1);
+    assert.equal(state.intents[id].status, "executed");
+    assert.ok(Number.isFinite(state.intents[id].dispatchStartedAt));
+    assert.equal(state.intents[id].dueToDispatchMs, 0);
+    // No scheduled intents left: the loop returns to its normal cadence.
+    assert.equal(h.runtime.nextWakeMs(state), 1_000);
+  } finally { await h.cleanup(); }
+});
+
+test("34 controller restart before dueAt reloads durable state and dispatches exactly once", { concurrency: false }, async () => {
+  const h = await createHarness("34", {
+    controlMode: "local-primary",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 341, message: { chat: { id: 123 }, text: "/buy EURUSD 0.01 12:05 @acct-a" } }, statuses);
+    const [id] = Object.keys(state.intents);
+    const dueAt = state.intents[id].dueAt;
+
+    // Simulated restart: durable state is reloaded from disk into a fresh object.
+    const restarted = await h.runtime.loadState();
+    assert.equal(restarted.intents[id].status, "scheduled");
+    h.setNow(dueAt + 5);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    await h.runtime.runOneIteration(h.config, restarted);
+    assert.equal(restarted.intents[id].status, "executed");
+    assert.equal(h.eaExecutions, 1);
+
+    // A second post-restart iteration must not re-execute the same origin.
+    h.advance(1_000);
+    await h.runtime.runOneIteration(h.config, restarted);
+    assert.equal(h.eaExecutions, 1);
+  } finally { await h.cleanup(); }
+});
+
+test("35 Telegram outage does not block scheduled execution and reconnect resumes update processing", { concurrency: false }, async () => {
+  const h = await createHarness("35", {
+    controlMode: "local-primary",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+    getUpdatesFailures: 1,
+    updates: [{ update_id: 353, message: { chat: { id: 123 }, text: "/status" } }],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 352, message: { chat: { id: 123 }, text: "/buy EURUSD 0.01 12:10 @acct-a" } }, statuses);
+    const [id] = Object.keys(state.intents);
+    h.setNow(state.intents[id].dueAt + 5);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    // Telegram is down: scheduled execution must continue independently.
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(h.eaExecutions, 1);
+    assert.equal(state.intents[id].status, "executed");
+    assert.equal(state.handledUpdateIds.includes(353), false);
+    // Reconnect: the next iteration polls again and processes the queued update.
+    h.advance(1_000);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    await h.runtime.runOneIteration(h.config, state);
+    assert.ok(state.handledUpdateIds.includes(353));
+  } finally { await h.cleanup(); }
+});
+
+test("36 web H1 sync outage never delays or blocks broker dispatch", { concurrency: false }, async () => {
+  const h = await createHarness("36", {
+    controlMode: "local-primary",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+    webSignal: true,
+    webSignalError: "website down",
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 361, message: { chat: { id: 123 }, text: "/buy EURUSD 0.01 12:15 @acct-a" } }, statuses);
+    const [id] = Object.keys(state.intents);
+    h.setNow(state.intents[id].dueAt + 5);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    await h.runtime.runOneIteration(h.config, state);
+    // Broker dispatch happened in the same iteration despite the web outage.
+    assert.equal(h.eaExecutions, 1);
+    assert.equal(state.intents[id].status, "executed");
+    // The web sync remains pending for later retry; it never blocked execution.
+    assert.equal(Object.keys(state.pendingWebSync).length, 1);
+    assert.equal(state.pendingWebSync[id].attempts, 1);
+  } finally { await h.cleanup(); }
+});
+
+test("37 multiple MT5 accounts route deterministically via explicit @ACCOUNT targeting", { concurrency: false }, async () => {
+  const h = await createHarness("37", {
+    controlMode: "local-primary",
+    webhook: "",
+    accounts: [{ ...ACCOUNT_A }, { ...ACCOUNT_B }],
+    statuses: [localPrimaryStatusFor(ACCOUNT_A), localPrimaryStatusFor(ACCOUNT_B)],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 371, message: { chat: { id: 123 }, text: "/buy XAUUSD 0.01 @acct-b" } }, statuses);
+    const [idB] = Object.keys(state.intents);
+    assert.equal(state.intents[idB].accountLabel, "acct-b");
+    assert.equal(state.intents[idB].login, ACCOUNT_B.login);
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 372, message: { chat: { id: 123 }, text: `/approve ${idB}` } }, statuses);
+    assert.equal(h.eaTasks[0].login, ACCOUNT_B.login);
+    assert.equal(h.eaTasks[0].server, ACCOUNT_B.server);
+
+    // Omitted target with multiple enabled accounts is rejected: routing requires
+    // an explicit @ACCOUNT so the default-account choice is never ambiguous.
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 373, message: { chat: { id: 123 }, text: "/buy EURUSD 0.01" } }, statuses);
+    const ids = Object.keys(state.intents);
+    assert.equal(ids.length, 1);
+    assert.match(state.commands["373:0"].outcome, /add @ACCOUNT/i);
+    assert.equal(h.eaExecutions, 1);
+  } finally { await h.cleanup(); }
+});
+
+test("38 cloud fence heartbeat renews after its throttle window and expires server-side by TTL", { concurrency: false }, async () => {
+  const h = await createHarness("38", {
+    controlMode: "local-primary",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    await h.runtime.runOneIteration(h.config, state);
+    const first = h.calls.filter((call) => call === "redis:SET").length;
+    assert.ok(first >= 1);
+    // Inside the 60s throttle window: no additional fence writes.
+    h.advance(30_000);
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(h.calls.filter((call) => call === "redis:SET").length, first);
+    // After the throttle window the heartbeat renews; the Redis EX 300 TTL is the
+    // server-side expiry so a dead controller cannot fence the cloud forever.
+    h.advance(61_000);
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(h.calls.filter((call) => call === "redis:SET").length, first + 1);
   } finally { await h.cleanup(); }
 });

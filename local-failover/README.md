@@ -14,7 +14,41 @@ Verified failover mode:
 Telegram -> PC local controller -> MetaTrader FILE_COMMON mailbox -> OAK MT5 EA
 ```
 
+Local-primary mode (config v3, `controlMode: "local-primary"`):
+
+```text
+Telegram -> PC local controller (getUpdates polling) -> FILE_COMMON mailbox -> OAK MT5 EA
+Web dashboard: optional non-blocking H1 signal sync + visibility only
+```
+
+In local-primary mode the PC owns Telegram timing and MT5 execution. Vercel/Cloudflare/GitHub/Upstash are off the broker-mutation critical path: the controller deletes the Telegram webhook (taking ownership), polls `getUpdates` every second, and dispatches every mutation through the FILE_COMMON mailbox. The cloud is fenced fail-closed while local-primary runs (see below).
+
 The MT5 Account Manager itself (automatic SL/TP, BE, close-at-R, partial rules and netting) is already terminal-local and continues to run even when Upstash is unavailable. This failover adds a second path for Telegram commands and scheduled MT5 execution.
+
+## Local-primary mode
+
+Config v3 is produced by `node .\local-failover\bootstrap-local-failover.mjs --local-primary`. It adds:
+
+- `controlMode: "local-primary"` and `takeTelegramOwnership` (default `true`): on startup the controller observes the Telegram webhook; if one is active it is deleted (when consented) and the empty state is verified before any `getUpdates`. Without consent the controller stays `BLOCKED_UNCERTAIN`.
+- Runtime EA identity: account selection matches EA heartbeats by `login`+`server` and takes `providerAccountId` from the live heartbeat. EA v1.05+ is mandatory — older EAs do not report a `providerAccountId` and local-primary refuses them (fail closed).
+- Cloud fence heartbeat: while `LOCAL_ACTIVE` and Upstash credentials are configured, the controller writes `oak:telegram:local-primary:active:v1` (JSON `{at,epoch}`, `EX 300`, throttled to once per minute). Cloud routes treat the key's existence as "PC owns execution": `runCloudIntentExecution` throws, the webhook route refuses new intents and approve-execution, and the tick scheduler neither reinstalls the webhook nor executes due intents. Without Upstash credentials the fence degrades to off (Telegram webhook arbitration still prevents double ownership; the cloud self-heal can then reclaim after its 6h sync window).
+- Optional web H1 signal sync: scheduled entry intents are queued in `pendingWebSync` and published to `webSignalUrl` (`POST /api/telegram/local-signal`, Bearer `DASHBOARD_API_KEY`) with a 5s timeout. Failures defer and retry; the path never blocks broker execution. Cancelled/expired intents drop their unpublished sync entries.
+- Realtime scheduler: the controller loop wakes at the nearest scheduled `dueAt` (ms granularity, 50ms anti-busy-spin floor) instead of waiting a fixed tick, so a command like `buy XAUUSD 0.01 13h00 @fxce` dispatches within milliseconds of its due time — no minute cron (Cloudflare/GitHub/Vercel) and no Upstash polling participate in the timing path. Wall-clock remains authoritative for `dueAt`; duplicate execution is prevented by the durable `scheduled -> executing` status transition plus the FILE_COMMON origin fence, so clock drift cannot double-fire (a forward jump only pulls dispatch earlier within the 2-minute max-late window; a backward jump cannot re-dispatch a persisted intent). The EA polls the local mailbox on a millisecond timer (`InpLocalFailoverPollMs`, default 250ms) using monotonic `GetTickCount64()`. Timing evidence is persisted per intent: `scheduledAt`, `dispatchStartedAt`, `dueToDispatchMs`, `eaClaimedAt`, `eaFinishedAt`, `dispatchLatencyMs` (EA round-trip), and surfaced in the Telegram execution reply.
+- Health: `--doctor` reports `controlMode`, `telegramOwnershipReady`, `controllerAlive`, `lastLoopAt`, `lockOwner` (single-instance pid/endpoint), fresh `localReady` EA statuses with EA versions, `pendingIntents`, `nearestDueAt`, `webSignalSyncConfigured`, `pendingWebSync`, `fenceHeartbeatConfigured`, `lastFenceHeartbeatAt`; Telegram `/status` mirrors the same surface (ownership, last loop, lock owner, EA versions, login/server match, pending intents, nearest due, web sync, fence heartbeat). No broker credential values are ever included.
+
+### Cutover procedure (operator-authorized)
+
+1. Compile and attach EA v1.05+ (`InpLocalPrimaryEnabled=true`) in every MT5 terminal; restart the terminals.
+2. Cancel pending cloud intents from Telegram (`/del all`) so no stale armed cloud intent can execute if the fence ever lapses.
+3. `node .\local-failover\bootstrap-local-failover.mjs --local-primary` (requires Upstash credentials for the one-time bootstrap ticket; `DASHBOARD_API_KEY` in `dashboard/.env.local` enables web signal sync).
+4. Run the controller (`--doctor` first, then the Scheduled Task / foreground run) and verify: doctor reports `telegramOwnershipReady: true`, Telegram `/status` shows `local-primary · LOCAL_ACTIVE` with fresh EA heartbeats.
+5. Deploy the web side (fence gates + `/api/telegram/local-signal`). This is independent of local execution and can follow later.
+
+### Rollback
+
+1. Stop the PC controller (fence key expires within 300s).
+2. Restore the cloud webhook via the dashboard Telegram setup endpoint (`/api/telegram/setup`).
+3. Put `controlMode` back to `failover` (or re-bootstrap without `--local-primary`) and restart the controller; it returns to `STANDBY` while the cloud webhook is verified active.
 
 ## Ownership and safety
 
@@ -73,6 +107,6 @@ The same Telegram bot accepts the core MT5 grammar: `/status`, `/profiles`, `/po
 
 ## Verification and production boundary
 
-The V2 behavioral source of truth is `behavior-cases.json` plus `failover-v2.behavior.test.mjs` (26 cases). Offline verification covers cloud/local origin parity, atomic origin-claim races, retained results, fail-closed uncertainty, Telegram ownership handoff/recovery and installer dry-runs.
+The V2 behavioral source of truth is `behavior-cases.json` plus `failover-v2.behavior.test.mjs` (38 cases; 27–32 cover local-primary ownership, runtime identity, web sync, the cloud fence heartbeat and overdue expiry; 33–38 cover exact-dueAt realtime dispatch, controller restart before dueAt, Telegram outage/reconnect, web-sync outage non-blocking, deterministic multi-account @ACCOUNT routing and fence heartbeat renewal/expiry). Offline verification covers cloud/local origin parity, atomic origin-claim races, retained results, fail-closed uncertainty, Telegram ownership handoff/recovery and installer dry-runs. Cloud-side fence gating is contract-checked in `dashboard/src/lib/telegram-cloud-route.test.ts`.
 
 The code is not installed or live merely because these checks pass. Production use still requires separate operator authorization for Scheduled Task installation, a controlled Telegram webhook handoff test, and a safe Upstash outage/quota simulation. No broker mutation should be introduced solely to test failover ownership.

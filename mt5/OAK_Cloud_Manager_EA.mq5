@@ -1,30 +1,31 @@
 #property strict
-#property version   "1.04"
-#property description "OAK cloud bridge + standalone MT5 account manager"
+#property version   "1.06"
+#property description "OAK local-only MT5 execution manager"
 
-// OAK Cloud Manager EA
-// - No Python/desktop runtime required while the MT5 terminal is open.
-// - Cloud mailbox: Upstash REST (same v1 keys as dashboard/src/lib/mt5-bridge.ts).
+// OAK Local Manager EA
+// - Trading control is PC-local only: controller -> FILE_COMMON -> this EA -> MT5.
+// - No Upstash/Vercel/cloud mailbox is consulted by the runtime execution path.
 // - Local management: automatic SL/TP, entry netting, BE, close-at-R, R partials,
-//   and per-position partial rules armed by Telegram/cloud.
-// - WebRequest is intentionally synchronous. The timer uses a short timeout and
-//   never retries an ambiguous broker mutation. INVALID_FILL is the only broker
-//   request retry, matching the existing Python safety contract.
+//   and per-position partial rules armed by the local controller.
+// - Broker mutations are never blindly retried after an ambiguous transport result.
 
-input group "OAK Cloud Bridge"
-input bool   InpBridgeEnabled              = true;
-input bool   InpAutoBindAccount            = true;      // Resolve current login/server to the registered bridge profile
-input string InpBridgeProfile              = "";       // Fixed-mode bridge profile when auto-bind is disabled
-input long   InpExpectedLogin              = 0;        // Fixed-mode login when auto-bind is disabled
-input string InpUpstashRestUrl             = "";       // Upstash REST URL
-input string InpUpstashRestToken           = "";       // Upstash REST token
-input int    InpHttpTimeoutMs              = 1200;
-input int    InpPollSeconds                = 1;         // Local manager timer; OnTick remains primary
-input int    InpCloudPollSeconds           = 10;        // Upstash queue poll; runtime clamps to 10..15s
+input group "Local PC Control"
+input string InpLocalProfile               = "";        // Optional local label; blank = local_<login>
+input string InpLocalProviderAccountId     = "";        // Optional mt5:<suffix>; blank = deterministic login/server hash
+input int    InpLocalPollMs                = 250;       // FILE_COMMON mailbox poll interval in ms (clamped 100..5000)
 
-input group "Local PC Failover"
-input bool   InpLocalFailoverEnabled       = true;      // PC-local backup mailbox; controller owns failover activation
-input int    InpLocalFailoverPollSeconds   = 1;         // Local disk mailbox poll; no Redis traffic
+// Legacy cloud symbols stay compile-time disabled so older helper code cannot
+// appear in MT5 Inputs and cannot perform network polling in local-only mode.
+const bool   InpBridgeEnabled              = false;
+const bool   InpAutoBindAccount            = false;
+const string InpBridgeProfile              = "";
+const long   InpExpectedLogin              = 0;
+const string InpUpstashRestUrl             = "";
+const string InpUpstashRestToken           = "";
+const int    InpHttpTimeoutMs              = 1200;
+const int    InpCloudPollSeconds           = 10;
+const bool   InpLocalPrimaryEnabled        = true;
+const bool   InpLocalFailoverEnabled       = true;
 
 input group "Execution"
 input long   InpTradeMagic                 = 0;
@@ -58,7 +59,7 @@ input string InpPartialPercents            = "50";      // 1 pct = current-volum
 #define OAK_HEARTBEAT_PREFIX  "oak:mt5:bridge:heartbeat:v1:"
 #define OAK_TASK_TTL          604800
 #define OAK_HEARTBEAT_TTL     45
-#define OAK_EA_VERSION        "1.04"
+#define OAK_EA_VERSION        "1.06"
 #define OAK_LOCAL_DIR         "OAKLocalFailover\\"
 
 string g_profile = "";
@@ -70,7 +71,8 @@ datetime g_last_bind_attempt = 0;
 datetime g_last_heartbeat = 0;
 datetime g_last_cloud_poll = 0;
 datetime g_last_cloud_ok = 0;
-datetime g_last_local_poll = 0;
+ulong    g_last_local_poll_ms = 0;
+ulong    g_last_local_status_ms = 0;
 int g_cloud_failure_streak = 0;
 int g_cloud_success_streak = 0;
 double g_partial_r[];
@@ -375,6 +377,29 @@ string AutoBindLoginKey()
    return "oak:mt5:bridge:auto-bind:v1:login:"+IntegerToString(g_login);
 }
 
+bool ConfigureLocalPrimaryIdentity(string &detail)
+{
+   detail="";
+   string profile=Trim(InpLocalProfile);
+   if(profile=="") profile="local_"+IntegerToString(g_login);
+   string provider=Trim(InpLocalProviderAccountId);
+   if(provider=="")
+   {
+      string hash=Sha256HexUtf8(IntegerToString(g_login)+"|"+NormalizeServerIdentity(g_server));
+      if(StringLen(hash)!=64) { detail="local provider hash could not be generated"; return false; }
+      provider="mt5:"+StringSubstr(hash,0,32);
+   }
+   if(StringFind(provider,"mt5:")!=0 || !IsSafeAccountSuffix(StringSubstr(provider,4)))
+   {
+      detail="InpLocalProviderAccountId must be blank or mt5:<safe-suffix>";
+      return false;
+   }
+   g_profile=profile;
+   g_provider_account_id=provider;
+   g_bridge_ready=false;
+   return true;
+}
+
 bool ApplyAutoBindRecord(const string record,const bool exact,string &detail)
 {
    detail="";
@@ -416,6 +441,23 @@ bool ResolveAutoBind(string &detail)
 
 void RefreshBridgeBinding(const bool force=false)
 {
+   if(InpLocalPrimaryEnabled)
+   {
+      // Local-primary identity is derived from the running terminal (login+server,
+      // deterministic provider suffix) and never requires Upstash/Vercel credentials.
+      // The legacy cloud bridge stays intentionally inactive while local-primary is on.
+      if(!force && g_profile!="" && g_provider_account_id!="") return;
+      string local_detail="";
+      if(!ConfigureLocalPrimaryIdentity(local_detail))
+      {
+         if(force) PrintFormat("[OAK-EA] Local-primary identity refused: %s",local_detail);
+         g_bridge_ready=false;
+         return;
+      }
+      g_bridge_ready=false;
+      if(force) PrintFormat("[OAK-EA] Local-primary identity bound profile=%s provider=%s login=%I64d server=%s",g_profile,g_provider_account_id,g_login,g_server);
+      return;
+   }
    if(!InpBridgeEnabled)
    {
       g_bridge_ready=false;
@@ -658,11 +700,7 @@ bool ValidateBridgeTaskEnvelope(const string task,string &detail)
    string action=Lower(JsonString(task,"action"));
    if(action!="positions" && action!="entry" && action!="close" && action!="modify" && action!="partial") { detail="unsupported MT5 task action"; return false; }
    string source=Lower(JsonString(task,"source"));
-   if(action=="positions")
-   {
-      if(source!="cloud-read" && source!="local-failover") { detail="invalid read-only task source"; return false; }
-   }
-   else if(source!="telegram-cloud" && source!="local-failover") { detail="invalid mutation task source"; return false; }
+   if(source!="local-primary") { detail="local-only EA accepts local-primary tasks only"; return false; }
    if(Lower(JsonString(task,"bridgeProfile"))!=ProfileKey()) { detail="bridge profile mismatch"; return false; }
    if(JsonLong(task,"login",0)!=g_login) { detail="login mismatch"; return false; }
    if(JsonString(task,"server")!=g_server) { detail="server mismatch"; return false; }
@@ -705,19 +743,22 @@ string ClaimEnvelope(const string task)
       +",\"at\":"+IntegerToString(NowMs())+"}";
 }
 
-void WriteLocalStatus(const bool cloud_ok)
+void WriteLocalStatus(const bool ignored_cloud_ok=false)
 {
-   if(!InpLocalFailoverEnabled || g_profile=="") return;
+   if(g_profile=="") return;
    string json="{\"profile\":"+JsonQuote(g_profile)
+      +",\"providerAccountId\":"+JsonQuote(g_provider_account_id)
       +",\"login\":"+IntegerToString(g_login)
       +",\"server\":"+JsonQuote(g_server)
       +",\"eaVersion\":"+JsonQuote(OAK_EA_VERSION)
       +",\"at\":"+IntegerToString(NowMs())
-      +",\"bridgeReady\":"+(g_bridge_ready?"true":"false")
-      +",\"cloudOk\":"+(cloud_ok?"true":"false")
-      +",\"cloudFailureStreak\":"+IntegerToString(g_cloud_failure_streak)
-      +",\"cloudSuccessStreak\":"+IntegerToString(g_cloud_success_streak)
-      +",\"lastCloudOk\":"+IntegerToString((long)g_last_cloud_ok*1000)
+      +",\"localPrimary\":true"
+      +",\"localReady\":"+((g_profile!="" && g_provider_account_id!="")?"true":"false")
+      +",\"localPollMs\":"+IntegerToString(MathMax(100,MathMin(5000,InpLocalPollMs)))
+      +",\"fxSlPoints\":"+DoubleToString(InpFxSLPoints,2)
+      +",\"fxTpPoints\":"+DoubleToString(InpFxTPPoints,2)
+      +",\"goldSlPoints\":"+DoubleToString(InpGoldSLPoints,2)
+      +",\"goldTpPoints\":"+DoubleToString(InpGoldTPPoints,2)
       +"}";
    WriteCommonText(LocalStatusPath(),json);
 }
@@ -1566,13 +1607,20 @@ bool FindLocalTaskPath(string &task_path)
    return true;
 }
 
-void PollLocalFailoverOnce()
+void PollLocalOnce()
 {
-   if(!InpLocalFailoverEnabled || g_profile=="") return;
-   datetime now=TimeCurrent();
-   int interval=(InpLocalFailoverPollSeconds>0?InpLocalFailoverPollSeconds:1);
-   if(g_last_local_poll!=0 && now-g_last_local_poll<interval) return;
-   g_last_local_poll=now;
+   if(g_profile=="") return;
+   // Monotonic ms throttle (GetTickCount64): broker TimeCurrent() has 1s resolution
+   // and would cap scheduled-entry dispatch latency at whole seconds.
+   ulong now_ms=GetTickCount64();
+   ulong interval=(ulong)MathMax(100,MathMin(5000,InpLocalPollMs));
+   if(g_last_local_poll_ms!=0 && now_ms-g_last_local_poll_ms<interval) return;
+   g_last_local_poll_ms=now_ms;
+   if(g_last_local_status_ms==0 || now_ms-g_last_local_status_ms>=5000)
+   {
+      WriteLocalStatus(false);
+      g_last_local_status_ms=now_ms;
+   }
 
    string task_path="";
    if(!FindLocalTaskPath(task_path)) return;
@@ -1735,18 +1783,21 @@ int OnInit()
    ParseDoubleList(InpPartialPercents,g_partial_pct);
    RefreshBridgeBinding(true);
 
-   if(InpLocalFailoverEnabled)
-   {
-      FolderCreate(OAK_LOCAL_DIR,FILE_COMMON);
-      WriteLocalStatus(false);
-      PrintFormat("[OAK-EA] Local PC failover mailbox enabled profile=%s",g_profile);
-   }
+   FolderCreate(OAK_LOCAL_DIR,FILE_COMMON);
+   WriteLocalStatus(false);
+   g_last_local_status_ms=GetTickCount64();
+   PrintFormat("[OAK-EA] Local-only mailbox enabled profile=%s provider=%s",g_profile,g_provider_account_id);
 
-   int timer=(InpPollSeconds>0 ? InpPollSeconds : 1);
-   if(!EventSetTimer(timer))
+   // Millisecond timer drives the local FILE_COMMON mailbox near-realtime.
+   int timer_ms=(InpLocalPollMs>0?MathMax(100,MathMin(5000,InpLocalPollMs)):250);
+   if(!EventSetMillisecondTimer(timer_ms))
    {
-      PrintFormat("[OAK-EA] EventSetTimer failed err=%d",GetLastError());
-      return INIT_FAILED;
+      PrintFormat("[OAK-EA] EventSetMillisecondTimer failed err=%d; falling back to 1s timer",GetLastError());
+      if(!EventSetTimer(1))
+      {
+         PrintFormat("[OAK-EA] EventSetTimer failed err=%d",GetLastError());
+         return INIT_FAILED;
+      }
    }
    if(g_bridge_ready) PublishHeartbeat();
    ManageAccount();
@@ -1756,15 +1807,13 @@ int OnInit()
 void OnDeinit(const int reason)
 {
    EventKillTimer();
-   if(InpLocalFailoverEnabled) DeleteCommonText(LocalStatusPath());
+   DeleteCommonText(LocalStatusPath());
 }
 
 void OnTimer()
 {
    ManageAccount();
-   if(InpBridgeEnabled && !g_bridge_ready) RefreshBridgeBinding(false);
-   PollCloudOnce();
-   PollLocalFailoverOnce();
+   PollLocalOnce();
 }
 
 void OnTick()

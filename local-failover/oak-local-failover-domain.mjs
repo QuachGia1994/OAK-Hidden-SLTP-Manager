@@ -32,7 +32,10 @@ export function defaultFailoverState(now = Date.now()) {
     commands: {},
     pendingReplies: {},
     pendingSystemMessages: [],
+    pendingWebSync: {},
     intents: {},
+    lastLoopAt: 0,
+    lastFenceHeartbeatAt: 0,
     operatorAlert: "",
   };
 }
@@ -47,7 +50,10 @@ export function normalizeFailoverState(parsed, now = Date.now()) {
     state.commands = parsed.commands && typeof parsed.commands === "object" ? parsed.commands : {};
     state.pendingReplies = parsed.pendingReplies && typeof parsed.pendingReplies === "object" ? parsed.pendingReplies : {};
     state.pendingSystemMessages = Array.isArray(parsed.pendingSystemMessages) ? parsed.pendingSystemMessages.map(String).slice(-50) : [];
+    state.pendingWebSync = parsed.pendingWebSync && typeof parsed.pendingWebSync === "object" ? parsed.pendingWebSync : {};
     state.intents = parsed.intents && typeof parsed.intents === "object" ? parsed.intents : {};
+    state.lastLoopAt = Number.isFinite(Number(parsed.lastLoopAt)) ? Number(parsed.lastLoopAt) : 0;
+    state.lastFenceHeartbeatAt = Number.isFinite(Number(parsed.lastFenceHeartbeatAt)) ? Number(parsed.lastFenceHeartbeatAt) : 0;
     if (!Object.values(FAILOVER_MODES).includes(state.mode)) state.mode = FAILOVER_MODES.BLOCKED_UNCERTAIN;
     return state;
   }
@@ -161,14 +167,14 @@ export function resolveProtectionSnapshot(account, symbol, payload = {}) {
   return { slPoints, tpPoints };
 }
 
-export function validateSnapshotIdentity(account, heartbeat, { now = Date.now(), snapshotAt = 0, maxAgeMs = DEFAULT_SNAPSHOT_MAX_AGE_MS } = {}) {
-  if (!account || account.provider !== "mt5") throw new Error("cTrader is not supported by PC-local failover");
-  if (!account.enabled) throw new Error(`@${account.label}: account is disabled in bootstrap snapshot`);
+export function validateSnapshotIdentity(account, heartbeat, { now = Date.now(), snapshotAt = 0, maxAgeMs = DEFAULT_SNAPSHOT_MAX_AGE_MS, requireSnapshot = true, allowRuntimeProfile = false } = {}) {
+  if (!account || account.provider !== "mt5") throw new Error("cTrader is not supported by PC-local control");
+  if (!account.enabled) throw new Error(`@${account.label}: account is disabled in local config`);
   if (!heartbeat) throw new Error(`@${account.label}: MT5 EA heartbeat is not fresh`);
-  if (String(account.bridgeProfile || "").trim().toLowerCase() !== String(heartbeat.profile || "").trim().toLowerCase()) throw new Error(`@${account.label}: bridge profile mismatch`);
+  if (!allowRuntimeProfile && String(account.bridgeProfile || "").trim().toLowerCase() !== String(heartbeat.profile || "").trim().toLowerCase()) throw new Error(`@${account.label}: bridge profile mismatch`);
   if (Number(account.login) !== Number(heartbeat.login)) throw new Error(`@${account.label}: MT5 login mismatch`);
   if (String(account.server || "").trim() !== String(heartbeat.server || "").trim()) throw new Error(`@${account.label}: MT5 server mismatch`);
-  if (!Number.isFinite(Number(snapshotAt)) || Number(snapshotAt) <= 0 || now - Number(snapshotAt) > maxAgeMs) throw new Error(`@${account.label}: bootstrap account snapshot is stale`);
+  if (requireSnapshot && (!Number.isFinite(Number(snapshotAt)) || Number(snapshotAt) <= 0 || now - Number(snapshotAt) > maxAgeMs)) throw new Error(`@${account.label}: bootstrap account snapshot is stale`);
   return true;
 }
 
@@ -185,7 +191,11 @@ export function chooseLocalMt5Account(accounts, heartbeats, requested, options =
     throw new Error(requested ? `@${requested} is not available in the local MT5 bootstrap snapshot` : "No local MT5 account is available");
   }
   const account = candidates[0];
-  const heartbeat = (heartbeats || []).find((row) => String(row?.profile || "").trim().toLowerCase() === String(account.bridgeProfile || "").trim().toLowerCase());
+  const allowRuntimeProfile = options.allowRuntimeProfile === true;
+  const heartbeat = (heartbeats || []).find((row) => {
+    if (Number(row?.login) !== Number(account.login) || String(row?.server || "").trim() !== String(account.server || "").trim()) return false;
+    return allowRuntimeProfile || String(row?.profile || "").trim().toLowerCase() === String(account.bridgeProfile || "").trim().toLowerCase();
+  });
   validateSnapshotIdentity(account, heartbeat, options);
   return { account, heartbeat };
 }

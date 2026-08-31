@@ -42,43 +42,35 @@ test("web accepts only OAK MQL5 EA heartbeats for MT5 bridge execution", () => {
   assert.match(ea, /StateSet\(id,"pp_armed",1\.0\)/);
 });
 
-test("OAK MQL5 EA keeps cloud keys, compile-safe helpers and clear bridge inputs", () => {
-  assert.match(ea, /oak:mt5:bridge:task:v1:/);
-  assert.match(ea, /oak:mt5:bridge:queue:v1:/);
-  assert.match(ea, /oak:mt5:bridge:arbiter:v1:/);
-  assert.match(ea, /oak:mt5:bridge:heartbeat:v1:/);
-  assert.match(ea, /never retries an ambiguous broker mutation/);
+test("OAK MQL5 EA v1.06 exposes local-only Inputs and no cloud credentials", () => {
+  assert.match(ea, /#property version\s+"1\.06"/);
+  assert.match(ea, /input group "Local PC Control"/);
+  assert.match(ea, /InpLocalPollMs\s*= 250/);
+  assert.doesNotMatch(ea, /input group "OAK Cloud Bridge"/);
+  assert.doesNotMatch(ea, /input string InpUpstashRestUrl/);
+  assert.doesNotMatch(ea, /input string InpUpstashRestToken/);
+  assert.match(ea, /const string InpUpstashRestUrl\s*= ""/);
+  assert.match(ea, /const string InpUpstashRestToken\s*= ""/);
+  assert.match(ea, /broker mutations are never blindly retried/i);
   assert.doesNotMatch(ea, /PositionClosePartial/);
   assert.doesNotMatch(ea, /const char &input\[\]/);
-  assert.match(ea, /ShortToString\(8\)/);
-  assert.match(ea, /ShortToString\(12\)/);
-  assert.match(ea, /InpAutoBindAccount\s*= true/);
-  assert.match(ea, /Fixed-mode bridge profile/);
-  assert.match(ea, /Fixed-mode login/);
-  assert.match(ea, /\/\/ Upstash REST URL/);
-  assert.match(ea, /\/\/ Upstash REST token/);
 });
 
-test("MT5 EA auto-binds account changes without unloading on login mismatch", () => {
-  assert.match(ea, /AutoBindExactKey\(\)/);
-  assert.match(ea, /oak:mt5:bridge:auto-bind:v1:exact:/);
-  assert.match(ea, /oak:mt5:bridge:auto-bind:v1:login:/);
+test("MT5 EA derives local identity from terminal login and server", () => {
+  assert.match(ea, /ConfigureLocalPrimaryIdentity\(/);
+  assert.match(ea, /profile="local_"\+IntegerToString\(g_login\)/);
+  assert.match(ea, /Sha256HexUtf8\(IntegerToString\(g_login\)\+"\|"\+NormalizeServerIdentity\(g_server\)\)/);
   assert.match(ea, /RefreshBridgeBinding\(true\)/);
-  assert.match(ea, /if\(InpBridgeEnabled && !g_bridge_ready\) RefreshBridgeBinding\(false\)/);
-  assert.match(ea, /provider account does not match current auto-bound account/);
-  assert.doesNotMatch(ea, /ACCOUNT MISMATCH[\s\S]*return INIT_FAILED/);
-  assert.match(bridge, /heartbeat\.providerAccountId && heartbeat\.providerAccountId !== args\.account\.id/);
+  assert.doesNotMatch(ea, /if\(InpBridgeEnabled && !g_bridge_ready\) RefreshBridgeBinding\(false\)/);
+  assert.match(ea, /local-only EA accepts local-primary tasks only/);
 });
 
-test("MT5 EA bounds Upstash polling while local management remains tick-driven", () => {
-  assert.match(ea, /InpCloudPollSeconds\s*= 10/);
-  assert.match(ea, /requested<10 \? 10 : \(requested>15 \? 15 : requested\)/);
-  assert.match(ea, /RedisHeartbeatAndPeekQueue/);
-  assert.match(ea, /args\[0\]="EVAL"/);
-  assert.match(ea, /redis\.call\('SET',KEYS\[1\],ARGV\[1\],'EX',ARGV\[2\]\); return redis\.call\('LINDEX',KEYS\[2\],0\)/);
+test("MT5 EA local timer drives FILE_COMMON without cloud polling", () => {
+  assert.match(ea, /EventSetMillisecondTimer\(timer_ms\)/);
+  assert.match(ea, /InpLocalPollMs/);
+  assert.match(ea, /void OnTimer\(\)[\s\S]*ManageAccount\(\);[\s\S]*PollLocalOnce\(\);/);
+  assert.doesNotMatch(ea, /void OnTimer\(\)[\s\S]*PollCloudOnce\(\);/);
   assert.match(ea, /void OnTick\(\)[\s\S]*ManageAccount\(\)/);
-  assert.match(bridge, /DEFAULT_WAIT_MS = 20_000/);
-  assert.match(bridge, /POLL_MS = 750/);
 });
 
 test("MT5 entry waits for symbol synchronization before using a broker tick", () => {
@@ -92,16 +84,14 @@ test("MT5 entry waits for symbol synchronization before using a broker tick", ()
   assert.match(ea, /tick unavailable after sync wait/);
 });
 
-test("MT5 local/cloud mutations structurally share a per-origin atomic FILE_COMMON claim boundary", () => {
-  assert.match(ea, /InpLocalFailoverEnabled\s*= true/);
+test("MT5 local-only mutations use a per-origin atomic FILE_COMMON claim boundary", () => {
   assert.match(ea, /LocalClaimPath\(const string ledger\)/);
   assert.match(ea, /AtomicCreateCommonText\(claim_path,claim\)/);
   assert.match(ea, /bool moved=FileMove\(temp_path,FILE_COMMON,final_path,FILE_COMMON\);/);
   assert.ok(ea.indexOf("AtomicCreateCommonText(claim_path,claim)") < ea.indexOf("string result=ExecuteTask(task)"));
   assert.match(ea, /ExecuteMutationWithOriginFence\(task\)/);
-  assert.match(ea, /action=="positions" \? ExecuteTask\(task\) : ExecuteMutationWithOriginFence\(task\)/);
-  assert.match(ea, /cloudFailureStreak/);
-  assert.match(ea, /cloudSuccessStreak/);
+  assert.match(ea, /source!="local-primary"/);
+  assert.match(localFailover, /source: config\.controlMode === LOCAL_PRIMARY_MODE \? "local-primary" : "local-failover"/);
 });
 
 test("PC Telegram failover uses a write canary, preserves pending updates, and fences recovery before webhook restore", () => {

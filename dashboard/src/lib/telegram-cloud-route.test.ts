@@ -4,6 +4,9 @@ import { readFileSync } from "node:fs";
 
 const webhook = readFileSync(new URL("../app/api/telegram/webhook/route.ts", import.meta.url), "utf8");
 const setup = readFileSync(new URL("../app/api/telegram/setup/route.ts", import.meta.url), "utf8");
+const localSignal = readFileSync(new URL("../app/api/telegram/local-signal/route.ts", import.meta.url), "utf8");
+const fence = readFileSync(new URL("./local-primary-fence.ts", import.meta.url), "utf8");
+const runner = readFileSync(new URL("./telegram-cloud-runner.ts", import.meta.url), "utf8");
 const h1Setup = readFileSync(new URL("../app/api/h1-scanner/setup/route.ts", import.meta.url), "utf8");
 const cloudConfig = readFileSync(new URL("./h1-cloud-config.ts", import.meta.url), "utf8");
 const localFailoverBootstrap = readFileSync(new URL("../app/api/telegram/local-failover-bootstrap/route.ts", import.meta.url), "utf8");
@@ -144,4 +147,43 @@ test("Telegram due scheduler uses Cloudflare minute clock with GitHub OIDC fallb
   assert.match(workflow, /id-token: write/);
   assert.match(workflow, /audience=oak-telegram-cloud-control/);
   assert.doesNotMatch(workflow, /secrets\./);
+});
+
+test("local-primary fence fails cloud execution closed on every broker-mutation path", () => {
+  assert.match(fence, /LOCAL_PRIMARY_FENCE_KEY = "oak:telegram:local-primary:active:v1"/);
+  assert.match(fence, /LOCAL_PRIMARY_FENCE_TTL_SECONDS = 300/);
+  assert.match(fence, /export async function isLocalPrimaryActive/);
+  // Choke point: no cloud broker mutation can start while the fence is active.
+  assert.match(runner, /if \(await isLocalPrimaryActive\(\)\)/);
+  assert.match(runner, /Local-primary fence active; cloud execution is disabled/);
+  // Webhook route refuses new intents and approve-execution with an operator message.
+  assert.match(webhook, /isLocalPrimaryActive/);
+  assert.match(webhook, /command_rejected_local_primary_fence/);
+  const intentIndex = webhook.indexOf('if (command.type === "intent") {');
+  const intentFenceIndex = webhook.indexOf("if (await isLocalPrimaryActive())", intentIndex);
+  assert.ok(intentIndex >= 0 && intentFenceIndex > intentIndex);
+  assert.match(webhook, /LOCAL_PRIMARY_REFUSAL/);
+  // Tick route must not reinstall the webhook (steal ownership back) nor execute due intents.
+  const ensureIndex = tick.indexOf("async function ensureTelegramControlConfig");
+  const tickFenceIndex = tick.indexOf("if (await isLocalPrimaryActive()) return config;");
+  assert.ok(ensureIndex >= 0 && tickFenceIndex > ensureIndex);
+  assert.match(tick, /const localPrimaryActive = await isLocalPrimaryActive\(\)/);
+  assert.match(tick, /if \(localPrimaryActive\) break;/);
+  assert.match(tick, /localPrimaryFence: localPrimaryActive/);
+  // Expiry stays fail-closed even while fenced.
+  assert.match(tick, /expireScheduledCloudIntent/);
+});
+
+test("local H1 signal sync endpoint is API-key fenced, POST-only and never blocks on broker state", () => {
+  assert.doesNotMatch(localSignal, /export async function GET/);
+  assert.match(localSignal, /export async function POST/);
+  assert.match(localSignal, /DASHBOARD_API_KEY/);
+  assert.match(localSignal, /timingSafeEqual/);
+  assert.match(localSignal, /requireAuth\(request\)/);
+  assert.match(localSignal, /SIDES\.has\(side\)/);
+  assert.match(localSignal, /Number\.isFinite\(dueAt\) \|\| dueAt <= 0/);
+  assert.match(localSignal, /writeTelegramScheduledSignal\(\{ symbol, side: side as H1Signal, dueAt \}\)/);
+  assert.match(localSignal, /skipped: "not-mappable"/);
+  assert.match(localSignal, /status: 503/);
+  assert.doesNotMatch(localSignal, /executeMt5BridgeAction|runCloudIntentExecution|claimCloudIntentExecution/);
 });
