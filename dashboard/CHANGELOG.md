@@ -6,7 +6,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Added
 
-- Added idempotent Telegram entry scheduling notifications for live H1 alerts. Existing pending H1 intents are backfilled for notification when their entry time is near, fixed lots are 0.05 for FX and 0.01 for XAUUSD on the $5,000 sizing policy, and pending H1 intent lots are normalized before approval. H1 history now uses a visual native calendar picker with weekday filters and broker-date bounds. Telegram block reminders now show the broker weekday/current H, post-signal action, block time and an explicit `Entry time` preparation line.
+- Added idempotent Telegram entry scheduling support for live H1 operations. Existing pending H1 intents are backfilled for notification when their entry time is near, fixed lots are 0.05 for FX and 0.01 for XAUUSD on the $5,000 sizing policy, and pending H1 intent lots are normalized before approval. H1 history now uses a visual native calendar picker with weekday filters and broker-date bounds. Scanner-originated block/signal Telegram reminders were subsequently retired in favor of operator-entered timed commands feeding the web table.
 
 - Reworked the H1 core as state v54 / public feed schema 16 / signal rule 49. Entry signals use the broker H1 candle one hour before entry (`08:00` and `08:25` both read `H07:00`) as the base direction for all FX and XAUUSD; M5 Bollinger is no longer authoritative. The six-block weekday inversion/keep matrix is applied uniformly across symbols and weeks, with cycle-month Thu/Fri, Tue/Wed and Monday groups matching the published rule, and non-cycle Thursday months using the inverse matrix. Fixed lots remain `0.05` FX / `0.01` XAUUSD; the `/approve ID` broker-mutation boundary is unchanged.
 
@@ -14,6 +14,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- The H1 scanner no longer sends `BLOCK ĐÃ ĐẾN` or H1 signal Telegram notifications. Future manual timed `BUY`/`SELL` entries now publish their side immediately into the matching H1 cell using IC Markets broker-wall time; on 2026-08-31, `buy XAUUSD 0.01 13h00 @fxce` maps to XAUUSD H09. Scanner/backfill refreshes preserve the manual `scheduledSignal`.
 - Redis failover now has one shared authority across Vercel serverless invocations. Once a failoverable primary Redis error promotes backup, later webhook/tick invocations keep reading and writing that backup, primary-to-backup sync is blocked until recovery instead of overwriting newer failover state, and scheduled intents more than two minutes late expire instead of executing stale trades.
 - Manual Telegram timed entry/close commands now auto-arm future `HH:MM` / `HHhMM` intents as `scheduled` and run through the existing due tick without `/approve`. Immediate commands, stale/past explicit times and H1 Scanner intents keep the approval boundary, and already-saved `approval_required` intents are not converted into late trades.
 - Preserved valid H1 Pattern 2 alerts when entry-relative M15 evidence is flat; once a pattern supplies its entry time, only the prior H1 base-candle lookup gates publication. The H1 table now sizes itself from the active seven hour columns instead of stretching across the legacy 79rem grid.

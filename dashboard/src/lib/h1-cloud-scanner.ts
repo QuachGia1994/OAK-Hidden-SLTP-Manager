@@ -88,6 +88,18 @@ export function targetsForBlockHour(hour: number): readonly H1TargetBase[] {
   return (H1_SCAN_HOURS as readonly number[]).includes(hour) ? H1_TARGET_BASES : [];
 }
 
+export function h1TargetBaseFromSymbol(value: unknown): H1TargetBase | null {
+  const normalized = String(value || "").trim().toUpperCase();
+  return H1_TARGET_BASES.find((base) => normalized.startsWith(base)) || null;
+}
+
+export function scheduledSignalSlotForBrokerHour(base: H1TargetBase, brokerDate: string, brokerHour: number): number | null {
+  if (!isValidBrokerDateKey(brokerDate) || !Number.isInteger(brokerHour) || brokerHour < 0 || brokerHour > 23) return null;
+  const eligible = activeH1ScanHoursForBrokerDate(brokerDate)
+    .filter((hour) => hour <= brokerHour && (targetsForBlockHour(hour) as readonly H1TargetBase[]).includes(base));
+  return eligible.at(-1) ?? null;
+}
+
 export function signalFromDirection(direction: H1Direction): H1Signal {
   return direction === "T" ? "BUY" : "SELL";
 }
@@ -317,56 +329,6 @@ export function evaluateH1SignalsForTarget(
     alerts.push(buildStoredAlert({ base, brokerSymbol: base, baseBar, slotHour, brokerDate }));
   }
   return alerts;
-}
-
-function evaluationBaseLabel(alert: H1StoredAlert): string {
-  return `H${String(alert.baseHour).padStart(2, "0")}:${String(alert.baseMinute).padStart(2, "0")}`;
-}
-
-function brokerWeekdayLabel(brokerDate: string): string {
-  return ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"][brokerDateWeekdayIndex(brokerDate)] || brokerDate;
-}
-
-export function buildTelegramBlockReminder(brokerDate: string, slotHour: number): string {
-  const decision = cycleDecisionFor(H1_TARGET_BASES[0], brokerDate, slotHour);
-  const phase = decision.rule.startsWith("cycle-") ? "pha chu kỳ tháng" : "pha tháng thường";
-  const bridge = isMonthEndBridgeCell(brokerDate, slotHour);
-  const blockLabel = slotHour === 3 || slotHour === 4
-    ? "H3/H4"
-    : `H${String(slotHour).padStart(2, "0")}`;
-  return [
-    `⏰ BLOCK ĐÃ ĐẾN · ${brokerWeekdayLabel(brokerDate)} · HIỆN TẠI H${String(slotHour).padStart(2, "0")}`,
-    `• Hậu signal: ${decision.inverted ? "ĐẢO" : "GIỮ NGUYÊN"}`,
-    `• Block: ${blockLabel} · ${phase}`,
-    ...(bridge ? ["🌉 CẦU"] : []),
-    "• Giờ vào/đóng lệnh do bạn tự đặt qua lệnh Telegram (hẹn giờ).",
-  ].join("\n");
-}
-
-export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, alert: H1StoredAlert): string {
-  const postSignalLabels: Record<H1PostSignalRule, string> = {
-    none: "không đảo",
-    "cycle-net-invert": "pha chu kỳ tháng, đảo hậu signal sau cộng dồn",
-    "cycle-net-keep": "pha chu kỳ tháng, giữ hậu signal sau cộng dồn",
-    "regular-net-invert": "pha thường tháng, đảo hậu signal sau cộng dồn",
-    "regular-net-keep": "pha thường tháng, giữ hậu signal sau cộng dồn",
-  };
-  const cycleLine = alert.postSignalRule === "none"
-    ? null
-    : `• Hậu signal: ${alert.postSignalInverted ? "ĐẢO" : "GIỮ NGUYÊN"} · ${postSignalLabels[alert.postSignalRule]}`;
-  const rows = [
-    `⏰ BLOCK ĐÃ ĐẾN · ${brokerWeekdayLabel(brokerDate)} · HIỆN TẠI H${String(alert.slotHour).padStart(2, "0")}`,
-    `🔔 ${base} H1 SIGNAL`,
-    `• Symbol: ${alert.symbol}`,
-    `• Profile: ${H1_CLOUD_PROFILE}`,
-    `• Ngày broker: ${brokerDate}`,
-    `• Base H1 candle: ${evaluationBaseLabel(alert)} ${alert.baseDirection} → ${alert.baseH1Signal}`,
-    "• Giờ vào/đóng lệnh do bạn tự đặt qua lệnh Telegram (hẹn giờ).",
-  ];
-  if (cycleLine) rows.push(cycleLine);
-  if (isMonthEndBridgeCell(brokerDate, alert.slotHour)) rows.push("🌉 CẦU");
-  rows.push(`• Signal ${base} H1: ${alert.symbolH1Signal}`);
-  return rows.join("\n");
 }
 
 export function emptyCloudState(): H1CloudState {
@@ -657,7 +619,17 @@ export function backfillSuppressedHistory(
     const delivered = new Set(symbol.alerts.map((alert) => alert.slotHour));
 
     for (const alert of matches) {
-      if (alert.slotHour > suppressedThrough || delivered.has(alert.slotHour)) continue;
+      if (alert.slotHour > suppressedThrough) continue;
+      const existingIndex = symbol.alerts.findIndex((item) => item.slotHour === alert.slotHour);
+      if (existingIndex >= 0) {
+        const existing = symbol.alerts[existingIndex];
+        if (!existing.baseH1Signal && alert.baseH1Signal) {
+          symbol.alerts[existingIndex] = { ...alert, scheduledSignal: existing.scheduledSignal ?? null };
+          added += 1;
+        }
+        continue;
+      }
+      if (delivered.has(alert.slotHour)) continue;
       symbol.alerts.push(alert);
       delivered.add(alert.slotHour);
       added += 1;

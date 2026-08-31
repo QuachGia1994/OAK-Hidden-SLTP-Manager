@@ -1,6 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
+import { brokerWallParts } from "./ctrader-json";
 import { readRedisReplicas, redis, releaseOwnedRedisLock } from "./redis-core";
 import {
   H1_CLOUD_LOCK_KEY,
@@ -8,12 +9,17 @@ import {
   H1_CLOUD_STATE_KEY,
   H1_PUBLIC_LATEST_KEY,
   buildPublicFeed,
+  cycleDecisionFor,
   emptyCloudState,
+  ensureSymbolDay,
+  h1TargetBaseFromSymbol,
   parseCloudState,
   parsePublicFeedCloudState,
+  scheduledSignalSlotForBrokerHour,
   seedCloudStateFromPublic,
   trimCloudState,
   type H1CloudState,
+  type H1Signal,
 } from "./h1-cloud-scanner";
 
 const PUBLIC_PROFILE_KEY = `robot-sltp:public:h1-signals:${H1_CLOUD_PROFILE}`;
@@ -59,11 +65,17 @@ function parsePublicCandidate(raw: unknown): H1StateCandidate | null {
 }
 
 async function loadFreshestH1Candidate(): Promise<H1StateCandidate | null> {
-  const [stateReplicas, feedReplicas] = await Promise.all([
+  const [authoritativeState, authoritativeFeed, stateReplicas, feedReplicas] = await Promise.all([
+    redis.get<unknown>(H1_CLOUD_STATE_KEY),
+    redis.get<unknown>(H1_PUBLIC_LATEST_KEY),
     readRedisReplicas<unknown>(H1_CLOUD_STATE_KEY),
     readRedisReplicas<unknown>(H1_PUBLIC_LATEST_KEY),
   ]);
   const candidates = [
+    // Authoritative proxy reads come first so equal-progress primary/backup
+    // snapshots cannot erase a newer scheduledSignal written during failover.
+    parseCloudCandidate(authoritativeState),
+    parsePublicCandidate(authoritativeFeed),
     parseCloudCandidate(stateReplicas.primary),
     parseCloudCandidate(stateReplicas.backup),
     parsePublicCandidate(feedReplicas.primary),
@@ -106,6 +118,51 @@ export async function publishH1CloudState(state: H1CloudState): Promise<void> {
     [PUBLIC_PROFILE_KEY]: feed,
     [H1_PUBLIC_LATEST_KEY]: feed,
   });
+}
+
+export async function writeTelegramScheduledSignal(args: {
+  symbol: string;
+  side: H1Signal;
+  dueAt: number;
+}): Promise<{ brokerDate: string; slotHour: number; base: string; side: H1Signal } | null> {
+  const base = h1TargetBaseFromSymbol(args.symbol);
+  if (!base || !Number.isFinite(args.dueAt) || args.dueAt <= 0) return null;
+  const wall = brokerWallParts(args.dueAt);
+  const slotHour = scheduledSignalSlotForBrokerHour(base, wall.dateKey, wall.hour);
+  if (slotHour === null) return null;
+
+  const lockToken = await acquireH1CloudLock();
+  if (!lockToken) throw new Error("H1 table is busy; scheduled signal write must retry");
+  try {
+    const { state } = await loadH1CloudState(wall.dateKey, wall.hour);
+    const { symbol } = ensureSymbolDay(state, wall.dateKey, base);
+    const existingIndex = symbol.alerts.findIndex((alert) => alert.slotHour === slotHour);
+    if (existingIndex >= 0) {
+      symbol.alerts[existingIndex] = { ...symbol.alerts[existingIndex], scheduledSignal: args.side };
+    } else {
+      const decision = cycleDecisionFor(base, wall.dateKey, slotHour);
+      symbol.alerts.push({
+        slotHour,
+        symbol: String(args.symbol || base).trim().toUpperCase(),
+        profile: H1_CLOUD_PROFILE,
+        baseSymbol: base,
+        baseH1Signal: null,
+        baseHour: slotHour,
+        baseMinute: 0,
+        baseDirection: "",
+        symbolH1Signal: null,
+        scheduledSignal: args.side,
+        postSignalInverted: decision.inverted,
+        postSignalRule: decision.rule,
+      });
+      symbol.alerts.sort((left, right) => left.slotHour - right.slotHour);
+    }
+    await saveH1CloudState(state);
+    await publishH1CloudState(state);
+    return { brokerDate: wall.dateKey, slotHour, base, side: args.side };
+  } finally {
+    await releaseH1CloudLock(lockToken);
+  }
 }
 
 export async function acquireH1CloudLock(): Promise<string | null> {

@@ -9,6 +9,7 @@ const cloudConfig = readFileSync(new URL("./h1-cloud-config.ts", import.meta.url
 const localFailoverBootstrap = readFileSync(new URL("../app/api/telegram/local-failover-bootstrap/route.ts", import.meta.url), "utf8");
 const tick = readFileSync(new URL("../app/api/telegram/tick/route.ts", import.meta.url), "utf8");
 const store = readFileSync(new URL("./telegram-cloud-store.ts", import.meta.url), "utf8");
+const h1Store = readFileSync(new URL("./h1-cloud-store.ts", import.meta.url), "utf8");
 const oidc = readFileSync(new URL("./telegram-cloud-oidc.ts", import.meta.url), "utf8");
 const ctrader = readFileSync(new URL("./ctrader-json.ts", import.meta.url), "utf8");
 const workflow = readFileSync(new URL("../../../.github/workflows/telegram-cloud-control.yml", import.meta.url), "utf8");
@@ -73,9 +74,16 @@ test("local failover secret export is POST-only and one-time ticket fenced", () 
   assert.doesNotMatch(localFailoverBootstrap, /export async function GET/);
 });
 
-test("timed cloud mutations auto-arm while immediate mutations retain explicit approve", () => {
+test("timed cloud mutations auto-arm, publish their side into the H1 table, and immediate mutations retain explicit approve", () => {
   assert.match(webhook, /command\.type === "approve"/);
   assert.match(store, /initialCloudIntentStatus\(source, args\.dueAt, createdAt\)/);
+  assert.match(webhook, /task\.kind === "entry" && task\.status === "scheduled" && task\.dueAt !== null/);
+  assert.match(webhook, /writeTelegramScheduledSignal/);
+  assert.match(webhook, /Table H1:/);
+  assert.match(h1Store, /brokerWallParts\(args\.dueAt\)/);
+  assert.match(h1Store, /scheduledSignalSlotForBrokerHour\(base, wall\.dateKey, wall\.hour\)/);
+  assert.match(h1Store, /scheduledSignal: args\.side/);
+  assert.match(h1Store, /await publishH1CloudState\(state\)/);
   assert.match(webhook, /task\.status === "scheduled"[\s\S]*không cần \/approve/);
   assert.match(webhook, /for \(const id of command\.ids\)/);
   assert.match(webhook, /approveCloudIntent/);

@@ -20,8 +20,6 @@ const UPDATE_PREFIX = "oak:telegram:cloud:update:";
 const INTENT_BY_UPDATE_PREFIX = "oak:telegram:cloud:intent-by-update:";
 const INTENT_BY_AUTOMATION_PREFIX = "oak:telegram:cloud:intent-by-automation:";
 const EXECUTION_LOCK_PREFIX = "oak:telegram:cloud:execute:";
-const H1_BLOCK_REMINDER_PREFIX = "oak:telegram:h1:block-reminder:";
-const H1_BLOCK_REMINDER_SECONDS = 8 * 24 * 60 * 60;
 const EXECUTION_LOCK_SECONDS = 120;
 
 const ACTIVE_STATUSES = new Set(["approval_required", "scheduled", "approved", "executing", "failed", "uncertain"]);
@@ -193,22 +191,6 @@ export async function expireScheduledCloudIntent(task: CloudIntent, nowMs = Date
   await redis.hset(TASKS_KEY, { [String(current.id)]: JSON.stringify(current) });
   await appendTelegramAudit({ action: "intent_expired", taskId: current.id, kind: current.kind, dueAt: current.dueAt });
   return current;
-}
-
-export async function claimH1BlockReminder(reminderKey: string, nowMs = Date.now()): Promise<boolean> {
-  const normalizedKey = String(reminderKey || "").trim();
-  if (!normalizedKey) return false;
-  const result = await redis.set(
-    `${H1_BLOCK_REMINDER_PREFIX}${normalizedKey}`,
-    String(nowMs),
-    { nx: true, ex: H1_BLOCK_REMINDER_SECONDS },
-  );
-  return result === "OK";
-}
-
-export async function releaseH1BlockReminder(reminderKey: string): Promise<void> {
-  const normalizedKey = String(reminderKey || "").trim();
-  if (normalizedKey) await redis.del(`${H1_BLOCK_REMINDER_PREFIX}${normalizedKey}`);
 }
 
 export async function normalizeCloudIntentLot(task: CloudIntent, lot: number): Promise<CloudIntent> {

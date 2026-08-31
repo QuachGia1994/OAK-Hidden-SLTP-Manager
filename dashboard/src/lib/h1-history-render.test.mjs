@@ -61,6 +61,7 @@ function alert(slotHour, signal = "BUY") {
     baseMinute: 0,
     baseDirection: "T",
     signal,
+    scheduledSignal: null,
     postSignalInverted: false,
     postSignalRule: "none",
   };
@@ -99,6 +100,14 @@ test("H1 history renders one custom calendar trigger with newest date and covera
   assert.doesNotMatch(vn, /Tất cả|Lọc theo thứ/);
 });
 
+test("scheduled Telegram side renders in the matching H1 table cell", () => {
+  const data = payload();
+  data.days["2026-02-03"].symbols.XAUUSD.alerts = [{ ...alert(4), scheduledSignal: "BUY" }];
+  const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data, locale: "VN", unlocked: true }));
+  assert.match(markup, /data-scheduled-signal="BUY"/);
+  assert.match(markup, /data-side="buy">BUY<\/span>/);
+});
+
 test("H1 empty live state keeps the fallback calendar interactive", () => {
   const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data: null, degraded: true, locale: "VN", unlocked: true }));
   assert.match(markup, /oak-h1-history/);
@@ -131,6 +140,8 @@ test("IC Markets broker wall clock switches UTC+2 and UTC+3 exactly with US DST"
   assert.equal(offsetHours("2026-11-01T05:59:59Z"), 3);
   assert.equal(offsetHours("2026-11-01T06:00:00Z"), 2);
   assert.equal(brokerWallParts(Date.parse("2026-08-24T05:00:00Z")).utcOffsetHours, 3);
+  const scheduledAt13Vn = brokerWallParts(Date.parse("2026-08-31T06:00:00Z"));
+  assert.deepEqual([scheduledAt13Vn.dateKey, scheduledAt13Vn.hour], ["2026-08-31", 9]);
 });
 
 test("VIP redaction masks every historical date while mobile still reads only the latest date", () => {

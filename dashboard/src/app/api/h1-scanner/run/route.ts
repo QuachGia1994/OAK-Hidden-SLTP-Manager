@@ -1,11 +1,10 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { redis, requireAuth } from "@/lib/redis-core";
-import { loadH1CloudConfig, type H1CloudConfig } from "@/lib/h1-cloud-config";
+import { loadH1CloudConfig } from "@/lib/h1-cloud-config";
 import { verifyH1ScannerGitHubOidc } from "@/lib/github-oidc";
 import { brokerWallParts, fetchCurrentBrokerDayMarket, type CTraderScannerSession } from "@/lib/ctrader-json";
 import { loadH1CTraderSession } from "@/lib/h1-ctrader-session";
-import { claimH1BlockReminder, releaseH1BlockReminder } from "@/lib/telegram-cloud-store";
 import { acquireH1CloudLock, loadH1CloudState, publishH1CloudState, releaseH1CloudLock, saveH1CloudState } from "@/lib/h1-cloud-store";
 import {
   H1_FIRST_SCAN_HOUR,
@@ -14,8 +13,6 @@ import {
   H1_TARGET_BASES,
   backfillSuppressedHistory,
   buildStoredAlert,
-  buildTelegramBlockReminder,
-  buildTelegramMessage,
   ensureSymbolDay,
   evaluateH1SignalsForTarget,
   isH1SlotActiveForBrokerDate,
@@ -73,19 +70,6 @@ async function authorize(request: Request): Promise<NextResponse | null> {
     if (consumed) return null;
   }
   return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-}
-
-async function sendTelegram(message: string, config: H1CloudConfig): Promise<void> {
-  const response = await fetch(`https://api.telegram.org/bot${config.telegramToken}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: config.telegramChatId, text: message }),
-    cache: "no-store",
-  });
-  const payload = await response.json().catch(() => ({})) as { ok?: boolean; description?: string };
-  if (!response.ok || payload.ok !== true) {
-    throw new Error(payload.description || `Telegram send failed (${response.status})`);
-  }
 }
 
 function delay(ms: number) {
@@ -183,29 +167,10 @@ export async function POST(request: Request) {
     ) > 0;
     let changed = recoveryDaySeeded || recoveredSuppressedHistory;
 
-    // Block reminders announce the deterministic six-block phase for the
-    // block hour ahead of its closed candle; they are independent from any
-    // user-scheduled entry/close appointments.
-    let blockReminderSent = false;
-    const telegramConfigured = Boolean(enabled && !dryRun && cloudConfig?.telegramToken && cloudConfig?.telegramChatId);
-    const isScheduledBlock = (H1_SCAN_HOURS as readonly number[]).includes(market.brokerHour)
-      && isH1SlotActiveForBrokerDate(market.brokerDate, market.brokerHour);
-    if (telegramConfigured && isScheduledBlock && cloudConfig) {
-      const reminderKey = `${market.brokerDate}:H${market.brokerHour}`;
-      const claimed = await claimH1BlockReminder(reminderKey);
-      if (claimed) {
-        try {
-          await sendTelegram(buildTelegramBlockReminder(market.brokerDate, market.brokerHour), cloudConfig);
-          blockReminderSent = true;
-        } catch (error) {
-          await releaseH1BlockReminder(reminderKey);
-          throw error;
-        }
-      }
-    }
-
+    // H1 scanner publication is web-only. Telegram block/signal notifications
+    // are intentionally disabled; timed BUY/SELL commands are the user-owned
+    // source that writes scheduledSignal into the H1 table.
     const pending: RunSummary[] = [];
-    let sent = 0;
 
     // The slot whose candle just closed is slotHour = brokerHour - 1.
     const closedSlotHour = market.brokerHour - 1;
@@ -239,9 +204,11 @@ export async function POST(request: Request) {
         const storedIndex = symbolState.alerts.findIndex((item) => item.slotHour === alert.slotHour);
         const sameStored = storedIndex >= 0 && symbolState.alerts[storedIndex].symbolH1Signal === alert.symbolH1Signal;
         if (storedIndex >= 0 && sameStored) continue;
-        let deliveredNow = false;
         if (storedIndex >= 0) {
-          symbolState.alerts[storedIndex] = alert;
+          symbolState.alerts[storedIndex] = {
+            ...alert,
+            scheduledSignal: symbolState.alerts[storedIndex].scheduledSignal ?? null,
+          };
           changed = true;
         } else {
           if (delivered.has(alert.slotHour)) continue;
@@ -249,17 +216,12 @@ export async function POST(request: Request) {
           symbolState.alerts.sort((left, right) => left.slotHour - right.slotHour);
           delivered.add(alert.slotHour);
           changed = true;
-          deliveredNow = true;
         }
 
-        // Persist every classified slot for the public table. Telegram
-        // notification is sent once when the slot is first delivered.
+        // Persist every classified slot for the public table. Manual timed
+        // Telegram commands may already have populated scheduledSignal on a
+        // placeholder cell; scanner refreshes preserve that user-owned side.
         await saveH1CloudState(state);
-
-        if (deliveredNow && telegramConfigured && cloudConfig && alert.symbolH1Signal) {
-          await sendTelegram(buildTelegramMessage(base, market.brokerDate, alert), cloudConfig);
-          sent += 1;
-        }
       }
     }
 
@@ -279,8 +241,8 @@ export async function POST(request: Request) {
       brokerHour: market.brokerHour,
       brokerMinute: market.brokerMinute,
       brokerUtcOffsetHours: market.brokerUtcOffsetHours,
-      sent,
-      blockReminderSent,
+      sent: 0,
+      blockReminderSent: false,
       pending,
       h1Counts: Object.fromEntries(Object.entries(market.symbols).map(([base, item]) => [base, item.bars.length])),
     }, { headers: { "Cache-Control": "no-store, max-age=0" } });

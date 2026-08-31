@@ -11,18 +11,18 @@ import {
   backfillSuppressedHistory,
   buildPublicFeed,
   buildStoredAlert,
-  buildTelegramBlockReminder,
-  buildTelegramMessage,
   cycleDecisionFor,
   emptyCloudState,
   ensureSymbolDay,
   evaluateH1SignalsForTarget,
+  h1TargetBaseFromSymbol,
   isH1SlotActiveForBrokerDate,
   isLastFridayBrokerDate,
   isMonthEndBridgeCell,
   isSpecialThursdayBrokerDate,
   parseCloudState,
   parsePublicFeedCloudState,
+  scheduledSignalSlotForBrokerHour,
   signalledH1Candle,
   targetsForBlockHour,
   type H1DirectionBar,
@@ -66,6 +66,17 @@ test("H3 belongs to FX, H4 to XAUUSD, and later blocks scan all five targets", (
   assert.deepEqual(targetsForBlockHour(3), ["GBPUSD", "AUDUSD", "USDCAD", "USDJPY"]);
   assert.deepEqual(targetsForBlockHour(4), ["XAUUSD"]);
   for (const hour of [6, 9, 12, 14, 16]) assert.deepEqual(targetsForBlockHour(hour), [...H1_TARGET_BASES]);
+});
+
+test("timed Telegram symbols map to the latest eligible H1 table cell", () => {
+  const date = "2026-08-31";
+  assert.equal(h1TargetBaseFromSymbol("xauusd+"), "XAUUSD");
+  assert.equal(h1TargetBaseFromSymbol("USDCAD.a"), "USDCAD");
+  assert.equal(h1TargetBaseFromSymbol("EURUSD"), null);
+  assert.equal(scheduledSignalSlotForBrokerHour("XAUUSD", date, 9), 9);
+  assert.equal(scheduledSignalSlotForBrokerHour("XAUUSD", date, 5), 4);
+  assert.equal(scheduledSignalSlotForBrokerHour("GBPUSD", date, 5), 3);
+  assert.equal(scheduledSignalSlotForBrokerHour("XAUUSD", date, 2), null);
 });
 
 test("stored alert composes base H1 candle direction, matrix phase and no entry/pattern fields", () => {
@@ -303,48 +314,6 @@ test("XAUUSD regular month flips the six-block weekday phase across weeks", () =
   assert.deepEqual(cycleDecisionFor("XAUUSD", "2026-06-07"), { inverted: false, rule: "none" });
 });
 
-test("block reminders announce weekday phase, CẦU badge, and user-set appointment guidance", () => {
-  const message = buildTelegramBlockReminder("2026-07-10", 12);
-  assert.match(message, /BLOCK ĐÃ ĐẾN · Thứ 6 · HIỆN TẠI H12/);
-  assert.match(message, /Hậu signal: ĐẢO/);
-  assert.match(message, /Block: H12 · pha chu kỳ tháng/);
-  assert.doesNotMatch(message, /🌉 CẦU/);
-  assert.match(message, /Giờ vào\/đóng lệnh do bạn tự đặt qua lệnh Telegram/);
-
-  const bridgeMessage = buildTelegramBlockReminder("2026-08-31", 3);
-  assert.match(bridgeMessage, /BLOCK ĐÃ ĐẾN · Thứ 2 · HIỆN TẠI H03/);
-  assert.match(bridgeMessage, /Block: H3\/H4 · pha chu kỳ tháng/);
-  assert.match(bridgeMessage, /🌉 CẦU/);
-});
-
-test("signal telegram message keeps block, phase and base candle without pattern/entry lines", () => {
-  const alert = buildStoredAlert({
-    base: "XAUUSD",
-    brokerSymbol: "XAUUSD",
-    baseBar: h1Bars("T", 4, "2026-07-06")[0],
-    slotHour: 4,
-    brokerDate: "2026-07-06",
-  });
-  const message = buildTelegramMessage("XAUUSD", "2026-07-06", alert);
-  assert.match(message, /BLOCK ĐÃ ĐẾN · Thứ 2 · HIỆN TẠI H04/);
-  assert.match(message, /Hậu signal: GIỮ NGUYÊN · pha chu kỳ tháng/);
-  assert.match(message, /Base H1 candle: H04:00 T → BUY/);
-  assert.match(message, /Signal XAUUSD H1: BUY/);
-  assert.match(message, /Giờ vào\/đóng lệnh do bạn tự đặt qua lệnh Telegram/);
-  assert.doesNotMatch(message, /🌉 CẦU/);
-  assert.doesNotMatch(message, /pattern|Pattern|entry|Entry|M15|m15/);
-
-  const bridgeAlert = buildStoredAlert({
-    base: "XAUUSD",
-    brokerSymbol: "XAUUSD",
-    baseBar: h1Bars("T", 4, "2026-08-31")[0],
-    slotHour: 4,
-    brokerDate: "2026-08-31",
-  });
-  const bridgeMessage = buildTelegramMessage("XAUUSD", "2026-08-31", bridgeAlert);
-  assert.match(bridgeMessage, /🌉 CẦU/);
-});
-
 test("cloud state v54 migrates to v55 by stripping pattern and entry fields", () => {
   const v54 = {
     version: 54,
@@ -432,9 +401,24 @@ test("public feed v17 omits pattern and entry fields and survives feed seeding",
   assert.equal(parsePublicFeedCloudState({ ...feed, signalRuleVersion: 50 }), null);
 });
 
-test("backfillSuppressedHistory reconstructs closed signal slots from H1 bars only", () => {
+test("backfillSuppressedHistory reconstructs closed signal slots and preserves a timed Telegram placeholder", () => {
   const state = emptyCloudState();
   state.days["2026-07-06"] = { suppressedThroughHour: 6, symbols: {} };
+  const goldState = ensureSymbolDay(state, "2026-07-06", "XAUUSD").symbol;
+  goldState.alerts.push({
+    slotHour: 4,
+    symbol: "XAUUSD",
+    profile: "cTrader IcMarkets",
+    baseSymbol: "XAUUSD",
+    baseH1Signal: null,
+    baseHour: 4,
+    baseMinute: 0,
+    baseDirection: "",
+    symbolH1Signal: null,
+    scheduledSignal: "BUY",
+    postSignalInverted: false,
+    postSignalRule: "cycle-net-keep",
+  });
   const market = {
     XAUUSD: { displayName: "XAUUSD", bars: h1Bars("TTG", 6, "2026-07-06") },
     GBPUSD: { displayName: "GBPUSD", bars: h1Bars("TTTG", 6, "2026-07-06") },
@@ -445,8 +429,10 @@ test("backfillSuppressedHistory reconstructs closed signal slots from H1 bars on
   } as Parameters<typeof backfillSuppressedHistory>[2];
   const added = backfillSuppressedHistory(state, "2026-07-06", market);
   assert.ok(added > 0);
-  const gold = state.days["2026-07-06"].symbols.XAUUSD!.alerts.map((alert) => alert.slotHour);
-  assert.deepEqual(gold, [4, 6]);
+  const goldAlerts = state.days["2026-07-06"].symbols.XAUUSD!.alerts;
+  assert.deepEqual(goldAlerts.map((alert) => alert.slotHour), [4, 6]);
+  assert.equal(goldAlerts[0].baseH1Signal, "SELL");
+  assert.equal(goldAlerts[0].scheduledSignal, "BUY");
   const fx = state.days["2026-07-06"].symbols.GBPUSD!.alerts.map((alert) => alert.slotHour);
   assert.deepEqual(fx, [3, 6]);
   // Second run is idempotent.

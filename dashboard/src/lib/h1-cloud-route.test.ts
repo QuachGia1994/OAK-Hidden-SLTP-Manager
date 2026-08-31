@@ -7,7 +7,6 @@ const backfillRoute = readFileSync(new URL("../app/api/h1-scanner/backfill/route
 const backupSyncRoute = readFileSync(new URL("../app/api/admin/redis-backup-sync/route.ts", import.meta.url), "utf8");
 const redisCore = readFileSync(new URL("./redis-core.ts", import.meta.url), "utf8");
 const cloudStore = readFileSync(new URL("./h1-cloud-store.ts", import.meta.url), "utf8");
-const telegramCloudStore = readFileSync(new URL("./telegram-cloud-store.ts", import.meta.url), "utf8");
 const scannerSource = readFileSync(new URL("./h1-cloud-scanner.ts", import.meta.url), "utf8");
 const client = readFileSync(new URL("./ctrader-json.ts", import.meta.url), "utf8");
 const workflow = readFileSync(new URL("../../../.github/workflows/h1-cloud-scanner.yml", import.meta.url), "utf8");
@@ -28,7 +27,7 @@ test("cloud scanner route is private, table-live when automation is disabled, an
   assert.match(route, /loadH1CloudConfig/);
   assert.match(route, /Boolean\(cloudConfig\?\.enabled\)/);
   assert.doesNotMatch(route, /skipped:\s*"disabled"/);
-  assert.match(route, /Boolean\(enabled && !dryRun && cloudConfig\?\.telegramToken && cloudConfig\?\.telegramChatId\)/);
+  assert.doesNotMatch(route, /telegramConfigured|sendTelegram/);
   assert.match(route, /Table\/history publication must remain live/);
   assert.match(route, /acquireH1CloudLock/);
   assert.match(route, /releaseH1CloudLock/);
@@ -46,28 +45,25 @@ test("cloud scanner setup uses one-time tickets and encrypted server-side Telegr
   assert.match(setupRoute, /NextResponse\.json\(\{ ok: true, \.\.\.safeH1CloudConfigStatus\(saved\) \}/);
 });
 
-test("cloud scanner persists every closed signal slot and sends its telegram message once", () => {
+test("cloud scanner persists every closed signal slot without Telegram block/signal notifications and preserves manual table side", () => {
   assert.match(route, /loadH1CloudState/);
+  assert.match(cloudStore, /redis\.get<unknown>\(H1_CLOUD_STATE_KEY\)/);
   assert.match(cloudStore, /readRedisReplicas/);
+  assert.match(cloudStore, /Authoritative proxy reads come first/);
+  assert.ok(cloudStore.indexOf("parseCloudCandidate(authoritativeState)") < cloudStore.indexOf("parseCloudCandidate(stateReplicas.primary)"));
   assert.match(cloudStore, /loadFreshestH1Candidate/);
   assert.match(cloudStore, /parsePublicFeedCloudState/);
   assert.match(cloudStore, /stateProgress/);
   assert.match(cloudStore, /seedCloudStateFromPublic/);
   assert.match(route, /x-h1-run-ticket/);
   assert.match(route, /getdel/);
-  assert.match(route, /await sendTelegram/);
-  assert.match(route, /buildTelegramBlockReminder/);
-  assert.match(route, /claimH1BlockReminder/);
-  assert.match(route, /releaseH1BlockReminder/);
-  assert.match(route, /blockReminderSent/);
-  assert.match(route, /telegramConfigured/);
-  assert.match(telegramCloudStore, /H1_BLOCK_REMINDER_PREFIX/);
-  assert.match(telegramCloudStore, /nx: true/);
+  assert.doesNotMatch(route, /sendTelegram|buildTelegramBlockReminder|buildTelegramMessage|claimH1BlockReminder|releaseH1BlockReminder|telegramConfigured/);
+  assert.match(route, /blockReminderSent: false/);
   assert.match(route, /symbolState\.alerts\.push\(alert\)/);
+  assert.match(route, /scheduledSignal: symbolState\.alerts\[storedIndex\]\.scheduledSignal \?\? null/);
   assert.match(route, /const hadCurrentDay = Boolean\(state\.days\[market\.brokerDate\]\)/);
   assert.match(route, /if \(!hadCurrentDay && state\.days\[market\.brokerDate\]\) changed = true/);
   assert.match(route, /await saveH1CloudState\(state\)/);
-  assert.match(route, /deliveredNow && telegramConfigured/);
   assert.doesNotMatch(route, /if \(alert\.tradeAllowed\)|if \(!alert\.tradeAllowed\)|blockedTradeSlots|reconcileTradeState/);
 });
 
@@ -81,7 +77,7 @@ test("live H1 signals are info-only: no cTrader intents, no engine entry time, n
   assert.doesNotMatch(route, /evaluateH1BlocksForTarget|evaluateH1Block|m15Bars|m5Bars/);
   assert.doesNotMatch(scannerSource, /H1_AUTO_ENTRY_LOT_FX|H1_AUTO_ENTRY_LOT_XAUUSD|H1PatternKind|evaluateM5BollingerEntry/);
   assert.match(scannerSource, /evaluateH1SignalsForTarget/);
-  assert.match(route, /buildTelegramMessage\(base, market\.brokerDate, alert\)/);
+  assert.doesNotMatch(route, /buildTelegramMessage\(base, market\.brokerDate, alert\)/);
 });
 
 test("signals derive only from the closed H1 candle and the six-block matrix", () => {

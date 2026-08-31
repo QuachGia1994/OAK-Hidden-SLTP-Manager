@@ -10,7 +10,7 @@ Trading surface:
 - `/api/h1-scanner/setup` — one-time encrypted scanner/Telegram config bootstrap.
 - `/api/telegram/setup` — one-time Telegram webhook bootstrap.
 - `/api/telegram/webhook` — primary Telegram cloud receiver.
-- `/api/telegram/tick` — OIDC-authenticated due-intent notification tick.
+- `/api/telegram/tick` — authenticated due-intent execution/expiry tick.
 - `/api/ctrader/*` — cTrader OAuth/status/session control plane.
 
 The retired Engine5/Pattern5 H4 feed and UI are no longer part of this dashboard.
@@ -29,11 +29,11 @@ H1 public feed key:
 
 `robot-sltp:public:h1-signals:latest`
 
-Current public schema: v17. Cloud state is v55 and signal-rule version is v51.
+Current public schema: v17. Cloud state is v55 and signal-rule version is v56.
 
 The H1 engine routes `H3` to the four FX targets (`GBPUSD/AUDUSD/USDCAD/USDJPY`), `H4` to `XAUUSD` only, and `H6/H9/H12/H14/H16` to all five targets. Signals are derived from the block's own closed H1 candle (hour === slotHour); there is no M15 pattern window and no engine-computed entry time — entry/close appointments are set by the user through the Telegram commands. The bullish/bearish direction of that H1 candle maps directly to BUY/SELL for every FX pair and XAUUSD. The cycle-month six-block post-signal matrix is shared by all symbols; blocks are `[H3/H4] [H6] [H9] [H12] [H14] [H16]` and each block decides independently (`N` = inverted post-signal, `C` = keep): Monday `C N N C C C`, Tuesday `N C N C N C`, Wednesday `N C C C N C`, Thursday `N C C N C N`, Friday `N C C N C C`. A non-cycle (regular) month uses the exact inverse of the weekday row. Historical records and the shareable PNG show the H1 base candle.
 
-Cloudflare is the primary phase scheduler. H:00/H:30 follow the closed M15 pattern windows, while the final direction reads the already-closed H1 base candle; H:01/H:15/H:30 plus the minute watchdog heal delayed provider candles, and GitHub supplies the phase-aware fallback. Signal evaluation remains active through H18 so the H16 block can finish. On a live eligible signal, the scanner creates one idempotent cTrader intent for the exact enabled scanner account with the $5,000 sizing policy: fixed lot `0.05` for FX and `0.01` for XAUUSD. The intent starts as `approval_required`; Telegram sends one explicit `ĐẶT LỆNH HẸN GIỜ` reminder with BUY/SELL, symbol, lot, broker entry time, account and `/approve ID`. Existing active H1 intents are lot-normalized and can be notified once when their entry time is near. The scanner route does not approve or execute the intent; broker execution remains impossible until the operator explicitly approves it.
+Cloudflare is the primary H1 timekeeper and GitHub remains a fallback. The H1 scanner is web-only: it persists the closed-candle/matrix state and does not send `BLOCK ĐÃ ĐẾN` or H1 signal Telegram notifications. Timed Telegram entry commands are the operator-owned signal input. When a future `BUY`/`SELL` command is accepted, its Vietnam appointment is converted to the IC Markets broker wall clock and the side is written immediately to the latest eligible H1 cell for that symbol/date; for example `buy XAUUSD 0.01 13h00 @fxce` on 2026-08-31 maps to broker H09 and publishes `BUY` in the XAUUSD H09 cell. Scanner/backfill refreshes preserve that `scheduledSignal`. Broker execution remains governed by the Telegram scheduled-intent path.
 
 The H1 feed retains broker-date records inside the latest 90 calendar days relative to the newest valid stored broker date. `/engine` defaults to the newest date, exposes Monday-Friday filters and a visual native calendar picker constrained to the retained broker-date range. Mobile intentionally continues to consume only the latest retained date.
 

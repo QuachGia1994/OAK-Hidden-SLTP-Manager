@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getFreshCTraderTokens } from "@/lib/ctrader-vault";
 import { fetchCTraderAccountReadSnapshot, type CTraderScannerSession } from "@/lib/ctrader-json";
 import { loadH1CloudConfig } from "@/lib/h1-cloud-config";
+import { writeTelegramScheduledSignal } from "@/lib/h1-cloud-store";
 import { TELEGRAM_CLOUD_WEBHOOK_URL } from "@/lib/telegram-cloud-config";
 import { parseNeoTechCheckCallback, parseNeoTechCheckCommand } from "@/lib/neotech-compliance-domain";
 import { getNeoTechTelegramPage } from "@/lib/neotech-compliance-telegram";
@@ -306,7 +307,18 @@ async function handleCommand(text: string, chatId: string, updateId: number, sou
       sourceUpdateId: updateId,
       sourceCommandIndex,
     });
-    await appendTelegramAudit({ action: "command_intent_accepted", taskId: task.id, rawText: text, targetAccountIds: task.targetAccountIds });
+    let tableSignal: Awaited<ReturnType<typeof writeTelegramScheduledSignal>> = null;
+    if (task.kind === "entry" && task.status === "scheduled" && task.dueAt !== null) {
+      const side = String(task.payload.side || "").toUpperCase();
+      if (side === "BUY" || side === "SELL") {
+        tableSignal = await writeTelegramScheduledSignal({
+          symbol: String(task.payload.symbol || ""),
+          side,
+          dueAt: task.dueAt,
+        });
+      }
+    }
+    await appendTelegramAudit({ action: "command_intent_accepted", taskId: task.id, rawText: text, targetAccountIds: task.targetAccountIds, tableSignal });
     const protectionRows = Object.values(task.protectionPlan || {}).map((item) => `• @${item.label}: SL ${item.slPoints}pt · TP ${item.tpPoints}pt`);
     const partialTrigger = task.kind === "partial"
       ? (task.payload.mode === "profit" ? `profit >= ${task.payload.threshold}` : `price target ${task.payload.threshold}`)
@@ -325,6 +337,7 @@ async function handleCommand(text: string, chatId: string, updateId: number, sou
       `• Accounts: ${targets.map((item) => `@${item.label}`).join(", ")}`,
       ...protectionRows,
       ...intentRows,
+      ...(tableSignal ? [`• Table H1: ${tableSignal.base} H${String(tableSignal.slotHour).padStart(2, "0")} = ${tableSignal.side}`] : []),
       `• Trạng thái: ${task.status}`,
       ...(task.status === "scheduled"
         ? ["• Tự động: đã arm; tới giờ cloud execute, không cần /approve."]

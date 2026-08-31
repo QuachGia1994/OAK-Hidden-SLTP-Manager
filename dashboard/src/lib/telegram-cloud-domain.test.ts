@@ -182,6 +182,16 @@ test("timed Telegram intents auto-arm while immediate and H1 intents keep approv
     assert.equal(screenshotCommand.dueAt, Date.UTC(2026, 7, 31, 2, 4, 0));
     assert.equal(initialCloudIntentStatus("Telegram Cloud", screenshotCommand.dueAt, screenshotNow), "scheduled");
   }
+
+  const tableNow = Date.UTC(2026, 7, 31, 5, 53, 0); // 12:53 VN
+  const tableCommand = parseCloudTelegramCommand("buy xauusd 0.01 13h00 @fxce", tableNow);
+  assert.equal(tableCommand.type, "intent");
+  if (tableCommand.type === "intent") {
+    assert.equal(tableCommand.payload.side, "BUY");
+    assert.equal(tableCommand.payload.symbol, "XAUUSD");
+    assert.equal(tableCommand.dueAt, Date.UTC(2026, 7, 31, 6, 0, 0));
+    assert.equal(initialCloudIntentStatus("Telegram Cloud", tableCommand.dueAt, tableNow), "scheduled");
+  }
 });
 
 test("confirmation state machine executes armed future intents only when due", () => {
