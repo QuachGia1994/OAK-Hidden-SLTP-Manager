@@ -261,7 +261,11 @@ test("PowerShell executor contains no global mouse or keyboard injection API", a
   assert.match(script, /WM_SETTEXT/);
   assert.match(script, /function Commit-ControlText/);
   assert.match(script, /\$EN_CHANGE = 0x0300/);
-  assert.match(script, /Commit-ControlText \$dialogHandle 10333/);
+  assert.match(script, /\$VOLUME_SPINNER_ID = "10350"/);
+  assert.match(script, /function Set-VolumeThroughSpinner/);
+  assert.match(script, /\$WM_LBUTTONDOWN = 0x0201/);
+  assert.match(script, /\[OakMt5UiWin32\]::SendMessage\(\$spinnerHandle, \$WM_LBUTTONDOWN/);
+  assert.doesNotMatch(script, /Commit-ControlText \$dialogHandle 10333/);
   assert.match(script, /Commit-ControlText \$dialogHandle 10334/);
   assert.match(script, /Commit-ControlText \$dialogHandle 10336/);
 });

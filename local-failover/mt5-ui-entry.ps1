@@ -21,6 +21,14 @@ using System.Text;
 using System.Runtime.InteropServices;
 
 public static class OakMt5UiWin32 {
+  [StructLayout(LayoutKind.Sequential)]
+  public struct RECT {
+    public int Left;
+    public int Top;
+    public int Right;
+    public int Bottom;
+  }
+
   [DllImport("user32.dll", CharSet=CharSet.Unicode)]
   public static extern IntPtr SendMessage(IntPtr hWnd, uint message, IntPtr wParam, IntPtr lParam);
 
@@ -41,6 +49,9 @@ public static class OakMt5UiWin32 {
 
   [DllImport("user32.dll")]
   public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+  [DllImport("user32.dll")]
+  public static extern bool GetClientRect(IntPtr hWnd, out RECT rect);
 }
 "@
 
@@ -50,6 +61,8 @@ $WM_GETTEXT = 0x000D
 $WM_COMMAND = 0x0111
 $WM_KEYDOWN = 0x0100
 $WM_KEYUP = 0x0101
+$WM_LBUTTONDOWN = 0x0201
+$WM_LBUTTONUP = 0x0202
 $BM_CLICK = 0x00F5
 $VK_RETURN = 0x0D
 $EN_KILLFOCUS = 0x0200
@@ -57,6 +70,9 @@ $EN_CHANGE = 0x0300
 $EN_UPDATE = 0x0400
 $CBN_EDITCHANGE = 5
 $NEW_ORDER_COMMAND = 32848
+$VOLUME_EDIT_ID = "10333"
+$VOLUME_SPINNER_ID = "10350"
+$VOLUME_SUMMARY_ID = "10881"
 
 function Get-UtcMs {
   return [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
@@ -238,6 +254,72 @@ function Assert-NumericField([IntPtr]$handle, [string]$expectedText, [string]$fi
   }
 }
 
+function Set-VolumeThroughSpinner(
+  [System.Windows.Automation.AutomationElement]$dialog,
+  [string]$expectedText
+) {
+  $volumeHandle = Get-ControlHandle $dialog $VOLUME_EDIT_ID
+  $spinnerHandle = Get-ControlHandle $dialog $VOLUME_SPINNER_ID
+  $summaryHandle = Get-ControlHandle $dialog $VOLUME_SUMMARY_ID
+  $beforeText = Read-ControlText $volumeHandle
+  $beforeSummary = Read-ControlText $summaryHandle
+  $expected = Parse-InvariantNumber $expectedText "volume"
+  $current = Parse-InvariantNumber $beforeText "volume"
+  $tolerance = [Math]::Max(0.00000001, [Math]::Abs($expected) * 0.000000001)
+
+  $rect = [OakMt5UiWin32+RECT]::new()
+  if (-not [OakMt5UiWin32]::GetClientRect($spinnerHandle, [ref]$rect)) {
+    throw "MT5 volume spinner bounds are unavailable"
+  }
+  $width = $rect.Right - $rect.Left
+  $height = $rect.Bottom - $rect.Top
+  if ($width -lt 2 -or $height -lt 4) {
+    throw "MT5 volume spinner bounds are invalid"
+  }
+
+  [int]$x = [Math]::Floor($width / 2)
+  [int]$incrementY = [Math]::Max(1, [Math]::Floor($height / 4))
+  [int]$decrementY = [Math]::Min($height - 2, [Math]::Floor(($height * 3) / 4))
+  $deadline = (Get-UtcMs) + 8000
+  $clickCount = 0
+  $unchangedCount = 0
+
+  while ([Math]::Abs($current - $expected) -gt $tolerance) {
+    if ((Get-UtcMs) -ge $deadline -or $clickCount -ge 1000) {
+      throw "MT5 volume spinner could not reach the requested lot before the safety limit"
+    }
+
+    $y = if ($expected -gt $current) { $incrementY } else { $decrementY }
+    [int]$packedClickPosition = (($y -shl 16) -bor ($x -band 0xFFFF))
+    $clickPosition = [IntPtr]$packedClickPosition
+    [void][OakMt5UiWin32]::SendMessage($spinnerHandle, $WM_LBUTTONDOWN, [IntPtr]1, $clickPosition)
+    [void][OakMt5UiWin32]::SendMessage($spinnerHandle, $WM_LBUTTONUP, [IntPtr]::Zero, $clickPosition)
+    Start-Sleep -Milliseconds 10
+    $clickCount++
+
+    $nextText = Read-ControlText $volumeHandle
+    $next = Parse-InvariantNumber $nextText "volume"
+    if ([Math]::Abs($next - $current) -le $tolerance) {
+      $unchangedCount++
+      if ($unchangedCount -ge 3) {
+        throw "MT5 volume spinner did not update the internal lot value"
+      }
+    } else {
+      $unchangedCount = 0
+    }
+    $current = $next
+  }
+
+  Assert-NumericField $volumeHandle $expectedText "volume"
+  return @{
+    beforeText = $beforeText
+    afterText = Read-ControlText $volumeHandle
+    beforeSummary = $beforeSummary
+    afterSummary = Read-ControlText $summaryHandle
+    clickCount = $clickCount
+  }
+}
+
 function Assert-PreparedFields(
   [System.Windows.Automation.AutomationElement]$dialog,
   $task
@@ -254,7 +336,7 @@ function Assert-PreparedFields(
     throw "MT5 symbol read-back differs from the prepared symbol"
   }
 
-  Assert-NumericField (Get-ControlHandle $dialog "10333") ([string]$task.volumeText) "volume"
+  Assert-NumericField (Get-ControlHandle $dialog $VOLUME_EDIT_ID) ([string]$task.volumeText) "volume"
   Assert-NumericField (Get-ControlHandle $dialog "10334") ([string]$task.slText) "stop loss"
   Assert-NumericField (Get-ControlHandle $dialog "10336") ([string]$task.tpText) "take profit"
 
@@ -339,7 +421,7 @@ try {
       throw "MT5 did not accept the prepared symbol"
     }
 
-    Commit-ControlText $dialogHandle 10333 (Get-ControlHandle $openedDialog "10333") ([string]$task.volumeText)
+    $volumeAudit = Set-VolumeThroughSpinner $openedDialog ([string]$task.volumeText)
     Commit-ControlText $dialogHandle 10334 (Get-ControlHandle $openedDialog "10334") ([string]$task.slText)
     Commit-ControlText $dialogHandle 10336 (Get-ControlHandle $openedDialog "10336") ([string]$task.tpText)
     Commit-ControlText $dialogHandle 1001 (Get-ControlHandle $openedDialog "1001") ([string]$task.comment)
@@ -361,6 +443,11 @@ try {
       side = [string]$task.side
       symbol = [string]$task.symbol
       volumeText = [string]$task.volumeText
+      volumeBeforeText = [string]$volumeAudit.beforeText
+      volumeAfterText = [string]$volumeAudit.afterText
+      volumeBeforeSummary = [string]$volumeAudit.beforeSummary
+      volumeAfterSummary = [string]$volumeAudit.afterSummary
+      volumeSpinnerClicks = [int]$volumeAudit.clickCount
       slText = [string]$task.slText
       tpText = [string]$task.tpText
       comment = [string]$task.comment
