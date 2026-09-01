@@ -125,8 +125,8 @@ test("desktop spatial grid uses a stronger two-scale perspective plane without r
   assert.match(oakCss, /@media \(max-width: 899px\), \(pointer: coarse\)[\s\S]*\.oak-spatial-stage \{ display: none !important; \}/);
 });
 
-test("history has its own trading route and nested routes expose skip/breadcrumb context", () => {
-  assert.match(navSource, /href="\/history"/);
+test("legacy history route stays intact while primary navigation hides it and nested routes keep skip/breadcrumb context", () => {
+  assert.doesNotMatch(navSource, /href="\/history"/);
   assert.match(historyPageSource, /readLatestH1Signals/);
   assert.match(historyPageSource, /<H1SignalBoard/);
   assert.match(layoutSource, /oak-skip-link/);

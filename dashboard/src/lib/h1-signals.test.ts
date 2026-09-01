@@ -8,6 +8,8 @@ const boardSource = readFileSync(new URL("../components/H1SignalBoard.tsx", impo
 const redesignCss = readFileSync(new URL("../app/oak-redesign.css", import.meta.url), "utf8");
 const vipSource = readFileSync(new URL("./vip.ts", import.meta.url), "utf8");
 const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.meta.url), "utf8");
+const rootPageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const navBarSource = readFileSync(new URL("../components/NavBar.tsx", import.meta.url), "utf8");
 const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
 const mobileH1RouteSource = readFileSync(new URL("../app/api/mobile/h1/route.ts", import.meta.url), "utf8");
 const mobileAppRouteSource = readFileSync(new URL("../app/api/mobile/app/route.ts", import.meta.url), "utf8");
@@ -20,6 +22,13 @@ const mobileCalendarSource = readFileSync(new URL("../../../mobile/app/(tabs)/ca
 const mobileSignalsSource = readFileSync(new URL("../../../mobile/app/(tabs)/signals.tsx", import.meta.url), "utf8");
 const mobileReportsSource = readFileSync(new URL("../../../mobile/app/(tabs)/reports.tsx", import.meta.url), "utf8");
 const mobileMoreSource = readFileSync(new URL("../../../mobile/app/(tabs)/more.tsx", import.meta.url), "utf8");
+
+test("legacy H1 Signals and web History are hidden from primary web navigation", () => {
+  assert.doesNotMatch(navBarSource, /<span>H1 Signals<\/span>/);
+  assert.doesNotMatch(navBarSource, /href="\/history"/);
+  assert.match(navBarSource, /<Link href="\/neotech" className="oak-brand"/);
+  assert.match(rootPageSource, /redirect\("\/neotech"\)/);
+});
 
 test("H1 web feed has schema-17 signal and six-block weekday contract without pattern/entry metadata", () => {
   assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 17/);
