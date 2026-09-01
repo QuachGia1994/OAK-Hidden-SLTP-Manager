@@ -33,6 +33,8 @@ export function defaultFailoverState(now = Date.now()) {
     commands: {},
     pendingReplies: {},
     pendingSystemMessages: [],
+    pendingTradeNotifications: [],
+    deliveredTradeEventIds: [],
     pendingWebSync: {},
     intents: {},
     lastLoopAt: 0,
@@ -51,6 +53,12 @@ export function normalizeFailoverState(parsed, now = Date.now()) {
     state.commands = parsed.commands && typeof parsed.commands === "object" ? parsed.commands : {};
     state.pendingReplies = parsed.pendingReplies && typeof parsed.pendingReplies === "object" ? parsed.pendingReplies : {};
     state.pendingSystemMessages = Array.isArray(parsed.pendingSystemMessages) ? parsed.pendingSystemMessages.map(String).slice(-50) : [];
+    state.pendingTradeNotifications = Array.isArray(parsed.pendingTradeNotifications)
+      ? parsed.pendingTradeNotifications.filter((row) => row && typeof row === "object" && row.id && row.text).slice(-200)
+      : [];
+    state.deliveredTradeEventIds = Array.isArray(parsed.deliveredTradeEventIds)
+      ? [...new Set(parsed.deliveredTradeEventIds.map(String).filter(Boolean))].slice(-2000)
+      : [];
     state.pendingWebSync = parsed.pendingWebSync && typeof parsed.pendingWebSync === "object" ? parsed.pendingWebSync : {};
     state.intents = parsed.intents && typeof parsed.intents === "object" ? parsed.intents : {};
     state.lastLoopAt = Number.isFinite(Number(parsed.lastLoopAt)) ? Number(parsed.lastLoopAt) : 0;
@@ -206,6 +214,91 @@ export function validateSnapshotIdentity(account, heartbeat, { now = Date.now(),
   if (String(account.server || "").trim() !== String(heartbeat.server || "").trim()) throw new Error(`@${account.label}: MT5 server mismatch`);
   if (requireSnapshot && (!Number.isFinite(Number(snapshotAt)) || Number(snapshotAt) <= 0 || now - Number(snapshotAt) > maxAgeMs)) throw new Error(`@${account.label}: bootstrap account snapshot is stale`);
   return true;
+}
+
+function normalizedIdentityText(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function positiveNumberOr(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : Number(fallback || 0);
+}
+
+export function reconcileLocalPrimaryAccounts(accounts, statuses, { now = Date.now() } = {}) {
+  const next = (Array.isArray(accounts) ? accounts : []).map((row) => ({ ...row }));
+  let changed = false;
+  const evidence = (Array.isArray(statuses) ? statuses : []).filter((row) => (
+    row?.localPrimary === true
+    && row?.localReady !== false
+    && String(row?.providerAccountId || "").startsWith("mt5:")
+    && Number(row?.login) > 0
+    && String(row?.server || "").trim()
+    && String(row?.profile || "").trim()
+  ));
+
+  for (const status of evidence) {
+    const statusTerminal = normalizedIdentityText(status.terminalId);
+    const statusProfile = normalizedIdentityText(status.profile);
+    const statusProvider = normalizedIdentityText(status.providerAccountId);
+    const statusServer = normalizedIdentityText(status.server);
+    const statusLogin = Number(status.login);
+    let index = -1;
+
+    if (statusTerminal) index = next.findIndex((row) => normalizedIdentityText(row?.terminalId) === statusTerminal);
+    if (index < 0) index = next.findIndex((row) => normalizedIdentityText(row?.providerAccountId) === statusProvider);
+    if (index < 0) index = next.findIndex((row) => normalizedIdentityText(row?.label) === statusProfile);
+    if (index < 0) index = next.findIndex((row) => normalizedIdentityText(row?.bridgeProfile) === statusProfile);
+    if (index < 0) index = next.findIndex((row) => Number(row?.login) === statusLogin && normalizedIdentityText(row?.server) === statusServer);
+
+    const prior = index >= 0 ? next[index] : {};
+    const candidate = {
+      ...prior,
+      provider: "mt5",
+      providerAccountId: String(status.providerAccountId),
+      label: String(prior.label || status.profile),
+      bridgeProfile: String(status.profile),
+      login: statusLogin,
+      server: String(status.server),
+      environment: String(prior.environment || (/demo/i.test(String(status.server)) ? "demo" : "live")),
+      enabled: true,
+      fxSlPoints: positiveNumberOr(status.fxSlPoints, prior.fxSlPoints),
+      fxTpPoints: positiveNumberOr(status.fxTpPoints, prior.fxTpPoints),
+      goldSlPoints: positiveNumberOr(status.goldSlPoints, prior.goldSlPoints),
+      goldTpPoints: positiveNumberOr(status.goldTpPoints, prior.goldTpPoints),
+    };
+    if (statusTerminal) candidate.terminalId = String(status.terminalId);
+
+    const compareKeys = [
+      "provider", "providerAccountId", "label", "bridgeProfile", "login", "server",
+      "environment", "enabled", "terminalId", "fxSlPoints", "fxTpPoints",
+      "goldSlPoints", "goldTpPoints",
+    ];
+    const rowChanged = index < 0 || compareKeys.some((key) => String(prior?.[key] ?? "") !== String(candidate?.[key] ?? ""));
+    let finalIndex = index;
+    if (rowChanged) {
+      candidate.updatedAt = Number(now);
+      if (index >= 0) next[index] = candidate;
+      else {
+        next.push(candidate);
+        finalIndex = next.length - 1;
+      }
+      changed = true;
+    }
+
+    const activeLabel = normalizedIdentityText(candidate.label);
+    if (!activeLabel || finalIndex < 0) continue;
+    for (let duplicateIndex = next.length - 1; duplicateIndex >= 0; duplicateIndex -= 1) {
+      if (duplicateIndex === finalIndex) continue;
+      const duplicate = next[duplicateIndex];
+      if (duplicate?.provider !== "mt5" || normalizedIdentityText(duplicate?.label) !== activeLabel) continue;
+      next.splice(duplicateIndex, 1);
+      if (duplicateIndex < finalIndex) finalIndex -= 1;
+      changed = true;
+    }
+  }
+
+  return { accounts: next, changed };
 }
 
 export function chooseLocalMt5Account(accounts, heartbeats, requested, options = {}) {

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Updated the local MT5 manager to EA v1.10 with terminal-scoped identity evidence and live account rebinding. A running terminal now detects login/server changes, refreshes its deterministic `providerAccountId`, and lets the PC controller replace stale local-primary account snapshots while preserving configured aliases such as `FXCE`; duplicate stale aliases are removed instead of creating ambiguous routing.
+
+- Added durable PC-local Telegram trade-event notifications. The EA emits FILE_COMMON evidence for the first break-even SL reach per position (including terminal/manual SL changes), broker stop-loss exits, filled pending orders and broker-confirmed partial closes; the controller validates account identity, formats and retries Telegram delivery, and suppresses account-scoped replayed events across restarts. Successful timed entry/order and timed close intents also notify only after execution is confirmed, while Telegram delivery failures never replay the broker mutation.
+
 - Added a fail-closed pre-confirmation symbol gate for PC-local scheduled MT5 UI entries. Before Telegram reports an intent as saved/armed, the controller asks the target terminal to resolve the broker symbol, adds it to Market Watch when needed, and checks the side against `SYMBOL_TRADE_MODE`; disabled, close-only, or wrong-direction symbols are rejected without allocating an intent ID. The resolved broker symbol is shown in the confirmation, and the same trade-mode gate is rechecked at due-time preparation/execution.
 
 - Fixed H1 Live timed-entry slot sync: Telegram appointment epochs are now mapped from their Vietnam wall-clock schedule (`09:05→H03`, `10:05→H04`, `12:05→H06`, `15:05→H09`, `18:05→H12`, `20:05→H14`, `22:05→H16`) instead of IC Markets broker DST. Re-sync safely clears only the same-side legacy cell, so `BUY XAUUSD 0.01 10h05 FXCE` moves from the incorrect H06 cell to H04 without placing or replaying a broker order.

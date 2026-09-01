@@ -27,6 +27,21 @@ test("EA symbol readiness preflight selects Market Watch and gates entry trade m
   assert.match(managerEaSource, /ExecuteSymbolPrepareTask/);
 });
 
+test("EA emits local trade-event evidence for BE, SL, pending fills and partial closes", () => {
+  assert.match(managerEaSource, /event_id="be:"\+IntegerToString\(position_id\);/);
+  assert.match(managerEaSource, /EmitLocalTradeEvent\(event_id,"break_even"/);
+  assert.match(managerEaSource, /TRADE_TRANSACTION_POSITION/);
+  assert.match(managerEaSource, /EmitPositionBreakEvenIfApplicable/);
+  assert.match(managerEaSource, /DEAL_REASON_SL/);
+  assert.match(managerEaSource, /EmitLocalTradeEvent\("sl:"[^\n]+,"stop_loss"/);
+  assert.match(managerEaSource, /ORDER_STATE_FILLED/);
+  assert.match(managerEaSource, /"pending_fill"/);
+  assert.match(managerEaSource, /RemainingVolumeForPositionId/);
+  assert.match(managerEaSource, /"partial:"\+IntegerToString\(\(long\)deal\),"partial_close"/);
+  assert.doesNotMatch(managerEaSource, /EmitPartialCloseEvent/);
+  assert.match(managerEaSource, /LocalEventPath/);
+});
+
 function scheduledTask(overrides = {}) {
   const originKey = "tg:900:0:mt5:abcdefgh";
   const payload = {

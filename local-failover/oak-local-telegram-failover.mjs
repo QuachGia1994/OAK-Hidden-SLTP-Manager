@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import net from "node:net";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import {
   TELEGRAM_MULTI_COMMAND_LIMIT,
@@ -28,6 +28,7 @@ import {
   normalizeFailoverState,
   originLedgerKey,
   parseLocalTelegramCommand,
+  reconcileLocalPrimaryAccounts,
   resolveProtectionSnapshot,
   sanitizeOperatorError,
   telegramMt5OriginKey,
@@ -124,6 +125,28 @@ function mailboxPaths(commonDir, profile, login, ledgerKey) {
     claim: path.join(commonDir, `claim_${key}_${account}_${ledger}.json`),
     result: path.join(commonDir, `result_${key}_${account}_${ledger}.json`),
   };
+}
+
+function tradeEventDigest(eventId) {
+  return createHash("sha256").update(String(eventId || ""), "utf8").digest("hex").slice(0, 40);
+}
+
+function tradeEventDeliveryId(event) {
+  const providerAccountId = String(event?.providerAccountId || "");
+  const eventId = String(event?.eventId || "");
+  return providerAccountId && eventId ? `ea:${providerAccountId}:${eventId}` : "";
+}
+
+function compactNumber(value, fallback = "0") {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return number.toFixed(8).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function compactVolume(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "0";
+  return number.toFixed(8).replace(/0+$/, "").replace(/\.$/, "");
 }
 
 function normalizeEnvelope(value, action) {
@@ -382,6 +405,10 @@ export function createLocalFailoverRuntime(options = {}) {
 
   async function saveState(state) {
     state.handledUpdateIds = [...new Set((state.handledUpdateIds || []).filter(Number.isSafeInteger))].slice(-2000);
+    state.deliveredTradeEventIds = [...new Set((state.deliveredTradeEventIds || []).map(String).filter(Boolean))].slice(-2000);
+    state.pendingTradeNotifications = Array.isArray(state.pendingTradeNotifications)
+      ? state.pendingTradeNotifications.filter((row) => row && row.id && row.text).slice(-200)
+      : [];
     const commandEntries = Object.entries(state.commands || {});
     if (commandEntries.length > 4000) state.commands = Object.fromEntries(commandEntries.slice(-4000));
     await writeJsonAtomic(paths.statePath, state);
@@ -407,9 +434,167 @@ export function createLocalFailoverRuntime(options = {}) {
     return rows;
   }
 
+  function accountForTradeEvent(config, statuses, event) {
+    const account = config.accounts.find((row) =>
+      row.provider === "mt5"
+      && row.enabled !== false
+      && Number(row.login) === Number(event.login)
+      && String(row.server || "").trim() === String(event.server || "").trim(),
+    );
+    if (!account) return null;
+    const heartbeat = (statuses || []).find((row) =>
+      Number(row.login) === Number(event.login)
+      && String(row.server || "").trim() === String(event.server || "").trim()
+      && String(row.profile || "").trim().toLowerCase() === String(event.profile || "").trim().toLowerCase(),
+    );
+    if (!heartbeat) return null;
+    if (String(heartbeat.providerAccountId || "") !== String(event.providerAccountId || "")) return null;
+    if (!freshStatus(heartbeat, clock())) return null;
+    return account;
+  }
+
+  function renderTradeEvent(event, account) {
+    const label = String(account?.label || event.profile || "MT5");
+    const symbol = String(event.symbol || "");
+    const side = String(event.side || "").toUpperCase();
+    const position = String(event.positionId || event.ticket || "");
+    if (event.eventType === "break_even") {
+      return [
+        `🛡 BE moved @${label}`,
+        `• ${side} ${symbol} ${compactVolume(event.volume)} lot${position ? ` · Position #${position}` : ""}`,
+        `• SL → ${compactNumber(event.sl)}`,
+      ].join("\n");
+    }
+    if (event.eventType === "stop_loss") {
+      return [
+        `🛑 SL closed @${label}`,
+        `• ${side} ${symbol} ${compactVolume(event.volume)} lot${position ? ` · Position #${position}` : ""}`,
+        `• Close @ ${compactNumber(event.price)} · P/L ${compactNumber(event.profit)}`,
+        ...(event.deal ? [`• Deal #${event.deal}`] : []),
+      ].join("\n");
+    }
+    if (event.eventType === "pending_fill") {
+      return [
+        `✅ Pending filled @${label}`,
+        `• ${side} ${symbol} ${compactVolume(event.volume)} lot @ ${compactNumber(event.price)}`,
+        `• Order #${event.order || "?"} · Deal #${event.deal || "?"}${position ? ` · Position #${position}` : ""}`,
+      ].join("\n");
+    }
+    if (event.eventType === "partial_close") {
+      return [
+        `✂️ Partial close @${label}`,
+        `• ${symbol}${position ? ` · Position #${position}` : ""}`,
+        `• Closed ${compactVolume(event.closedVolume)} lot · Remaining ${compactVolume(event.remainingVolume)} lot`,
+        `• Deal #${event.deal || "?"} @ ${compactNumber(event.price)} · P/L ${compactNumber(event.profit)}`,
+      ].join("\n");
+    }
+    return "";
+  }
+
+  function queueTradeNotification(state, id, text, createdAt = clock()) {
+    const eventId = String(id || "");
+    const message = String(text || "");
+    if (!eventId || !message) return false;
+    if ((state.deliveredTradeEventIds || []).includes(eventId)) return false;
+    if ((state.pendingTradeNotifications || []).some((row) => String(row.id) === eventId)) return false;
+    state.pendingTradeNotifications.push({ id: eventId, text: message, createdAt });
+    return true;
+  }
+
+  function queueScheduledIntentNotification(state, intent) {
+    if (intent?.status !== "executed" || intent?.executionResult?.ok !== true) return false;
+    if (!Number.isFinite(Number(intent.dueAt)) || Number(intent.dueAt) <= 0) return false;
+    if (intent.kind === "entry") {
+      const side = String(intent.payload?.side || "").toUpperCase();
+      const symbol = String(intent.resolvedSymbol || intent.payload?.symbol || "");
+      const lot = compactVolume(intent.payload?.lot);
+      return queueTradeNotification(
+        state,
+        `scheduled_entry:${intent.id}`,
+        [
+          `⏰ Scheduled order executed @${intent.accountLabel}`,
+          `• ${side} ${symbol} ${lot} lot`,
+          `• ${intent.executionResult.detail || "Entry completed"}${intent.executionResult.brokerRef ? ` · Ref #${intent.executionResult.brokerRef}` : ""}`,
+          `• Intent #${shortIntentId(intent)}`,
+        ].join("\n"),
+        Number(intent.executionFinishedAt || clock()),
+      );
+    }
+    if (intent.kind === "close") {
+      const scope = String(intent.payload?.scope || "ALL").toUpperCase();
+      return queueTradeNotification(
+        state,
+        `scheduled_close:${intent.id}`,
+        [
+          `⏰ Scheduled close @${intent.accountLabel}`,
+          `• Scope: ${scope}`,
+          `• ${intent.executionResult.detail || "Close completed"}`,
+          `• Intent #${shortIntentId(intent)}`,
+        ].join("\n"),
+        Number(intent.executionFinishedAt || clock()),
+      );
+    }
+    return false;
+  }
+
+  async function collectEaTradeEvents(config, state, statuses) {
+    const names = await fs.readdir(paths.commonDir).catch(() => []);
+    for (const name of names) {
+      if (!/^event_[a-z0-9_-]+_\d+_[a-f0-9]{40}\.json$/i.test(name)) continue;
+      const file = path.join(paths.commonDir, name);
+      const event = await readJson(file, null);
+      const eventId = String(event?.eventId || "");
+      const deliveryId = tradeEventDeliveryId(event);
+      if (!event || Number(event.version) !== 1 || !eventId || !deliveryId || !["break_even", "stop_loss", "pending_fill", "partial_close"].includes(String(event.eventType || ""))) continue;
+      if (!name.toLowerCase().endsWith(`_${tradeEventDigest(eventId)}.json`)) continue;
+      if ((state.deliveredTradeEventIds || []).includes(deliveryId)) {
+        await unlinkIfExists(file);
+        continue;
+      }
+      const account = accountForTradeEvent(config, statuses, event);
+      if (!account) continue;
+      const text = renderTradeEvent(event, account);
+      if (!text) continue;
+      queueTradeNotification(state, deliveryId, text, Number(event.at || clock()));
+      await saveState(state);
+      await unlinkIfExists(file);
+    }
+  }
+
+  async function flushTradeNotifications(config, state) {
+    while (state.pendingTradeNotifications?.length) {
+      const item = state.pendingTradeNotifications[0];
+      if ((state.deliveredTradeEventIds || []).includes(String(item.id))) {
+        state.pendingTradeNotifications.shift();
+        await saveState(state);
+        continue;
+      }
+      try {
+        await telegram.sendMessage(config, item.text);
+        state.deliveredTradeEventIds.push(String(item.id));
+        state.pendingTradeNotifications.shift();
+        await saveState(state);
+      } catch (error) {
+        await log(`Trade-event Telegram delivery failed; retained for resend: ${sanitizeOperatorError(error)}`);
+        return;
+      }
+    }
+  }
+
   function freshEaStatuses(statuses) {
     const now = clock();
     return (statuses || []).filter((row) => freshStatus(row, now));
+  }
+
+  async function reconcileRuntimeAccounts(config, statuses) {
+    if (config.controlMode !== LOCAL_PRIMARY_MODE) return false;
+    const reconciled = reconcileLocalPrimaryAccounts(config.accounts, freshEaStatuses(statuses), { now: clock() });
+    if (!reconciled.changed) return false;
+    config.accounts = reconciled.accounts;
+    config.snapshotAt = clock();
+    await writeJsonAtomic(paths.configPath, config);
+    await log(`Local-primary MT5 account snapshot rebound from fresh terminal heartbeat (${config.accounts.length} account(s)).`);
+    return true;
   }
 
   function matchingHealthRows(config, statuses) {
@@ -946,6 +1131,7 @@ export function createLocalFailoverRuntime(options = {}) {
       envelope = { status: "failed", result: { ok: false, action: intent.kind, detail: sanitizeOperatorError(error) } };
     }
     const normalized = applyEnvelopeToIntent(intent, envelope);
+    queueScheduledIntentNotification(state, intent);
     const timing = await readMailboxTiming(intent);
     if (timing.eaClaimedAt !== null) intent.eaClaimedAt = timing.eaClaimedAt;
     if (timing.eaFinishedAt !== null) {
@@ -967,6 +1153,7 @@ export function createLocalFailoverRuntime(options = {}) {
         intent.executionResult = { ok: false, uncertain: true, action: intent.kind, detail: "EA result ledger conflicts with the persisted origin/task digest; automatic replay is disabled." };
       } else {
         applyEnvelopeToIntent(intent, result);
+        queueScheduledIntentNotification(state, intent);
       }
       await saveState(state);
       return true;
@@ -1348,7 +1535,10 @@ export function createLocalFailoverRuntime(options = {}) {
       await saveState(state);
     }
     const statuses = await loadEaStatuses();
+    await reconcileRuntimeAccounts(config, statuses);
     await reconcileExecutingIntents(config, state);
+    await collectEaTradeEvents(config, state, statuses);
+    await flushTradeNotifications(config, state);
     await flushSystemMessages(config, state);
 
     if (config.controlMode === LOCAL_PRIMARY_MODE) {
@@ -1358,6 +1548,8 @@ export function createLocalFailoverRuntime(options = {}) {
       await refreshLocalPrimaryFence(config, state);
       const refreshed = await loadEaStatuses();
       await dispatchDueIntents(config, state, refreshed);
+      await collectEaTradeEvents(config, state, refreshed);
+      await flushTradeNotifications(config, state);
       await flushWebSignalSync(config, state);
       await flushPendingReplies(config, state);
       const updates = await telegram.getUpdates(config, state.lastUpdateId + 1).catch(async (error) => {
@@ -1386,6 +1578,8 @@ export function createLocalFailoverRuntime(options = {}) {
     if (state.mode === FAILOVER_MODES.LOCAL_ACTIVE) {
       if (!await verifyLocalOwnership(config, state)) return;
       await dispatchDueIntents(config, state, refreshed);
+      await collectEaTradeEvents(config, state, refreshed);
+      await flushTradeNotifications(config, state);
       await flushWebSignalSync(config, state);
       await flushPendingReplies(config, state);
       const updates = await telegram.getUpdates(config, state.lastUpdateId + 1).catch(async (error) => {
@@ -1402,6 +1596,8 @@ export function createLocalFailoverRuntime(options = {}) {
 
     // After successful handback, local scheduled intents stay PC-owned.
     await dispatchDueIntents(config, state, refreshed);
+    await collectEaTradeEvents(config, state, refreshed);
+    await flushTradeNotifications(config, state);
     await flushWebSignalSync(config, state);
   }
 

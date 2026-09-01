@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.09"
+#property version   "1.10"
 #property description "OAK local-only MT5 execution manager"
 
 // OAK Local Manager EA
@@ -59,13 +59,14 @@ input string InpPartialPercents            = "50";      // 1 pct = current-volum
 #define OAK_HEARTBEAT_PREFIX  "oak:mt5:bridge:heartbeat:v1:"
 #define OAK_TASK_TTL          604800
 #define OAK_HEARTBEAT_TTL     45
-#define OAK_EA_VERSION        "1.09"
+#define OAK_EA_VERSION        "1.10"
 #define OAK_LOCAL_DIR         "OAKLocalFailover\\"
 
 string g_profile = "";
 string g_provider_account_id = "";
 long   g_login = 0;
 string g_server = "";
+string g_terminal_id = "";
 bool   g_bridge_ready = false;
 datetime g_last_bind_attempt = 0;
 datetime g_last_heartbeat = 0;
@@ -377,6 +378,14 @@ string AutoBindLoginKey()
    return "oak:mt5:bridge:auto-bind:v1:login:"+IntegerToString(g_login);
 }
 
+string LocalTerminalId()
+{
+   string identity=Lower(Trim(TerminalInfoString(TERMINAL_DATA_PATH)));
+   if(identity=="") identity=Lower(Trim(TerminalInfoString(TERMINAL_PATH)));
+   string hash=Sha256HexUtf8(identity);
+   return StringLen(hash)==64 ? "mt5term:"+StringSubstr(hash,0,24) : "";
+}
+
 bool ConfigureLocalPrimaryIdentity(string &detail)
 {
    detail="";
@@ -574,6 +583,12 @@ string LocalProfileKey()
 
 string LocalStatusPath() { return OAK_LOCAL_DIR+"status_"+LocalProfileKey()+".json"; }
 string LocalAccountKey() { return IntegerToString(g_login); }
+string LocalEventPath(const string event_id)
+{
+   string hash=Sha256HexUtf8(event_id);
+   if(StringLen(hash)!=64) return "";
+   return OAK_LOCAL_DIR+"event_"+LocalProfileKey()+"_"+LocalAccountKey()+"_"+StringSubstr(hash,0,40)+".json";
+}
 string LocalTaskPath(const string ledger) { return OAK_LOCAL_DIR+"task_"+LocalProfileKey()+"_"+LocalAccountKey()+"_"+ledger+".json"; }
 string LocalClaimPath(const string ledger) { return OAK_LOCAL_DIR+"claim_"+LocalProfileKey()+"_"+LocalAccountKey()+"_"+ledger+".json"; }
 string LocalResultPath(const string ledger) { return OAK_LOCAL_DIR+"result_"+LocalProfileKey()+"_"+LocalAccountKey()+"_"+ledger+".json"; }
@@ -685,6 +700,151 @@ bool AtomicCreateCommonText(const string final_path,const string text)
    return moved;
 }
 
+bool EmitLocalTradeEvent(const string event_id,const string event_type,const string fields_json)
+{
+   if(g_profile=="" || g_provider_account_id=="" || event_id=="" || event_type=="") return false;
+   string path=LocalEventPath(event_id);
+   if(path=="") return false;
+   string json="{\"version\":1"
+      +",\"eventId\":"+JsonQuote(event_id)
+      +",\"eventType\":"+JsonQuote(event_type)
+      +",\"profile\":"+JsonQuote(g_profile)
+      +",\"providerAccountId\":"+JsonQuote(g_provider_account_id)
+      +",\"login\":"+IntegerToString(g_login)
+      +",\"server\":"+JsonQuote(g_server)
+      +",\"at\":"+IntegerToString(NowMs())
+      +fields_json
+      +"}";
+   if(FileIsExist(path,FILE_COMMON)) return true;
+   if(AtomicCreateCommonText(path,json)) return true;
+   if(FileIsExist(path,FILE_COMMON)) return true;
+   PrintFormat("[OAK-EA] local trade event persistence failed type=%s id=%s",event_type,event_id);
+   return false;
+}
+
+string PositionSideText(const long position_type)
+{
+   return position_type==POSITION_TYPE_BUY ? "BUY" : "SELL";
+}
+
+string ExitDealPositionSide(const long deal_type)
+{
+   if(deal_type==DEAL_TYPE_SELL) return "BUY";
+   if(deal_type==DEAL_TYPE_BUY) return "SELL";
+   return "";
+}
+
+bool IsPendingOrderTypeValue(const long order_type)
+{
+   return order_type==ORDER_TYPE_BUY_LIMIT || order_type==ORDER_TYPE_SELL_LIMIT
+      || order_type==ORDER_TYPE_BUY_STOP || order_type==ORDER_TYPE_SELL_STOP
+      || order_type==ORDER_TYPE_BUY_STOP_LIMIT || order_type==ORDER_TYPE_SELL_STOP_LIMIT;
+}
+
+void EmitBreakEvenEvent(const ulong ticket,const long position_id,const string symbol,const long position_type,const double volume,const double sl)
+{
+   int digits=(int)SymbolInfoInteger(symbol,SYMBOL_DIGITS);
+   string event_id="be:"+IntegerToString(position_id);
+   string fields=",\"ticket\":"+IntegerToString((long)ticket)
+      +",\"positionId\":"+IntegerToString(position_id)
+      +",\"symbol\":"+JsonQuote(symbol)
+      +",\"side\":"+JsonQuote(PositionSideText(position_type))
+      +",\"volume\":"+DoubleToString(volume,8)
+      +",\"sl\":"+DoubleToString(sl,digits);
+   EmitLocalTradeEvent(event_id,"break_even",fields);
+}
+
+double RemainingVolumeForPositionId(const long position_id)
+{
+   if(position_id<=0) return 0.0;
+   for(int i=0;i<PositionsTotal();i++)
+   {
+      ulong ticket=PositionGetTicket(i);
+      if(ticket==0) continue;
+      long id=(long)PositionGetInteger(POSITION_IDENTIFIER);
+      if(id<=0) id=(long)PositionGetInteger(POSITION_TICKET);
+      if(id==position_id) return PositionGetDouble(POSITION_VOLUME);
+   }
+   return 0.0;
+}
+
+void EmitPositionBreakEvenIfApplicable(const ulong ticket)
+{
+   if(ticket==0 || !PositionSelectByTicket(ticket)) return;
+   string symbol=PositionGetString(POSITION_SYMBOL);
+   long type=PositionGetInteger(POSITION_TYPE);
+   double open=PositionGetDouble(POSITION_PRICE_OPEN);
+   double sl=PositionGetDouble(POSITION_SL);
+   double point=SymbolInfoDouble(symbol,SYMBOL_POINT);
+   if(open<=0 || sl<=0 || point<=0) return;
+   bool at_or_beyond_be=(type==POSITION_TYPE_BUY ? sl>=open-point*0.1 : sl<=open+point*0.1);
+   if(!at_or_beyond_be) return;
+   EmitBreakEvenEvent(ticket,SelectedPositionId(),symbol,type,PositionGetDouble(POSITION_VOLUME),sl);
+}
+
+void EmitDealTradeEvents(const ulong deal)
+{
+   if(deal==0 || !HistoryDealSelect(deal)) return;
+   long entry=HistoryDealGetInteger(deal,DEAL_ENTRY);
+   long reason=HistoryDealGetInteger(deal,DEAL_REASON);
+   long deal_type=HistoryDealGetInteger(deal,DEAL_TYPE);
+   ulong order=(ulong)HistoryDealGetInteger(deal,DEAL_ORDER);
+   long position_id=HistoryDealGetInteger(deal,DEAL_POSITION_ID);
+   string symbol=HistoryDealGetString(deal,DEAL_SYMBOL);
+   double volume=HistoryDealGetDouble(deal,DEAL_VOLUME);
+   double price=HistoryDealGetDouble(deal,DEAL_PRICE);
+   double profit=HistoryDealGetDouble(deal,DEAL_PROFIT);
+   int digits=(int)SymbolInfoInteger(symbol,SYMBOL_DIGITS);
+
+   if(reason==DEAL_REASON_SL && (entry==DEAL_ENTRY_OUT || entry==DEAL_ENTRY_OUT_BY))
+   {
+      string fields=",\"deal\":"+IntegerToString((long)deal)
+         +",\"order\":"+IntegerToString((long)order)
+         +",\"positionId\":"+IntegerToString(position_id)
+         +",\"symbol\":"+JsonQuote(symbol)
+         +",\"side\":"+JsonQuote(ExitDealPositionSide(deal_type))
+         +",\"volume\":"+DoubleToString(volume,8)
+         +",\"price\":"+DoubleToString(price,digits)
+         +",\"profit\":"+DoubleToString(profit,2);
+      EmitLocalTradeEvent("sl:"+IntegerToString((long)deal),"stop_loss",fields);
+   }
+
+   if((entry==DEAL_ENTRY_OUT || entry==DEAL_ENTRY_OUT_BY) && reason!=DEAL_REASON_SL)
+   {
+      double remaining=RemainingVolumeForPositionId(position_id);
+      if(remaining>0)
+      {
+         string fields=",\"positionId\":"+IntegerToString(position_id)
+            +",\"symbol\":"+JsonQuote(symbol)
+            +",\"side\":"+JsonQuote(ExitDealPositionSide(deal_type))
+            +",\"closedVolume\":"+DoubleToString(volume,8)
+            +",\"remainingVolume\":"+DoubleToString(remaining,8)
+            +",\"price\":"+DoubleToString(price,digits)
+            +",\"profit\":"+DoubleToString(profit,2)
+            +",\"deal\":"+IntegerToString((long)deal);
+         EmitLocalTradeEvent("partial:"+IntegerToString((long)deal),"partial_close",fields);
+      }
+   }
+
+   if(entry==DEAL_ENTRY_IN && order>0)
+   {
+      long order_type=HistoryOrderGetInteger(order,ORDER_TYPE);
+      long order_state=HistoryOrderGetInteger(order,ORDER_STATE);
+      if(IsPendingOrderTypeValue(order_type) && order_state==ORDER_STATE_FILLED)
+      {
+         string side=(deal_type==DEAL_TYPE_BUY ? "BUY" : (deal_type==DEAL_TYPE_SELL ? "SELL" : ""));
+         string fields=",\"order\":"+IntegerToString((long)order)
+            +",\"deal\":"+IntegerToString((long)deal)
+            +",\"positionId\":"+IntegerToString(position_id)
+            +",\"symbol\":"+JsonQuote(symbol)
+            +",\"side\":"+JsonQuote(side)
+            +",\"volume\":"+DoubleToString(volume,8)
+            +",\"price\":"+DoubleToString(price,digits);
+         EmitLocalTradeEvent("pending_fill:"+IntegerToString((long)order)+":"+IntegerToString((long)deal),"pending_fill",fields);
+      }
+   }
+}
+
 string TaskIdString(const string task)
 {
    string id=JsonString(task,"id");
@@ -757,6 +917,7 @@ void WriteLocalStatus(const bool ignored_cloud_ok=false)
       +",\"providerAccountId\":"+JsonQuote(g_provider_account_id)
       +",\"login\":"+IntegerToString(g_login)
       +",\"server\":"+JsonQuote(g_server)
+      +",\"terminalId\":"+JsonQuote(g_terminal_id)
       +",\"eaVersion\":"+JsonQuote(OAK_EA_VERSION)
       +",\"at\":"+IntegerToString(NowMs())
       +",\"localPrimary\":true"
@@ -768,6 +929,46 @@ void WriteLocalStatus(const bool ignored_cloud_ok=false)
       +",\"goldTpPoints\":"+DoubleToString(InpGoldTPPoints,2)
       +"}";
    WriteCommonText(LocalStatusPath(),json);
+}
+
+bool RefreshRuntimeAccountIdentity(const bool force=false)
+{
+   long current_login=(long)AccountInfoInteger(ACCOUNT_LOGIN);
+   string current_server=AccountInfoString(ACCOUNT_SERVER);
+   if(current_login<=0 || Trim(current_server)=="") return false;
+   if(!force && current_login==g_login && current_server==g_server && g_profile!="" && g_provider_account_id!="") return true;
+
+   long previous_login=g_login;
+   string previous_server=g_server;
+   string previous_status=(g_profile!="" ? LocalStatusPath() : "");
+
+   g_login=current_login;
+   g_server=current_server;
+   g_terminal_id=LocalTerminalId();
+   g_profile="";
+   g_provider_account_id="";
+   g_bridge_ready=false;
+   g_last_bind_attempt=0;
+   g_last_heartbeat=0;
+   g_last_cloud_poll=0;
+   g_last_cloud_ok=0;
+   g_last_local_poll_ms=0;
+   g_last_local_status_ms=0;
+   g_cloud_failure_streak=0;
+   g_cloud_success_streak=0;
+   g_pending_final_id="";
+   g_pending_final_task="";
+
+   RefreshBridgeBinding(true);
+   if(g_profile=="" || g_provider_account_id=="") return false;
+
+   string current_status=LocalStatusPath();
+   if(previous_status!="" && previous_status!=current_status) DeleteCommonText(previous_status);
+   WriteLocalStatus(false);
+   g_last_local_status_ms=GetTickCount64();
+   if(previous_login>0 && (previous_login!=g_login || previous_server!=g_server))
+      PrintFormat("[OAK-EA] MT5 account changed; rebound old=%I64d/%s new=%I64d/%s profile=%s",previous_login,previous_server,g_login,g_server,g_profile);
+   return true;
 }
 
 // -----------------------------------------------------------------------------
@@ -1437,7 +1638,11 @@ void ManageSelectedPosition(const ulong ticket)
       if(improves && PriceAllowsSL(symbol,type,target))
       {
          string detail="";
-         if(ModifyPosition(ticket,target,cur_tp,detail)) StateSet(id,"be",1.0);
+         if(ModifyPosition(ticket,target,cur_tp,detail))
+         {
+            StateSet(id,"be",1.0);
+            EmitBreakEvenEvent(ticket,id,symbol,type,volume,target);
+         }
       }
       else if(!improves) StateSet(id,"be",1.0);
    }
@@ -1923,19 +2128,26 @@ void PollCloudOnce()
 // -----------------------------------------------------------------------------
 int OnInit()
 {
-   g_login=(long)AccountInfoInteger(ACCOUNT_LOGIN);
-   g_server=AccountInfoString(ACCOUNT_SERVER);
+   g_login=0;
+   g_server="";
+   g_terminal_id="";
    g_profile="";
    g_provider_account_id="";
    g_bridge_ready=false;
    g_last_bind_attempt=0;
+   g_pending_final_id="";
+   g_pending_final_task="";
+   g_last_local_poll_ms=0;
+   g_last_local_status_ms=0;
    ParseDoubleList(InpPartialRLevels,g_partial_r);
    ParseDoubleList(InpPartialPercents,g_partial_pct);
-   RefreshBridgeBinding(true);
 
    FolderCreate(OAK_LOCAL_DIR,FILE_COMMON);
-   WriteLocalStatus(false);
-   g_last_local_status_ms=GetTickCount64();
+   if(!RefreshRuntimeAccountIdentity(true))
+   {
+      Print("[OAK-EA] Current MT5 account identity is unavailable; initialization refused.");
+      return INIT_FAILED;
+   }
    PrintFormat("[OAK-EA] Local-only mailbox enabled profile=%s provider=%s",g_profile,g_provider_account_id);
 
    // Millisecond timer drives the local FILE_COMMON mailbox near-realtime.
@@ -1962,6 +2174,7 @@ void OnDeinit(const int reason)
 
 void OnTimer()
 {
+   if(!RefreshRuntimeAccountIdentity(false)) return;
    ManageAccount();
    PollLocalOnce();
 }
@@ -1969,6 +2182,7 @@ void OnTimer()
 void OnTick()
 {
    // Price-triggered management should not wait for the next network poll.
+   if(!RefreshRuntimeAccountIdentity(false)) return;
    ManageAccount();
 }
 
@@ -1976,6 +2190,14 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
                         const MqlTradeRequest &request,
                         const MqlTradeResult &result)
 {
+   if(!RefreshRuntimeAccountIdentity(false)) return;
+   // Persist broker-confirmed lifecycle events locally; the PC controller owns
+   // Telegram delivery so no bot token is ever embedded in this EA.
+   if(trans.type==TRADE_TRANSACTION_DEAL_ADD)
+      EmitDealTradeEvents(trans.deal);
+   if(trans.type==TRADE_TRANSACTION_POSITION)
+      EmitPositionBreakEvenIfApplicable(trans.position);
+
    // Attach protection to a newly created/changed position as soon as the
    // terminal reports the trade transaction; later ticks/timers remain backup.
    if(trans.type==TRADE_TRANSACTION_DEAL_ADD || trans.type==TRADE_TRANSACTION_POSITION)

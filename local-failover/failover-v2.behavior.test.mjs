@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,6 +17,7 @@ import {
   normalizeFailoverState,
   originLedgerKey,
   parseLocalTelegramCommand,
+  reconcileLocalPrimaryAccounts,
   telegramMt5OriginKey,
 } from "./oak-local-failover-domain.mjs";
 import { mt5BrokerTaskDigest } from "../dashboard/src/lib/mt5-origin-domain.ts";
@@ -307,6 +309,25 @@ async function writeLedgerJson(file, value) {
   await fs.writeFile(file, JSON.stringify(value), "utf8");
 }
 
+function tradeEventPath(h, eventId, profile = ACCOUNT_A.bridgeProfile, login = ACCOUNT_A.login) {
+  const digest = createHash("sha256").update(String(eventId), "utf8").digest("hex").slice(0, 40);
+  const key = String(profile).trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "_");
+  return path.join(h.paths.commonDir, `event_${key}_${login}_${digest}.json`);
+}
+
+async function writeTradeEvent(h, event) {
+  const value = {
+    version: 1,
+    profile: ACCOUNT_A.bridgeProfile,
+    providerAccountId: LOCAL_PRIMARY_PROVIDER_ACCOUNT_ID,
+    login: ACCOUNT_A.login,
+    server: ACCOUNT_A.server,
+    at: h.now,
+    ...event,
+  };
+  await writeLedgerJson(tradeEventPath(h, value.eventId, value.profile, value.login), value);
+}
+
 test("01 healthy standby does not hand off or poll", { concurrency: false }, async () => {
   const h = await createHarness("01", { statuses: [statusFor(ACCOUNT_A, { cloudOk: true, cloudFailureStreak: 0, cloudSuccessStreak: 3 })] });
   try {
@@ -564,6 +585,78 @@ test("17 snapshot defaults protect entry and absent defaults reject", { concurre
     assert.equal(Object.keys(state.intents).length, 0);
     assert.match(state.commands["172:0"].outcome, /valid SL\/TP protection is required/i);
   } finally { await bad.cleanup(); }
+});
+
+test("local-primary reconciles a switched MT5 login by stable terminal identity", () => {
+  const prior = {
+    ...ACCOUNT_A,
+    label: "FXCE",
+    bridgeProfile: "FXCE",
+    terminalId: "mt5term:neotech",
+  };
+  const switched = localPrimaryStatusFor(ACCOUNT_A, {
+    profile: "local_176778",
+    providerAccountId: "mt5:newaccount01",
+    login: 176778,
+    server: "Broker-Live",
+    terminalId: "mt5term:neotech",
+    fxSlPoints: 700,
+    fxTpPoints: 1400,
+  });
+  const result = reconcileLocalPrimaryAccounts([prior], [switched], { now: BASE_NOW + 1_000 });
+  assert.equal(result.changed, true);
+  assert.equal(result.accounts.length, 1);
+  assert.equal(result.accounts[0].label, "FXCE");
+  assert.equal(result.accounts[0].bridgeProfile, "local_176778");
+  assert.equal(result.accounts[0].login, 176778);
+  assert.equal(result.accounts[0].server, "Broker-Live");
+  assert.equal(result.accounts[0].providerAccountId, "mt5:newaccount01");
+  assert.equal(result.accounts[0].terminalId, "mt5term:neotech");
+  assert.equal(result.accounts[0].fxSlPoints, 700);
+  assert.equal(result.accounts[0].fxTpPoints, 1400);
+});
+
+test("local-primary preserves the configured alias when a fixed profile switches accounts", () => {
+  const prior = { ...ACCOUNT_A, label: "FXCE", bridgeProfile: "local_181678" };
+  const switched = localPrimaryStatusFor(ACCOUNT_A, {
+    profile: "FXCE",
+    providerAccountId: "mt5:newaccount02",
+    login: 176778,
+    server: "Broker-Live",
+  });
+  const result = reconcileLocalPrimaryAccounts([prior], [switched], { now: BASE_NOW + 1_000 });
+  assert.equal(result.accounts.length, 1);
+  assert.equal(result.accounts[0].label, "FXCE");
+  assert.equal(result.accounts[0].login, 176778);
+  assert.equal(result.accounts[0].server, "Broker-Live");
+});
+
+test("local-primary runtime rewrites a stale account snapshot from fresh EA identity", { concurrency: false }, async () => {
+  const prior = { ...ACCOUNT_A, label: "FXCE", bridgeProfile: "FXCE" };
+  const switched = localPrimaryStatusFor(ACCOUNT_A, {
+    profile: "FXCE",
+    providerAccountId: "mt5:runtimeaccount",
+    login: 176778,
+    server: "Broker-Live",
+  });
+  const h = await createHarness("runtime-account-rebind", {
+    controlMode: "local-primary",
+    webhook: "",
+    accounts: [prior],
+    statuses: [switched],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(h.config.accounts.length, 1);
+    assert.equal(h.config.accounts[0].label, "FXCE");
+    assert.equal(h.config.accounts[0].login, 176778);
+    assert.equal(h.config.accounts[0].server, "Broker-Live");
+    assert.equal(h.config.accounts[0].providerAccountId, "mt5:runtimeaccount");
+    const persisted = JSON.parse(await fs.readFile(h.runtime.paths.configPath, "utf8"));
+    assert.equal(persisted.accounts[0].login, 176778);
+    assert.equal(persisted.accounts[0].server, "Broker-Live");
+  } finally { await h.cleanup(); }
 });
 
 test("18 account identity, stale snapshot and cTrader target mismatch reject", () => {
@@ -1184,6 +1277,188 @@ test("scheduled MT5 UI entry rejects a non-tradeable symbol before allocating or
     assert.match(state.commands["402:0"].outcome, /XAUUSD\.a is not tradeable for SELL/i);
     assert.doesNotMatch(state.commands["402:0"].outcome, /intent #1 saved/i);
     assert.equal(h.mt5UiTasks.length, 0);
+  } finally { await h.cleanup(); }
+});
+
+test("EA trade events are delivered to Telegram once and duplicate files are suppressed", { concurrency: false }, async () => {
+  const h = await createHarness("trade-events", {
+    controlMode: "local-primary",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const events = [
+      { eventId: "be:5001:2500.00000", eventType: "break_even", ticket: 501, positionId: 5001, symbol: "XAUUSD", side: "BUY", volume: 0.01, sl: 2500.0 },
+      { eventId: "sl:601", eventType: "stop_loss", deal: 601, positionId: 5001, symbol: "XAUUSD", side: "BUY", volume: 0.01, price: 2490.0, profit: -10.0 },
+      { eventId: "pending_fill:701:702", eventType: "pending_fill", order: 701, deal: 702, positionId: 7001, symbol: "GBPAUD", side: "BUY", volume: 0.05, price: 1.95 },
+      { eventId: "partial:801", eventType: "partial_close", deal: 801, positionId: 8001, symbol: "GBPUSD", side: "SELL", closedVolume: 0.02, remainingVolume: 0.03, price: 1.31, profit: 5.0 },
+    ];
+    for (const event of events) await writeTradeEvent(h, event);
+
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(h.sent.length, 4);
+    assert.ok(h.sent.some((text) => /BE.*acct-a/i.test(text)));
+    assert.ok(h.sent.some((text) => /SL.*acct-a/i.test(text)));
+    assert.ok(h.sent.some((text) => /Pending.*filled.*acct-a/i.test(text)));
+    assert.ok(h.sent.some((text) => /Partial.*close.*acct-a/i.test(text)));
+    assert.equal(state.deliveredTradeEventIds.length, 4);
+
+    for (const event of events) await writeTradeEvent(h, event);
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(h.sent.length, 4);
+  } finally { await h.cleanup(); }
+});
+
+test("delivered EA trade event remains suppressed after state reload", { concurrency: false }, async () => {
+  const h = await createHarness("trade-event-restart-dedupe", {
+    controlMode: "local-primary",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const event = { eventId: "sl:restart-601", eventType: "stop_loss", deal: 601, positionId: 5001, symbol: "XAUUSD", side: "BUY", volume: 0.01, price: 2490, profit: -10 };
+    await writeTradeEvent(h, event);
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(h.sent.filter((text) => /SL closed/i.test(text)).length, 1);
+
+    const persisted = JSON.parse(await fs.readFile(h.paths.statePath, "utf8"));
+    const restored = normalizeFailoverState(persisted, h.now);
+    await writeTradeEvent(h, event);
+    h.advance(1_000);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    await h.runtime.runOneIteration(h.config, restored);
+    assert.equal(h.sent.filter((text) => /SL closed/i.test(text)).length, 1);
+  } finally { await h.cleanup(); }
+});
+
+test("identical EA event IDs on different MT5 accounts notify independently", { concurrency: false }, async () => {
+  const providerA = "mt5:event-account-a";
+  const providerB = "mt5:event-account-b";
+  const h = await createHarness("trade-event-account-scope", {
+    controlMode: "local-primary",
+    webhook: "",
+    accounts: [{ ...ACCOUNT_A }, { ...ACCOUNT_B }],
+    statuses: [
+      localPrimaryStatusFor(ACCOUNT_A, { providerAccountId: providerA }),
+      localPrimaryStatusFor(ACCOUNT_B, { providerAccountId: providerB }),
+    ],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const eventId = "sl:601";
+    await writeLedgerJson(tradeEventPath(h, eventId, ACCOUNT_A.bridgeProfile, ACCOUNT_A.login), {
+      version: 1, eventId, eventType: "stop_loss", profile: ACCOUNT_A.bridgeProfile, providerAccountId: providerA,
+      login: ACCOUNT_A.login, server: ACCOUNT_A.server, at: h.now, deal: 601, positionId: 5001, symbol: "XAUUSD", side: "BUY", volume: 0.01, price: 2490, profit: -10,
+    });
+    await writeLedgerJson(tradeEventPath(h, eventId, ACCOUNT_B.bridgeProfile, ACCOUNT_B.login), {
+      version: 1, eventId, eventType: "stop_loss", profile: ACCOUNT_B.bridgeProfile, providerAccountId: providerB,
+      login: ACCOUNT_B.login, server: ACCOUNT_B.server, at: h.now, deal: 601, positionId: 5001, symbol: "XAUUSD", side: "BUY", volume: 0.01, price: 2490, profit: -10,
+    });
+
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(h.sent.filter((text) => /SL closed/i.test(text)).length, 2);
+    assert.ok(h.sent.some((text) => /@acct-a/i.test(text)));
+    assert.ok(h.sent.some((text) => /@acct-b/i.test(text)));
+    assert.equal(state.deliveredTradeEventIds.length, 2);
+  } finally { await h.cleanup(); }
+});
+
+test("successful scheduled entry/order notifies Telegram after execution", { concurrency: false }, async () => {
+  const h = await createHarness("scheduled-entry-notice", {
+    controlMode: "local-primary",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 410, message: { chat: { id: 123 }, text: "/buy XAUUSD 0.01 23:59 @acct-a" } }, statuses);
+    assert.equal(h.sent.some((text) => /Scheduled order executed/i.test(text)), false);
+    const [id] = Object.keys(state.intents);
+    h.setNow(state.intents[id].dueAt + 1);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(state.intents[id].status, "executed");
+    assert.equal(h.eaExecutions, 1);
+    assert.ok(h.sent.some((text) => /Scheduled order executed.*acct-a/i.test(text) && /BUY XAUUSD 0\.01 lot/i.test(text)));
+
+    h.advance(1_000);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(h.eaExecutions, 1);
+    assert.equal(h.sent.filter((text) => /Scheduled order executed/i.test(text)).length, 1);
+  } finally { await h.cleanup(); }
+});
+
+test("successful scheduled close notifies Telegram while failed scheduled close stays silent", { concurrency: false }, async () => {
+  const success = await createHarness("scheduled-close-notice", {
+    controlMode: "local-primary",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+  });
+  try {
+    const state = success.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await success.runtime.loadEaStatuses();
+    await success.runtime.processTelegramUpdate(success.config, state, { update_id: 411, message: { chat: { id: 123 }, text: "/close XAUUSD 23:59 @acct-a" } }, statuses);
+    const [id] = Object.keys(state.intents);
+    success.setNow(state.intents[id].dueAt + 1);
+    await success.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, success.now));
+    await success.runtime.runOneIteration(success.config, state);
+    assert.equal(state.intents[id].status, "executed");
+    assert.equal(success.eaExecutions, 1);
+    assert.ok(success.sent.some((text) => /Scheduled close.*acct-a/i.test(text) && /XAUUSD/i.test(text)));
+  } finally { await success.cleanup(); }
+
+  const failure = await createHarness("scheduled-close-no-false-notice", {
+    controlMode: "local-primary",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+    eaDispatch(task) {
+      if (task.action === "close") return { status: "failed", result: { ok: false, action: "close", detail: "synthetic close rejection" } };
+      return { status: "done", result: { ok: true, action: task.action, detail: "synthetic execution" } };
+    },
+  });
+  try {
+    const state = failure.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await failure.runtime.loadEaStatuses();
+    await failure.runtime.processTelegramUpdate(failure.config, state, { update_id: 412, message: { chat: { id: 123 }, text: "/close XAUUSD 23:59 @acct-a" } }, statuses);
+    const [id] = Object.keys(state.intents);
+    failure.setNow(state.intents[id].dueAt + 1);
+    await failure.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, failure.now));
+    await failure.runtime.runOneIteration(failure.config, state);
+    assert.equal(state.intents[id].status, "failed");
+    assert.equal(failure.eaExecutions, 1);
+    assert.equal(failure.sent.some((text) => /Scheduled close/i.test(text)), false);
+  } finally { await failure.cleanup(); }
+});
+
+test("Telegram notification outage never replays a scheduled close and retries the notice later", { concurrency: false }, async () => {
+  const h = await createHarness("scheduled-close-notice-retry", {
+    controlMode: "local-primary",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+    sendFailures: 1,
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 413, message: { chat: { id: 123 }, text: "/close XAUUSD 23:59 @acct-a" } }, statuses);
+    const [id] = Object.keys(state.intents);
+    h.setNow(state.intents[id].dueAt + 1);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(h.eaExecutions, 1);
+    assert.equal(state.intents[id].status, "executed");
+    assert.equal(state.pendingTradeNotifications.length, 1);
+
+    h.advance(1_000);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(h.eaExecutions, 1);
+    assert.equal(state.pendingTradeNotifications.length, 0);
+    assert.ok(h.sent.some((text) => /Scheduled close.*acct-a/i.test(text)));
   } finally { await h.cleanup(); }
 });
 
