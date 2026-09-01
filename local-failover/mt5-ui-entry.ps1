@@ -52,6 +52,9 @@ $WM_KEYDOWN = 0x0100
 $WM_KEYUP = 0x0101
 $BM_CLICK = 0x00F5
 $VK_RETURN = 0x0D
+$EN_KILLFOCUS = 0x0200
+$EN_CHANGE = 0x0300
+$EN_UPDATE = 0x0400
 $CBN_EDITCHANGE = 5
 $NEW_ORDER_COMMAND = 32848
 
@@ -95,6 +98,19 @@ function Set-ControlText([IntPtr]$handle, [string]$value) {
     throw "MT5 UI control handle is unavailable"
   }
   [void][OakMt5UiWin32]::SendMessage($handle, $WM_SETTEXT, [IntPtr]::Zero, $value)
+}
+
+function Commit-ControlText(
+  [IntPtr]$dialogHandle,
+  [int]$controlId,
+  [IntPtr]$controlHandle,
+  [string]$value
+) {
+  Set-ControlText $controlHandle $value
+  foreach ($notification in @($EN_UPDATE, $EN_CHANGE, $EN_KILLFOCUS)) {
+    $command = [IntPtr]($controlId -bor ($notification -shl 16))
+    [void][OakMt5UiWin32]::SendMessage($dialogHandle, $WM_COMMAND, $command, $controlHandle)
+  }
 }
 
 function Get-TerminalProcess($task) {
@@ -323,11 +339,11 @@ try {
       throw "MT5 did not accept the prepared symbol"
     }
 
-    Set-ControlText (Get-ControlHandle $openedDialog "10333") ([string]$task.volumeText)
-    Set-ControlText (Get-ControlHandle $openedDialog "10334") ([string]$task.slText)
-    Set-ControlText (Get-ControlHandle $openedDialog "10336") ([string]$task.tpText)
-    Set-ControlText (Get-ControlHandle $openedDialog "1001") ([string]$task.comment)
-    Start-Sleep -Milliseconds 75
+    Commit-ControlText $dialogHandle 10333 (Get-ControlHandle $openedDialog "10333") ([string]$task.volumeText)
+    Commit-ControlText $dialogHandle 10334 (Get-ControlHandle $openedDialog "10334") ([string]$task.slText)
+    Commit-ControlText $dialogHandle 10336 (Get-ControlHandle $openedDialog "10336") ([string]$task.tpText)
+    Commit-ControlText $dialogHandle 1001 (Get-ControlHandle $openedDialog "1001") ([string]$task.comment)
+    Start-Sleep -Milliseconds 25
 
     Assert-PreparedFields $openedDialog $task
 

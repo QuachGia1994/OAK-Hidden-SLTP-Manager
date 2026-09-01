@@ -14,7 +14,7 @@ The local controller owns Telegram timing and durable intent state. The website 
 
 ## Features
 
-- Local `entry`, `close`, `closeall`, `modify`, `partial`, and `positions` through FILE_COMMON; EA v1.08 also exposes internal `entry_prepare` for scheduled UI entry.
+- Local `entry`, `close`, `closeall`, `modify`, `partial`, and `positions` through FILE_COMMON; EA v1.08 introduced internal `entry_prepare` for scheduled UI entry. EA v1.09 closes every matching broker prefix/suffix variant for a base FX/metal root, including the XAUUSD/GOLD alias.
 - Automatic SL/TP on managed positions opened by EA, manual, mobile, or other permitted sources when protection is missing.
 - Entry netting policy: skip same direction, close opposite positions, remove opposite pending orders before a new entry.
 - Break-even at configurable R with optional point offset.
@@ -45,7 +45,7 @@ The local controller owns Telegram timing and durable intent state. The website 
 
 ## Security
 
-EA v1.08 contains no Upstash/cloud token Input and no cloud broker-execution polling path. Local runtime secrets such as the Telegram bot token and dashboard sync API key stay outside Git under the Windows user-only local runtime directory. Do not share populated local configuration or screenshots containing secrets.
+EA v1.09 contains no Upstash/cloud token Input and no cloud broker-execution polling path. Local runtime secrets such as the Telegram bot token and dashboard sync API key stay outside Git under the Windows user-only local runtime directory. Do not share populated local configuration or screenshots containing secrets.
 
 Local-only execution improves privacy by keeping broker mutations inside the user's MT5 terminal, but it is not a claim that an EA or its orders are undetectable to a broker.
 

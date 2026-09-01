@@ -22,8 +22,8 @@ import { mt5BrokerTaskDigest } from "../dashboard/src/lib/mt5-origin-domain.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const manifest = JSON.parse(await fs.readFile(path.join(HERE, "behavior-cases.json"), "utf8"));
-assert.equal(manifest.length, 38);
-assert.deepEqual(manifest.map((row) => row.id), Array.from({ length: 38 }, (_, index) => index + 1));
+assert.equal(manifest.length, 39);
+assert.deepEqual(manifest.map((row) => row.id), Array.from({ length: 39 }, (_, index) => index + 1));
 
 const WEBHOOK_URL = "https://www.oakgatekeeper.uk/api/telegram/webhook";
 const BASE_NOW = Date.UTC(2026, 7, 24, 11, 57, 0);
@@ -1089,6 +1089,39 @@ test("38 cloud fence heartbeat renews after its throttle window and expires serv
     h.advance(61_000);
     await h.runtime.runOneIteration(h.config, state);
     assert.equal(h.calls.filter((call) => call === "redis:SET").length, first + 1);
+  } finally { await h.cleanup(); }
+});
+
+test("39 untargeted close fans out atomically to every enabled MT5 account", { concurrency: false }, async () => {
+  const h = await createHarness("39", {
+    controlMode: "local-primary",
+    webhook: "",
+    accounts: [{ ...ACCOUNT_A }, { ...ACCOUNT_B }],
+    statuses: [
+      localPrimaryStatusFor(ACCOUNT_A, { providerAccountId: "mt5:localtest01" }),
+      localPrimaryStatusFor(ACCOUNT_B, { providerAccountId: "mt5:localtest02" }),
+    ],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 391, message: { chat: { id: 123 }, text: "Đóng XAUUSD lúc 23h59" } }, statuses);
+
+    const fanout = Object.values(state.intents);
+    assert.equal(fanout.length, 2);
+    assert.deepEqual(fanout.map((intent) => intent.accountLabel).sort(), ["acct-a", "acct-b"]);
+    assert.ok(fanout.every((intent) => intent.kind === "close" && intent.status === "scheduled"));
+    assert.ok(fanout.every((intent) => intent.payload.scope === "XAUUSD"));
+    assert.equal(new Set(fanout.map((intent) => intent.originKey)).size, 2);
+    assert.match(state.commands["391:0"].outcome, /acct-a/);
+    assert.match(state.commands["391:0"].outcome, /acct-b/);
+    assert.equal(h.eaExecutions, 0);
+
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 392, message: { chat: { id: 123 }, text: "Đóng all lúc 23h59 @acct-b" } }, statuses);
+    const targeted = Object.values(state.intents).filter((intent) => intent.sourceUpdateId === 392);
+    assert.equal(targeted.length, 1);
+    assert.equal(targeted[0].accountLabel, "acct-b");
+    assert.equal(targeted[0].payload.scope, "ALL");
   } finally { await h.cleanup(); }
 });
 

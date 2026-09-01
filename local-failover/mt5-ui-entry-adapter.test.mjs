@@ -70,10 +70,12 @@ async function harness(name, options = {}) {
     result: path.join(commonDir, `result_${task.ledgerKey}.json`),
   };
   const uiCalls = [];
+  const uiTasks = [];
   const eaTasks = [];
   const uiRunner = {
     async run(args) {
       uiCalls.push(args.mode);
+      uiTasks.push(args.task);
       if (options.uiRun) return options.uiRun(args, uiCalls);
       if (args.mode === "prepare") return { ok: true };
       if (args.mode === "submit") return { ok: true, submitted: true };
@@ -90,7 +92,7 @@ async function harness(name, options = {}) {
           ok: true,
           action: "entry_prepare",
           resolvedSymbol: "EURUSD",
-          volumeText: "0.01000000",
+          volumeText: options.preparedVolumeText || "0.01000000",
           slText: "1.10000",
           tpText: "1.20500",
           comment: `OAK:${task.ledgerKey.slice(0, 16)}`,
@@ -107,7 +109,7 @@ async function harness(name, options = {}) {
             ticket: 77,
             symbol: "EURUSD",
             side: "BUY",
-            lots: 0.01,
+            lots: options.positionLots ?? 0.01,
             comment: `OAK:${task.ledgerKey.slice(0, 16)}`,
           }],
         },
@@ -132,7 +134,7 @@ async function harness(name, options = {}) {
     dispatchEa,
   };
   return {
-    root, task, files, uiCalls, eaTasks, adapter, args,
+    root, task, files, uiCalls, uiTasks, eaTasks, adapter, args,
     async cleanup() { await fs.rm(root, { recursive: true, force: true }); },
   };
 }
@@ -160,6 +162,18 @@ test("scheduled entry uses EA preparation, no-mouse UI submit and EA snapshot ve
     assert.equal(replay.status, "done");
     assert.deepEqual(h.uiCalls, []);
     assert.deepEqual(h.eaTasks, []);
+  } finally { await h.cleanup(); }
+});
+
+test("prepared volume uses MT5 manual-style text without trailing machine precision", { concurrency: false }, async () => {
+  const h = await harness("volume-text", {
+    preparedVolumeText: "0.05000000",
+    positionLots: 0.05,
+  });
+  try {
+    const result = await h.adapter.dispatch(h.args);
+    assert.equal(result.status, "done");
+    assert.deepEqual(h.uiTasks.map((row) => row.volumeText), ["0.05", "0.05", "0.05"]);
   } finally { await h.cleanup(); }
 });
 
@@ -245,4 +259,9 @@ test("PowerShell executor contains no global mouse or keyboard injection API", a
   assert.doesNotMatch(script, /SendInput|SetCursorPos|mouse_event|SetPhysicalCursorPos|keybd_event/i);
   assert.match(script, /BM_CLICK/);
   assert.match(script, /WM_SETTEXT/);
+  assert.match(script, /function Commit-ControlText/);
+  assert.match(script, /\$EN_CHANGE = 0x0300/);
+  assert.match(script, /Commit-ControlText \$dialogHandle 10333/);
+  assert.match(script, /Commit-ControlText \$dialogHandle 10334/);
+  assert.match(script, /Commit-ControlText \$dialogHandle 10336/);
 });

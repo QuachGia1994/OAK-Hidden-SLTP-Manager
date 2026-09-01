@@ -16,6 +16,8 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- PC-local scheduled manual entry now submits the prepared lot using MT5 manual-style volume text and commits every edited order field through native control notifications. This prevents requested `0.03`/`0.05` lots from falling back to `0.01` and removes the resulting per-intent snapshot mismatch delay.
+- PC-local timed `/close` and `/closeall` commands without `@ACCOUNT` now fan out to every enabled MT5 account; explicit `@ACCOUNT` remains single-target. Natural `Đóng all lúc HHhMM` and `Đóng SYMBOL lúc HHhMM` forms are accepted too. Each account keeps its own durable origin/ledger, and the EA matches base FX/metal symbols against broker prefix/suffix variants before closing positions.
 - Telegram BUY/SELL parser now accepts bare `FXCE`/`FxCe` like `Vantage`, and scheduled entries accept both `TIME SL TP` and legacy `SL TP TIME` layouts. This fixes commands such as `Sell XAUUSD 0.01 18h05 FXCE`, with omitted SL/TP still using the selected account defaults.
 - Temporarily disabled active H1 post-signal inversion and CẦU/BRIDGE output. Signal rule v58 keeps all live/history H1 directions equal to their base BUY/SELL, suppresses bridge badges/highlights/derived summaries, and leaves the configured N/C matrix plus bridge-calendar helpers in place for fast re-enable.
 - Restored all Monday/Tuesday/Wednesday H1 blocks that were previously `X/remove`, so every weekday now uses the complete six-block N/C matrix. Signal rule advanced to v57 and the deploy history rebuild restores missing retained H slots without changing Telegram-scheduled BUY/SELL cells.

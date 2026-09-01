@@ -36,5 +36,6 @@
   {"id":35,"name":"Telegram outage does not block scheduled execution and reconnect resumes update processing"},
   {"id":36,"name":"Web H1 sync outage never delays or blocks broker dispatch"},
   {"id":37,"name":"Multiple MT5 accounts route deterministically via explicit @ACCOUNT targeting"},
-  {"id":38,"name":"Cloud fence heartbeat renews after its throttle window and expires server-side by TTL"}
+  {"id":38,"name":"Cloud fence heartbeat renews after its throttle window and expires server-side by TTL"},
+  {"id":39,"name":"Untargeted close fans out atomically to every enabled MT5 account"}
 ]

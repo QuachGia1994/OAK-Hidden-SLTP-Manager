@@ -692,6 +692,7 @@ export function createLocalFailoverRuntime(options = {}) {
       "• /buy, /sell, /close, /closeall, /modify, /partial",
       "• Entry: /buy|/sell SYMBOL LOT [TIME] [SL] [TP] [@ACCOUNT]; SL TP may also appear before TIME. Bare FXCE/Vantage aliases are accepted.",
       "• Timed entry/close intents auto-arm when saved; immediate mutations still require /approve ID.",
+      "• Close without @ACCOUNT targets every enabled MT5 account; explicit @ACCOUNT limits it to one. Base symbols match broker prefix/suffix variants. Vietnamese aliases: Đóng all lúc HHhMM; Đóng SYMBOL lúc HHhMM.",
       "• Local intent IDs are short numbers: /del 1 or /approve 1; /del all is also supported.",
       "• ID dài L-<epoch>-<seq> chỉ giữ nội bộ/diagnostic và vẫn tương thích nếu cần.",
       "• More than 10 non-empty command lines rejects the whole Telegram message.",
@@ -1039,55 +1040,18 @@ export function createLocalFailoverRuntime(options = {}) {
     }).format(new Date(Number(intent.dueAt)));
   }
 
-  async function createIntent(config, state, parsed, statuses, updateId, commandIndex) {
+  function selectIntentAccounts(config, statuses, parsed) {
     const requested = targetFromPayload(parsed.payload);
-    const { account } = selectAccount(config, statuses, requested);
-    if (!state.epoch) state.epoch = newFailoverEpoch(clock());
-    const shortId = state.nextIntentSeq++;
-    const id = localIntentId(state.epoch, shortId);
-    const originKey = telegramMt5OriginKey(updateId, commandIndex, account.providerAccountId);
-    const protection = parsed.kind === "entry"
-      ? resolveProtectionSnapshot(account, String(parsed.payload.symbol || ""), parsed.payload)
-      : undefined;
-    const payload = { ...parsed.payload, legacyProfile: account.label };
-    const taskDigest = brokerTaskDigest({
-      originKey,
-      providerAccountId: account.providerAccountId,
-      bridgeProfile: account.bridgeProfile,
-      login: account.login,
-      server: account.server,
-      action: parsed.kind,
-      payload,
-      protection: protection || null,
-    });
-    const status = initialCloudIntentStatus("Telegram Cloud", parsed.dueAt, clock());
-    const intent = {
-      id,
-      kind: parsed.kind,
-      status,
-      controlMode: config.controlMode,
-      accountLabel: account.label,
-      providerAccountId: account.providerAccountId,
-      bridgeProfile: account.bridgeProfile,
-      login: account.login,
-      server: account.server,
-      environment: account.environment,
-      terminalPath: String(account.terminalPath || ""),
-      sourceUpdateId: updateId,
-      sourceCommandIndex: commandIndex,
-      originKey,
-      ledgerKey: originLedgerKey(originKey),
-      taskDigest,
-      createdAt: clock(),
-      dueAt: parsed.dueAt,
-      dueText: parsed.dueText,
-      payload,
-      protection,
-    };
-    state.intents[id] = intent;
-    if (status === "scheduled") intent.scheduledAt = clock();
-    scheduleWebSignalSync(state, intent);
-    await saveState(state);
+    if (parsed.kind !== "close" || requested) return [selectAccount(config, statuses, requested).account];
+
+    const enabled = config.accounts.filter((row) => row.provider === "mt5" && row.enabled !== false);
+    if (!enabled.length) throw new Error("No local MT5 account is available");
+    return enabled.map((row) => selectAccount(config, statuses, row.label).account);
+  }
+
+  function renderCreatedIntent(config, parsed, account, intent, shortId, protection) {
+    const payload = intent.payload;
+    const status = intent.status;
     if (parsed.kind === "entry") {
       return [
         `✅ Local intent #${shortId} saved`,
@@ -1111,6 +1075,63 @@ export function createLocalFailoverRuntime(options = {}) {
       `• ID: ${shortId} · cancel with /del ${shortId}`,
       ...(status === "scheduled" ? ["• Auto: armed; executes at due time without /approve"] : [`• Confirm: /approve ${shortId}`]),
     ].join("\n");
+  }
+
+  async function createIntent(config, state, parsed, statuses, updateId, commandIndex) {
+    const accounts = selectIntentAccounts(config, statuses, parsed);
+    if (!state.epoch) state.epoch = newFailoverEpoch(clock());
+    const outcomes = [];
+
+    for (const account of accounts) {
+      const shortId = state.nextIntentSeq++;
+      const id = localIntentId(state.epoch, shortId);
+      const originKey = telegramMt5OriginKey(updateId, commandIndex, account.providerAccountId);
+      const protection = parsed.kind === "entry"
+        ? resolveProtectionSnapshot(account, String(parsed.payload.symbol || ""), parsed.payload)
+        : undefined;
+      const payload = { ...parsed.payload, legacyProfile: account.label };
+      const taskDigest = brokerTaskDigest({
+        originKey,
+        providerAccountId: account.providerAccountId,
+        bridgeProfile: account.bridgeProfile,
+        login: account.login,
+        server: account.server,
+        action: parsed.kind,
+        payload,
+        protection: protection || null,
+      });
+      const status = initialCloudIntentStatus("Telegram Cloud", parsed.dueAt, clock());
+      const intent = {
+        id,
+        kind: parsed.kind,
+        status,
+        controlMode: config.controlMode,
+        accountLabel: account.label,
+        providerAccountId: account.providerAccountId,
+        bridgeProfile: account.bridgeProfile,
+        login: account.login,
+        server: account.server,
+        environment: account.environment,
+        terminalPath: String(account.terminalPath || ""),
+        sourceUpdateId: updateId,
+        sourceCommandIndex: commandIndex,
+        originKey,
+        ledgerKey: originLedgerKey(originKey),
+        taskDigest,
+        createdAt: clock(),
+        dueAt: parsed.dueAt,
+        dueText: parsed.dueText,
+        payload,
+        protection,
+      };
+      state.intents[id] = intent;
+      if (status === "scheduled") intent.scheduledAt = clock();
+      scheduleWebSignalSync(state, intent);
+      outcomes.push(renderCreatedIntent(config, parsed, account, intent, shortId, protection));
+    }
+
+    await saveState(state);
+    return outcomes.join("\n\n");
   }
 
   async function approveLocal(config, state, ids, statuses) {

@@ -125,6 +125,23 @@ export function commandRecordKey(updateId, commandIndex) {
   return `${uid}:${idx}`;
 }
 
+function naturalCloseCommand(raw) {
+  const tokens = String(raw || "").trim().split(/\s+/).filter(Boolean);
+  const normalizeWord = (value) => String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d");
+  if (normalizeWord(tokens[0]) !== "dong" || !tokens[1]) return raw;
+
+  const scope = tokens[1];
+  const tail = tokens.slice(2);
+  if (tail.length && normalizeWord(tail[0]) === "luc") tail.shift();
+  return normalizeWord(scope) === "all"
+    ? ["/closeall", ...tail].join(" ")
+    : ["/close", scope, ...tail].join(" ");
+}
+
 export function parseLocalTelegramCommand(text, nowMs = Date.now()) {
   const raw = String(text || "").trim();
   const tokens = raw.split(/\s+/).filter(Boolean);
@@ -143,7 +160,7 @@ export function parseLocalTelegramCommand(text, nowMs = Date.now()) {
     }
     return { type: "delete-local", all: false, ids: [...new Set(args)] };
   }
-  return parseCloudTelegramCommand(raw, nowMs);
+  return parseCloudTelegramCommand(naturalCloseCommand(raw), nowMs);
 }
 
 export function classifyWriteProbeFailure({ status = 0, error = "", networkError = false } = {}) {

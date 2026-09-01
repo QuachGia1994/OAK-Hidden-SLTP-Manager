@@ -43,8 +43,8 @@ test("web accepts only OAK MQL5 EA heartbeats for MT5 bridge execution", () => {
   assert.match(ea, /StateSet\(id,"pp_armed",1\.0\)/);
 });
 
-test("OAK MQL5 EA v1.08 exposes local-only Inputs, guarded UI preparation and 100ms polling", () => {
-  assert.match(ea, /#property version\s+"1\.08"/);
+test("OAK MQL5 EA v1.09 exposes local-only Inputs, guarded UI preparation and 100ms polling", () => {
+  assert.match(ea, /#property version\s+"1\.09"/);
   assert.match(ea, /input group "Local PC Control"/);
   assert.match(ea, /InpLocalPollMsV107\s*= 100/);
   assert.doesNotMatch(ea, /input group "OAK Cloud Bridge"/);
@@ -86,6 +86,13 @@ test("MT5 entry waits for symbol synchronization before using a broker tick", ()
   assert.match(ea, /tick\.bid>0 && tick\.ask>0/);
   assert.match(ea, /if\(!WaitForUsableTick\(symbol,tick,detail\)\) return false/);
   assert.match(ea, /tick unavailable after sync wait/);
+});
+
+test("MT5 close matches broker prefix and suffix symbol variants", () => {
+  assert.match(ea, /bool SymbolMatchesRequested\(/);
+  assert.match(ea, /StringFind\(actual,requested\)>=0/);
+  assert.match(ea, /SymbolMatchesRequested\(PositionGetString\(POSITION_SYMBOL\),scope\)/);
+  assert.doesNotMatch(ea, /string symbol=\(scope=="" \|\| scope=="ALL" \? "" : ResolveSymbol\(scope\)\)/);
 });
 
 test("MT5 partial closes round down and always preserve the broker minimum remainder", () => {

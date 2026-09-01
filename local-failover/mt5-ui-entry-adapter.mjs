@@ -213,6 +213,12 @@ function buildPositionsTask(task) {
   };
 }
 
+function manualVolumeText(value) {
+  const volume = Number(value);
+  if (!Number.isFinite(volume) || volume <= 0) return "";
+  return volume.toFixed(8).replace(/0+$/, "").replace(/\.$/, "");
+}
+
 function buildUiTask(task, prepared) {
   const side = String(task.payload?.side || "").toUpperCase();
   return {
@@ -223,7 +229,7 @@ function buildUiTask(task, prepared) {
     terminalPath: String(task.terminalPath || ""),
     side,
     symbol: String(prepared.resolvedSymbol || ""),
-    volumeText: String(prepared.volumeText || prepared.volume || ""),
+    volumeText: manualVolumeText(prepared.volumeText || prepared.volume),
     slText: String(prepared.slText || prepared.slPrice || ""),
     tpText: String(prepared.tpText || prepared.tpPrice || ""),
     comment: String(prepared.comment || ""),

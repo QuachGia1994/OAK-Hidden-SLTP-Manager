@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.08"
+#property version   "1.09"
 #property description "OAK local-only MT5 execution manager"
 
 // OAK Local Manager EA
@@ -59,7 +59,7 @@ input string InpPartialPercents            = "50";      // 1 pct = current-volum
 #define OAK_HEARTBEAT_PREFIX  "oak:mt5:bridge:heartbeat:v1:"
 #define OAK_TASK_TTL          604800
 #define OAK_HEARTBEAT_TTL     45
-#define OAK_EA_VERSION        "1.08"
+#define OAK_EA_VERSION        "1.09"
 #define OAK_LOCAL_DIR         "OAKLocalFailover\\"
 
 string g_profile = "";
@@ -1023,6 +1023,17 @@ bool IsOppositePending(long order_type, bool entering_buy)
    return order_type==ORDER_TYPE_BUY_LIMIT || order_type==ORDER_TYPE_BUY_STOP || order_type==ORDER_TYPE_BUY_STOP_LIMIT;
 }
 
+bool SymbolMatchesRequested(string actual, string requested)
+{
+   actual=Upper(Trim(actual));
+   requested=Upper(Trim(requested));
+   if(actual=="" || requested=="") return false;
+   if(actual==requested) return true;
+   if(IsGold(actual) && IsGold(requested)) return true;
+   if(StringLen(requested)<6) return false;
+   return StringFind(actual,requested)>=0;
+}
+
 string ResolveSymbol(string requested)
 {
    requested=Upper(Trim(requested));
@@ -1497,15 +1508,13 @@ string ExecuteEntryTask(const string task)
 string ExecuteCloseTask(const string task)
 {
    string payload=JsonRaw(task,"payload");
-   string scope=Upper(JsonString(payload,"scope"));
-   string symbol=(scope=="" || scope=="ALL" ? "" : ResolveSymbol(scope));
-   if(scope!="" && scope!="ALL" && symbol=="") return ResultJson(false,"close","close symbol could not be resolved");
+   string scope=Upper(Trim(JsonString(payload,"scope")));
    int total=0,closed=0; string failures="";
    ulong tickets[]; ArrayResize(tickets,0);
    for(int i=0;i<PositionsTotal();i++)
    {
       ulong t=PositionGetTicket(i); if(t==0) continue;
-      if(symbol!="" && PositionGetString(POSITION_SYMBOL)!=symbol) continue;
+      if(scope!="" && scope!="ALL" && !SymbolMatchesRequested(PositionGetString(POSITION_SYMBOL),scope)) continue;
       int n=ArraySize(tickets); ArrayResize(tickets,n+1); tickets[n]=t;
    }
    total=ArraySize(tickets);

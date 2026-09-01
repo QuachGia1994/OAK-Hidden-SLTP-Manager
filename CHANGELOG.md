@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fixed PC-local scheduled manual entry lot submission: EA machine-precision volumes such as `0.05000000` are now converted to MT5 manual-entry text such as `0.05`, and edit controls receive the same update/change/focus-loss notifications MT5 uses to commit typed values. Correct-lot snapshot verification now completes immediately instead of stalling later queued entries through the mismatch timeout.
+
+- Changed PC-local Telegram close routing: `/close` and `/closeall` without `@ACCOUNT` now create one independently fenced intent for every enabled MT5 account, while an explicit account remains single-target. Natural Vietnamese forms `Đóng all lúc HHhMM` and `Đóng SYMBOL lúc HHhMM` map to the same safe parser. EA v1.09 close matching now treats a six-character FX/metal root as matching broker prefix/suffix variants and preserves the XAUUSD/GOLD alias, so operators do not need to type broker-specific symbol decoration.
+
 - Added the production PC-local scheduled-entry driver: only due MT5 `entry` intents retain EA v1.08 preparation/netting/exposure/SLTP guards and then submit through exact MT5 order-window messages without global mouse or keyboard injection. Immediate entry and all close/modify/partial/position-management paths remain EA-executed; durable claim/result evidence and EA position-comment verification fail closed as `UNCERTAIN` instead of replaying an ambiguous submit.
 
 - Split H1 Live from History navigation: Live is now pinned to the latest/current broker day with no date picker or retained-day coverage controls, while the History route exclusively owns the Sunday-first broker calendar and historical date selection.
