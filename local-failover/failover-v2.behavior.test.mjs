@@ -24,6 +24,7 @@ import { mt5BrokerTaskDigest } from "../dashboard/src/lib/mt5-origin-domain.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const manifest = JSON.parse(await fs.readFile(path.join(HERE, "behavior-cases.json"), "utf8"));
+const installerSource = await fs.readFile(path.join(HERE, "install-local-failover-task.ps1"), "utf8");
 assert.equal(manifest.length, 39);
 assert.deepEqual(manifest.map((row) => row.id), Array.from({ length: 39 }, (_, index) => index + 1));
 
@@ -216,6 +217,7 @@ async function createHarness(name, options = {}) {
     },
   };
 
+  const appliedConfigAcls = [];
   const webSignal = {
     publishes: [],
     failure: options.webSignalError || "",
@@ -234,6 +236,10 @@ async function createHarness(name, options = {}) {
     upstash,
     mt5UiEntryAdapter,
     logger: async () => {},
+    applyConfigAcl: async (file) => {
+      appliedConfigAcls.push(String(file));
+      if (options.applyConfigAcl) await options.applyConfigAcl(file);
+    },
   };
   if (options.webSignal) runtimeOptions.webSignal = webSignal;
   if (!options.realMailbox) runtimeOptions.eaAdapter = eaAdapter;
@@ -246,7 +252,7 @@ async function createHarness(name, options = {}) {
   for (const row of options.statuses || []) await writeStatus(row);
 
   return {
-    root, paths, config, runtime, telegram, upstash, calls, sent, eaTasks, mt5UiTasks, webSignal,
+    root, paths, config, runtime, telegram, upstash, calls, sent, eaTasks, mt5UiTasks, webSignal, appliedConfigAcls,
     get eaExecutions() { return eaExecutions; },
     get now() { return nowRef.value; },
     advance(ms) { nowRef.value += ms; },
@@ -610,6 +616,7 @@ test("local-primary reconciles a switched MT5 login by stable terminal identity"
   assert.equal(result.accounts[0].bridgeProfile, "local_176778");
   assert.equal(result.accounts[0].login, 176778);
   assert.equal(result.accounts[0].server, "Broker-Live");
+  assert.equal(result.accounts[0].environment, "live");
   assert.equal(result.accounts[0].providerAccountId, "mt5:newaccount01");
   assert.equal(result.accounts[0].terminalId, "mt5term:neotech");
   assert.equal(result.accounts[0].fxSlPoints, 700);
@@ -656,7 +663,18 @@ test("local-primary runtime rewrites a stale account snapshot from fresh EA iden
     const persisted = JSON.parse(await fs.readFile(h.runtime.paths.configPath, "utf8"));
     assert.equal(persisted.accounts[0].login, 176778);
     assert.equal(persisted.accounts[0].server, "Broker-Live");
+    assert.deepEqual(h.appliedConfigAcls, [h.runtime.paths.configPath]);
   } finally { await h.cleanup(); }
+});
+
+test("local task self-heals an externally terminated controller without duplicate instances", () => {
+  assert.match(installerSource, /watchdogTrigger/);
+  assert.match(installerSource, /RepetitionInterval \(New-TimeSpan -Minutes 1\)/);
+  assert.match(installerSource, /RepetitionDuration \(New-TimeSpan -Days 3650\)/);
+  assert.match(installerSource, /MultipleInstances IgnoreNew/);
+  assert.match(installerSource, /RestartCount 999/);
+  assert.match(installerSource, /AllowStartIfOnBatteries/);
+  assert.match(installerSource, /DontStopIfGoingOnBatteries/);
 });
 
 test("18 account identity, stale snapshot and cTrader target mismatch reject", () => {

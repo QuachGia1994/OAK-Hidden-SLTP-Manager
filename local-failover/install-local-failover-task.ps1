@@ -98,10 +98,12 @@ function New-FailoverTaskDefinition {
   $identity = Get-CurrentIdentityInfo
   $arguments = '"{0}"' -f $Script
   $taskAction = New-ScheduledTaskAction -Execute $node.Path -Argument $arguments -WorkingDirectory $PSScriptRoot
-  $trigger = New-ScheduledTaskTrigger -AtLogOn -User $identity.Name
-  $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1) -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero)
+  $logonTrigger = New-ScheduledTaskTrigger -AtLogOn -User $identity.Name
+  $watchdogStart = (Get-Date).AddMinutes(1)
+  $watchdogTrigger = New-ScheduledTaskTrigger -Once -At $watchdogStart -RepetitionInterval (New-TimeSpan -Minutes 1) -RepetitionDuration (New-TimeSpan -Days 3650)
+  $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
   $principal = New-ScheduledTaskPrincipal -UserId $identity.Name -LogonType Interactive -RunLevel Limited
-  New-ScheduledTask -Action $taskAction -Trigger $trigger -Settings $settings -Principal $principal
+  New-ScheduledTask -Action $taskAction -Trigger @($logonTrigger, $watchdogTrigger) -Settings $settings -Principal $principal
 }
 
 try {
@@ -120,7 +122,7 @@ try {
       $null = Invoke-Doctor
       $definition = New-FailoverTaskDefinition
       if ($DryRun) {
-        [pscustomobject]@{ ok = $true; dryRun = $true; action = "Install"; taskName = $TaskName; multipleInstances = "IgnoreNew"; restartCount = 5; logonType = "Interactive"; mutationsPerformed = 0 } | ConvertTo-Json
+        [pscustomobject]@{ ok = $true; dryRun = $true; action = "Install"; taskName = $TaskName; multipleInstances = "IgnoreNew"; restartCount = 999; watchdogEveryMinutes = 1; allowStartOnBatteries = $true; stopIfGoingOnBatteries = $false; logonType = "Interactive"; mutationsPerformed = 0 } | ConvertTo-Json
         exit 0
       }
       Register-ScheduledTask -TaskName $TaskName -InputObject $definition -Force | Out-Null

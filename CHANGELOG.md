@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Updated the local MT5 manager to EA v1.10 with terminal-scoped identity evidence and live account rebinding. A running terminal now detects login/server changes, refreshes its deterministic `providerAccountId`, and lets the PC controller replace stale local-primary account snapshots while preserving configured aliases such as `FXCE`; duplicate stale aliases are removed instead of creating ambiguous routing.
+- Hardened the PC-local Telegram controller lifecycle after a terminated Scheduled Task left the bot silent. The installer now combines the logon trigger with a one-minute self-heal trigger, keeps `MultipleInstances=IgnoreNew`, expands restart-on-failure coverage, and no longer stops/blocks on battery policy. Runtime MT5 account rebinds also reapply the protected user-only ACL after atomically rewriting the local config so Telegram/Upstash secrets do not fall back to inherited permissions.
+
+- Updated the local MT5 manager to EA v1.10 with terminal-scoped identity evidence and live account rebinding. A running terminal now detects login/server changes, refreshes its deterministic `providerAccountId`, and lets the PC controller replace stale local-primary account snapshots while preserving configured aliases such as `FXCE`; duplicate stale aliases are removed instead of creating ambiguous routing, and Demo/Live classification follows the current server instead of the previous account.
 
 - Added durable PC-local Telegram trade-event notifications. The EA emits FILE_COMMON evidence for the first break-even SL reach per position (including terminal/manual SL changes), broker stop-loss exits, filled pending orders and broker-confirmed partial closes; the controller validates account identity, formats and retries Telegram delivery, and suppresses account-scoped replayed events across restarts. Successful timed entry/order and timed close intents also notify only after execution is confirmed, while Telegram delivery failures never replay the broker mutation.
 

@@ -34,6 +34,7 @@ import {
   telegramMt5OriginKey,
 } from "./oak-local-failover-domain.mjs";
 import { createMt5UiEntryAdapter, shouldUseMt5UiEntry } from "./mt5-ui-entry-adapter.mjs";
+import { applyWindowsUserOnlyAcl } from "./bootstrap-local-failover.mjs";
 
 const APP_LOCAL = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
 const APP_ROAMING = process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
@@ -312,6 +313,7 @@ export function createLocalFailoverRuntime(options = {}) {
   const upstash = options.upstash || real.upstash;
   const eaAdapter = options.eaAdapter || { dispatch: defaultMailboxDispatch };
   const mt5UiEntryAdapter = options.mt5UiEntryAdapter || createMt5UiEntryAdapter();
+  const applyConfigAcl = options.applyConfigAcl || applyWindowsUserOnlyAcl;
   const webSignal = options.webSignal || {
     async publish(config, signal) {
       if (!config.webSignalUrl || (!config.dashboardApiKey && !config.telegramWebhookSecret)) return { ok: false, skipped: "not-configured" };
@@ -593,6 +595,7 @@ export function createLocalFailoverRuntime(options = {}) {
     config.accounts = reconciled.accounts;
     config.snapshotAt = clock();
     await writeJsonAtomic(paths.configPath, config);
+    await applyConfigAcl(paths.configPath);
     await log(`Local-primary MT5 account snapshot rebound from fresh terminal heartbeat (${config.accounts.length} account(s)).`);
     return true;
   }

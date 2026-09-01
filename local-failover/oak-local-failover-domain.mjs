@@ -260,7 +260,7 @@ export function reconcileLocalPrimaryAccounts(accounts, statuses, { now = Date.n
       bridgeProfile: String(status.profile),
       login: statusLogin,
       server: String(status.server),
-      environment: String(prior.environment || (/demo/i.test(String(status.server)) ? "demo" : "live")),
+      environment: /demo/i.test(String(status.server)) ? "demo" : "live",
       enabled: true,
       fxSlPoints: positiveNumberOr(status.fxSlPoints, prior.fxSlPoints),
       fxTpPoints: positiveNumberOr(status.fxTpPoints, prior.fxTpPoints),
