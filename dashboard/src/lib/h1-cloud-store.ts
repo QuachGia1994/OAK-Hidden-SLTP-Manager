@@ -9,6 +9,7 @@ import {
   H1_CLOUD_STATE_KEY,
   H1_PUBLIC_LATEST_KEY,
   buildPublicFeed,
+  clearLegacyScheduledSignalAtSlot,
   cycleDecisionFor,
   emptyCloudState,
   ensureSymbolDay,
@@ -16,8 +17,10 @@ import {
   parseCloudState,
   parsePublicFeedCloudState,
   scheduledSignalSlotForBrokerHour,
+  scheduledSignalSlotForVietnamWall,
   seedCloudStateFromPublic,
   trimCloudState,
+  vietnamAppointmentWallParts,
   type H1CloudState,
   type H1Signal,
 } from "./h1-cloud-scanner";
@@ -127,20 +130,30 @@ export async function writeTelegramScheduledSignal(args: {
 }): Promise<{ brokerDate: string; slotHour: number; base: string; side: H1Signal } | null> {
   const base = h1TargetBaseFromSymbol(args.symbol);
   if (!base || !Number.isFinite(args.dueAt) || args.dueAt <= 0) return null;
-  const wall = brokerWallParts(args.dueAt);
-  const slotHour = scheduledSignalSlotForBrokerHour(base, wall.dateKey, wall.hour);
+  const vietnamWall = vietnamAppointmentWallParts(args.dueAt);
+  const slotHour = scheduledSignalSlotForVietnamWall(base, vietnamWall.dateKey, vietnamWall.hour, vietnamWall.minute);
   if (slotHour === null) return null;
+  const legacyBrokerWall = brokerWallParts(args.dueAt);
+  const legacySlotHour = scheduledSignalSlotForBrokerHour(base, legacyBrokerWall.dateKey, legacyBrokerWall.hour);
 
   const lockToken = await acquireH1CloudLock();
   if (!lockToken) throw new Error("H1 table is busy; scheduled signal write must retry");
   try {
-    const { state } = await loadH1CloudState(wall.dateKey, wall.hour);
-    const { symbol } = ensureSymbolDay(state, wall.dateKey, base);
+    const { state } = await loadH1CloudState(vietnamWall.dateKey, slotHour);
+    const { symbol } = ensureSymbolDay(state, vietnamWall.dateKey, base);
+
+    // A retry after this fix also repairs rows written by the legacy broker-wall
+    // mapping. Only clear the same symbol/side at its deterministically derived
+    // legacy slot, so unrelated appointments remain untouched.
+    if (legacyBrokerWall.dateKey === vietnamWall.dateKey) {
+      clearLegacyScheduledSignalAtSlot(symbol.alerts, legacySlotHour, slotHour, args.side);
+    }
+
     const existingIndex = symbol.alerts.findIndex((alert) => alert.slotHour === slotHour);
     if (existingIndex >= 0) {
       symbol.alerts[existingIndex] = { ...symbol.alerts[existingIndex], scheduledSignal: args.side };
     } else {
-      const decision = cycleDecisionFor(base, wall.dateKey, slotHour);
+      const decision = cycleDecisionFor(base, vietnamWall.dateKey, slotHour);
       symbol.alerts.push({
         slotHour,
         symbol: String(args.symbol || base).trim().toUpperCase(),
@@ -159,7 +172,7 @@ export async function writeTelegramScheduledSignal(args: {
     }
     await saveH1CloudState(state);
     await publishH1CloudState(state);
-    return { brokerDate: wall.dateKey, slotHour, base, side: args.side };
+    return { brokerDate: vietnamWall.dateKey, slotHour, base, side: args.side };
   } finally {
     await releaseH1CloudLock(lockToken);
   }

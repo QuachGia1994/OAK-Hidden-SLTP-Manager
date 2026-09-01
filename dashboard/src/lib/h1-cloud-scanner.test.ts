@@ -13,6 +13,7 @@ import {
   backfillSuppressedHistory,
   buildPublicFeed,
   buildStoredAlert,
+  clearLegacyScheduledSignalAtSlot,
   configuredCycleDecisionFor,
   configuredMonthEndBridgeCell,
   cycleDecisionFor,
@@ -26,9 +27,10 @@ import {
   isSpecialThursdayBrokerDate,
   parseCloudState,
   parsePublicFeedCloudState,
-  scheduledSignalSlotForBrokerHour,
+  scheduledSignalSlotForVietnamWall,
   signalledH1Candle,
   targetsForBlockHour,
+  vietnamAppointmentWallParts,
   type H1DirectionBar,
 } from "./h1-cloud-scanner.ts";
 
@@ -76,17 +78,52 @@ test("H3 belongs to FX, H4 to XAUUSD, and later blocks scan all five targets", (
   for (const hour of [6, 9, 12, 14, 16]) assert.deepEqual(targetsForBlockHour(hour), [...H1_TARGET_BASES]);
 });
 
-test("timed Telegram symbols map to the latest eligible H1 table cell", () => {
-  const date = "2026-08-31";
+test("timed Telegram symbols map Vietnam appointment anchors to H1 table cells", () => {
+  const date = "2026-09-01";
   assert.equal(h1TargetBaseFromSymbol("xauusd+"), "XAUUSD");
   assert.equal(h1TargetBaseFromSymbol("GBPCAD.a"), "GBPCAD");
   assert.equal(h1TargetBaseFromSymbol("gbpaud+"), "GBPAUD");
   assert.equal(h1TargetBaseFromSymbol("GBPJPY.pro"), "GBPJPY");
   assert.equal(h1TargetBaseFromSymbol("EURUSD"), null);
-  assert.equal(scheduledSignalSlotForBrokerHour("XAUUSD", date, 9), 9);
-  assert.equal(scheduledSignalSlotForBrokerHour("XAUUSD", date, 5), 4);
-  assert.equal(scheduledSignalSlotForBrokerHour("GBPUSD", date, 5), 3);
-  assert.equal(scheduledSignalSlotForBrokerHour("XAUUSD", date, 2), null);
+
+  assert.deepEqual(vietnamAppointmentWallParts(Date.parse("2026-09-01T03:05:00Z")), {
+    dateKey: "2026-09-01",
+    hour: 10,
+    minute: 5,
+  });
+
+  const anchors = [
+    [9, 5, 3],
+    [10, 5, 4],
+    [12, 5, 6],
+    [15, 5, 9],
+    [18, 5, 12],
+    [20, 5, 14],
+    [22, 5, 16],
+  ] as const;
+  for (const [hour, minute, slot] of anchors) {
+    assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, hour, minute), slot === 3 ? null : slot);
+    assert.equal(scheduledSignalSlotForVietnamWall("GBPUSD", date, hour, minute), slot === 4 ? 3 : slot);
+  }
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 10, 4), null);
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 10, 6), 4);
+  assert.equal(scheduledSignalSlotForVietnamWall("GBPUSD", date, 9, 4), null);
+});
+
+test("corrected Telegram re-sync clears only the same-side legacy slot", () => {
+  const legacy = buildStoredAlert({
+    base: "XAUUSD",
+    brokerSymbol: "XAUUSD",
+    baseBar: h1Bars("T", 6, "2026-09-01")[0],
+    slotHour: 6,
+    brokerDate: "2026-09-01",
+  });
+  legacy.scheduledSignal = "BUY";
+  const alerts = [legacy];
+  assert.equal(clearLegacyScheduledSignalAtSlot(alerts, 6, 4, "SELL"), false);
+  assert.equal(alerts[0].scheduledSignal, "BUY");
+  assert.equal(clearLegacyScheduledSignalAtSlot(alerts, 6, 4, "BUY"), true);
+  assert.equal(alerts[0].scheduledSignal, null);
 });
 
 test("stored alert composes base H1 candle direction, matrix phase and no entry/pattern fields", () => {

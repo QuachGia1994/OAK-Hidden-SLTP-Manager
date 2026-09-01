@@ -102,6 +102,67 @@ export function scheduledSignalSlotForBrokerHour(base: H1TargetBase, brokerDate:
   return eligible.at(-1) ?? null;
 }
 
+// Telegram appointment text is parsed in Vietnam time. H1 column labels are
+// business block IDs, not the current IC Markets wall hour; keep this mapping
+// explicit so broker DST cannot move a 10:05 appointment from H04 to H06.
+const VIETNAM_UTC_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+export function vietnamAppointmentWallParts(epochMs: number) {
+  const shifted = new Date(epochMs + VIETNAM_UTC_OFFSET_MS);
+  const year = shifted.getUTCFullYear();
+  const month = shifted.getUTCMonth() + 1;
+  const day = shifted.getUTCDate();
+  return {
+    dateKey: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+    hour: shifted.getUTCHours(),
+    minute: shifted.getUTCMinutes(),
+  };
+}
+
+export const H1_TELEGRAM_VIETNAM_SLOT_ANCHORS = [
+  { slotHour: 3, appointmentHour: 9, appointmentMinute: 5 },
+  { slotHour: 4, appointmentHour: 10, appointmentMinute: 5 },
+  { slotHour: 6, appointmentHour: 12, appointmentMinute: 5 },
+  { slotHour: 9, appointmentHour: 15, appointmentMinute: 5 },
+  { slotHour: 12, appointmentHour: 18, appointmentMinute: 5 },
+  { slotHour: 14, appointmentHour: 20, appointmentMinute: 5 },
+  { slotHour: 16, appointmentHour: 22, appointmentMinute: 5 },
+] as const;
+
+export function scheduledSignalSlotForVietnamWall(
+  base: H1TargetBase,
+  vietnamDate: string,
+  vietnamHour: number,
+  vietnamMinute: number,
+): number | null {
+  if (
+    !isValidBrokerDateKey(vietnamDate)
+    || !Number.isInteger(vietnamHour) || vietnamHour < 0 || vietnamHour > 23
+    || !Number.isInteger(vietnamMinute) || vietnamMinute < 0 || vietnamMinute > 59
+  ) return null;
+  const appointmentMinute = vietnamHour * 60 + vietnamMinute;
+  const eligible = H1_TELEGRAM_VIETNAM_SLOT_ANCHORS
+    .filter(({ slotHour, appointmentHour, appointmentMinute: anchorMinute }) => (
+      appointmentHour * 60 + anchorMinute <= appointmentMinute
+      && isH1SlotActiveForBrokerDate(vietnamDate, slotHour)
+      && (targetsForBlockHour(slotHour) as readonly H1TargetBase[]).includes(base)
+    ));
+  return eligible.at(-1)?.slotHour ?? null;
+}
+
+export function clearLegacyScheduledSignalAtSlot(
+  alerts: H1StoredAlert[],
+  legacySlotHour: number | null,
+  targetSlotHour: number,
+  side: H1Signal,
+): boolean {
+  if (legacySlotHour === null || legacySlotHour === targetSlotHour) return false;
+  const legacyIndex = alerts.findIndex((alert) => alert.slotHour === legacySlotHour);
+  if (legacyIndex < 0 || alerts[legacyIndex].scheduledSignal !== side) return false;
+  alerts[legacyIndex] = { ...alerts[legacyIndex], scheduledSignal: null };
+  return true;
+}
+
 export function signalFromDirection(direction: H1Direction): H1Signal {
   return direction === "T" ? "BUY" : "SELL";
 }
