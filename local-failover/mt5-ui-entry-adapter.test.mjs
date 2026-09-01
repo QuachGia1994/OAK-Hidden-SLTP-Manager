@@ -14,7 +14,18 @@ import {
 } from "./oak-local-failover-domain.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+const managerEaSource = await fs.readFile(path.join(HERE, "..", "mt5", "OAK_Cloud_Manager_EA.mq5"), "utf8");
 const NOW = Date.UTC(2026, 7, 31, 12, 0, 0);
+
+test("EA symbol readiness preflight selects Market Watch and gates entry trade mode", () => {
+  assert.match(managerEaSource, /action=="symbol_prepare"/);
+  assert.match(managerEaSource, /SYMBOL_TRADE_MODE/);
+  assert.match(managerEaSource, /SYMBOL_TRADE_MODE_LONGONLY/);
+  assert.match(managerEaSource, /SYMBOL_TRADE_MODE_SHORTONLY/);
+  assert.match(managerEaSource, /SYMBOL_TRADE_MODE_CLOSEONLY/);
+  assert.match(managerEaSource, /SymbolSelect\(requested,true\)/);
+  assert.match(managerEaSource, /ExecuteSymbolPrepareTask/);
+});
 
 function scheduledTask(overrides = {}) {
   const originKey = "tg:900:0:mt5:abcdefgh";

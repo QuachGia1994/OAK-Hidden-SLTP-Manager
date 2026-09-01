@@ -698,7 +698,7 @@ bool ValidateBridgeTaskEnvelope(const string task,string &detail)
    if(StringLen(task)<=0 || StringLen(task)>16384) { detail="task payload size is invalid"; return false; }
    if(JsonLong(task,"version",0)!=2) { detail="task version must be 2"; return false; }
    string action=Lower(JsonString(task,"action"));
-   if(action!="positions" && action!="entry" && action!="entry_prepare" && action!="close" && action!="modify" && action!="partial") { detail="unsupported MT5 task action"; return false; }
+   if(action!="positions" && action!="symbol_prepare" && action!="entry" && action!="entry_prepare" && action!="close" && action!="modify" && action!="partial") { detail="unsupported MT5 task action"; return false; }
    string source=Lower(JsonString(task,"source"));
    if(source!="local-primary") { detail="local-only EA accepts local-primary tasks only"; return false; }
    if(Lower(JsonString(task,"bridgeProfile"))!=ProfileKey()) { detail="bridge profile mismatch"; return false; }
@@ -710,6 +710,12 @@ bool ValidateBridgeTaskEnvelope(const string task,string &detail)
    string payload=JsonRaw(task,"payload");
    if(payload=="" || StringLen(payload)>8192) { detail="task payload is missing/too large"; return false; }
    if(action=="positions") return true;
+   if(action=="symbol_prepare")
+   {
+      string side=Upper(JsonString(payload,"side"));
+      if((side!="BUY" && side!="SELL") || JsonString(payload,"symbol")=="") { detail="symbol_prepare payload is invalid"; return false; }
+      return true;
+   }
 
    string origin=JsonString(task,"originKey");
    string ledger=JsonString(task,"ledgerKey");
@@ -1057,8 +1063,42 @@ string ResolveSymbol(string requested)
          if(diff<best_diff) { best=name; best_diff=diff; }
       }
    }
-   if(best!="") SymbolSelect(best,true);
-   return best;
+   if(best!="" && SymbolSelect(best,true)) return best;
+   return "";
+}
+
+bool PrepareEntrySymbol(const string requested, const bool buy, string &symbol, string &detail)
+{
+   symbol=ResolveSymbol(requested);
+   if(symbol=="")
+   {
+      detail="symbol not found or could not be added to Market Watch";
+      return false;
+   }
+   if(!SymbolInfoInteger(symbol,SYMBOL_SELECT) && !SymbolSelect(symbol,true))
+   {
+      detail="symbol "+symbol+" could not be added to Market Watch";
+      return false;
+   }
+
+   long trade_mode=SymbolInfoInteger(symbol,SYMBOL_TRADE_MODE);
+   bool allowed=(trade_mode==SYMBOL_TRADE_MODE_FULL)
+      || (buy && trade_mode==SYMBOL_TRADE_MODE_LONGONLY)
+      || (!buy && trade_mode==SYMBOL_TRADE_MODE_SHORTONLY);
+   if(allowed)
+   {
+      detail="symbol "+symbol+" is ready for "+(buy?"BUY":"SELL");
+      return true;
+   }
+
+   string mode="UNKNOWN";
+   if(trade_mode==SYMBOL_TRADE_MODE_DISABLED) mode="DISABLED";
+   else if(trade_mode==SYMBOL_TRADE_MODE_LONGONLY) mode="LONGONLY";
+   else if(trade_mode==SYMBOL_TRADE_MODE_SHORTONLY) mode="SHORTONLY";
+   else if(trade_mode==SYMBOL_TRADE_MODE_CLOSEONLY) mode="CLOSEONLY";
+   else if(trade_mode==SYMBOL_TRADE_MODE_FULL) mode="FULL";
+   detail="symbol "+symbol+" is not tradeable for "+(buy?"BUY":"SELL")+" (trade mode "+mode+")";
+   return false;
 }
 
 bool PreEntryNet(const string symbol, bool buy, string &detail)
@@ -1452,18 +1492,36 @@ string PositionSnapshotJson()
    return out;
 }
 
+string ExecuteSymbolPrepareTask(const string task)
+{
+   string payload=JsonRaw(task,"payload");
+   string side=Upper(JsonString(payload,"side"));
+   string symbol="";
+   string detail="";
+   if(!PrepareEntrySymbol(JsonString(payload,"symbol"),side=="BUY",symbol,detail))
+      return ResultJson(false,"symbol_prepare",detail);
+   return "{\"ok\":true"
+      +",\"action\":\"symbol_prepare\""
+      +",\"detail\":"+JsonQuote(detail)
+      +",\"resolvedSymbol\":"+JsonQuote(symbol)
+      +"}";
+}
+
 string ExecuteEntryPrepareTask(const string task)
 {
    string payload=JsonRaw(task,"payload");
    string protection=JsonRaw(task,"protection");
    string side=Upper(JsonString(payload,"side"));
-   string symbol=ResolveSymbol(JsonString(payload,"symbol"));
+   string symbol="";
+   string symbol_detail="";
+   if(!PrepareEntrySymbol(JsonString(payload,"symbol"),side=="BUY",symbol,symbol_detail))
+      return ResultJson(false,"entry_prepare",symbol_detail);
    double requested_lots=JsonDouble(payload,"lot",0);
    double slp=JsonDouble(protection,"slPoints",0);
    double tpp=JsonDouble(protection,"tpPoints",0);
    string entry_ledger=JsonString(payload,"entryLedgerKey");
-   if(symbol=="" || (side!="BUY" && side!="SELL") || !IsLowerHex(entry_ledger,40))
-      return ResultJson(false,"entry_prepare","invalid symbol/side/final entry ledger");
+   if((side!="BUY" && side!="SELL") || !IsLowerHex(entry_ledger,40))
+      return ResultJson(false,"entry_prepare","invalid side/final entry ledger");
 
    string comment="OAK:"+StringSubstr(entry_ledger,0,16);
    ulong existing=0;
@@ -1493,11 +1551,14 @@ string ExecuteEntryTask(const string task)
    string payload=JsonRaw(task,"payload");
    string protection=JsonRaw(task,"protection");
    string side=Upper(JsonString(payload,"side"));
-   string symbol=ResolveSymbol(JsonString(payload,"symbol"));
+   string symbol="";
+   string symbol_detail="";
+   if(!PrepareEntrySymbol(JsonString(payload,"symbol"),side=="BUY",symbol,symbol_detail))
+      return ResultJson(false,"entry",symbol_detail);
    double lots=JsonDouble(payload,"lot",0);
    double slp=JsonDouble(protection,"slPoints",0);
    double tpp=JsonDouble(protection,"tpPoints",0);
-   if(symbol=="" || (side!="BUY" && side!="SELL")) return ResultJson(false,"entry","invalid symbol/side");
+   if(side!="BUY" && side!="SELL") return ResultJson(false,"entry","invalid side");
    string ledger=JsonString(task,"ledgerKey");
    string comment=(IsLowerHex(ledger,40)?"OAK:"+StringSubstr(ledger,0,16):"OAK Cloud");
    ulong ref=0; string detail="";
@@ -1591,6 +1652,7 @@ string ExecuteTask(const string task)
 {
    string action=Lower(JsonString(task,"action"));
    if(action=="positions") return ResultJson(true,"positions",IntegerToString(PositionsTotal())+" open position(s)",false,"",PositionSnapshotJson());
+   if(action=="symbol_prepare") return ExecuteSymbolPrepareTask(task);
    if(action=="entry_prepare") return ExecuteEntryPrepareTask(task);
    if(action=="entry") return ExecuteEntryTask(task);
    if(action=="close") return ExecuteCloseTask(task);
@@ -1715,7 +1777,8 @@ void PollLocalOnce()
    if(!ReadCommonText(task_path,task) || task=="") return;
    string action=Lower(JsonString(task,"action"));
    string ledger=JsonString(task,"ledgerKey");
-   bool ledger_safe=IsLowerHex(ledger,40) || (action=="positions" && IsSafeReadLedger(ledger));
+   bool read_action=(action=="positions" || action=="symbol_prepare");
+   bool ledger_safe=IsLowerHex(ledger,40) || (read_action && IsSafeReadLedger(ledger));
    if(!ledger_safe || task_path!=LocalTaskPath(ledger))
    {
       Print("[OAK-EA] malformed local task path/ledger rejected before broker execution");
@@ -1732,7 +1795,7 @@ void PollLocalOnce()
       return;
    }
 
-   if(action=="positions")
+   if(read_action)
    {
       string read_result=ExecuteTask(task);
       AtomicCreateCommonText(LocalResultPath(ledger),TaskResultEnvelope(task,read_result));

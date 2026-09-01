@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added a fail-closed pre-confirmation symbol gate for PC-local scheduled MT5 UI entries. Before Telegram reports an intent as saved/armed, the controller asks the target terminal to resolve the broker symbol, adds it to Market Watch when needed, and checks the side against `SYMBOL_TRADE_MODE`; disabled, close-only, or wrong-direction symbols are rejected without allocating an intent ID. The resolved broker symbol is shown in the confirmation, and the same trade-mode gate is rechecked at due-time preparation/execution.
+
 - Fixed H1 Live timed-entry slot sync: Telegram appointment epochs are now mapped from their Vietnam wall-clock schedule (`09:05→H03`, `10:05→H04`, `12:05→H06`, `15:05→H09`, `18:05→H12`, `20:05→H14`, `22:05→H16`) instead of IC Markets broker DST. Re-sync safely clears only the same-side legacy cell, so `BUY XAUUSD 0.01 10h05 FXCE` moves from the incorrect H06 cell to H04 without placing or replaying a broker order.
 
 - Fixed PC-local scheduled manual-entry lot submission after the FXCE XAUUSD incident where Telegram requested `0.01` but MT5 sent deal/order `0.03`. MT5's Volume edit text was only visual and could diverge from its internal order model, so the executor now changes lot through the native Volume spinner, verifies both the numeric field and contract summary (`0.01` / `1 XAU`), records before/after audit evidence, and fails closed if the control cannot reach the requested lot. The targeted window messages do not capture the global mouse or keyboard.

@@ -5,8 +5,9 @@
 ## Runtime flow
 
 ```text
-Scheduled ENTRY -> controller -> EA entry_prepare -> targeted MT5 order-window messages -> broker
-Other actions   -> controller -> MetaTrader FILE_COMMON -> OAK EA -> broker
+Scheduled ENTRY save -> controller -> EA symbol_prepare -> Telegram saved/armed reply
+Scheduled ENTRY due  -> controller -> EA entry_prepare -> targeted MT5 order-window messages -> broker
+Other actions        -> controller -> MetaTrader FILE_COMMON -> OAK EA -> broker
 Website signal  -> optional non-blocking H1 sync
 ```
 
@@ -14,7 +15,7 @@ The local controller owns Telegram timing and durable intent state. The website 
 
 ## Features
 
-- Local `entry`, `close`, `closeall`, `modify`, `partial`, and `positions` through FILE_COMMON; EA v1.08 introduced internal `entry_prepare` for scheduled UI entry. EA v1.09 closes every matching broker prefix/suffix variant for a base FX/metal root, including the XAUUSD/GOLD alias.
+- Local `entry`, `close`, `closeall`, `modify`, `partial`, and `positions` through FILE_COMMON; EA v1.08 introduced internal `entry_prepare` for scheduled UI entry. The current source also exposes non-broker `symbol_prepare` so the controller can resolve/select a broker symbol in Market Watch and reject disabled, close-only, or wrong-direction `SYMBOL_TRADE_MODE` before Telegram saves/arms a timed UI intent. EA v1.09 closes every matching broker prefix/suffix variant for a base FX/metal root, including the XAUUSD/GOLD alias.
 - Automatic SL/TP on managed positions opened by EA, manual, mobile, or other permitted sources when protection is missing.
 - Entry netting policy: skip same direction, close opposite positions, remove opposite pending orders before a new entry.
 - Break-even at configurable R with optional point offset.
@@ -28,6 +29,7 @@ The local controller owns Telegram timing and durable intent state. The website 
 - EA v1.06 removed all cloud bridge settings from MT5 Properties and stopped cloud polling from `OnTimer`.
 - EA v1.07 lowers the local FILE_COMMON poll default to `100ms` and makes all partial closes round DOWN to broker volume step while always retaining at least one broker minimum-volume remainder.
 - EA v1.08 adds internal `entry_prepare`: it preserves the existing same-direction skip, opposite-position/pending cleanup, exposure/lot/symbol/tick guards and absolute SL/TP calculation, then returns exact fields for the controller. Only a due scheduled entry may use those fields to click the exact MT5 Buy/Sell control via targeted window messages; immediate entries and all management actions remain EA-executed. No global mouse or keyboard injection is used.
+- `symbol_prepare` runs before a timed MT5 UI intent is persisted. It uses broker-wide symbol discovery plus `SymbolSelect(..., true)` to add a missing symbol to Market Watch, returns the resolved prefix/suffix symbol for the Telegram confirmation, and checks the requested side against `SYMBOL_TRADE_MODE`. It does not send/close/modify an order. The same trade-mode check runs again at due-time `entry_prepare`/`entry` execution.
 
 ## Install
 

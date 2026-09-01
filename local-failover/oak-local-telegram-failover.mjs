@@ -1056,7 +1056,7 @@ export function createLocalFailoverRuntime(options = {}) {
       return [
         `✅ Local intent #${shortId} saved`,
         `• Entry: ${String(payload.side || "").toUpperCase()}`,
-        `• Symbol: ${String(payload.symbol || "").toUpperCase()}`,
+        `• Symbol: ${String(intent.resolvedSymbol || payload.symbol || "")}`,
         `• Profile: ${account.label}`,
         `• Time: ${localIntentTimeText(intent)}`,
         `• Lot: ${payload.lot}`,
@@ -1077,12 +1077,48 @@ export function createLocalFailoverRuntime(options = {}) {
     ].join("\n");
   }
 
+  async function prepareScheduledUiEntrySymbol(config, account, parsed) {
+    if (!shouldUseMt5UiEntry({ action: parsed.kind, dueAt: parsed.dueAt }, config)) return "";
+    const suffix = randomUUID().replace(/[^a-zA-Z0-9_-]+/g, "");
+    const id = `R-${clock()}-${suffix.slice(0, 12)}`;
+    const task = {
+      version: 2,
+      id,
+      taskId: id,
+      source: LOCAL_PRIMARY_MODE,
+      originKey: "",
+      ledgerKey: `read_symbol_${suffix}`.slice(0, 90),
+      taskDigest: "",
+      providerAccountId: account.providerAccountId,
+      bridgeProfile: account.bridgeProfile,
+      login: account.login,
+      server: account.server,
+      action: "symbol_prepare",
+      payload: {
+        symbol: String(parsed.payload?.symbol || ""),
+        side: String(parsed.payload?.side || "").toUpperCase(),
+        legacyProfile: account.label,
+      },
+      protection: null,
+      createdAt: clock(),
+    };
+    const envelope = await dispatchTask(task, config);
+    const result = envelope?.result || {};
+    if (result.ok !== true) {
+      throw new Error(`@${account.label}: ${result.detail || "symbol readiness check failed"}`);
+    }
+    const resolvedSymbol = String(result.resolvedSymbol || "").trim();
+    if (!resolvedSymbol) throw new Error(`@${account.label}: MT5 returned no resolved broker symbol`);
+    return resolvedSymbol;
+  }
+
   async function createIntent(config, state, parsed, statuses, updateId, commandIndex) {
     const accounts = selectIntentAccounts(config, statuses, parsed);
     if (!state.epoch) state.epoch = newFailoverEpoch(clock());
     const outcomes = [];
 
     for (const account of accounts) {
+      const resolvedSymbol = await prepareScheduledUiEntrySymbol(config, account, parsed);
       const shortId = state.nextIntentSeq++;
       const id = localIntentId(state.epoch, shortId);
       const originKey = telegramMt5OriginKey(updateId, commandIndex, account.providerAccountId);
@@ -1123,6 +1159,7 @@ export function createLocalFailoverRuntime(options = {}) {
         dueText: parsed.dueText,
         payload,
         protection,
+        resolvedSymbol,
       };
       state.intents[id] = intent;
       if (status === "scheduled") intent.scheduledAt = clock();

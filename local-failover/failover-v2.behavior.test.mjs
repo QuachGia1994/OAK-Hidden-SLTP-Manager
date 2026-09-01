@@ -195,10 +195,13 @@ async function createHarness(name, options = {}) {
   const eaAdapter = {
     async dispatch({ task }) {
       eaTasks.push(task);
-      eaExecutions += task.action === "positions" ? 0 : 1;
+      eaExecutions += ["positions", "symbol_prepare"].includes(task.action) ? 0 : 1;
       if (options.eaDispatch) return options.eaDispatch(task, eaTasks);
       if (task.action === "positions") {
         return { status: "done", result: { ok: true, action: "positions", detail: "snapshot", positions: [] } };
+      }
+      if (task.action === "symbol_prepare") {
+        return { status: "done", result: { ok: true, action: "symbol_prepare", detail: "symbol ready", resolvedSymbol: String(task.payload?.symbol || "").toUpperCase() } };
       }
       return { status: "done", result: { ok: true, action: task.action, detail: "synthetic execution", brokerRef: "TEST" } };
     },
@@ -1122,6 +1125,65 @@ test("39 untargeted close fans out atomically to every enabled MT5 account", { c
     assert.equal(targeted.length, 1);
     assert.equal(targeted[0].accountLabel, "acct-b");
     assert.equal(targeted[0].payload.scope, "ALL");
+  } finally { await h.cleanup(); }
+});
+
+test("scheduled MT5 UI entry prepares broker symbol before saving the intent", { concurrency: false }, async () => {
+  const h = await createHarness("ui-symbol-prepare", {
+    controlMode: "local-primary",
+    scheduledEntryExecution: "mt5-ui",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+    eaDispatch(task) {
+      if (task.action === "symbol_prepare") {
+        return { status: "done", result: { ok: true, action: "symbol_prepare", detail: "symbol ready", resolvedSymbol: "XAUUSD.a" } };
+      }
+      return { status: "done", result: { ok: true, action: task.action, detail: "synthetic execution" } };
+    },
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 401, message: { chat: { id: 123 }, text: "/sell XAUUSD 0.01 23:59 @acct-a" } }, statuses);
+
+    assert.equal(h.eaTasks.length, 1);
+    assert.equal(h.eaTasks[0].action, "symbol_prepare");
+    assert.equal(h.eaTasks[0].payload.symbol, "XAUUSD");
+    assert.equal(h.eaTasks[0].payload.side, "SELL");
+    assert.equal(h.eaExecutions, 0);
+    assert.equal(Object.keys(state.intents).length, 1);
+    const intent = Object.values(state.intents)[0];
+    assert.equal(intent.resolvedSymbol, "XAUUSD.a");
+    assert.match(state.commands["401:0"].outcome, /Symbol: XAUUSD\.a/);
+    assert.match(state.commands["401:0"].outcome, /Status: scheduled/);
+  } finally { await h.cleanup(); }
+});
+
+test("scheduled MT5 UI entry rejects a non-tradeable symbol before allocating or arming an intent", { concurrency: false }, async () => {
+  const h = await createHarness("ui-symbol-reject", {
+    controlMode: "local-primary",
+    scheduledEntryExecution: "mt5-ui",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+    eaDispatch(task) {
+      if (task.action === "symbol_prepare") {
+        return { status: "failed", result: { ok: false, action: "symbol_prepare", detail: "symbol XAUUSD.a is not tradeable for SELL (trade mode LONGONLY)" } };
+      }
+      throw new Error(`unexpected action ${task.action}`);
+    },
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 402, message: { chat: { id: 123 }, text: "/sell XAUUSD 0.01 23:59 @acct-a" } }, statuses);
+
+    assert.equal(h.eaTasks.length, 1);
+    assert.equal(h.eaTasks[0].action, "symbol_prepare");
+    assert.equal(Object.keys(state.intents).length, 0);
+    assert.equal(state.nextIntentSeq, 1);
+    assert.match(state.commands["402:0"].outcome, /XAUUSD\.a is not tradeable for SELL/i);
+    assert.doesNotMatch(state.commands["402:0"].outcome, /intent #1 saved/i);
+    assert.equal(h.mt5UiTasks.length, 0);
   } finally { await h.cleanup(); }
 });
 
