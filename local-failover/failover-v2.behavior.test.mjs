@@ -25,6 +25,7 @@ import { mt5BrokerTaskDigest } from "../dashboard/src/lib/mt5-origin-domain.ts";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const manifest = JSON.parse(await fs.readFile(path.join(HERE, "behavior-cases.json"), "utf8"));
 const installerSource = await fs.readFile(path.join(HERE, "install-local-failover-task.ps1"), "utf8");
+const hiddenLauncherSource = await fs.readFile(path.join(HERE, "run-hidden-node.vbs"), "utf8");
 assert.equal(manifest.length, 39);
 assert.deepEqual(manifest.map((row) => row.id), Array.from({ length: 39 }, (_, index) => index + 1));
 
@@ -64,6 +65,15 @@ function statusFor(account = ACCOUNT_A, overrides = {}, now = BASE_NOW) {
 }
 
 const LOCAL_PRIMARY_PROVIDER_ACCOUNT_ID = "mt5:localtest01";
+
+test("local failover Scheduled Task keeps user context but launches Node hidden", () => {
+  assert.match(installerSource, /New-ScheduledTaskPrincipal[\s\S]*-LogonType Interactive/);
+  assert.match(installerSource, /run-hidden-node\.vbs/);
+  assert.match(installerSource, /System32\\wscript\.exe/);
+  assert.match(installerSource, /windowMode = "hidden-wscript"/);
+  assert.match(hiddenLauncherSource, /CreateObject\("WScript\.Shell"\)/);
+  assert.match(hiddenLauncherSource, /shell\.Run\(command, 0, True\)/);
+});
 
 function localPrimaryStatusFor(account = ACCOUNT_A, overrides = {}, now = BASE_NOW) {
   return statusFor(account, {

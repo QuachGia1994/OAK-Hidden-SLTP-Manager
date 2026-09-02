@@ -8,6 +8,8 @@ const boardSource = readFileSync(new URL("../components/H1SignalBoard.tsx", impo
 const redesignCss = readFileSync(new URL("../app/oak-redesign.css", import.meta.url), "utf8");
 const vipSource = readFileSync(new URL("./vip.ts", import.meta.url), "utf8");
 const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.meta.url), "utf8");
+const historyPageSource = readFileSync(new URL("../app/history/page.tsx", import.meta.url), "utf8");
+const evidencePanelSource = readFileSync(new URL("../components/H1EvidencePanel.tsx", import.meta.url), "utf8");
 const rootPageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const navBarSource = readFileSync(new URL("../components/NavBar.tsx", import.meta.url), "utf8");
 const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
@@ -40,6 +42,7 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(readerSource, /patternFamily/);
   assert.match(readerSource, /scannerSource/);
   assert.match(readerSource, /inversionBadge/);
+  assert.match(readerSource, /sampleBars/);
   assert.match(readerSource, /payload\.schemaVersion !== H1_SIGNAL_PUBLIC_SCHEMA/);
   assert.match(readerSource, /payload\.signalRuleVersion !== H1_SIGNAL_RULE_VERSION/);
   assert.match(readerSource, /readRedisReplicas<unknown>\(LATEST_KEY\)/);
@@ -89,16 +92,15 @@ test("H1 board omits the separate Entry Focus panel", () => {
   assert.doesNotMatch(redesignCss, /\.oak-entry-focus/);
 });
 
-test("XAUUSD entry cells are VIP-only while FX remains free", () => {
-  assert.match(vipSource, /VIP_FREE_ACCESS = false/);
-  assert.match(vipSource, /VIP_SIGNAL_SYMBOL = "XAUUSD"/);
-  assert.match(vipSource, /base\.toUpperCase\(\) === VIP_SIGNAL_SYMBOL/);
-  assert.match(vipSource, /const unlocked = freeAccess \|\| weekendFree \|\| vipAuthenticated/);
-  assert.match(vipSource, /mode: freeAccess \? "free"/);
-  assert.match(boardSource, /VIP_SIGNAL_SYMBOL/);
-  assert.match(boardSource, /oak-h1-cell-locked/);
-  assert.match(engineBoardSource, /XAUUSD entry-time cells/);
-  assert.match(engineBoardSource, /freeAccess: boolean/);
+test("H1 Live and History temporarily expose every entry cell as free access", () => {
+  assert.match(vipSource, /VIP_FREE_ACCESS = true/);
+  assert.match(engineBoardSource, /FREE ACCESS/);
+  assert.match(engineBoardSource, /All H1 entry-time cells unlocked/);
+  assert.match(boardSource, /oak-h1-free-access/);
+  assert.doesNotMatch(boardSource, /VIP_SIGNAL_SYMBOL|oak-h1-cell-locked|VIP required/);
+  assert.doesNotMatch(engineBoardSource, /VIP UNLOCK|VIP LOCKED|\/api\/vip|useDialogFocusTrap/);
+  assert.doesNotMatch(enginePageSource, /redactH1Signals|getVipAccessState/);
+  assert.doesNotMatch(historyPageSource, /redactH1Signals|getVipAccessState/);
 });
 
 test("H1 history uses a deterministic Sunday-first calendar without weekday filter controls", () => {
@@ -217,15 +219,23 @@ test("H1 board exports the selected scanner day as a shareable PNG with download
   assert.match(redesignCss, /\.oak-h1-share-png \{/);
 });
 
-test("H1 board exposes compact entry time while keeping pattern evidence out of the visible cell", () => {
-  assert.match(boardSource, /oak-h1-cell-entry/);
-  assert.match(boardSource, /H\{String\(alert\?\.entryHour\)\.padStart\(2, "0"\)\}/);
-  assert.match(boardSource, /title=\{`\$\{alert\?\.scannerSource/);
-  assert.doesNotMatch(boardSource, /DetailModal|Entry H1 base candle|Cây H1 base tại entry/);
+test("populated H1 cells open deterministic M15 pattern evidence without cluttering the cell", () => {
+  assert.match(boardSource, /oak-h1-cell-entry oak-h1-cell-evidence/);
+  assert.match(boardSource, /setEvidenceSelection/);
+  assert.match(boardSource, /<H1EvidencePanel/);
+  assert.match(evidencePanelSource, /M15 candlestick pattern evidence/);
+  assert.match(evidencePanelSource, /sampleBars/);
+  assert.match(evidencePanelSource, /Pattern Evidence · newest → oldest/);
+  assert.match(evidencePanelSource, /navigator\.clipboard\.writeText/);
+  assert.match(evidencePanelSource, /BLOCK H/);
+  assert.match(evidencePanelSource, /ENTRY H/);
+  assert.match(evidencePanelSource, /familyLabel/);
+  assert.match(evidencePanelSource, /GT\/TG/);
+  assert.match(evidencePanelSource, /TT\/GG/);
+  assert.match(redesignCss, /\.oak-h1-evidence-panel/);
+  assert.match(redesignCss, /\.oak-h1-evidence-chart/);
+  assert.match(redesignCss, /@media \(max-width: 759px\)[\s\S]*\.oak-h1-evidence-backdrop \{ align-items: flex-end;/);
   assert.match(boardSource, /oak-h1-degraded/);
   assert.match(boardSource, /H1_SCAN_HOURS/);
   assert.match(boardSource, /H1_TARGET_BASES/);
-  assert.match(vipSource, /redactH1Signals/);
-  assert.match(vipSource, /base\.toUpperCase\(\) === VIP_SIGNAL_SYMBOL/);
-  assert.match(vipSource, /alerts: \[\]/);
 });

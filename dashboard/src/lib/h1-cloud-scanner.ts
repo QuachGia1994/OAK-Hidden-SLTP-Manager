@@ -11,6 +11,7 @@ import {
   type H1M15Bar,
   type H1PatternFamily,
   type H1PatternGroup,
+  type H1PatternSampleBar,
 } from "./h1-local-patterns.ts";
 
 export const H1_CLOUD_STATE_VERSION = 56;
@@ -66,6 +67,7 @@ export type H1StoredAlert = {
   pattern?: string;
   scannerSource?: H1LocalSource | "";
   inversionBadge?: boolean;
+  sampleBars?: H1PatternSampleBar[];
 };
 
 export type H1CloudState = {
@@ -103,6 +105,7 @@ export type H1PublicFeed = {
       pattern: string;
       scannerSource: H1LocalSource | "";
       inversionBadge: boolean;
+      sampleBars: H1PatternSampleBar[];
     }> }>>;
   }>;
 };
@@ -441,6 +444,7 @@ export function evaluateLocalH1PatternsForTarget(
       pattern: match.pattern,
       scannerSource: match.scannerSource,
       inversionBadge: match.inverted,
+      sampleBars: match.sampleBars,
     });
   }
   return alerts;
@@ -659,6 +663,7 @@ export function parsePublicFeedCloudState(raw: unknown): H1CloudState | null {
           pattern: String(row.pattern || ""),
           scannerSource: (H1_LOCAL_SOURCES as readonly string[]).includes(String(row.scannerSource || "")) ? row.scannerSource as H1LocalSource : "",
           inversionBadge: Boolean(row.inversionBadge ?? row.postSignalInverted ?? decision.inverted),
+          sampleBars: Array.isArray(row.sampleBars) ? row.sampleBars : [],
         });
       }
       alerts.sort((left, right) => left.slotHour - right.slotHour);
@@ -729,6 +734,7 @@ export function buildPublicFeed(state: H1CloudState, publishedAt = new Date().to
               pattern: String(alert.pattern || ""),
               scannerSource: alert.scannerSource ?? "",
               inversionBadge: Boolean(alert.inversionBadge ?? alert.postSignalInverted),
+              sampleBars: alert.sampleBars ?? [],
             };
           }),
       };

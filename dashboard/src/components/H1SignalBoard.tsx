@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { H1EvidencePanel, type H1EvidenceSelection } from "@/components/H1EvidencePanel";
 import { historyDatesForWeekday, selectHistoryDate } from "@/lib/h1-history-navigation";
 import { activeH1ScanHoursForBrokerDate, H1_SCAN_HOURS, H1_TARGET_BASES } from "@/lib/h1-cloud-scanner";
 import type { H1SignalAlert, H1SignalPayload } from "@/lib/h1-signals";
@@ -14,7 +15,6 @@ const H1_SHARE_SYMBOL_WIDTH = 172;
 const H1_SHARE_HOUR_WIDTH = 88;
 const H1_SHARE_ROW_HEIGHT = 82;
 const H1_SHARE_FONT = '"Cascadia Mono", "SFMono-Regular", Consolas, monospace';
-const VIP_SIGNAL_SYMBOL = "XAUUSD";
 
 function canvasPngBlob(canvas: HTMLCanvasElement) {
   return new Promise<Blob>((resolve, reject) => {
@@ -316,9 +316,10 @@ function SundayCalendarPicker({
   );
 }
 
-export function H1SignalBoard({ data, degraded, locale, unlocked, mode = "live" }: { data: H1SignalPayload | null; degraded?: boolean; locale: Locale; unlocked: boolean; mode?: H1BoardMode }) {
+export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data: H1SignalPayload | null; degraded?: boolean; locale: Locale; mode?: H1BoardMode }) {
   const historyMode = mode === "history";
   const [selectedDate, setSelectedDate] = useState(() => data ? selectHistoryDate(data.days, "all", "") : "");
+  const [evidenceSelection, setEvidenceSelection] = useState<H1EvidenceSelection | null>(null);
   const [shareArtifact, setShareArtifact] = useState<ShareArtifact | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
   const tableScrollRef = useRef<HTMLDivElement>(null);
@@ -333,7 +334,7 @@ export function H1SignalBoard({ data, degraded, locale, unlocked, mode = "live" 
         title: historyMode ? "H1 Broker History" : "H1 Live Blocks",
         sub: historyMode ? "Retained local M15 pattern entries · choose a broker date to review" : "Current broker day · local ICMarkets M15 pattern entries",
         awaiting: "Awaiting local H1 feed",
-        locked: "XAUUSD entry-time cells require VIP · FX remains free",
+        freeAccess: "All H1 entry-time cells unlocked",
         dateGroup: "Broker date",
         noMatch: "No retained broker dates available.",
         coverage: `${allDates.length} trading days · ${earliestDate || "—"} → ${latestDate || "—"}`,
@@ -342,7 +343,7 @@ export function H1SignalBoard({ data, degraded, locale, unlocked, mode = "live" 
         title: historyMode ? "Lịch sử block H1" : "H1 Live",
         sub: historyMode ? "Entry pattern M15 local đã lưu · chọn ngày broker để xem lại" : "Ngày broker hiện tại · entry pattern M15 ICMarkets local",
         awaiting: "Đang chờ feed H1 local",
-        locked: "Entry time XAUUSD cần VIP · các cặp FX vẫn free",
+        freeAccess: "Tất cả ô entry-time H1 đã được mở",
         dateGroup: "Ngày broker",
         noMatch: "Không có ngày broker trong khoảng lưu trữ.",
         coverage: `${allDates.length} ngày giao dịch · ${earliestDate || "—"} → ${latestDate || "—"}`,
@@ -423,7 +424,7 @@ export function H1SignalBoard({ data, degraded, locale, unlocked, mode = "live" 
             <span><small>{historyMode ? (locale === "EN" ? "PHASE BASIS" : "CƠ SỞ PHA") : "STATUS"}</small><b>{historyMode ? (locale === "EN" ? "selected date" : "ngày đang chọn") : (locale === "EN" ? "current day" : "ngày hiện tại")}</b></span>
           </div>
         </header>
-        {!unlocked && <div className="oak-h1-locked">{copy.locked}</div>}
+        <div className="oak-h1-free-access"><b>FREE ACCESS</b><span>{copy.freeAccess}</span></div>
         {historyMode && <div className="oak-h1-history" data-empty="true">
           <div className="oak-h1-history-row">
             <span className="oak-h1-history-label">{copy.dateGroup}</span>
@@ -449,12 +450,9 @@ export function H1SignalBoard({ data, degraded, locale, unlocked, mode = "live" 
           <table className="oak-h1-table">
             <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{fallbackHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour}><span>H{String(hour).padStart(2, "0")}</span></th>)}</tr></thead>
             <tbody>{H1_TARGET_BASES.map((base) => (
-              <tr key={base}><th id={`h1-symbol-${base}`} scope="row" className="oak-h1-symbol-sticky"><b>{base}</b></th>{fallbackHours.map((hour) => {
-                if (base.toUpperCase() === VIP_SIGNAL_SYMBOL && !unlocked) {
-                  return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`}><span className="oak-h1-cell-locked" aria-label={`${base} H${hour}: VIP required`}>VIP</span></td>;
-                }
-                return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`}><span className="oak-h1-cell-empty">—</span></td>;
-              })}</tr>
+              <tr key={base}><th id={`h1-symbol-${base}`} scope="row" className="oak-h1-symbol-sticky"><b>{base}</b></th>{fallbackHours.map((hour) => (
+                <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`}><span className="oak-h1-cell-empty">—</span></td>
+              ))}</tr>
             ))}</tbody>
           </table>
         </div>
@@ -478,7 +476,7 @@ export function H1SignalBoard({ data, degraded, locale, unlocked, mode = "live" 
             </button>
           </div>
         </header>
-        {!unlocked && <div className="oak-h1-locked">{copy.locked}</div>}
+        <div className="oak-h1-free-access"><b>FREE ACCESS</b><span>{copy.freeAccess}</span></div>
         {historyMode && <div className="oak-h1-history">
           <div className="oak-h1-history-row">
             <span className="oak-h1-history-label">{copy.dateGroup}</span>
@@ -505,16 +503,14 @@ export function H1SignalBoard({ data, degraded, locale, unlocked, mode = "live" 
               return <tr key={base}><th id={`h1-symbol-${base}`} scope="row" className="oak-h1-symbol-sticky"><b>{base}</b></th>{activeHours.map((hour) => {
                 const alert = byHour.get(hour);
                 const inverted = Boolean(alert?.inversionBadge);
-                if (base.toUpperCase() === VIP_SIGNAL_SYMBOL && !unlocked) {
-                  return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-post-signal-inverted={inverted ? "true" : undefined}><span className="oak-h1-cell-locked" aria-label={`${base} H${hour}: VIP required`}>VIP</span></td>;
-                }
                 if (!Number.isInteger(alert?.entryHour)) return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`}><span className="oak-h1-cell-empty">—</span></td>;
-                return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-pattern-group={alert?.patternGroup || undefined} data-post-signal-inverted={inverted ? "true" : undefined} title={`${alert?.scannerSource || base} · ${alert?.pattern || ""} · ${alert?.patternGroup || ""}`}><span className="oak-h1-cell-entry"><b>H{String(alert?.entryHour).padStart(2, "0")}</b>{inverted ? <small>{locale === "EN" ? "INVERT" : "ĐẢO"}</small> : null}</span></td>;
+                return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-pattern-group={alert?.patternGroup || undefined} data-post-signal-inverted={inverted ? "true" : undefined} title={`${alert?.scannerSource || base} · ${alert?.pattern || ""} · ${alert?.patternGroup || ""}`}><button type="button" className="oak-h1-cell-entry oak-h1-cell-evidence" onClick={() => setEvidenceSelection({ base, brokerDate: date, alert: alert! })} aria-label={`${base} H${hour}: ${locale === "EN" ? "view pattern evidence" : "xem pattern evidence"}`}><b>H{String(alert?.entryHour).padStart(2, "0")}</b>{inverted ? <small>{locale === "EN" ? "INVERT" : "ĐẢO"}</small> : null}</button></td>;
               })}</tr>;
             })}</tbody>
           </table>
         </div></>}
       </section>
+      <H1EvidencePanel selection={evidenceSelection} locale={locale} onClose={() => setEvidenceSelection(null)} />
     </>
   );
 }

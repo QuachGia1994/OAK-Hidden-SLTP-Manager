@@ -15,6 +15,15 @@ export type H1M15Bar = {
   hour: number;
   minute: number;
   direction: H1LocalDirection;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+};
+
+export type H1PatternSampleBar = H1M15Bar & {
+  brokerTime: string;
+  selected: boolean;
 };
 
 export type H1PatternMatch = {
@@ -24,6 +33,7 @@ export type H1PatternMatch = {
   entryHour: number;
   scannerSource: H1LocalSource;
   inverted: boolean;
+  sampleBars: H1PatternSampleBar[];
 };
 
 const FLIP: Record<H1LocalDirection, H1LocalDirection> = { T: "G", G: "T" };
@@ -95,18 +105,29 @@ export function patternWindowForSlot(
   brokerDate: string,
   slotHour: number,
   source: H1LocalSource,
-): { family: H1PatternFamily; sequence: string } | null {
+): { family: H1PatternFamily; sequence: string; sampleBars: H1PatternSampleBar[] } | null {
   const family = patternFamilyForSlot(bars, brokerDate, slotHour);
   if (!family) return null;
   const start = slotHour * 60;
   const offsets = family === "SAME"
     ? [-30, -45, -60, -75, -90, -105]
     : [-45, -60, -75, -90, -105, -120];
-  const selected = offsets
-    .filter((offset) => !(family === "ALT" && source === "XAUUSD" && offset === -120))
-    .map((offset) => barAt(bars, brokerDate, start + offset));
-  if (selected.some((bar) => !bar)) return null;
-  return { family, sequence: selected.map((bar) => bar!.direction).join("") };
+  const candidates = offsets.map((offset) => ({
+    offset,
+    selected: !(family === "ALT" && source === "XAUUSD" && offset === -120),
+    bar: barAt(bars, brokerDate, start + offset),
+  }));
+  if (candidates.some((item) => item.selected && !item.bar)) return null;
+  const sampleBars = candidates.flatMap(({ bar, selected }) => bar ? [{
+    ...bar,
+    brokerTime: `${String(bar.hour).padStart(2, "0")}:${String(bar.minute).padStart(2, "0")}`,
+    selected,
+  }] : []);
+  return {
+    family,
+    sequence: sampleBars.filter((bar) => bar.selected).map((bar) => bar.direction).join(""),
+    sampleBars,
+  };
 }
 
 export function classifyPattern(sequence: string): { group: H1PatternGroup; pattern: string } | null {
@@ -138,6 +159,7 @@ export function evaluateLocalH1Pattern(args: {
     entryHour: slotHour + (match.group === "SW" ? 2 : 1),
     scannerSource,
     inverted: weekdayInversionBadge(target, brokerDate, slotHour),
+    sampleBars: window.sampleBars,
   };
 }
 

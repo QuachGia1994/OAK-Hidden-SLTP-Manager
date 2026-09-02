@@ -16,6 +16,7 @@ const timekeeper = readFileSync(new URL("../../../cloudflare/h1-timekeeper/src/i
 const reader = readFileSync(new URL("../../../local-failover/mt5-h1-market-reader.py", import.meta.url), "utf8");
 const publisher = readFileSync(new URL("../../../local-failover/oak-local-h1-scanner.mjs", import.meta.url), "utf8");
 const installer = readFileSync(new URL("../../../local-failover/install-local-h1-scanner-task.ps1", import.meta.url), "utf8");
+const hiddenLauncher = readFileSync(new URL("../../../local-failover/run-hidden-node.vbs", import.meta.url), "utf8");
 
 test("legacy cloud H1 run/backfill endpoints are authenticated no-ops owned by local MT5", () => {
   for (const source of [route, backfillRoute]) {
@@ -85,6 +86,11 @@ test("local H1 Scheduled Task runs once per minute, ignores overlap and starts a
   assert.match(installer, /DontStopIfGoingOnBatteries/);
   assert.match(installer, /MetaTrader5/);
   assert.match(installer, /--dry-run/);
+  assert.match(installer, /run-hidden-node\.vbs/);
+  assert.match(installer, /System32\\wscript\.exe/);
+  assert.match(installer, /windowMode = "hidden-wscript"/);
+  assert.match(hiddenLauncher, /WScript\.Shell/);
+  assert.match(hiddenLauncher, /shell\.Run\(command, 0, True\)/);
 });
 
 test("H1 state publication still uses dual Redis evidence and owned singleton lock", () => {

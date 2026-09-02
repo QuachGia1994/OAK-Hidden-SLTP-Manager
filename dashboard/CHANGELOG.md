@@ -6,6 +6,8 @@ All notable changes to the dashboard are recorded here.
 
 ### Added
 
+- Added click-through H1 pattern evidence for populated Live/History cells. The evidence panel uses the exact retained local ICMarkets M15 OHLC bars used by matching, shows source symbol, block/entry, SW/BT, original GT/TG or TT/GG family, final pattern and weekday inversion, supports copyable evidence text, and renders a dependency-free SVG candlestick chart with sampled-window, BLOCK and ENTRY markers. Mobile presents the same evidence as a bottom sheet.
+
 - Added the PC-local scheduled MT5 entry driver and EA v1.08 preparation contract. Only due `entry` intents may use targeted MT5 order-window messages with no global mouse/keyboard injection; immediate entry and every management action remain on the EA mailbox path, while ambiguous submit outcomes are durably `UNCERTAIN` and never replayed automatically.
 
 - Added idempotent Telegram entry scheduling support for live H1 operations. Existing pending H1 intents are backfilled for notification when their entry time is near, fixed lots are 0.05 for FX and 0.01 for XAUUSD on the $5,000 sizing policy, and pending H1 intent lots are normalized before approval. H1 history now uses a visual native calendar picker with weekday filters and broker-date bounds. Scanner-originated block/signal Telegram reminders were subsequently retired in favor of operator-entered timed commands feeding the web table.
@@ -16,6 +18,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Temporarily changed H1 access to `FREE ACCESS` for every Live/History entry cell, including XAUUSD, and removed the H1 VIP unlock/redaction path from those pages. The local H1/Telegram Windows tasks now launch through a hidden `wscript.exe` wrapper so scheduled background work no longer opens console windows while retaining the current user/network context.
 - H1 Live timed entries now map the Vietnam appointment schedule explicitly: `09:05→H03`, `10:05→H04`, `12:05→H06`, `15:05→H09`, `18:05→H12`, `20:05→H14`, `22:05→H16`. This prevents IC Markets DST conversion from putting `XAUUSD 10:05` in H06; a safe re-sync clears only the matching legacy side and restores it to H04 without broker execution.
 - PC-local scheduled manual entry now changes Volume through MT5's native spinner instead of trusting a visually replaced edit value. This fixes the confirmed FXCE XAUUSD case where requested `0.01` displayed correctly but the terminal submitted its prior internal `0.03`; preparation verifies both `0.01` and `1 XAU`, persists before/after audit evidence, fails closed on mismatch, and never captures the global mouse or keyboard.
 - PC-local timed `/close` and `/closeall` commands without `@ACCOUNT` now fan out to every enabled MT5 account; explicit `@ACCOUNT` remains single-target. Natural `Đóng all lúc HHhMM` and `Đóng SYMBOL lúc HHhMM` forms are accepted too. Each account keeps its own durable origin/ledger, and the EA matches base FX/metal symbols against broker prefix/suffix variants before closing positions.

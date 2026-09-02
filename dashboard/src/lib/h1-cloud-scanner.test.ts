@@ -32,7 +32,20 @@ function bars(date: string, sequence: string, family: "ALT" | "SAME"): H1M15Bar[
     const times = [[2, 30], [2, 15], [2, 0], [1, 45], [1, 30], [1, 15]] as const;
     [...sequence].forEach((direction, index) => rows.push([times[index][0], times[index][1], direction as "T" | "G"]));
   }
-  return rows.map(([hour, minute, direction]) => ({ brokerDate: date, hour, minute, direction }));
+  return rows.map(([hour, minute, direction], index) => {
+    const open = 200 + index;
+    const close = direction === "T" ? open + 0.8 : open - 0.8;
+    return {
+      brokerDate: date,
+      hour,
+      minute,
+      direction,
+      open,
+      high: Math.max(open, close) + 0.3,
+      low: Math.min(open, close) - 0.3,
+      close,
+    };
+  });
 }
 
 function market(date: string, sequence = "TGTGTG", family: "ALT" | "SAME" = "ALT"): H1LocalMarketSnapshot {
@@ -70,6 +83,8 @@ test("local pattern evaluation writes entry hour, pattern group, source and week
     [3, 5, "SW", "AUDUSD", true],
   );
   assert.equal(alerts[0].symbolH1Signal, null);
+  assert.equal(alerts[0].sampleBars?.length, 6);
+  assert.equal(alerts[0].sampleBars?.[0].brokerTime, "02:15");
 });
 
 test("GBPCAD derives H3 from AUDUSD and later blocks from USDJPY", () => {
@@ -128,6 +143,9 @@ test("public feed schema 18 exposes entry time and inversion badge and can seed 
   assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours], [18, 59, [3, 6, 9, 12, 14, 16]]);
   const row = feed.days[date].symbols.GBPAUD?.alerts[0];
   assert.deepEqual([row?.entryHour, row?.patternGroup, row?.scannerSource, row?.inversionBadge], [4, "BT", "AUDUSD", true]);
+  assert.equal(row?.sampleBars.length, 6);
+  assert.equal(row?.sampleBars[0]?.open, 202);
   const seeded = parsePublicFeedCloudState(feed);
   assert.equal(seeded?.days[date].symbols.GBPAUD?.alerts[0].entryHour, 4);
+  assert.equal(seeded?.days[date].symbols.GBPAUD?.alerts[0].sampleBars?.length, 6);
 });

@@ -9,6 +9,7 @@ param(
 $ErrorActionPreference = "Stop"
 $TaskName = "OAK Local Telegram Failover"
 $Script = Join-Path $PSScriptRoot "oak-local-telegram-failover.mjs"
+$HiddenLauncher = Join-Path $PSScriptRoot "run-hidden-node.vbs"
 $Domain = Join-Path $PSScriptRoot "oak-local-failover-domain.mjs"
 $RuntimeDir = Join-Path $env:LOCALAPPDATA "OAK Gatekeeper"
 if (-not $ConfigPath) { $ConfigPath = Join-Path $RuntimeDir "telegram-failover-config.json" }
@@ -72,6 +73,7 @@ function Test-Mt5UserContext {
 
 function Invoke-Doctor {
   if (-not (Test-Path -LiteralPath $Script -PathType Leaf)) { throw "Failover controller not found: $Script" }
+  if (-not (Test-Path -LiteralPath $HiddenLauncher -PathType Leaf)) { throw "Hidden launcher not found: $HiddenLauncher" }
   if (-not (Test-Path -LiteralPath $Domain -PathType Leaf)) { throw "Failover domain not found: $Domain" }
   $node = Get-NodeInfo
   Test-NodeImportGraph $node.Path
@@ -96,8 +98,10 @@ function Invoke-Doctor {
 function New-FailoverTaskDefinition {
   $node = Get-NodeInfo
   $identity = Get-CurrentIdentityInfo
-  $arguments = '"{0}"' -f $Script
-  $taskAction = New-ScheduledTaskAction -Execute $node.Path -Argument $arguments -WorkingDirectory $PSScriptRoot
+  $wscript = Join-Path $env:SystemRoot "System32\wscript.exe"
+  if (-not (Test-Path -LiteralPath $wscript -PathType Leaf)) { throw "Windows Script Host unavailable: $wscript" }
+  $arguments = '"{0}" "{1}" "{2}"' -f $HiddenLauncher, $node.Path, $Script
+  $taskAction = New-ScheduledTaskAction -Execute $wscript -Argument $arguments -WorkingDirectory $PSScriptRoot
   $logonTrigger = New-ScheduledTaskTrigger -AtLogOn -User $identity.Name
   $watchdogStart = (Get-Date).AddMinutes(1)
   $watchdogTrigger = New-ScheduledTaskTrigger -Once -At $watchdogStart -RepetitionInterval (New-TimeSpan -Minutes 1) -RepetitionDuration (New-TimeSpan -Days 3650)
@@ -122,7 +126,7 @@ try {
       $null = Invoke-Doctor
       $definition = New-FailoverTaskDefinition
       if ($DryRun) {
-        [pscustomobject]@{ ok = $true; dryRun = $true; action = "Install"; taskName = $TaskName; multipleInstances = "IgnoreNew"; restartCount = 999; watchdogEveryMinutes = 1; allowStartOnBatteries = $true; stopIfGoingOnBatteries = $false; logonType = "Interactive"; mutationsPerformed = 0 } | ConvertTo-Json
+        [pscustomobject]@{ ok = $true; dryRun = $true; action = "Install"; taskName = $TaskName; multipleInstances = "IgnoreNew"; restartCount = 999; watchdogEveryMinutes = 1; allowStartOnBatteries = $true; stopIfGoingOnBatteries = $false; logonType = "Interactive"; windowMode = "hidden-wscript"; mutationsPerformed = 0 } | ConvertTo-Json
         exit 0
       }
       Register-ScheduledTask -TaskName $TaskName -InputObject $definition -Force | Out-Null

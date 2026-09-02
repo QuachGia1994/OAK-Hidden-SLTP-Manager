@@ -14,7 +14,20 @@ import {
 } from "./h1-local-patterns.ts";
 
 function barsFor(date: string, pairs: Array<[number, number, "T" | "G"]>): H1M15Bar[] {
-  return pairs.map(([hour, minute, direction]) => ({ brokerDate: date, hour, minute, direction }));
+  return pairs.map(([hour, minute, direction], index) => {
+    const open = 100 + index;
+    const close = direction === "T" ? open + 0.6 : open - 0.6;
+    return {
+      brokerDate: date,
+      hour,
+      minute,
+      direction,
+      open,
+      high: Math.max(open, close) + 0.25,
+      low: Math.min(open, close) - 0.25,
+      close,
+    };
+  });
 }
 
 function h3Bars(sequence: string, family: "ALT" | "SAME", date = "2026-09-02", source = "AUDUSD"): H1M15Bar[] {
@@ -25,7 +38,7 @@ function h3Bars(sequence: string, family: "ALT" | "SAME", date = "2026-09-02", s
     [...sequence].forEach((direction, index) => {
       if (index < times.length) rows.push([times[index][0], times[index][1], direction as "T" | "G"]);
     });
-    if (source === "XAUUSD") rows.splice(rows.findIndex(([h, m]) => h === 1 && m === 0), 1);
+    void source;
   } else {
     rows.push([2, 45, "T"], [2, 30, "T"]);
     const times: Array<[number, number]> = [[2, 30], [2, 15], [2, 0], [1, 45], [1, 30], [1, 15]];
@@ -83,15 +96,26 @@ test("weekday inversion badges follow GBPAUD and Thursday GBPUSD rules", () => {
 test("ALT family skips two newest bars and XAUUSD excludes H-2:00", () => {
   const date = "2026-09-02";
   const fx = patternWindowForSlot(h3Bars("TGTGTG", "ALT", date), date, 3, "AUDUSD");
-  assert.deepEqual(fx, { family: "ALT", sequence: "TGTGTG" });
+  assert.equal(fx?.family, "ALT");
+  assert.equal(fx?.sequence, "TGTGTG");
+  assert.equal(fx?.sampleBars.length, 6);
+  assert.deepEqual(fx?.sampleBars.map((bar) => [bar.hour, bar.minute, bar.selected]), [
+    [2, 15, true], [2, 0, true], [1, 45, true], [1, 30, true], [1, 15, true], [1, 0, true],
+  ]);
   const gold = patternWindowForSlot(h3Bars("TGTGTG", "ALT", date, "XAUUSD"), date, 3, "XAUUSD");
-  assert.deepEqual(gold, { family: "ALT", sequence: "TGTGT" });
+  assert.equal(gold?.family, "ALT");
+  assert.equal(gold?.sequence, "TGTGT");
+  assert.equal(gold?.sampleBars.length, 6);
+  assert.equal(gold?.sampleBars.at(-1)?.selected, false);
 });
 
 test("SAME family uses H-0:30 through H-1:45 newest to oldest", () => {
   const date = "2026-09-02";
   const same = patternWindowForSlot(h3Bars("TGTGTT", "SAME", date), date, 3, "AUDUSD");
-  assert.deepEqual(same, { family: "SAME", sequence: "TGTGTT" });
+  assert.equal(same?.family, "SAME");
+  assert.equal(same?.sequence, "TGTGTT");
+  assert.equal(same?.sampleBars.length, 6);
+  assert.ok(same?.sampleBars.every((bar) => bar.selected));
 });
 
 test("six pattern definitions classify long patterns before their TGT prefix", () => {
@@ -107,6 +131,9 @@ test("SW enters block+2 and BT enters block+1", () => {
   assert.equal(sw?.group, "SW");
   assert.equal(sw?.entryHour, 5);
   assert.equal(sw?.inverted, true);
+  assert.equal(sw?.sampleBars.length, 6);
+  assert.equal(sw?.sampleBars[0]?.brokerTime, "02:15");
+  assert.equal(sw?.sampleBars[0]?.open, 102);
   const bt = evaluateLocalH1Pattern({ target: "GBPAUD", brokerDate: date, slotHour: 3, bars: h3Bars("TTGTTT", "ALT", date) });
   assert.equal(bt?.group, "BT");
   assert.equal(bt?.entryHour, 4);

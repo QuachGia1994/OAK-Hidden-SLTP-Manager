@@ -13,6 +13,19 @@ import {
 export type H1SignalSide = "BUY" | "SELL";
 export type H1PostSignalRule = "none" | "cycle-net-invert" | "cycle-net-keep" | "regular-net-invert" | "regular-net-keep" | "weekday-invert" | "weekday-keep";
 
+export type H1SignalSampleBar = {
+  brokerDate: string;
+  brokerTime: string;
+  hour: number;
+  minute: number;
+  direction: "T" | "G";
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  selected: boolean;
+};
+
 export type H1SignalAlert = {
   slotHour: number;
   symbol: string;
@@ -32,6 +45,7 @@ export type H1SignalAlert = {
   pattern?: string;
   scannerSource?: "XAUUSD" | "AUDUSD" | "USDJPY" | "GBPUSD" | "";
   inversionBadge?: boolean;
+  sampleBars?: H1SignalSampleBar[];
 };
 
 export type H1SymbolDay = {

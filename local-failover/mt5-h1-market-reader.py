@@ -92,12 +92,18 @@ def main():
                 epoch = int(row["time"])
                 broker_date, hour, minute = broker_wall_parts(epoch)
                 open_price = float(row["open"])
+                high_price = float(row["high"])
+                low_price = float(row["low"])
                 close_price = float(row["close"])
                 bars.append({
                     "brokerDate": broker_date,
                     "hour": hour,
                     "minute": minute,
                     "direction": "T" if close_price > open_price else "G",
+                    "open": open_price,
+                    "high": high_price,
+                    "low": low_price,
+                    "close": close_price,
                 })
             payload_symbols[base] = {"displayName": symbol, "bars": bars}
 

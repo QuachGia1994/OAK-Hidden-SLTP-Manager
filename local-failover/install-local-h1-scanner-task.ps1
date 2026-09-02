@@ -7,6 +7,7 @@ param(
 $ErrorActionPreference = "Stop"
 $TaskName = "OAK Local H1 Scanner"
 $Script = Join-Path $PSScriptRoot "oak-local-h1-scanner.mjs"
+$HiddenLauncher = Join-Path $PSScriptRoot "run-hidden-node.vbs"
 $Reader = Join-Path $PSScriptRoot "mt5-h1-market-reader.py"
 $ConfigPath = Join-Path $env:LOCALAPPDATA "OAK Gatekeeper\telegram-failover-config.json"
 
@@ -32,6 +33,7 @@ function Get-PythonPath {
 
 function Invoke-Doctor {
   if (-not (Test-Path -LiteralPath $Script -PathType Leaf)) { throw "Local H1 scanner not found: $Script" }
+  if (-not (Test-Path -LiteralPath $HiddenLauncher -PathType Leaf)) { throw "Hidden launcher not found: $HiddenLauncher" }
   if (-not (Test-Path -LiteralPath $Reader -PathType Leaf)) { throw "MT5 H1 reader not found: $Reader" }
   if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) { throw "Local controller config not found: $ConfigPath" }
   $node = Get-NodePath
@@ -52,7 +54,10 @@ function Invoke-Doctor {
 function New-TaskDefinition {
   $node = Get-NodePath
   $identity = Get-Identity
-  $taskAction = New-ScheduledTaskAction -Execute $node -Argument ('"{0}"' -f $Script) -WorkingDirectory $PSScriptRoot
+  $wscript = Join-Path $env:SystemRoot "System32\wscript.exe"
+  if (-not (Test-Path -LiteralPath $wscript -PathType Leaf)) { throw "Windows Script Host unavailable: $wscript" }
+  $arguments = '"{0}" "{1}" "{2}"' -f $HiddenLauncher, $node, $Script
+  $taskAction = New-ScheduledTaskAction -Execute $wscript -Argument $arguments -WorkingDirectory $PSScriptRoot
   $logonTrigger = New-ScheduledTaskTrigger -AtLogOn -User $identity.Name
   $start = (Get-Date).AddMinutes(1)
   $repeatTrigger = New-ScheduledTaskTrigger -Once -At $start -RepetitionInterval (New-TimeSpan -Minutes 1) -RepetitionDuration (New-TimeSpan -Days 3650)
@@ -76,7 +81,7 @@ try {
       $doctor = Invoke-Doctor
       $definition = New-TaskDefinition
       if ($DryRun) {
-        [pscustomobject]@{ ok = $true; dryRun = $true; taskName = $TaskName; everyMinutes = 1; multipleInstances = "IgnoreNew"; brokerDate = $doctor.brokerDate; mutationsPerformed = 0 } | ConvertTo-Json
+        [pscustomobject]@{ ok = $true; dryRun = $true; taskName = $TaskName; everyMinutes = 1; multipleInstances = "IgnoreNew"; brokerDate = $doctor.brokerDate; windowMode = "hidden-wscript"; mutationsPerformed = 0 } | ConvertTo-Json
         exit 0
       }
       Register-ScheduledTask -TaskName $TaskName -InputObject $definition -Force | Out-Null

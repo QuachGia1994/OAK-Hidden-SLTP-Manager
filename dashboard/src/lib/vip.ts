@@ -5,8 +5,8 @@ import type { H1SignalPayload } from "@/lib/h1-signals";
 
 export const VIP_COOKIE = "sltp_vip_access";
 const VIP_PURPOSE = "oakgatekeeper-vip-v1";
-// XAUUSD signal sides are VIP-only. FX signal sides remain public/free.
-export const VIP_FREE_ACCESS = false;
+// Temporary campaign mode: all H1 entry-time cells are public/free.
+export const VIP_FREE_ACCESS = true;
 export const VIP_SIGNAL_SYMBOL = "XAUUSD";
 
 export type VipAccessState = {

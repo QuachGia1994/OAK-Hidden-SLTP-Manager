@@ -102,8 +102,8 @@ test("H1 history renders one custom calendar trigger with newest date and covera
   assert.match(vn, /03 \/ 02 \/ 2026/);
   assert.match(en, /aria-haspopup="dialog"/);
   assert.doesNotMatch(en, /type="date"/);
-  assert.doesNotMatch(en, /All|Mon|Tue|Wed|Thu|Fri|Lọc theo thứ|Filter by weekday/);
-  assert.doesNotMatch(vn, /Tất cả|Lọc theo thứ/);
+  assert.doesNotMatch(en, />All<|>Mon<|>Tue<|>Wed<|>Thu<|>Fri<|Lọc theo thứ|Filter by weekday/);
+  assert.doesNotMatch(vn, />Tất cả<|Lọc theo thứ/);
 });
 
 test("local pattern entry hour and inversion badge render in the matching H1 table cell", () => {

@@ -1828,6 +1828,211 @@ body.oak-body {
   .oak-brand-copy strong { font-size: .72rem; }
 }
 
+/* H1 free-access + deterministic M15 evidence viewer. */
+.oak-h1-free-access {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .46rem .72rem;
+  border-bottom: 1px solid var(--oak-border-subtle);
+  background: color-mix(in srgb, var(--oak-signal-buy) 7%, var(--oak-bg-surface));
+}
+.oak-h1-free-access b {
+  color: var(--oak-signal-buy);
+  font: 900 .54rem "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .08em;
+}
+.oak-h1-free-access span {
+  color: var(--oak-fg-muted);
+  font-size: .62rem;
+}
+.oak-h1-cell-evidence {
+  width: 100%;
+  min-height: 3.1rem;
+  border: 0;
+  cursor: pointer;
+  background: transparent;
+  transition: background-color var(--oak-motion-fast) ease, box-shadow var(--oak-motion-fast) ease;
+}
+.oak-h1-cell-evidence:hover { background: color-mix(in srgb, var(--oak-accent-command) 8%, transparent); }
+.oak-h1-cell-evidence:focus-visible { outline: 2px solid var(--oak-accent-command); outline-offset: -2px; }
+.oak-h1-evidence-backdrop { z-index: 180; padding: .75rem; }
+.oak-h1-evidence-panel {
+  box-sizing: border-box;
+  width: min(58rem, calc(100vw - 1.5rem));
+  max-height: calc(100dvh - 1.5rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--oak-border-subtle);
+  border-radius: var(--oak-radius-lg);
+  color: var(--oak-fg-primary);
+  background: color-mix(in srgb, var(--oak-bg-surface) 96%, #020617);
+  box-shadow: var(--oak-shadow-2);
+}
+.oak-h1-evidence-head {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .85rem .9rem .72rem;
+  border-bottom: 1px solid var(--oak-border-subtle);
+  background: color-mix(in srgb, var(--oak-bg-surface) 94%, transparent);
+  backdrop-filter: blur(16px);
+}
+.oak-h1-evidence-head h2 { margin-top: .14rem; font-size: 1.18rem; font-weight: 950; }
+.oak-h1-evidence-head p { margin-top: .12rem; color: var(--oak-fg-muted); font-size: .65rem; }
+.oak-h1-evidence-actions { display: flex; gap: .38rem; align-items: center; }
+.oak-h1-evidence-copy,
+.oak-h1-evidence-close {
+  min-height: 2.5rem;
+  padding: .42rem .68rem;
+  border: 1px solid var(--oak-border-subtle);
+  border-radius: var(--oak-radius-sm);
+  color: var(--oak-fg-primary);
+  background: var(--oak-bg-raised);
+  font: 850 .56rem "Cascadia Mono", Consolas, monospace;
+}
+.oak-h1-evidence-copy:hover,
+.oak-h1-evidence-close:hover { border-color: var(--oak-accent-command); }
+.oak-h1-evidence-close { width: 2.5rem; padding: 0; font-size: 1.2rem; }
+.oak-h1-evidence-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  padding: .72rem .9rem 0;
+}
+.oak-h1-evidence-chips span {
+  display: grid;
+  gap: .1rem;
+  min-width: 5.1rem;
+  padding: .42rem .55rem;
+  border: 1px solid var(--oak-border-subtle);
+  border-radius: 999px;
+  background: var(--oak-bg-raised);
+}
+.oak-h1-evidence-chips small,
+.oak-h1-evidence-meta small,
+.oak-h1-evidence-card-head small,
+.oak-h1-evidence-list header small {
+  color: var(--oak-fg-muted);
+  font: 800 .43rem "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .08em;
+}
+.oak-h1-evidence-chips b { font: 900 .58rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-evidence-chips span[data-kind="group"] { border-color: color-mix(in srgb, var(--oak-accent-command) 45%, var(--oak-border-subtle)); color: var(--oak-accent-command); }
+.oak-h1-evidence-chips span[data-kind="invert"] { border-color: color-mix(in srgb, var(--oak-status-warning) 55%, var(--oak-border-subtle)); color: var(--oak-status-warning); }
+.oak-h1-evidence-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .45rem;
+  padding: .65rem .9rem 0;
+}
+.oak-h1-evidence-meta > div {
+  min-width: 0;
+  padding: .55rem .62rem;
+  border: 1px solid var(--oak-border-subtle);
+  border-radius: var(--oak-radius-sm);
+  background: var(--oak-bg-raised);
+}
+.oak-h1-evidence-meta b {
+  display: block;
+  margin-top: .2rem;
+  overflow-wrap: anywhere;
+  font: 900 .64rem "Cascadia Mono", Consolas, monospace;
+}
+.oak-h1-evidence-chart-card,
+.oak-h1-evidence-list {
+  margin: .72rem .9rem 0;
+  border: 1px solid var(--oak-border-subtle);
+  border-radius: var(--oak-radius-md);
+  background: var(--oak-bg-raised);
+}
+.oak-h1-evidence-card-head,
+.oak-h1-evidence-list > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .6rem;
+  padding: .58rem .7rem;
+  border-bottom: 1px solid var(--oak-border-subtle);
+}
+.oak-h1-evidence-card-head > div { display: grid; gap: .1rem; }
+.oak-h1-evidence-card-head b,
+.oak-h1-evidence-list header b { font: 900 .62rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-evidence-card-head > span { color: var(--oak-fg-muted); font: 800 .48rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-evidence-chart { display: block; width: 100%; height: auto; min-height: 15rem; }
+.oak-h1-chart-plot { fill: color-mix(in srgb, var(--oak-bg-surface) 80%, transparent); }
+.oak-h1-chart-grid { stroke: var(--oak-border-subtle); stroke-width: 1; opacity: .65; }
+.oak-h1-chart-window { fill: color-mix(in srgb, var(--oak-accent-command) 7%, transparent); stroke: color-mix(in srgb, var(--oak-accent-command) 28%, transparent); stroke-width: 1; stroke-dasharray: 4 5; }
+.oak-h1-chart-window-label,
+.oak-h1-chart-time,
+.oak-h1-chart-direction,
+.oak-h1-chart-marker-label { fill: var(--oak-fg-muted); font: 800 9px "Cascadia Mono", Consolas, monospace; }
+.oak-h1-chart-direction { font-size: 10px; font-weight: 950; }
+.oak-h1-evidence-chart g[data-direction="T"] .oak-h1-chart-wick { stroke: var(--oak-signal-buy); }
+.oak-h1-evidence-chart g[data-direction="T"] .oak-h1-chart-body { fill: color-mix(in srgb, var(--oak-signal-buy) 68%, transparent); stroke: var(--oak-signal-buy); }
+.oak-h1-evidence-chart g[data-direction="T"] .oak-h1-chart-direction { fill: var(--oak-signal-buy); }
+.oak-h1-evidence-chart g[data-direction="G"] .oak-h1-chart-wick { stroke: var(--oak-signal-sell); }
+.oak-h1-evidence-chart g[data-direction="G"] .oak-h1-chart-body { fill: color-mix(in srgb, var(--oak-signal-sell) 68%, transparent); stroke: var(--oak-signal-sell); }
+.oak-h1-evidence-chart g[data-direction="G"] .oak-h1-chart-direction { fill: var(--oak-signal-sell); }
+.oak-h1-evidence-chart g[data-selected="false"] { opacity: .28; }
+.oak-h1-chart-wick { stroke-width: 1.7; }
+.oak-h1-chart-body { stroke-width: 1.2; }
+.oak-h1-chart-marker { stroke-width: 1.5; stroke-dasharray: 5 5; }
+.oak-h1-chart-marker-block { stroke: var(--oak-status-warning); }
+.oak-h1-chart-marker-entry { stroke: var(--oak-accent-command); }
+.oak-h1-chart-entry-label { fill: var(--oak-accent-command); }
+.oak-h1-evidence-chart-empty,
+.oak-h1-evidence-empty { padding: 1rem; color: var(--oak-fg-muted); font-size: .65rem; }
+.oak-h1-evidence-list { margin-bottom: .9rem; }
+.oak-h1-evidence-list > div {
+  display: grid;
+  grid-template-columns: 7rem 2.4rem minmax(0, 1fr) auto;
+  gap: .5rem;
+  align-items: center;
+  padding: .52rem .68rem;
+  border-bottom: 1px solid var(--oak-border-subtle);
+}
+.oak-h1-evidence-list > div:last-child { border-bottom: 0; }
+.oak-h1-evidence-list > div[data-selected="false"] { opacity: .46; }
+.oak-h1-evidence-list span { display: grid; gap: .08rem; }
+.oak-h1-evidence-list span b { font: 900 .6rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-evidence-list span small { color: var(--oak-fg-muted); font: 700 .46rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-evidence-list strong { display: grid; width: 1.8rem; height: 1.8rem; place-items: center; border-radius: 999px; font: 950 .58rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-evidence-list strong[data-direction="T"] { color: var(--oak-signal-buy); background: color-mix(in srgb, var(--oak-signal-buy) 12%, transparent); }
+.oak-h1-evidence-list strong[data-direction="G"] { color: var(--oak-signal-sell); background: color-mix(in srgb, var(--oak-signal-sell) 12%, transparent); }
+.oak-h1-evidence-list code { min-width: 0; overflow-wrap: anywhere; color: var(--oak-fg-primary); font: 750 .52rem/1.45 "Cascadia Mono", Consolas, monospace; }
+.oak-h1-evidence-list em { color: var(--oak-status-warning); font: 900 .44rem "Cascadia Mono", Consolas, monospace; font-style: normal; }
+
+@media (max-width: 759px) {
+  .oak-h1-evidence-backdrop { align-items: flex-end; padding: 0; }
+  .oak-h1-evidence-panel {
+    width: 100%;
+    max-height: min(88dvh, 50rem);
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 1rem 1rem 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .oak-h1-evidence-head { padding: .68rem .72rem .58rem; }
+  .oak-h1-evidence-copy { min-height: var(--oak-touch-min); }
+  .oak-h1-evidence-close { width: var(--oak-touch-min); min-height: var(--oak-touch-min); }
+  .oak-h1-evidence-chips { padding: .58rem .7rem 0; gap: .3rem; }
+  .oak-h1-evidence-chips span { min-width: 4.7rem; padding: .38rem .48rem; }
+  .oak-h1-evidence-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: .55rem .7rem 0; }
+  .oak-h1-evidence-chart-card,
+  .oak-h1-evidence-list { margin-right: .7rem; margin-left: .7rem; }
+  .oak-h1-evidence-chart { min-width: 42rem; }
+  .oak-h1-evidence-chart-card { overflow-x: auto; }
+  .oak-h1-evidence-list > div { grid-template-columns: 5.7rem 2.1rem minmax(9rem, 1fr); }
+  .oak-h1-evidence-list > div em { grid-column: 1 / -1; }
+  .oak-h1-free-access { padding: .4rem .55rem; }
+}
+
 @media print {
   .oak-spatial-stage { display: none !important; }
   .oak-nav, .oak-footer { display: none !important; }

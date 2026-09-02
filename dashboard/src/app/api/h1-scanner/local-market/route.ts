@@ -79,11 +79,18 @@ function parseBar(value: unknown): H1M15Bar | null {
   const hour = Number(row.hour);
   const minute = Number(row.minute);
   const direction = String(row.direction || "");
+  const open = Number(row.open);
+  const high = Number(row.high);
+  const low = Number(row.low);
+  const close = Number(row.close);
   if (!isValidBrokerDateKey(brokerDate)) return null;
   if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
   if (![0, 15, 30, 45].includes(minute)) return null;
   if (direction !== "T" && direction !== "G") return null;
-  return { brokerDate, hour, minute, direction };
+  if (![open, high, low, close].every(Number.isFinite)) return null;
+  if (high < Math.max(open, close) || low > Math.min(open, close) || high < low) return null;
+  if (direction !== (close > open ? "T" : "G")) return null;
+  return { brokerDate, hour, minute, direction, open, high, low, close };
 }
 
 function parseMarket(body: LocalMarketBody): { brokerDate: string; brokerHour: number; brokerMinute: number; login: number; server: string; market: H1LocalMarketSnapshot } {
@@ -121,7 +128,8 @@ function sameAlert(left: H1StoredAlert, right: H1StoredAlert): boolean {
     && left.patternFamily === right.patternFamily
     && left.pattern === right.pattern
     && left.scannerSource === right.scannerSource
-    && Boolean(left.inversionBadge) === Boolean(right.inversionBadge);
+    && Boolean(left.inversionBadge) === Boolean(right.inversionBadge)
+    && JSON.stringify(left.sampleBars ?? []) === JSON.stringify(right.sampleBars ?? []);
 }
 
 export async function POST(request: Request) {
@@ -157,7 +165,7 @@ export async function POST(request: Request) {
         const prior = existing.get(hour);
         const fresh = computed.find((alert) => alert.slotHour === hour);
         if (!targetEnabledForDate(target, parsed.brokerDate, hour)) {
-          if (prior?.scheduledSignal) next.push({ ...prior, entryHour: null, patternGroup: null, patternFamily: null, pattern: "", scannerSource: "", inversionBadge: false });
+          if (prior?.scheduledSignal) next.push({ ...prior, entryHour: null, patternGroup: null, patternFamily: null, pattern: "", scannerSource: "", inversionBadge: false, sampleBars: [] });
           continue;
         }
         if (fresh) {
@@ -168,7 +176,7 @@ export async function POST(request: Request) {
             updated += 1;
           }
         } else if (prior?.scheduledSignal) {
-          next.push({ ...prior, entryHour: null, patternGroup: null, patternFamily: null, pattern: "", scannerSource: "", inversionBadge: false });
+          next.push({ ...prior, entryHour: null, patternGroup: null, patternFamily: null, pattern: "", scannerSource: "", inversionBadge: false, sampleBars: [] });
         } else if (prior?.entryHour) {
           changed = true;
           updated += 1;

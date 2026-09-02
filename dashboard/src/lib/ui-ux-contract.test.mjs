@@ -5,6 +5,7 @@ import test from "node:test";
 const navSource = readFileSync(new URL("../components/NavBar.tsx", import.meta.url), "utf8");
 const h1EngineSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
 const h1SignalSource = readFileSync(new URL("../components/H1SignalBoard.tsx", import.meta.url), "utf8");
+const h1EvidenceSource = readFileSync(new URL("../components/H1EvidencePanel.tsx", import.meta.url), "utf8");
 const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.meta.url), "utf8");
 const accountSource = readFileSync(new URL("../components/ProviderAccountsPanel.tsx", import.meta.url), "utf8");
 const dialogHookSource = readFileSync(new URL("../hooks/useDialogFocusTrap.ts", import.meta.url), "utf8");
@@ -64,25 +65,27 @@ test("H1 entry cells stay centered, expose mobile scroll affordance and table he
   assert.match(h1SignalSource, /scope="col"/);
   assert.match(h1SignalSource, /scope="row"/);
   assert.match(h1SignalSource, /headers=\{`h1-symbol-\$\{base\} h1-hour-\$\{hour\}`\}/);
-  assert.match(h1SignalSource, /VIP required/);
+  assert.match(h1SignalSource, /oak-h1-cell-evidence/);
+  assert.doesNotMatch(h1SignalSource, /VIP required|oak-h1-cell-locked/);
   assert.match(oakCss, /\.oak-h1-cell-entry[\s\S]*display: grid/);
   assert.match(oakCss, /\.oak-h1-cell-entry[\s\S]*text-align: center/);
   assert.match(oakCss, /\.oak-h1-scroll-hint \{ display: block; color: var\(--oak-fg-muted\); font-size: \.625rem; \}/);
 });
 
 test("all custom trading and NeoTech dialogs use the shared keyboard focus trap", () => {
-  assert.match(h1EngineSource, /useDialogFocusTrap\(open/);
+  assert.match(h1EvidenceSource, /const open = Boolean\(selection\);/);
+  assert.match(h1EvidenceSource, /useDialogFocusTrap(?:<[^>]+>)?\(open, onClose\)/);
   assert.match(neoTechSource, /useDialogFocusTrap(?:<[^>]+>)?\(Boolean\(pairing\)/);
   assert.match(dialogHookSource, /event\.key === "Escape"/);
   assert.match(dialogHookSource, /event\.key !== "Tab"/);
   assert.match(dialogHookSource, /event\.shiftKey/);
 });
 
-test("H1 header stays simplified and VIP actions expose visible loading state", () => {
+test("H1 header stays simplified while free access removes VIP actions", () => {
   assert.doesNotMatch(h1EngineSource, /<small>PROFILE<\/small>/);
-  assert.match(h1EngineSource, /!open && error/);
-  assert.match(h1EngineSource, /oak-button-spinner/);
-  assert.match(oakCss, /\.oak-button-spinner/);
+  assert.match(h1EngineSource, /FREE ACCESS/);
+  assert.match(h1EngineSource, /All H1 entry-time cells unlocked/);
+  assert.doesNotMatch(h1EngineSource, /VIP UNLOCK|VIP LOCKED|oak-button-spinner|\/api\/vip/);
 });
 
 test("NeoTech and shared FactCheck states follow the global locale", () => {
