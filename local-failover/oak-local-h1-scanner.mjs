@@ -9,6 +9,7 @@ const execFile = promisify(execFileCallback);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP_LOCAL = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
 const CONFIG_PATH = process.env.OAK_LOCAL_FAILOVER_CONFIG || path.join(APP_LOCAL, "OAK Gatekeeper", "telegram-failover-config.json");
+const LOG_PATH = path.join(APP_LOCAL, "OAK Gatekeeper", "h1-scanner.log");
 const PYTHON = process.env.OAK_PYTHON || "python";
 const READER = path.join(HERE, "mt5-h1-market-reader.py");
 const DEFAULT_ENDPOINT = "https://www.oakgatekeeper.uk/api/h1-scanner/local-market";
@@ -52,12 +53,15 @@ async function postSnapshot(config, payload, fetchImpl) {
   const response = await fetchImpl(endpointFor(config), {
     method: "POST",
     headers: { ...authHeaders(config), "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, capturedAt: Date.now() }),
     cache: "no-store",
     signal: AbortSignal.timeout(20_000),
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok || body?.ok !== true) throw new Error(`local H1 publish failed (${response.status})`);
+  if (!response.ok || body?.ok !== true) {
+    const detail = String(body?.error || body?.skipped || "unexpected response").slice(0, 240);
+    throw new Error(`local H1 publish failed (${response.status}): ${detail}`);
+  }
   return body;
 }
 
@@ -65,6 +69,16 @@ function addCalendarDays(dateKey, days) {
   const [year, month, day] = dateKey.split("-").map(Number);
   const value = new Date(Date.UTC(year, month - 1, day + days));
   return value.toISOString().slice(0, 10);
+}
+
+function currentDaySnapshot(payload) {
+  return {
+    ...payload,
+    symbols: Object.fromEntries(SOURCE_KEYS.map((source) => [source, {
+      displayName: payload.symbols?.[source]?.displayName || source,
+      bars: (payload.symbols?.[source]?.bars || []).filter((bar) => bar.brokerDate === payload.brokerDate),
+    }])),
+  };
 }
 
 function dateSnapshots(payload, days) {
@@ -122,13 +136,18 @@ export async function publishIcMarketsM15({ fetchImpl = globalThis.fetch, exec =
     return { ok: true, backfill: true, days: snapshots.length, brokerDate: payload.brokerDate, brokerHour: payload.brokerHour, matched, updated, changedDays };
   }
 
-  return postSnapshot(config, payload, fetchImpl);
+  return postSnapshot(config, currentDaySnapshot(payload), fetchImpl);
+}
+
+async function appendRuntimeLog(level, message) {
+  await fs.mkdir(path.dirname(LOG_PATH), { recursive: true });
+  await fs.appendFile(LOG_PATH, `${new Date().toISOString()} ${level} ${String(message).replace(/[\r\n]+/g, " ")}\n`, "utf8");
 }
 
 export async function main() {
   const backfillDays = parseBackfillDays();
   const result = await publishIcMarketsM15({ dryRun: process.argv.includes("--dry-run"), backfillDays });
-  console.log(JSON.stringify({
+  const summary = {
     ok: true,
     brokerDate: result.brokerDate || "",
     brokerHour: result.brokerHour ?? null,
@@ -139,12 +158,16 @@ export async function main() {
     days: result.days ?? 0,
     dryRun: Boolean(result.dryRun),
     backfill: Boolean(result.backfill),
-  }));
+  };
+  await appendRuntimeLog("OK", JSON.stringify(summary));
+  console.log(JSON.stringify(summary));
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  main().catch((error) => {
-    console.error(error instanceof Error ? error.message : String(error));
+  main().catch(async (error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    await appendRuntimeLog("ERROR", message).catch(() => {});
+    console.error(message);
     process.exitCode = 2;
   });
 }
