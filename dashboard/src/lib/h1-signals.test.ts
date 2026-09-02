@@ -55,12 +55,14 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 rows and block set match the local ICMarkets v61 contract", () => {
+test("H1 rows and block set match the local ICMarkets v62 contract", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14, 16\]/);
   assert.match(scannerSource, /hour === 3 \|\| hour === 6/);
   assert.match(localMarketRouteSource, /evaluateLocalH1PatternsForTarget/);
+  assert.match(scannerSource, /xauStartsDayAtEntryH5/);
+  assert.match(scannerSource, /slotHour === 16 && invertH16FromXauH5/);
 });
 
 test("H1 cells render entry hour plus GBPUSD-derived BUY/SELL", () => {

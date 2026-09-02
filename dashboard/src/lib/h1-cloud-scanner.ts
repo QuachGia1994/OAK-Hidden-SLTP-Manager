@@ -15,12 +15,12 @@ import {
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 61;
+export const H1_SIGNAL_RULE_VERSION = 62;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-// Rule v61 uses the previous available broker day's GBPUSD H1 candle so every block can publish its final side immediately after pattern detection.
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v61";
+// Rule v62 keeps the previous-broker-day GBPUSD base and adds one day-level H16 toggle when XAUUSD starts the day at entry H5.
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v62";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "MT5 ICMarkets Local";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -78,7 +78,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 61;
+  signalRuleVersion: 62;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -198,6 +198,12 @@ function localSignalInvertedForTarget(base: H1TargetBase, slotHour: number): boo
   if (base === "GBPUSD") return [9, 12, 14, 16].includes(slotHour);
   if ((base === "GBPAUD" || base === "GBPCAD") && (slotHour === 3 || slotHour === 6)) return true;
   return false;
+}
+
+export function xauStartsDayAtEntryH5(brokerDate: string, market: H1LocalMarketSnapshot): boolean {
+  const source = market.XAUUSD;
+  if (!source || !targetEnabledForDate("XAUUSD", brokerDate, 3)) return false;
+  return evaluateLocalH1Pattern({ target: "XAUUSD", brokerDate, slotHour: 3, bars: source.bars })?.entryHour === 5;
 }
 
 function previousAvailableBrokerDate(brokerDate: string, bars: H1M15Bar[]): string | null {
@@ -439,6 +445,7 @@ export function evaluateLocalH1PatternsForTarget(
   throughHour = Number.POSITIVE_INFINITY,
 ): H1StoredAlert[] {
   const alerts: H1StoredAlert[] = [];
+  const invertH16FromXauH5 = xauStartsDayAtEntryH5(brokerDate, market);
   for (const slotHour of slotHours) {
     if (slotHour > throughHour || !targetEnabledForDate(base, brokerDate, slotHour)) continue;
     const scannerSource = scannerSourceForTarget(base, slotHour);
@@ -448,8 +455,11 @@ export function evaluateLocalH1PatternsForTarget(
     if (!match) continue;
     const reference = gbpusdH1DirectionForEntry(brokerDate, match.entryHour, market.GBPUSD.bars);
     const baseH1Signal = reference ? signalFromDirection(reference.direction) : null;
+    const localInverted = localSignalInvertedForTarget(base, slotHour);
+    const h16DayInverted = slotHour === 16 && invertH16FromXauH5;
+    const shouldInvert = localInverted !== h16DayInverted;
     const symbolH1Signal = baseH1Signal
-      ? (localSignalInvertedForTarget(base, slotHour) ? invertSignal(baseH1Signal) : baseH1Signal)
+      ? (shouldInvert ? invertSignal(baseH1Signal) : baseH1Signal)
       : null;
     alerts.push({
       slotHour,

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced H1 signal rule to v62: when the first XAUUSD entry-time of the broker day is H5, every H16 row flips its already-derived final signal once more. Existing per-symbol inversions still apply first, so GBPUSD H16 is double-inverted back to its GBPUSD base while XAUUSD/GBPAUD/GBPCAD/GBPJPY H16 take the opposite side. Legacy Thursday/Friday propagation and CẦU remain disabled/hidden. A fresh v62 state key prevents older H16 rows from surviving the rule change.
+
 - Fixed scheduled MT5 UI execution confirmations when the broker position appears after the initial EA snapshot window. After Buy/Sell is submitted, the controller now closes the order dialog and performs another read-only position proof; durable `UNCERTAIN` scheduled entries are also eligible for bounded late reconciliation using the exact account/comment/symbol/side/lot evidence. A late proof upgrades only the persisted intent to `executed` and sends its missing Telegram confirmation without replaying the broker mutation. Regression coverage also verifies that two same-time entries on different MT5 accounts each deliver an independent notification.
 
 - Fixed H1 signal rule v61 after live-table validation: BUY/SELL now uses the previous available broker day's GBPUSD H1 candle one hour before entry, so future entry times inside an already-computed block publish immediately instead of waiting for that entry hour. GBPAUD H3/H6 remains inverted and GBPCAD H3/H6 now always follows the same final GBPAUD side. The local publisher carries previous-broker-day GBPUSD M15 bars in live/backfill snapshots and the fresh v61 state prevents v60 null/same-day rows from surviving.
