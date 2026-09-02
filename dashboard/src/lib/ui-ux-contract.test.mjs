@@ -59,14 +59,14 @@ test("H1 live stays latest-day only while History owns Sunday-first date navigat
   assert.doesNotMatch(enginePageSource, /DashboardAutoRefresh|router\.refresh/);
 });
 
-test("H1 signal cells stay centered, expose mobile scroll affordance and table header relationships", () => {
-  assert.match(h1SignalSource, /oak-h1-cell-signal/);
+test("H1 entry cells stay centered, expose mobile scroll affordance and table header relationships", () => {
+  assert.match(h1SignalSource, /oak-h1-cell-entry/);
   assert.match(h1SignalSource, /scope="col"/);
   assert.match(h1SignalSource, /scope="row"/);
   assert.match(h1SignalSource, /headers=\{`h1-symbol-\$\{base\} h1-hour-\$\{hour\}`\}/);
   assert.match(h1SignalSource, /VIP required/);
-  assert.match(oakCss, /\.oak-h1-cell-signal[\s\S]*display: grid/);
-  assert.match(oakCss, /\.oak-h1-cell-signal[\s\S]*text-align: center/);
+  assert.match(oakCss, /\.oak-h1-cell-entry[\s\S]*display: grid/);
+  assert.match(oakCss, /\.oak-h1-cell-entry[\s\S]*text-align: center/);
   assert.match(oakCss, /\.oak-h1-scroll-hint \{ display: block; color: var\(--oak-fg-muted\); font-size: \.625rem; \}/);
 });
 
@@ -125,8 +125,8 @@ test("desktop spatial grid uses a stronger two-scale perspective plane without r
   assert.match(oakCss, /@media \(max-width: 899px\), \(pointer: coarse\)[\s\S]*\.oak-spatial-stage \{ display: none !important; \}/);
 });
 
-test("legacy history route stays intact while primary navigation hides it and nested routes keep skip/breadcrumb context", () => {
-  assert.doesNotMatch(navSource, /href="\/history"/);
+test("history route is restored to primary navigation and nested routes keep skip/breadcrumb context", () => {
+  assert.match(navSource, /href="\/history"/);
   assert.match(historyPageSource, /readLatestH1Signals/);
   assert.match(historyPageSource, /<H1SignalBoard/);
   assert.match(layoutSource, /oak-skip-link/);

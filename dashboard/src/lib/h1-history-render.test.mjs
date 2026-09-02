@@ -50,33 +50,39 @@ const { redactH1Signals } = await import(pathToFileURL(resolvePath(srcRoot, "lib
 const { brokerWallParts, icMarketsServerOffsetSeconds, normalizeHistoricalTrendbars } = await import(pathToFileURL(resolvePath(srcRoot, "lib/ctrader-json.ts")).href);
 const { latestH1Date, alertsForSymbol } = await import(pathToFileURL(resolvePath(repoRoot, "mobile/src/lib/h1.ts")).href);
 
-function alert(slotHour, signal = "BUY") {
+function alert(slotHour, entryHour = slotHour + 1, inverted = false) {
   return {
     slotHour,
     symbol: "XAUUSD",
-    profile: "cTrader IcMarkets",
+    profile: "MT5 ICMarkets Local",
     baseSymbol: "XAUUSD",
-    baseSignal: "BUY",
-    baseHour: slotHour + 1,
+    baseSignal: null,
+    baseHour: slotHour,
     baseMinute: 0,
-    baseDirection: "T",
-    signal,
+    baseDirection: "",
+    signal: null,
     scheduledSignal: null,
-    postSignalInverted: false,
-    postSignalRule: "none",
+    postSignalInverted: inverted,
+    postSignalRule: inverted ? "weekday-invert" : "weekday-keep",
+    entryHour,
+    patternGroup: "BT",
+    patternFamily: "SAME",
+    pattern: "TGT",
+    scannerSource: "XAUUSD",
+    inversionBadge: inverted,
   };
 }
 
 function payload() {
   const dates = ["2025-12-29", "2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02", "2026-01-05", "2026-02-03"];
   return {
-    schemaVersion: 17,
-    signalRuleVersion: 51,
-    profile: "cTrader IcMarkets",
+    schemaVersion: 18,
+    signalRuleVersion: 59,
+    profile: "MT5 ICMarkets Local",
     publishedAt: "2026-02-03T12:00:00.000Z",
-    hours: [3, 4, 6, 9, 12, 14, 16],
+    hours: [3, 6, 9, 12, 14, 16],
     symbols: ["XAUUSD"],
-    days: Object.fromEntries(dates.map((date, index) => [date, { symbols: { XAUUSD: { alerts: [alert(3, index % 2 ? "SELL" : "BUY")] } } }])),
+    days: Object.fromEntries(dates.map((date, index) => [date, { symbols: { XAUUSD: { alerts: [alert(3, index % 2 ? 4 : 5, index % 3 === 0)] } } }])),
   };
 }
 
@@ -100,12 +106,14 @@ test("H1 history renders one custom calendar trigger with newest date and covera
   assert.doesNotMatch(vn, /Tất cả|Lọc theo thứ/);
 });
 
-test("scheduled Telegram side renders in the matching H1 table cell", () => {
+test("local pattern entry hour and inversion badge render in the matching H1 table cell", () => {
   const data = payload();
-  data.days["2026-02-03"].symbols.XAUUSD.alerts = [{ ...alert(4), scheduledSignal: "BUY" }];
+  data.days["2026-02-03"].symbols.XAUUSD.alerts = [alert(3, 5, true)];
   const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data, locale: "VN", unlocked: true }));
-  assert.match(markup, /data-scheduled-signal="BUY"/);
-  assert.match(markup, /data-side="buy">BUY<\/span>/);
+  assert.match(markup, /data-pattern-group="BT"/);
+  assert.match(markup, /data-post-signal-inverted="true"/);
+  assert.match(markup, />H05<\/b>/);
+  assert.match(markup, />ĐẢO<\/small>/);
 });
 
 test("H1 empty live state stays current-day only without history calendar", () => {

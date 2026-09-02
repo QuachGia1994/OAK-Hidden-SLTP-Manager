@@ -11,7 +11,7 @@ import {
 } from "./h1-cloud-scanner";
 
 export type H1SignalSide = "BUY" | "SELL";
-export type H1PostSignalRule = "none" | "cycle-net-invert" | "cycle-net-keep" | "regular-net-invert" | "regular-net-keep";
+export type H1PostSignalRule = "none" | "cycle-net-invert" | "cycle-net-keep" | "regular-net-invert" | "regular-net-keep" | "weekday-invert" | "weekday-keep";
 
 export type H1SignalAlert = {
   slotHour: number;
@@ -26,6 +26,12 @@ export type H1SignalAlert = {
   scheduledSignal: H1SignalSide | null;
   postSignalInverted?: boolean;
   postSignalRule?: H1PostSignalRule;
+  entryHour?: number | null;
+  patternGroup?: "SW" | "BT" | null;
+  patternFamily?: "ALT" | "SAME" | null;
+  pattern?: string;
+  scannerSource?: "XAUUSD" | "AUDUSD" | "USDJPY" | "GBPUSD" | "";
+  inversionBadge?: boolean;
 };
 
 export type H1SymbolDay = {
@@ -46,7 +52,7 @@ export type H1SignalPayload = {
   days: Record<string, H1SignalDay>;
 };
 
-export const H1_SIGNAL_PUBLIC_SCHEMA = 17;
+export const H1_SIGNAL_PUBLIC_SCHEMA = 18;
 const LATEST_KEY = "robot-sltp:public:h1-signals:latest";
 
 function vietnamDateKey(now = new Date()): string {

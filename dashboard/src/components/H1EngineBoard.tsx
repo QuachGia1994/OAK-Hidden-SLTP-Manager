@@ -91,12 +91,12 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
   };
 
   const modeCopy = access.mode === "free"
-    ? { title: isEn ? "FREE ACCESS" : "FREE ACCESS", detail: isEn ? "FX BUY/SELL is open for everyone" : "BUY/SELL các cặp FX mở cho mọi user", action: "" }
+    ? { title: "FREE ACCESS", detail: isEn ? "FX entry-time cells are open for everyone" : "Ô entry time các cặp FX mở cho mọi user", action: "" }
     : access.mode === "vip"
-      ? { title: "VIP UNLOCKED", detail: isEn ? "XAUUSD BUY/SELL signals unlocked" : "Đã mở BUY/SELL XAUUSD", action: isEn ? "Exit VIP" : "Thoát VIP" }
+      ? { title: "VIP UNLOCKED", detail: isEn ? "XAUUSD entry-time cells unlocked" : "Đã mở entry time XAUUSD", action: isEn ? "Exit VIP" : "Thoát VIP" }
       : access.mode === "weekend"
-        ? { title: isEn ? "FREE WEEKEND" : "CUỐI TUẦN FREE", detail: isEn ? "Weekend XAUUSD BUY/SELL is open" : "BUY/SELL XAUUSD cuối tuần đang mở", action: "" }
-        : { title: "VIP LOCKED", detail: isEn ? "XAUUSD BUY/SELL signals require VIP" : "BUY/SELL XAUUSD cần VIP", action: isEn ? "Unlock" : "Mở VIP" };
+        ? { title: isEn ? "FREE WEEKEND" : "CUỐI TUẦN FREE", detail: isEn ? "Weekend XAUUSD entry cells are open" : "Ô entry XAUUSD cuối tuần đang mở", action: "" }
+        : { title: "VIP LOCKED", detail: isEn ? "XAUUSD entry-time cells require VIP" : "Entry time XAUUSD cần VIP", action: isEn ? "Unlock" : "Mở VIP" };
 
   return <>
     <section className="oak-access-panel" data-mode={access.mode}>
@@ -109,7 +109,7 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
     {!open && error && <p className="oak-form-error" role="alert">{error}</p>}
     {open && <div className="oak-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
       <section ref={dialogRef} className="oak-vip-modal" role="dialog" aria-modal="true" aria-label="VIP Unlock">
-        <header className="oak-modal-header"><div><span className="oak-eyebrow">PRIVATE ACCESS</span><h2>VIP UNLOCK</h2><p>{isEn ? "Enter your access code to reveal XAUUSD BUY/SELL signals." : "Nhập mã truy cập để mở BUY/SELL XAUUSD."}</p></div><button type="button" onClick={() => setOpen(false)} aria-label="Close">×</button></header>
+        <header className="oak-modal-header"><div><span className="oak-eyebrow">PRIVATE ACCESS</span><h2>VIP UNLOCK</h2><p>{isEn ? "Enter your access code to reveal XAUUSD entry-time cells." : "Nhập mã truy cập để mở entry time XAUUSD."}</p></div><button type="button" onClick={() => setOpen(false)} aria-label="Close">×</button></header>
         <label className="oak-vip-field"><span>{isEn ? "ACCESS CODE" : "MÃ VIP"}</span><input type="password" value={token} onChange={(event) => setToken(event.target.value)} onKeyDown={(event) => event.key === "Enter" && void unlock()} autoFocus autoComplete="current-password" /></label>
         {error && <p className="oak-form-error">{error}</p>}
         <button className="oak-primary-action" type="button" disabled={loading || !token.trim()} onClick={() => void unlock()}>{loading && <span className="oak-button-spinner" aria-hidden="true" />}{loading ? (isEn ? "UNLOCKING" : "ĐANG MỞ") : "UNLOCK BLOCKS"}</button>
@@ -122,12 +122,12 @@ export function H1EngineBoard({ h1Data, degraded, locale, access }: { h1Data: H1
   const dates = h1Data ? Object.keys(h1Data.days).sort() : [];
   const brokerDay = dates.at(-1) ?? "—";
   const copy = locale === "EN"
-    ? { title: "H1 Cloud Scanner", subtitle: "cTrader Live", day: "Broker day", updated: "Updated" }
-    : { title: "Scanner H1 Cloud", subtitle: "cTrader Live", day: "Ngày broker", updated: "Cập nhật" };
+    ? { title: "H1 Local Scanner", subtitle: "MT5 ICMarkets · M15", day: "Broker day", updated: "Updated" }
+    : { title: "Scanner H1 Local", subtitle: "MT5 ICMarkets · M15", day: "Ngày broker", updated: "Cập nhật" };
 
   return <div className="oak-engine-screen">
     <header className="oak-command-strip">
-      <div className="oak-command-title"><span className="oak-eyebrow">TRADING / H1 CLOUD</span><div><h1>{copy.title}</h1><b>{copy.subtitle}</b></div></div>
+      <div className="oak-command-title"><span className="oak-eyebrow">TRADING / H1 LOCAL</span><div><h1>{copy.title}</h1><b>{copy.subtitle}</b></div></div>
       <div className="oak-command-meta">
         <span><small>{copy.day.toUpperCase()}</small><b>{brokerDay}</b></span>
         <span><small>{copy.updated.toUpperCase()}</small><b>{formatPublished(h1Data?.publishedAt, locale)}</b></span>

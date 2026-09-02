@@ -6,6 +6,12 @@ import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent }
 import { useTheme } from "./ThemeProvider";
 import { useLocale } from "./LocaleProvider";
 
+function EngineIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18V9m5 9V5m5 13v-7m5 7V3" /></svg>;
+}
+function HistoryIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4m8-4v4M4 10h16M8 14h3m2 0h3" /></svg>;
+}
 function CheckIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5.6c0 4.4 3.1 7.8 7.5 9.4 4.4-1.6 7.5-5 7.5-9.4V6L12 3Z" /><path d="m8.5 12 2.2 2.2 4.8-5" /></svg>;
 }
@@ -97,7 +103,7 @@ export function NavBar() {
   return (
     <nav className="oak-nav sticky top-0 z-50">
       <div className="nav-shell oak-nav-layout">
-        <Link href="/neotech" className="oak-brand" aria-label="OAK Gatekeeper · ROBOT SLTP Pro">
+        <Link href="/engine" className="oak-brand" aria-label="OAK Gatekeeper · ROBOT SLTP Pro">
           <span className="oak-brand-icon"><img src="/favicon.ico?v=oak-gatekeeper-20260822" alt="" aria-hidden="true" /></span>
           <span className="oak-brand-copy">
             <small>OAK GATEKEEPER</small>
@@ -108,9 +114,27 @@ export function NavBar() {
         <div id="oak-mobile-navigation" className="oak-nav-workspace" data-mobile-open={mobileOpen ? "true" : undefined} aria-label="Product navigation">
           <span className="oak-nav-section-label">TRADING</span>
           <Link
+            href="/engine"
+            aria-current={pathname === "/engine" ? "page" : undefined}
+            className="oak-nav-link oak-nav-link-primary"
+            data-active={pathname === "/engine" ? "true" : undefined}
+          >
+            <span className="oak-nav-icon"><EngineIcon /></span>
+            <span>H1 Live</span>
+          </Link>
+          <Link
+            href="/history"
+            aria-current={pathname === "/history" ? "page" : undefined}
+            className="oak-nav-link"
+            data-active={pathname === "/history" ? "true" : undefined}
+          >
+            <span className="oak-nav-icon"><HistoryIcon /></span>
+            <span>{locale === "EN" ? "History" : "Lịch sử"}</span>
+          </Link>
+          <Link
             href="/neotech"
             aria-current={pathname === "/neotech" || pathname.startsWith("/neotech/") ? "page" : undefined}
-            className="oak-nav-link oak-nav-link-primary"
+            className="oak-nav-link"
             data-active={pathname === "/neotech" || pathname.startsWith("/neotech/") ? "true" : undefined}
           >
             <span className="oak-nav-icon"><NeoTechIcon /></span>

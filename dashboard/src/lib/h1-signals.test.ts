@@ -22,62 +22,54 @@ const mobileCalendarSource = readFileSync(new URL("../../../mobile/app/(tabs)/ca
 const mobileSignalsSource = readFileSync(new URL("../../../mobile/app/(tabs)/signals.tsx", import.meta.url), "utf8");
 const mobileReportsSource = readFileSync(new URL("../../../mobile/app/(tabs)/reports.tsx", import.meta.url), "utf8");
 const mobileMoreSource = readFileSync(new URL("../../../mobile/app/(tabs)/more.tsx", import.meta.url), "utf8");
+const scannerSource = readFileSync(new URL("./h1-cloud-scanner.ts", import.meta.url), "utf8");
+const localPatternsSource = readFileSync(new URL("./h1-local-patterns.ts", import.meta.url), "utf8");
+const localMarketRouteSource = readFileSync(new URL("../app/api/h1-scanner/local-market/route.ts", import.meta.url), "utf8");
 
-test("legacy H1 Signals and web History are hidden from primary web navigation", () => {
-  assert.doesNotMatch(navBarSource, /<span>H1 Signals<\/span>/);
-  assert.doesNotMatch(navBarSource, /href="\/history"/);
-  assert.match(navBarSource, /<Link href="\/neotech" className="oak-brand"/);
-  assert.match(rootPageSource, /redirect\("\/neotech"\)/);
+test("H1 Live and web History are reopened as primary trading navigation", () => {
+  assert.match(navBarSource, /<span>H1 Live<\/span>/);
+  assert.match(navBarSource, /href="\/history"/);
+  assert.match(navBarSource, /<Link href="\/engine" className="oak-brand"/);
+  assert.match(rootPageSource, /redirect\("\/engine"\)/);
 });
 
-test("H1 web feed has schema-17 signal and six-block weekday contract without pattern/entry metadata", () => {
-  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 17/);
-  assert.match(readerSource, /postSignalInverted/);
-  assert.match(readerSource, /postSignalRule/);
-  assert.match(readerSource, /scheduledSignal/);
-  assert.match(readerSource, /baseMinute/);
-  assert.doesNotMatch(readerSource, /entryTime|m15Pair|patternKind|m15Window/);
-  assert.doesNotMatch(readerSource, /m5Open|m5Middle|m5Position|m5WindowCount/);
-  assert.match(readerSource, /robot-sltp:public:h1-signals:latest/);
+test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica fallback", () => {
+  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 18/);
+  assert.match(readerSource, /entryHour/);
+  assert.match(readerSource, /patternGroup/);
+  assert.match(readerSource, /patternFamily/);
+  assert.match(readerSource, /scannerSource/);
+  assert.match(readerSource, /inversionBadge/);
   assert.match(readerSource, /payload\.schemaVersion !== H1_SIGNAL_PUBLIC_SCHEMA/);
-  assert.match(readerSource, /H1_TARGET_BASES/);
-  assert.match(readerSource, /payload\.symbols\.length !== H1_TARGET_BASES\.length/);
-  assert.match(readerSource, /H1_TARGET_BASES\.every/);
+  assert.match(readerSource, /payload\.signalRuleVersion !== H1_SIGNAL_RULE_VERSION/);
   assert.match(readerSource, /readRedisReplicas<unknown>\(LATEST_KEY\)/);
   assert.match(readerSource, /freshestPayload/);
-  assert.match(readerSource, /payloadFreshness/);
   assert.match(readerSource, /maskFutureH1Signals\(latest\)/);
   assert.match(readerSource, /readRedisReplicas<unknown>\(H1_CLOUD_STATE_KEY\)/);
   assert.match(readerSource, /freshestState/);
-  assert.match(readerSource, /stateProgress/);
   assert.match(readerSource, /buildPublicFeed\(state\)/);
-  assert.match(readerSource, /payload\.signalRuleVersion !== H1_SIGNAL_RULE_VERSION/);
   assert.match(redisCoreSource, /export async function readRedisReplicas/);
   assert.match(redisCoreSource, /Promise\.allSettled/);
-  assert.doesNotMatch(readerSource, /await redis\.get\(LATEST_KEY\)/);
-  assert.doesNotMatch(readerSource, /sw2|sw3Pure|sw3Normal|mon-block|tue-block|wed-block|tradeAllowed|blockedSlots|reconcileTradeState/);
 });
 
-test("H1 target rows use GBP crosses instead of AUDUSD/USDCAD/USDJPY", () => {
-  const scannerSource = readFileSync(new URL("./h1-cloud-scanner.ts", import.meta.url), "utf8");
-  assert.match(scannerSource, /H1_TARGET_BASES = \["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
-  assert.match(scannerSource, /H1_FX_BASES = \["GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
+test("H1 rows and block set match the local ICMarkets v59 contract", () => {
+  assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
+  assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
+  assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14, 16\]/);
+  assert.match(scannerSource, /hour === 3 \|\| hour === 6/);
+  assert.match(localMarketRouteSource, /evaluateLocalH1PatternsForTarget/);
 });
 
-test("H1 cells publish only the scheduled BUY/SELL side", () => {
-  assert.match(boardSource, /oak-h1-cell-signal/);
-  assert.match(boardSource, /oak-h1-block-invert-badge/);
-  assert.match(boardSource, /data-post-signal-inverted/);
-  assert.match(boardSource, /scheduledSignal/);
-  assert.match(boardSource, /data-scheduled-signal/);
-  assert.match(boardSource, /oak-h1-cell-signal/);
-  assert.match(boardSource, /data-side=\{side\.toLowerCase\(\)\}/);
-  assert.match(boardSource, /cycleDecisionFor\("XAUUSD", date, hour\)/);
-  assert.doesNotMatch(boardSource, /alert\.signal|alert\.baseSignal/);
-  assert.doesNotMatch(boardSource, /P\{alert\.patternKind\.slice\(-1\)\}|ENTRY \{alert\.entryTime\}/);
-  assert.match(redesignCss, /\.oak-h1-cell-signal\[data-side="buy"\]/);
-  assert.match(redesignCss, /\.oak-h1-cell-signal\[data-side="sell"\]/);
-  assert.doesNotMatch(boardSource, /NOT TRADE|blockedSlots|oak-h1-cell-blocked|oak-h1-blocked-cell|⚠ PURE/);
+test("H1 cells render entry hour plus per-cell inversion badge instead of scheduled BUY/SELL", () => {
+  assert.match(boardSource, /oak-h1-cell-entry/);
+  assert.match(boardSource, /alert\?\.entryHour/);
+  assert.match(boardSource, /alert\?\.inversionBadge/);
+  assert.match(boardSource, /data-pattern-group/);
+  assert.match(boardSource, /scannerSource/);
+  assert.doesNotMatch(boardSource, /data-scheduled-signal/);
+  assert.doesNotMatch(boardSource, /data-side=\{side\.toLowerCase\(\)\}/);
+  assert.match(redesignCss, /\.oak-h1-cell-entry/);
+  assert.match(redesignCss, /\.oak-h1-cell-entry small/);
 });
 
 test("H1 table sizes itself from the active columns and stretches across desktop viewports", () => {
@@ -97,7 +89,7 @@ test("H1 board omits the separate Entry Focus panel", () => {
   assert.doesNotMatch(redesignCss, /\.oak-entry-focus/);
 });
 
-test("XAUUSD signal sides are VIP-only while FX remains free", () => {
+test("XAUUSD entry cells are VIP-only while FX remains free", () => {
   assert.match(vipSource, /VIP_FREE_ACCESS = false/);
   assert.match(vipSource, /VIP_SIGNAL_SYMBOL = "XAUUSD"/);
   assert.match(vipSource, /base\.toUpperCase\(\) === VIP_SIGNAL_SYMBOL/);
@@ -105,7 +97,7 @@ test("XAUUSD signal sides are VIP-only while FX remains free", () => {
   assert.match(vipSource, /mode: freeAccess \? "free"/);
   assert.match(boardSource, /VIP_SIGNAL_SYMBOL/);
   assert.match(boardSource, /oak-h1-cell-locked/);
-  assert.match(engineBoardSource, /XAUUSD BUY\/SELL/);
+  assert.match(engineBoardSource, /XAUUSD entry-time cells/);
   assert.match(engineBoardSource, /freeAccess: boolean/);
 });
 
@@ -133,18 +125,12 @@ test("H1 history uses a deterministic Sunday-first calendar without weekday filt
   assert.doesNotMatch(boardSource, /oak-h1-history-dates/);
 });
 
-test("post-signal reversal and month-end bridge highlights reach H1 block cells", () => {
-  assert.match(boardSource, /cycleDecisionFor\("XAUUSD", date, hour\)\.inverted/);
-  assert.match(boardSource, /isMonthEndBridgeCell/);
-  assert.match(boardSource, /data-post-signal-inverted/);
-  assert.match(boardSource, /data-month-end-bridge/);
-  assert.match(boardSource, /oak-h1-block-invert-badge/);
-  assert.match(boardSource, /oak-h1-bridge-badge/);
-  assert.match(redesignCss, /\.oak-h1-table thead th\[data-post-signal-inverted="true"\]/);
+test("weekday inversion is visualized only on the matching entry cell", () => {
+  assert.match(boardSource, /const inverted = Boolean\(alert\?\.inversionBadge\)/);
+  assert.match(boardSource, /data-post-signal-inverted=\{inverted \? "true" : undefined\}/);
+  assert.match(boardSource, /locale === "EN" \? "INVERT" : "ĐẢO"/);
   assert.match(redesignCss, /\.oak-h1-table tbody td\[data-post-signal-inverted="true"\]/);
-  assert.match(redesignCss, /data-month-end-bridge="true"/);
-  assert.doesNotMatch(boardSource, /postSignalDecisionForSymbol|oak-h1-post-invert-row|oak-h1-post-invert-badge/);
-  assert.doesNotMatch(redesignCss, /oak-h1-post-invert-row|oak-h1-post-invert-badge/);
+  assert.doesNotMatch(boardSource, /isMonthEndBridgeCell|oak-h1-bridge-badge|data-month-end-bridge/);
 });
 
 test("mobile H1 adapter preserves admin auth and normalized cloud feed semantics", () => {
@@ -207,10 +193,11 @@ test("mobile More is backend telemetry instead of placeholder settings menu", ()
   assert.doesNotMatch(mobileMoreSource, /Cài đặt cảnh báo|Kết nối Telegram|Ngôn ngữ|Quản lý VIP/);
 });
 
-test("engine web surface is H1-only with the compact command header", () => {
+test("engine web surface is local-H1-only with the compact command header", () => {
   assert.doesNotMatch(enginePageSource, /getLatestPattern5|filterActivePattern5|maskFuturePattern5|redactPattern5Signals/);
   assert.doesNotMatch(engineBoardSource, /Pattern5Payload|Pattern5Table|ENGINE 05|Pattern Matrix|Trạng thái tín hiệu hiện tại|<small>PROFILE<\/small>|h1Data\?\.profile/);
-  assert.match(engineBoardSource, /TRADING \/ H1 CLOUD/);
+  assert.match(engineBoardSource, /TRADING \/ H1 LOCAL/);
+  assert.match(engineBoardSource, /MT5 ICMarkets · M15/);
   assert.doesNotMatch(engineBoardSource, /UNLOCK SIGNALS/);
 });
 
@@ -230,13 +217,14 @@ test("H1 board exports the selected scanner day as a shareable PNG with download
   assert.match(redesignCss, /\.oak-h1-share-png \{/);
 });
 
-test("H1 board drops pattern and entry-time detail entirely and keeps the phase highlight", () => {
-  assert.doesNotMatch(boardSource, /Entry H1 base candle|Cây H1 base tại entry|entryH1Detail|Nhóm pattern|Cặp chọn pattern|Giờ entry|Entry time|entryOffsetMinutes|patternPair/);
-  assert.doesNotMatch(boardSource, /Pattern 1 · TGG|patternKind|m15Window|DetailModal/);
+test("H1 board exposes compact entry time while keeping pattern evidence out of the visible cell", () => {
+  assert.match(boardSource, /oak-h1-cell-entry/);
+  assert.match(boardSource, /H\{String\(alert\?\.entryHour\)\.padStart\(2, "0"\)\}/);
+  assert.match(boardSource, /title=\{`\$\{alert\?\.scannerSource/);
+  assert.doesNotMatch(boardSource, /DetailModal|Entry H1 base candle|Cây H1 base tại entry/);
   assert.match(boardSource, /oak-h1-degraded/);
   assert.match(boardSource, /H1_SCAN_HOURS/);
   assert.match(boardSource, /H1_TARGET_BASES/);
-  assert.doesNotMatch(boardSource, /xau-cycle|thu-gbpusd|tue-audusd|AllowTrade lookback|NOT TRADE|sw2|sw3Pure|sw3Normal|audusdH3|mon-block|tue-block|wed-block|invert-pattern|keep-pattern|Logic base|baseInverted/);
   assert.match(vipSource, /redactH1Signals/);
   assert.match(vipSource, /base\.toUpperCase\(\) === VIP_SIGNAL_SYMBOL/);
   assert.match(vipSource, /alerts: \[\]/);

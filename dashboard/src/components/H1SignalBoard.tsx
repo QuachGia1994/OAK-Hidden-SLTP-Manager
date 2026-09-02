@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { historyDatesForWeekday, selectHistoryDate } from "@/lib/h1-history-navigation";
-import { activeH1ScanHoursForBrokerDate, cycleDecisionFor, H1_SCAN_HOURS, H1_TARGET_BASES, isMonthEndBridgeCell } from "@/lib/h1-cloud-scanner";
+import { activeH1ScanHoursForBrokerDate, H1_SCAN_HOURS, H1_TARGET_BASES } from "@/lib/h1-cloud-scanner";
 import type { H1SignalAlert, H1SignalPayload } from "@/lib/h1-signals";
 
 type Locale = "EN" | "VN";
@@ -80,7 +80,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   ctx.fillText(locale === "EN" ? "H1 Block Schedule" : "Lịch block H1 trong ngày", padding + 22, padding + 66);
   ctx.fillStyle = colors.muted;
   ctx.font = `700 15px ${H1_SHARE_FONT}`;
-  ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  ${locale === "EN" ? "Entry uses H1 candle one hour before" : "Entry dùng cây H1 trước một giờ"}`, padding + 22, padding + 96);
+  ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  ${locale === "EN" ? "Local ICMarkets M15 pattern scanner" : "Scanner pattern M15 ICMarkets local"}`, padding + 22, padding + 96);
 
   const tableX = padding;
   const tableY = padding + titleHeight;
@@ -100,14 +100,8 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
 
   drawCentered("SYMBOL", tableX, tableY, H1_SHARE_SYMBOL_WIDTH, headerHeight, colors.muted, `850 14px ${H1_SHARE_FONT}`);
   hours.forEach((hour, index) => {
-    const inverted = cycleDecisionFor("XAUUSD", date, hour).inverted;
     const x = tableX + H1_SHARE_SYMBOL_WIDTH + index * H1_SHARE_HOUR_WIDTH;
-    if (inverted) {
-      ctx.fillStyle = colors.warningSurface;
-      ctx.fillRect(x, tableY, H1_SHARE_HOUR_WIDTH, headerHeight);
-    }
-    drawCentered(`H${String(hour).padStart(2, "0")}`, x, tableY, H1_SHARE_HOUR_WIDTH, headerHeight - (inverted ? 12 : 0), inverted ? colors.warning : colors.muted, `850 14px ${H1_SHARE_FONT}`);
-    if (inverted) drawCentered(locale === "EN" ? "REVERSE" : "ĐẢO", x, tableY + headerHeight - 16, H1_SHARE_HOUR_WIDTH, 16, colors.warning, `850 8px ${H1_SHARE_FONT}`);
+    drawCentered(`H${String(hour).padStart(2, "0")}`, x, tableY, H1_SHARE_HOUR_WIDTH, headerHeight, colors.muted, `850 14px ${H1_SHARE_FONT}`);
   });
 
   for (let col = 0; col <= hours.length; col += 1) {
@@ -134,13 +128,14 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     hours.forEach((hour, hourIndex) => {
       const x = tableX + H1_SHARE_SYMBOL_WIDTH + hourIndex * H1_SHARE_HOUR_WIDTH;
       const alert = byHour.get(hour);
-      const inverted = cycleDecisionFor("XAUUSD", date, hour).inverted;
+      const inverted = Boolean(alert?.inversionBadge);
       if (inverted) {
         ctx.fillStyle = colors.warningSurface;
         ctx.fillRect(x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT);
       }
-      if (alert?.scheduledSignal) {
-        drawCentered(alert.scheduledSignal, x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT, alert.scheduledSignal === "BUY" ? colors.buy : colors.sell, `950 16px ${H1_SHARE_FONT}`);
+      if (Number.isInteger(alert?.entryHour)) {
+        const label = `H${String(alert?.entryHour).padStart(2, "0")}${alert?.inversionBadge ? " · ĐẢO" : ""}`;
+        drawCentered(label, x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT, colors.text, `950 14px ${H1_SHARE_FONT}`);
       } else {
         drawCentered("—", x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT, colors.muted, `700 16px ${H1_SHARE_FONT}`);
       }
@@ -336,18 +331,18 @@ export function H1SignalBoard({ data, degraded, locale, unlocked, mode = "live" 
   const copy = locale === "EN"
     ? {
         title: historyMode ? "H1 Broker History" : "H1 Live Blocks",
-        sub: historyMode ? "Retained H1 block signals · choose a broker date to review" : "Current broker day · latest H1 block signals",
-        awaiting: "Awaiting H1 live feed",
-        locked: "XAUUSD BUY/SELL signals require VIP · FX remains free",
+        sub: historyMode ? "Retained local M15 pattern entries · choose a broker date to review" : "Current broker day · local ICMarkets M15 pattern entries",
+        awaiting: "Awaiting local H1 feed",
+        locked: "XAUUSD entry-time cells require VIP · FX remains free",
         dateGroup: "Broker date",
         noMatch: "No retained broker dates available.",
         coverage: `${allDates.length} trading days · ${earliestDate || "—"} → ${latestDate || "—"}`,
       }
     : {
         title: historyMode ? "Lịch sử block H1" : "H1 Live",
-        sub: historyMode ? "Dữ liệu H1 đã lưu · chọn ngày broker để xem lại" : "Ngày broker hiện tại · tín hiệu block H1 mới nhất",
-        awaiting: "Đang chờ feed H1 live",
-        locked: "Tín hiệu BUY/SELL XAUUSD cần VIP · các cặp FX vẫn free",
+        sub: historyMode ? "Entry pattern M15 local đã lưu · chọn ngày broker để xem lại" : "Ngày broker hiện tại · entry pattern M15 ICMarkets local",
+        awaiting: "Đang chờ feed H1 local",
+        locked: "Entry time XAUUSD cần VIP · các cặp FX vẫn free",
         dateGroup: "Ngày broker",
         noMatch: "Không có ngày broker trong khoảng lưu trữ.",
         coverage: `${allDates.length} ngày giao dịch · ${earliestDate || "—"} → ${latestDate || "—"}`,
@@ -452,19 +447,13 @@ export function H1SignalBoard({ data, degraded, locale, unlocked, mode = "live" 
         <p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe horizontally for later blocks" : "Vuốt ngang để xem H12 · H14 · H16"}</p>
         <div ref={tableScrollRef} className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
-            <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{fallbackHours.map((hour) => {
-              const inverted = cycleDecisionFor("XAUUSD", fallbackDate, hour).inverted;
-              const bridge = isMonthEndBridgeCell(fallbackDate, hour);
-              return <th id={`h1-hour-${hour}`} scope="col" key={hour} data-post-signal-inverted={inverted ? "true" : undefined} data-month-end-bridge={bridge ? "true" : undefined}><span>H{String(hour).padStart(2, "0")}</span>{inverted && <small className="oak-h1-block-invert-badge">{locale === "EN" ? "REVERSE" : "ĐẢO"}</small>}{bridge && <small className="oak-h1-bridge-badge">{locale === "EN" ? "BRIDGE" : "CẦU"}</small>}</th>;
-            })}</tr></thead>
+            <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{fallbackHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour}><span>H{String(hour).padStart(2, "0")}</span></th>)}</tr></thead>
             <tbody>{H1_TARGET_BASES.map((base) => (
               <tr key={base}><th id={`h1-symbol-${base}`} scope="row" className="oak-h1-symbol-sticky"><b>{base}</b></th>{fallbackHours.map((hour) => {
-                const inverted = cycleDecisionFor("XAUUSD", fallbackDate, hour).inverted;
-                const bridge = isMonthEndBridgeCell(fallbackDate, hour);
                 if (base.toUpperCase() === VIP_SIGNAL_SYMBOL && !unlocked) {
-                  return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-post-signal-inverted={inverted ? "true" : undefined} data-month-end-bridge={bridge ? "true" : undefined}><span className="oak-h1-cell-locked" aria-label={`${base} H${hour}: VIP required`}>VIP</span></td>;
+                  return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`}><span className="oak-h1-cell-locked" aria-label={`${base} H${hour}: VIP required`}>VIP</span></td>;
                 }
-                return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-post-signal-inverted={inverted ? "true" : undefined} data-month-end-bridge={bridge ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>;
+                return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`}><span className="oak-h1-cell-empty">—</span></td>;
               })}</tr>
             ))}</tbody>
           </table>
@@ -509,24 +498,18 @@ export function H1SignalBoard({ data, degraded, locale, unlocked, mode = "live" 
         </div>}
         {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : <><p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe horizontally for later blocks" : "Vuốt ngang để xem H12 · H14 · H16"}</p><div ref={tableScrollRef} className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
-            <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{activeHours.map((hour) => {
-              const postSignalInverted = cycleDecisionFor("XAUUSD", date, hour).inverted;
-              const bridge = isMonthEndBridgeCell(date, hour);
-              return <th id={`h1-hour-${hour}`} scope="col" key={hour} data-post-signal-inverted={postSignalInverted ? "true" : undefined} data-month-end-bridge={bridge ? "true" : undefined}><span>H{String(hour).padStart(2, "0")}</span>{postSignalInverted && <small className="oak-h1-block-invert-badge">{locale === "EN" ? "REVERSE" : "ĐẢO"}</small>}{bridge && <small className="oak-h1-bridge-badge">{locale === "EN" ? "BRIDGE" : "CẦU"}</small>}</th>;
-            })}</tr></thead>
+            <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{activeHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour}><span>H{String(hour).padStart(2, "0")}</span></th>)}</tr></thead>
             <tbody>{data.symbols.map((base) => {
               const symbolState = day?.symbols?.[base];
               const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
               return <tr key={base}><th id={`h1-symbol-${base}`} scope="row" className="oak-h1-symbol-sticky"><b>{base}</b></th>{activeHours.map((hour) => {
-                const postSignalInverted = cycleDecisionFor("XAUUSD", date, hour).inverted;
-                const bridge = isMonthEndBridgeCell(date, hour);
-                if (base.toUpperCase() === VIP_SIGNAL_SYMBOL && !unlocked) {
-                  return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-post-signal-inverted={postSignalInverted ? "true" : undefined} data-month-end-bridge={bridge ? "true" : undefined}><span className="oak-h1-cell-locked" aria-label={`${base} H${hour}: VIP required`}>VIP</span></td>;
-                }
                 const alert = byHour.get(hour);
-                if (!alert?.scheduledSignal) return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-post-signal-inverted={postSignalInverted ? "true" : undefined} data-month-end-bridge={bridge ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>;
-                const side = alert.scheduledSignal;
-                return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-scheduled-signal={side} data-post-signal-inverted={postSignalInverted ? "true" : undefined} data-month-end-bridge={bridge ? "true" : undefined}><span className="oak-h1-cell-signal" data-side={side.toLowerCase()}>{side}</span></td>;
+                const inverted = Boolean(alert?.inversionBadge);
+                if (base.toUpperCase() === VIP_SIGNAL_SYMBOL && !unlocked) {
+                  return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-post-signal-inverted={inverted ? "true" : undefined}><span className="oak-h1-cell-locked" aria-label={`${base} H${hour}: VIP required`}>VIP</span></td>;
+                }
+                if (!Number.isInteger(alert?.entryHour)) return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`}><span className="oak-h1-cell-empty">—</span></td>;
+                return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-pattern-group={alert?.patternGroup || undefined} data-post-signal-inverted={inverted ? "true" : undefined} title={`${alert?.scannerSource || base} · ${alert?.pattern || ""} · ${alert?.patternGroup || ""}`}><span className="oak-h1-cell-entry"><b>H{String(alert?.entryHour).padStart(2, "0")}</b>{inverted ? <small>{locale === "EN" ? "INVERT" : "ĐẢO"}</small> : null}</span></td>;
               })}</tr>;
             })}</tbody>
           </table>

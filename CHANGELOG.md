@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Temporarily removed the legacy web `H1 Signals` and `History/Lịch sử` tabs from the primary navigation while keeping their underlying routes and H1 data code intact. NeoTech is now the primary trading tab, and both the site root and OAK brand link land on `/neotech` so the hidden legacy surfaces are not opened accidentally.
+- Reopened `H1 Live` and `History/Lịch sử` around signal rule v59 and moved the scanner source from cTrader cloud H1 data to the local ICMarkets MT5 terminal. The new read-only M15 scanner uses blocks `H3/H6/H9/H12/H14/H16`, rows `XAUUSD/GBPUSD/GBPAUD/GBPCAD/GBPJPY`, the configured ALT/SAME six-pattern classification, SW=`block+2` and BT=`block+1` entry hours, per-row ICMarkets source mapping and weekday `ĐẢO` badges. Public feed schema advances to 18 on a fresh v59 state key; legacy cloud run/backfill routes are authenticated no-ops so they cannot race local data. A one-minute Windows task publishes live M15 snapshots, and a bounded 90-day local backfill seeds History. The reader deliberately interprets MT5 Python bar epochs as the terminal's server-wall components; it does not apply the cTrader UTC→ICMarkets DST conversion a second time.
 
 - Hardened the PC-local Telegram controller lifecycle after a terminated Scheduled Task left the bot silent. The installer now combines the logon trigger with a one-minute self-heal trigger, keeps `MultipleInstances=IgnoreNew`, expands restart-on-failure coverage, and no longer stops/blocks on battery policy. Runtime MT5 account rebinds also reapply the protected user-only ACL after atomically rewriting the local config so Telegram/Upstash secrets do not fall back to inherited permissions.
 

@@ -104,6 +104,22 @@ powershell -ExecutionPolicy Bypass -File .\local-failover\install-local-failover
 
 A real `-Action Install` is a separate operator-authorized step. Its task definition runs as the current interactive Windows user, quotes the controller path, uses `MultipleInstances IgnoreNew`, keeps the logon trigger, and adds a one-minute repeating self-heal trigger so an externally terminated controller is relaunched without waiting for the next logon. Restart-on-failure is retained, and battery transitions do not stop or block the controller. To intentionally keep local control stopped, disable or uninstall the task rather than only stopping its current process. Restart/reload each MT5 terminal after compiling EA v1.08 so `InpLocalFailoverEnabled=true` is active. Healthy operation remains `STANDBY`.
 
+## Local ICMarkets H1 scanner
+
+H1 rule v59 is independent of the trading EA and reads market data only from the logged-in ICMarkets MT5 terminal. `mt5-h1-market-reader.py` uses the MetaTrader5 Python API with `copy_rates_from_pos(..., TIMEFRAME_M15, ...)`; it never calls `order_send` or any position mutation API. On this MT5 API path the rate epoch fields expose terminal/server-wall components, so the reader decodes them directly and deliberately does not reapply the cTrader UTC→ICMarkets `UTC+2/UTC+3` conversion before evaluating `H3/H6/H9/H12/H14/H16`.
+
+The publisher posts only T/G M15 evidence to the authenticated `/api/h1-scanner/local-market` route. Legacy cloud scanner/backfill endpoints remain authenticated but are no-ops, so cTrader cannot overwrite rule-v59 state. History uses the same local source and can be seeded for up to 90 calendar days.
+
+```powershell
+node .\local-failover\oak-local-h1-scanner.mjs --dry-run
+node .\local-failover\oak-local-h1-scanner.mjs --backfill 90
+powershell -ExecutionPolicy Bypass -File .\local-failover\install-local-h1-scanner-task.ps1 -Action Doctor
+powershell -ExecutionPolicy Bypass -File .\local-failover\install-local-h1-scanner-task.ps1 -Action Install -DryRun
+powershell -ExecutionPolicy Bypass -File .\local-failover\install-local-h1-scanner-task.ps1 -Action Status
+```
+
+The real H1 task runs once per minute as the interactive Windows user, starts at logon, uses `MultipleInstances IgnoreNew`, and does not stop on battery transitions. It is analytics-only: a task failure can make H1 Live stale but cannot place, close, or modify a broker order.
+
 ## Local command surface during failover
 
 The same Telegram bot accepts the core MT5 grammar: `/status`, `/profiles`, `/positions [@ACCOUNT]`, `/pending`, `/buy`, `/sell`, `/close`, `/closeall`, `/modify`, `/partial`, `/approve`, and `/del`. BUY/SELL accepts both `SYMBOL LOT TIME [SL] [TP] [@ACCOUNT]` and legacy `SYMBOL LOT [SL] [TP] TIME [@ACCOUNT]`; bare `FXCE`/`Vantage` account aliases remain accepted without `@`. A `/close` or `/closeall` command without `@ACCOUNT` fans out to every enabled MT5 account after all target identities are validated; an explicit account remains single-target. Base FX/metal symbols match broker prefix/suffix variants inside each terminal. Scheduled `HH:MM` / `HHhMM` entry/close syntax auto-arms on creation and executes at the due time without `/approve`; a delay beyond two minutes expires the intent instead of placing a stale trade. Telegram displays a short numeric local intent ID, so operators use `/del 1` or `/approve 1`; the canonical `L-<epoch>-<seq>` ID remains internal for durable ledger/idempotency and is still accepted for diagnostics.

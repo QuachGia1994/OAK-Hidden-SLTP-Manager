@@ -1,90 +1,31 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { emptyCloudState, type H1Base, type H1Direction, type H1DirectionBar } from "./h1-cloud-scanner.ts";
-import { mergeHistoricalBackfill, reconstructHistoricalDays } from "./h1-history-backfill.ts";
+import { readFileSync } from "node:fs";
 
-function h1Bars(date: string): H1DirectionBar[] {
-  return Array.from({ length: 18 }, (_, hour) => ({
-    hour,
-    brokerDate: date,
-    brokerTime: `${date}T${String(hour).padStart(2, "0")}:00`,
-    direction: "T" as H1Direction,
-  }));
-}
+const localRoute = readFileSync(new URL("../app/api/h1-scanner/local-market/route.ts", import.meta.url), "utf8");
+const legacyBackfillRoute = readFileSync(new URL("../app/api/h1-scanner/backfill/route.ts", import.meta.url), "utf8");
+const publisher = readFileSync(new URL("../../../local-failover/oak-local-h1-scanner.mjs", import.meta.url), "utf8");
+const reader = readFileSync(new URL("../../../local-failover/mt5-h1-market-reader.py", import.meta.url), "utf8");
 
-function marketForDates(...dates: string[]) {
-  const bases: H1Base[] = ["GBPUSD", "XAUUSD", "GBPAUD", "GBPCAD", "GBPJPY", "EURUSD"];
-  return Object.fromEntries(bases.map((base) => [base, {
-    displayName: base,
-    bars: dates.flatMap((date) => h1Bars(date)),
-  }])) as Record<H1Base, { displayName: string; bars: H1DirectionBar[] }>;
-}
-
-test("historical reconstruction keeps every block while post-signal inversion is temporarily disabled", () => {
-  const history = reconstructHistoricalDays(marketForDates("2026-07-06", "2026-07-04"));
-  // Weekend broker dates are never reconstructed.
-  assert.ok(history["2026-07-06"]);
-  assert.equal(history["2026-07-04"], undefined);
-
-  const gold = history["2026-07-06"].symbols.XAUUSD?.alerts ?? [];
-  const fx = history["2026-07-06"].symbols.GBPUSD?.alerts ?? [];
-  // XAUUSD owns H4 and FX starts at H3. Monday now keeps every H1 block.
-  assert.deepEqual(gold.map((alert) => alert.slotHour), [4, 6, 9, 12, 14, 16]);
-  assert.deepEqual(fx.map((alert) => alert.slotHour), [3, 6, 9, 12, 14, 16]);
-
-  // All-T H1 candles give BUY base on every active slot. The configured monthly
-  // matrix remains in code, but rule v58 temporarily suppresses post-signal inversion.
-  for (const alert of [...gold, ...fx]) {
-    assert.equal(alert.baseH1Signal, "BUY");
-    assert.equal(alert.symbol, alert.baseSymbol);
-    assert.equal(alert.baseMinute, 0);
-    assert.equal("entryTime" in alert, false);
-    assert.equal("patternKind" in alert, false);
-  }
-  assert.deepEqual(gold.map((alert) => [alert.postSignalRule, alert.symbolH1Signal]), [
-    ["none", "BUY"], ["none", "BUY"], ["none", "BUY"], ["none", "BUY"], ["none", "BUY"], ["none", "BUY"],
-  ]);
-  assert.deepEqual(fx.map((alert) => [alert.postSignalRule, alert.symbolH1Signal]), [
-    ["none", "BUY"], ["none", "BUY"], ["none", "BUY"], ["none", "BUY"], ["none", "BUY"], ["none", "BUY"],
-  ]);
+test("rule v59 history is rebuilt from local ICMarkets M15 snapshots, not legacy cTrader H1 reconstruction", () => {
+  assert.match(legacyBackfillRoute, /local-mt5-history-only/);
+  assert.doesNotMatch(legacyBackfillRoute, /reconstructHistoricalDays|fetchHistoricalBrokerH1/);
+  assert.match(localRoute, /evaluateLocalH1PatternsForTarget/);
+  assert.match(localRoute, /saveH1CloudState/);
+  assert.match(localRoute, /publishH1CloudState/);
 });
 
-test("historical days without H1 coverage yield no alerts instead of wrong signals", () => {
-  const market = marketForDates("2026-07-06");
-  const withoutH1 = Object.fromEntries(Object.entries(market).map(([base, item]) => [base, {
-    displayName: item.displayName,
-    bars: [],
-  }])) as unknown as typeof market;
-  const history = reconstructHistoricalDays(withoutH1);
-  assert.deepEqual(history, {});
+test("local history publisher is bounded to 90 calendar days and posts each broker date independently", () => {
+  assert.match(publisher, /MAX_BACKFILL_DAYS = 90/);
+  assert.match(publisher, /dateSnapshots/);
+  assert.match(publisher, /brokerHour: currentDay \? payload\.brokerHour : 23/);
+  assert.match(publisher, /for \(const snapshot of snapshots\)/);
+  assert.match(publisher, /await postSnapshot\(config, snapshot, fetchImpl\)/);
 });
 
-test("backfill merge can restore a missing current day after the scanner window without overwriting an existing live day", () => {
-  const reconstructed = reconstructHistoricalDays(marketForDates("2026-07-03", "2026-07-06"));
-  const missingCurrent = emptyCloudState();
-  const recovered = mergeHistoricalBackfill(missingCurrent, reconstructed, "2026-07-06", { includeMissingCurrentDay: true });
-  assert.ok(recovered.addedDays >= 2);
-  assert.ok(missingCurrent.days["2026-07-06"]);
-  assert.ok(Object.values(missingCurrent.days["2026-07-06"].symbols).some((symbol) => (symbol?.alerts.length || 0) > 0));
-
-  const existingLive = emptyCloudState();
-  existingLive.days["2026-07-06"] = {
-    symbols: {
-      XAUUSD: {
-        alerts: [{ ...structuredClone(reconstructed["2026-07-06"].symbols.XAUUSD!.alerts[0]), symbol: "LIVE-SENTINEL" }],
-      },
-    },
-  };
-  mergeHistoricalBackfill(existingLive, reconstructed, "2026-07-06", { includeMissingCurrentDay: true });
-  assert.equal(existingLive.days["2026-07-06"].symbols.XAUUSD!.alerts[0].symbol, "LIVE-SENTINEL");
-});
-
-test("backfill merge is idempotent, preserves existing rows and never overwrites current live day", () => {
-  const market = marketForDates("2026-07-03", "2026-07-06");
-  const reconstructed = reconstructHistoricalDays(market);
-  const state = emptyCloudState();
-  const first = mergeHistoricalBackfill(state, reconstructed, "2026-07-06", { includeMissingCurrentDay: true });
-  const second = mergeHistoricalBackfill(state, reconstructed, "2026-07-06", { includeMissingCurrentDay: true });
-  assert.deepEqual(second, { addedDays: 0, addedAlerts: 0 });
-  assert.ok(first.addedAlerts > 0);
+test("local M15 reader fetches enough retained bars while excluding the still-open candle", () => {
+  assert.match(reader, /MAX_DAYS = 120/);
+  assert.match(reader, /days \* 96 \+ 192/);
+  assert.match(reader, /for row in rates\[:-1\]:/);
+  assert.match(reader, /TIMEFRAME_M15/);
 });
