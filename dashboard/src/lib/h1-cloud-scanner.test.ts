@@ -77,10 +77,10 @@ function h1Bars(date: string, hour: number, direction: "T" | "G"): H1M15Bar[] {
   });
 }
 
-test("rule v66 uses local MT5 ICMarkets, schema 18 and six blocks", () => {
+test("rule v67 uses local MT5 ICMarkets, schema 18 and six blocks", () => {
   assert.equal(H1_CLOUD_STATE_VERSION, 56);
   assert.equal(H1_PUBLIC_SCHEMA, 18);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 66);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 67);
   assert.equal(H1_CLOUD_PROFILE, "MT5 ICMarkets Local");
   assert.deepEqual(H1_SCAN_HOURS, [3, 6, 9, 12, 14, 16]);
   assert.deepEqual(H1_TARGET_BASES, ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"]);
@@ -180,7 +180,7 @@ test("H9 can publish an H11 signal immediately because its GBPUSD H10 base comes
   assert.deepEqual([alert?.slotHour, alert?.entryHour, alert?.baseHour, alert?.baseDirection, alert?.symbolH1Signal], [9, 11, 10, "G", "SELL"]);
 });
 
-test("XAUUSD first entry H5 flips every H16 final signal once more", () => {
+test("XAUUSD first entry H5 turns H16 into manual CLOSE-only with no BUY/SELL signal", () => {
   const date = "2026-09-02";
   const snapshot = market(date, "TGGTTT", "ALT");
   for (const source of ["XAUUSD", "AUDUSD", "USDJPY", "GBPUSD", "EURUSD"] as const) {
@@ -198,16 +198,16 @@ test("XAUUSD first entry H5 flips every H16 final signal once more", () => {
     return [base, alert?.symbolH1Signal];
   }));
   assert.deepEqual(finalSignals, {
-    XAUUSD: "SELL",
-    GBPUSD: "SELL",
-    EURUSD: "SELL",
-    GBPAUD: "SELL",
+    XAUUSD: null,
+    GBPUSD: null,
+    EURUSD: null,
+    GBPAUD: null,
     GBPCAD: null,
     GBPJPY: null,
   });
 });
 
-test("XAUUSD first entry other than H5 does not activate the H16 day toggle", () => {
+test("XAUUSD first entry other than H5 keeps normal H16 BUY/SELL evaluation", () => {
   const date = "2026-09-02";
   const snapshot = market(date, "TTGTTT", "ALT");
   for (const source of ["XAUUSD", "AUDUSD", "USDJPY", "GBPUSD", "EURUSD"] as const) {
@@ -330,7 +330,7 @@ test("public feed schema 18 exposes entry time plus final BUY/SELL and can seed 
   const alert = evaluateLocalH1PatternsForTarget("GBPAUD", date, snapshot, [3], 3)[0];
   ensureSymbolDay(state, date, "GBPAUD").symbol.alerts.push(alert);
   const feed = buildPublicFeed(state, "2026-09-02T01:00:00.000Z");
-  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours], [18, 66, [3, 6, 9, 12, 14, 16]]);
+  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours], [18, 67, [3, 6, 9, 12, 14, 16]]);
   const row = feed.days[date].symbols.GBPAUD?.alerts[0];
   assert.deepEqual([row?.entryHour, row?.patternGroup, row?.scannerSource, row?.baseSignal, row?.signal, row?.inversionBadge], [4, "BT", "AUDUSD", "BUY", "SELL", false]);
   assert.equal(row?.sampleBars.length, 6);

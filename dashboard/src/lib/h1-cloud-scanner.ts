@@ -16,12 +16,12 @@ import {
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 66;
+export const H1_SIGNAL_RULE_VERSION = 67;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-// Rule v66 synchronizes EURUSD/GBPCAD/GBPJPY entry timing to reference rows and explicitly derives GBPCAD/GBPJPY final sides by block.
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v66";
+// Rule v67 replaces the old XAU-start-H5 H16 reversal with a manual CLOSE-only H16 block; no broker close is executed automatically.
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v67";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "MT5 ICMarkets Local";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -79,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 66;
+  signalRuleVersion: 67;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -245,10 +245,7 @@ function xauFinalSignalForSlot(brokerDate: string, slotHour: number, market: H1L
   if (!match) return null;
   const reference = gbpusdH1DirectionForEntry(brokerDate, match.entryHour, market.GBPUSD.bars);
   if (!reference) return null;
-  const baseSignal = signalFromDirection(reference.direction);
-  return slotHour === 16 && xauStartsDayAtEntryH5(brokerDate, market)
-    ? invertSignal(baseSignal)
-    : baseSignal;
+  return signalFromDirection(reference.direction);
 }
 
 function gbpaudFinalSignalForSlot(brokerDate: string, slotHour: number, market: H1LocalMarketSnapshot): H1Signal | null {
@@ -257,9 +254,7 @@ function gbpaudFinalSignalForSlot(brokerDate: string, slotHour: number, market: 
   const reference = gbpusdH1DirectionForEntry(brokerDate, match.entryHour, market.GBPUSD.bars);
   if (!reference) return null;
   const baseSignal = signalFromDirection(reference.direction);
-  const localInverted = localSignalInvertedForTarget("GBPAUD", slotHour);
-  const h16DayInverted = slotHour === 16 && xauStartsDayAtEntryH5(brokerDate, market);
-  return localInverted !== h16DayInverted ? invertSignal(baseSignal) : baseSignal;
+  return localSignalInvertedForTarget("GBPAUD", slotHour) ? invertSignal(baseSignal) : baseSignal;
 }
 
 function previousAvailableBrokerDate(brokerDate: string, bars: H1M15Bar[]): string | null {
@@ -501,7 +496,7 @@ export function evaluateLocalH1PatternsForTarget(
   throughHour = Number.POSITIVE_INFINITY,
 ): H1StoredAlert[] {
   const alerts: H1StoredAlert[] = [];
-  const invertH16FromXauH5 = xauStartsDayAtEntryH5(brokerDate, market);
+  const closeH16FromXauH5 = xauStartsDayAtEntryH5(brokerDate, market);
   for (const slotHour of slotHours) {
     if (slotHour > throughHour || !targetEnabledForDate(base, brokerDate, slotHour)) continue;
     const patternDriver = patternDriverTargetFor(base, slotHour);
@@ -525,15 +520,15 @@ export function evaluateLocalH1PatternsForTarget(
       : null;
     const xauSignal = syncToXau ? xauFinalSignalForSlot(brokerDate, slotHour, market) : null;
     const localInverted = localSignalInvertedForTarget(base, slotHour);
-    const h16DayInverted = slotHour === 16 && invertH16FromXauH5;
-    const shouldInvert = localInverted !== h16DayInverted;
-    const symbolH1Signal = base === "GBPCAD" || base === "GBPJPY"
+    const manualCloseOnly = slotHour === 16 && closeH16FromXauH5;
+    const derivedSignal = base === "GBPCAD" || base === "GBPJPY"
       ? pairReferenceSignal
       : syncToXau
         ? (xauSignal ? (weekdaySyncSignalInverted(base, brokerDate, slotHour) ? invertSignal(xauSignal) : xauSignal) : null)
         : baseH1Signal
-          ? (shouldInvert ? invertSignal(baseH1Signal) : baseH1Signal)
+          ? (localInverted ? invertSignal(baseH1Signal) : baseH1Signal)
           : null;
+    const symbolH1Signal = manualCloseOnly ? null : derivedSignal;
     alerts.push({
       slotHour,
       symbol: base,

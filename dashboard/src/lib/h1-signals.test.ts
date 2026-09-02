@@ -57,13 +57,15 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 rows and block set match the local ICMarkets v66 contract", () => {
+test("H1 rows and block set match the local ICMarkets v67 contract", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14, 16\]/);
   assert.match(scannerSource, /hour === 3 \|\| hour === 6/);
   assert.match(localMarketRouteSource, /evaluateLocalH1PatternsForTarget/);
   assert.match(scannerSource, /xauStartsDayAtEntryH5/);
+  assert.match(scannerSource, /manualCloseOnly/);
+  assert.match(scannerSource, /symbolH1Signal = manualCloseOnly \? null : derivedSignal/);
   assert.match(scannerSource, /weekdaySyncSignalInverted/);
   assert.match(scannerSource, /base === "GBPUSD"/);
   assert.match(scannerSource, /base === "EURUSD"/);
@@ -86,6 +88,18 @@ test("web tab softly refreshes server data every 20 seconds", () => {
   assert.match(tabAutoRefreshSource, /router\.refresh\(\)/);
   assert.match(tabAutoRefreshSource, /window\.clearInterval/);
   assert.doesNotMatch(tabAutoRefreshSource, /location\.reload/);
+});
+
+test("XAU H5 turns H16 into a manual CLOSE badge without auto-close execution wiring", () => {
+  assert.match(boardSource, /function isManualCloseH16Day/);
+  assert.match(boardSource, /oak-h1-close-badge/);
+  assert.match(boardSource, /data-manual-close/);
+  assert.match(boardSource, /data-action=\{manualCloseCell \? "CLOSE"/);
+  assert.match(redesignCss, /\.oak-h1-close-badge/);
+  assert.match(mobileCalendarSource, /manualCloseH16/);
+  assert.match(mobileCalendarSource, /Pill label="CLOSE"/);
+  assert.match(mobileSignalsSource, /manualCloseRow \? "CLOSE"/);
+  assert.doesNotMatch(boardSource + mobileCalendarSource + mobileSignalsSource, /order_send|closePosition|dispatchTask|\/approve/);
 });
 
 test("GBPCAD and GBPJPY are temporarily hidden from H1 presentation while backend contracts stay intact", () => {

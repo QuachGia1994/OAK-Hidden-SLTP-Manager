@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { H1EvidencePanel, type H1EvidenceSelection } from "@/components/H1EvidencePanel";
 import { historyDatesForWeekday, selectHistoryDate } from "@/lib/h1-history-navigation";
 import { activeH1ScanHoursForBrokerDate, H1_SCAN_HOURS, H1_TARGET_BASES } from "@/lib/h1-cloud-scanner";
-import type { H1SignalAlert, H1SignalPayload } from "@/lib/h1-signals";
+import type { H1SignalAlert, H1SignalDay, H1SignalPayload } from "@/lib/h1-signals";
 
 type Locale = "EN" | "VN";
 type H1BoardMode = "live" | "history";
@@ -19,6 +19,10 @@ const H1_TEMP_HIDDEN_ROWS = new Set(["GBPCAD", "GBPJPY"]);
 
 function visibleH1Symbols(symbols: readonly string[]) {
   return symbols.filter((symbol) => !H1_TEMP_HIDDEN_ROWS.has(symbol));
+}
+
+function isManualCloseH16Day(day: H1SignalDay | undefined): boolean {
+  return Boolean(day?.symbols?.XAUUSD?.alerts?.some((alert) => alert.slotHour === 3 && alert.entryHour === 5));
 }
 
 function isEntryReferenceCell(base: string, hour: number): boolean {
@@ -50,6 +54,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
 
   const hours = activeH1ScanHoursForBrokerDate(date, data.hours);
   const visibleSymbols = visibleH1Symbols(data.symbols);
+  const manualCloseH16 = isManualCloseH16Day(day);
   const padding = 40;
   const titleHeight = 128;
   const headerHeight = 54;
@@ -111,7 +116,12 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   drawCentered("SYMBOL", tableX, tableY, H1_SHARE_SYMBOL_WIDTH, headerHeight, colors.muted, `850 14px ${H1_SHARE_FONT}`);
   hours.forEach((hour, index) => {
     const x = tableX + H1_SHARE_SYMBOL_WIDTH + index * H1_SHARE_HOUR_WIDTH;
-    drawCentered(`H${String(hour).padStart(2, "0")}`, x, tableY, H1_SHARE_HOUR_WIDTH, headerHeight, colors.muted, `850 14px ${H1_SHARE_FONT}`);
+    if (hour === 16 && manualCloseH16) {
+      drawCentered("H16", x, tableY + 2, H1_SHARE_HOUR_WIDTH, headerHeight / 2, colors.muted, `850 14px ${H1_SHARE_FONT}`);
+      drawCentered("CLOSE", x, tableY + headerHeight / 2 - 2, H1_SHARE_HOUR_WIDTH, headerHeight / 2, colors.sell, `950 12px ${H1_SHARE_FONT}`);
+    } else {
+      drawCentered(`H${String(hour).padStart(2, "0")}`, x, tableY, H1_SHARE_HOUR_WIDTH, headerHeight, colors.muted, `850 14px ${H1_SHARE_FONT}`);
+    }
   });
 
   for (let col = 0; col <= hours.length; col += 1) {
@@ -143,8 +153,9 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
         ctx.fillRect(x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT);
       }
       if (Number.isInteger(alert?.entryHour)) {
+        const manualCloseCell = hour === 16 && manualCloseH16;
         drawCentered(`H${String(alert?.entryHour).padStart(2, "0")}`, x, y + 5, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT / 2, colors.text, `950 14px ${H1_SHARE_FONT}`);
-        drawCentered(alert?.signal || "—", x, y + H1_SHARE_ROW_HEIGHT / 2 - 5, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT / 2, alert?.signal === "BUY" ? colors.buy : alert?.signal === "SELL" ? colors.sell : colors.muted, `950 13px ${H1_SHARE_FONT}`);
+        drawCentered(manualCloseCell ? "CLOSE" : (alert?.signal || "—"), x, y + H1_SHARE_ROW_HEIGHT / 2 - 5, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT / 2, manualCloseCell ? colors.sell : alert?.signal === "BUY" ? colors.buy : alert?.signal === "SELL" ? colors.sell : colors.muted, `950 13px ${H1_SHARE_FONT}`);
       } else {
         drawCentered("—", x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT, colors.muted, `700 16px ${H1_SHARE_FONT}`);
       }
@@ -338,6 +349,7 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
   const latestDate = allDates[0] || "";
   const date = data ? (historyMode ? selectHistoryDate(data.days, "all", selectedDate) : latestDate) : selectedDate;
   const day = date && data ? data.days[date] : undefined;
+  const manualCloseH16 = isManualCloseH16Day(day);
   const copy = locale === "EN"
     ? {
         title: historyMode ? "H1 Broker History" : "H1 Live Blocks",
@@ -505,15 +517,16 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
         </div>}
         {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : <><p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe horizontally for later blocks" : "Vuốt ngang để xem H12 · H14 · H16"}</p><div ref={tableScrollRef} className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
-            <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{activeHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour}><span>H{String(hour).padStart(2, "0")}</span></th>)}</tr></thead>
+            <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{activeHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour} data-manual-close={hour === 16 && manualCloseH16 ? "true" : undefined}><span>H{String(hour).padStart(2, "0")}</span>{hour === 16 && manualCloseH16 ? <small className="oak-h1-close-badge">CLOSE</small> : null}</th>)}</tr></thead>
             <tbody>{visibleH1Symbols(data.symbols).map((base) => {
               const symbolState = day?.symbols?.[base];
               const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
               return <tr key={base}><th id={`h1-symbol-${base}`} scope="row" className="oak-h1-symbol-sticky"><b>{base}</b></th>{activeHours.map((hour) => {
                 const alert = byHour.get(hour);
                 const entryReference = isEntryReferenceCell(base, hour);
-                if (!Number.isInteger(alert?.entryHour)) return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-entry-reference={entryReference ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>;
-                return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-entry-reference={entryReference ? "true" : undefined} data-pattern-group={alert?.patternGroup || undefined} title={`${alert?.scannerSource || base} · ${alert?.pattern || ""} · ${alert?.patternGroup || ""}`}><button type="button" className="oak-h1-cell-entry oak-h1-cell-evidence" onClick={() => setEvidenceSelection({ base, brokerDate: date, alert: alert! })} aria-label={`${base} H${hour}: ${locale === "EN" ? "view pattern evidence" : "xem pattern evidence"}`}><b>H{String(alert?.entryHour).padStart(2, "0")}</b><small data-signal={alert?.signal || undefined}>{alert?.signal || "—"}</small></button></td>;
+                const manualCloseCell = hour === 16 && manualCloseH16;
+                if (!Number.isInteger(alert?.entryHour)) return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-entry-reference={entryReference ? "true" : undefined} data-manual-close={manualCloseCell ? "true" : undefined}><span className="oak-h1-cell-empty">{manualCloseCell ? "CLOSE" : "—"}</span></td>;
+                return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-entry-reference={entryReference ? "true" : undefined} data-manual-close={manualCloseCell ? "true" : undefined} data-pattern-group={alert?.patternGroup || undefined} title={`${alert?.scannerSource || base} · ${alert?.pattern || ""} · ${alert?.patternGroup || ""}${manualCloseCell ? " · CLOSE manual only" : ""}`}><button type="button" className="oak-h1-cell-entry oak-h1-cell-evidence" onClick={() => setEvidenceSelection({ base, brokerDate: date, alert: alert! })} aria-label={`${base} H${hour}: ${manualCloseCell ? (locale === "EN" ? "manual close advisory; view pattern evidence" : "khuyến nghị CLOSE thủ công; xem pattern evidence") : (locale === "EN" ? "view pattern evidence" : "xem pattern evidence")}`}><b>H{String(alert?.entryHour).padStart(2, "0")}</b><small data-signal={alert?.signal || undefined} data-action={manualCloseCell ? "CLOSE" : undefined}>{manualCloseCell ? "CLOSE" : (alert?.signal || "—")}</small></button></td>;
               })}</tr>;
             })}</tbody>
           </table>

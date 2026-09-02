@@ -32,6 +32,7 @@ export default function CalendarScreen() {
   const latestDate = app?.calendar?.latestDate || latestH1Date(h1) || dates[0] || isoDaysAgo(0);
   const [selectedDate, setSelectedDate] = useState(latestDate);
   const selectedIndex = Math.max(0, dates.indexOf(selectedDate));
+  const manualCloseH16 = Boolean(h1?.days?.[selectedDate]?.symbols?.XAUUSD?.alerts?.some((alert) => alert.slotHour === 3 && alert.entryHour === 5));
   const sourceSymbols = app?.calendar?.symbols?.length ? app.calendar.symbols : h1?.symbols?.length ? h1.symbols : FALLBACK_SYMBOLS;
   const symbols = sourceSymbols.filter((symbol) => !TEMP_HIDDEN_H1_ROWS.has(symbol));
   const hours = app?.calendar?.hours?.length ? app.calendar.hours : h1Hours(h1);
@@ -87,7 +88,7 @@ export default function CalendarScreen() {
         <View style={[styles.table, { borderColor: theme.border }]}>
           <View style={[styles.tr, styles.headerRow, { backgroundColor: theme.raised }]}>
             <Text style={[styles.symbolHead, { color: theme.muted }]}>SYMBOL</Text>
-            {hours.map((hour) => <Text key={hour} style={[styles.th, { color: theme.muted }]}>H{String(hour).padStart(2, "0")}</Text>)}
+            {hours.map((hour) => <Text key={hour} style={[styles.th, { color: hour === 16 && manualCloseH16 ? theme.warning : theme.muted }]}>H{String(hour).padStart(2, "0")}{hour === 16 && manualCloseH16 ? "\nCLOSE" : ""}</Text>)}
           </View>
           {symbols.map((symbol) => (
             <View key={symbol} style={[styles.tr, { borderTopColor: theme.border }]}>
@@ -95,10 +96,11 @@ export default function CalendarScreen() {
               {hours.map((hour) => {
                 const alert = signalFor(h1, selectedDate, symbol, hour);
                 const signal = alert?.signal;
-                const tone = signal === "SELL" ? "sell" : signal === "BUY" ? "buy" : "muted";
+                const manualCloseCell = hour === 16 && manualCloseH16;
+                const tone = manualCloseCell ? "warning" : signal === "SELL" ? "sell" : signal === "BUY" ? "buy" : "muted";
                 return (
-                  <View key={hour} style={[styles.cell, { borderLeftColor: theme.border, backgroundColor: alert?.postSignalInverted ? `${theme.warning}20` : "transparent" }]}>
-                    {signal ? <Pill label={signal} tone={tone} /> : <Text style={[styles.empty, { color: theme.muted }]}>–</Text>}
+                  <View key={hour} style={[styles.cell, { borderLeftColor: theme.border, backgroundColor: manualCloseCell ? `${theme.warning}18` : alert?.postSignalInverted ? `${theme.warning}20` : "transparent" }]}>
+                    {manualCloseCell ? <Pill label="CLOSE" tone={tone} /> : signal ? <Pill label={signal} tone={tone} /> : <Text style={[styles.empty, { color: theme.muted }]}>–</Text>}
                   </View>
                 );
               })}

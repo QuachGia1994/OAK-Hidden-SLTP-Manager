@@ -387,6 +387,12 @@ min-height: 2rem; padding: .35rem .6rem;
   .oak-h1-symbol-sticky { width: clamp(8rem, 10vw, 11rem) !important; min-width: clamp(8rem, 10vw, 11rem); }
 }
 .oak-h1-table tbody .oak-h1-symbol-sticky b { color: var(--oak-fg-primary); font: 900 .67rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-table thead th[data-manual-close="true"],
+.oak-h1-table tbody td[data-manual-close="true"] {
+  background: color-mix(in srgb, var(--oak-status-warning) 10%, var(--oak-bg-surface));
+}
+.oak-h1-table thead th[data-manual-close="true"] { box-shadow: inset 0 -2px 0 var(--oak-status-warning); }
+.oak-h1-close-badge { display: block; width: max-content; margin: .14rem auto 0; padding: .08rem .24rem; border: 1px solid var(--oak-status-warning); border-radius: 999px; color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 8%, var(--oak-bg-raised)); font: 900 .4rem/1 "Cascadia Mono", Consolas, monospace; letter-spacing: .05em; }
 .oak-h1-table tbody td[data-entry-reference="true"] {
   background: color-mix(in srgb, var(--oak-accent-command) 10%, var(--oak-bg-surface));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oak-accent-command) 32%, transparent);
@@ -444,6 +450,7 @@ min-height: 2rem; padding: .35rem .6rem;
 }
 .oak-h1-cell-entry small[data-signal="BUY"] { border-color: var(--oak-signal-buy); color: var(--oak-signal-buy); background: color-mix(in srgb, var(--oak-signal-buy) 10%, var(--oak-bg-surface)); }
 .oak-h1-cell-entry small[data-signal="SELL"] { border-color: var(--oak-signal-sell); color: var(--oak-signal-sell); background: color-mix(in srgb, var(--oak-signal-sell) 10%, var(--oak-bg-surface)); }
+.oak-h1-cell-entry small[data-action="CLOSE"] { border-color: var(--oak-status-warning); color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 11%, var(--oak-bg-surface)); }
 .oak-h1-pattern-badge { position: absolute; top: .2rem; right: .24rem; padding: .08rem .18rem; border: 1px solid color-mix(in srgb, var(--oak-accent) 42%, transparent); border-radius: .22rem; color: var(--oak-accent); background: color-mix(in srgb, var(--oak-accent) 9%, var(--oak-bg-surface)); font: 900 .42rem "Cascadia Mono", Consolas, monospace; letter-spacing: .03em; line-height: 1.2; white-space: nowrap; }
 .oak-h1-pattern6-warning { position: absolute; top: .2rem; left: .24rem; padding: .08rem .18rem; border: 1px solid color-mix(in srgb, var(--oak-status-warning) 62%, transparent); border-radius: .22rem; color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 12%, var(--oak-bg-surface)); font: 900 .4rem "Cascadia Mono", Consolas, monospace; letter-spacing: .02em; line-height: 1.2; white-space: nowrap; }
 .oak-h1-table td[data-pattern-kind="pattern6"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oak-status-warning) 46%, transparent); }
