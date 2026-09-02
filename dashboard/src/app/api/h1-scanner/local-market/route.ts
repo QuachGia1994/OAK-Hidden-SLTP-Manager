@@ -30,7 +30,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const MAX_SNAPSHOT_AGE_MS = 2 * 60 * 1000;
-const MAX_BARS_PER_SOURCE = 120;
+const MAX_BARS_PER_SOURCE = 220;
 
 function safeEqual(left: string, right: string): boolean {
   const a = Buffer.from(left);

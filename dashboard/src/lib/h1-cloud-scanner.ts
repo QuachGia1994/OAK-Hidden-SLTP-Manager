@@ -15,12 +15,12 @@ import {
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 60;
+export const H1_SIGNAL_RULE_VERSION = 61;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-// Rule v60 starts a fresh retained state because local M15 entry rows now carry GBPUSD H1-derived BUY/SELL semantics that v59 rows did not store.
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v60";
+// Rule v61 uses the previous available broker day's GBPUSD H1 candle so every block can publish its final side immediately after pattern detection.
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v61";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "MT5 ICMarkets Local";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -78,7 +78,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 60;
+  signalRuleVersion: 61;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -196,17 +196,25 @@ function invertSignal(signal: H1Signal): H1Signal {
 
 function localSignalInvertedForTarget(base: H1TargetBase, slotHour: number): boolean {
   if (base === "GBPUSD") return [9, 12, 14, 16].includes(slotHour);
-  return base === "GBPAUD" && (slotHour === 3 || slotHour === 6);
+  if ((base === "GBPAUD" || base === "GBPCAD") && (slotHour === 3 || slotHour === 6)) return true;
+  return false;
 }
 
-function gbpusdH1DirectionForEntry(brokerDate: string, entryHour: number, bars: H1M15Bar[]): { hour: number; direction: H1Direction } | null {
+function previousAvailableBrokerDate(brokerDate: string, bars: H1M15Bar[]): string | null {
+  const dates = [...new Set(bars.map((bar) => bar.brokerDate).filter((date) => date < brokerDate))].sort();
+  return dates.at(-1) ?? null;
+}
+
+function gbpusdH1DirectionForEntry(brokerDate: string, entryHour: number, bars: H1M15Bar[]): { brokerDate: string; hour: number; direction: H1Direction } | null {
   const baseHour = entryHour - 1;
   if (!Number.isInteger(baseHour) || baseHour < 0 || baseHour > 23) return null;
-  const quarters = [0, 15, 30, 45].map((minute) => bars.find((bar) => bar.brokerDate === brokerDate && bar.hour === baseHour && bar.minute === minute));
+  const referenceDate = previousAvailableBrokerDate(brokerDate, bars);
+  if (!referenceDate) return null;
+  const quarters = [0, 15, 30, 45].map((minute) => bars.find((bar) => bar.brokerDate === referenceDate && bar.hour === baseHour && bar.minute === minute));
   if (quarters.some((bar) => !bar)) return null;
   const open = quarters[0]!.open;
   const close = quarters[3]!.close;
-  return { hour: baseHour, direction: close > open ? "T" : "G" };
+  return { brokerDate: referenceDate, hour: baseHour, direction: close > open ? "T" : "G" };
 }
 
 export function signalledH1Candle(

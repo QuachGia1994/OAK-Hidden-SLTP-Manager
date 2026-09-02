@@ -60,11 +60,13 @@ test("local ICMarkets reader uses M15 only and does not double-shift MT5 server-
   assert.doesNotMatch(reader, /order_send|positions_get|TRADE_ACTION|ORDER_TYPE_BUY|ORDER_TYPE_SELL/);
 });
 
-test("local publisher trims live posts to the current broker day and supports bounded 90-day history backfill", () => {
+test("local publisher keeps current-day scanner bars plus previous-broker-day GBPUSD and supports bounded 90-day history backfill", () => {
   assert.match(publisher, /MAX_BACKFILL_DAYS = 90/);
   assert.match(publisher, /--backfill/);
   assert.match(publisher, /currentDaySnapshot/);
-  assert.match(publisher, /bar\.brokerDate === payload\.brokerDate/);
+  assert.match(publisher, /snapshotBarsForSource/);
+  assert.match(publisher, /previousAvailableDate/);
+  assert.match(publisher, /source !== "GBPUSD"/);
   assert.match(publisher, /dateSnapshots/);
   assert.match(publisher, /source: "local-mt5-icmarkets"|local-market/);
   assert.match(publisher, /x-telegram-bot-api-secret-token/);

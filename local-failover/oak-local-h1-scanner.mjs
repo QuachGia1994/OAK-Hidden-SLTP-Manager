@@ -71,37 +71,46 @@ function addCalendarDays(dateKey, days) {
   return value.toISOString().slice(0, 10);
 }
 
+function previousAvailableDate(rows, brokerDate) {
+  const dates = [...new Set(rows.map((bar) => bar.brokerDate).filter((date) => date < brokerDate))].sort();
+  return dates.at(-1) || null;
+}
+
+function snapshotBarsForSource(payload, source, brokerDate) {
+  const rows = payload.symbols?.[source]?.bars || [];
+  const current = rows.filter((bar) => bar.brokerDate === brokerDate);
+  if (source !== "GBPUSD") return current;
+  const previousDate = previousAvailableDate(rows, brokerDate);
+  if (!previousDate) return current;
+  return [...rows.filter((bar) => bar.brokerDate === previousDate), ...current];
+}
+
 function currentDaySnapshot(payload) {
   return {
     ...payload,
     symbols: Object.fromEntries(SOURCE_KEYS.map((source) => [source, {
       displayName: payload.symbols?.[source]?.displayName || source,
-      bars: (payload.symbols?.[source]?.bars || []).filter((bar) => bar.brokerDate === payload.brokerDate),
+      bars: snapshotBarsForSource(payload, source, payload.brokerDate),
     }])),
   };
 }
 
 function dateSnapshots(payload, days) {
   const cutoff = addCalendarDays(payload.brokerDate, -(days - 1));
-  const bySource = Object.fromEntries(SOURCE_KEYS.map((source) => {
-    const rows = payload.symbols?.[source]?.bars || [];
-    const grouped = new Map();
-    for (const bar of rows) {
-      if (bar.brokerDate < cutoff || bar.brokerDate > payload.brokerDate) continue;
-      if (!grouped.has(bar.brokerDate)) grouped.set(bar.brokerDate, []);
-      grouped.get(bar.brokerDate).push(bar);
-    }
-    return [source, grouped];
-  }));
-  const dates = [...new Set(SOURCE_KEYS.flatMap((source) => [...bySource[source].keys()]))].sort();
+  const dates = [...new Set(SOURCE_KEYS.flatMap((source) => (payload.symbols?.[source]?.bars || [])
+    .map((bar) => bar.brokerDate)
+    .filter((brokerDate) => brokerDate >= cutoff && brokerDate <= payload.brokerDate)))].sort();
   return dates.flatMap((brokerDate) => {
     const weekday = new Date(`${brokerDate}T12:00:00Z`).getUTCDay();
     if (weekday === 0 || weekday === 6) return [];
     const symbols = {};
     for (const source of SOURCE_KEYS) {
-      const bars = bySource[source].get(brokerDate) || [];
-      if (bars.length < 8) return [];
-      symbols[source] = { displayName: payload.symbols[source].displayName || source, bars };
+      const currentBars = (payload.symbols?.[source]?.bars || []).filter((bar) => bar.brokerDate === brokerDate);
+      if (currentBars.length < 8) return [];
+      symbols[source] = {
+        displayName: payload.symbols[source].displayName || source,
+        bars: snapshotBarsForSource(payload, source, brokerDate),
+      };
     }
     const currentDay = brokerDate === payload.brokerDate;
     return [{
