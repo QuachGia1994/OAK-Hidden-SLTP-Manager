@@ -106,9 +106,9 @@ A real `-Action Install` is a separate operator-authorized step. Its task defini
 
 ## Local ICMarkets H1 scanner
 
-H1 rule v59 is independent of the trading EA and reads market data only from the logged-in ICMarkets MT5 terminal. `mt5-h1-market-reader.py` uses the MetaTrader5 Python API with `copy_rates_from_pos(..., TIMEFRAME_M15, ...)`; it never calls `order_send` or any position mutation API. On this MT5 API path the rate epoch fields expose terminal/server-wall components, so the reader decodes them directly and deliberately does not reapply the cTrader UTC→ICMarkets `UTC+2/UTC+3` conversion before evaluating `H3/H6/H9/H12/H14/H16`.
+H1 rule v60 is independent of the trading EA and reads market data only from the logged-in ICMarkets MT5 terminal. `mt5-h1-market-reader.py` uses the MetaTrader5 Python API with `copy_rates_from_pos(..., TIMEFRAME_M15, ...)`; it never calls `order_send` or any position mutation API. On this MT5 API path the rate epoch fields expose terminal/server-wall components, so the reader decodes them directly and deliberately does not reapply the cTrader UTC→ICMarkets `UTC+2/UTC+3` conversion before evaluating `H3/H6/H9/H12/H14/H16`.
 
-The publisher posts only T/G M15 evidence to the authenticated `/api/h1-scanner/local-market` route. Legacy cloud scanner/backfill endpoints remain authenticated but are no-ops, so cTrader cannot overwrite rule-v59 state. History uses the same local source and can be seeded for up to 90 calendar days.
+The publisher posts T/G + OHLC M15 evidence to the authenticated `/api/h1-scanner/local-market` route. After a pattern yields an entry hour, the server builds the closed GBPUSD H1 candle immediately before entry from its four M15 quarters and maps bullish to BUY / bearish to SELL for every target; GBPUSD blocks H9/H12/H14/H16 and GBPAUD blocks H3/H6 invert that base signal. Legacy Thursday/Friday propagation and CẦU presentation remain disabled. Legacy cloud scanner/backfill endpoints remain authenticated but are no-ops, so cTrader cannot overwrite rule-v60 state. History uses the same local source and can be seeded for up to 90 calendar days.
 
 ```powershell
 node .\local-failover\oak-local-h1-scanner.mjs --dry-run

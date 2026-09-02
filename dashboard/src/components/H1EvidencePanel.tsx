@@ -102,7 +102,8 @@ function evidenceText(selection: H1EvidenceSelection, locale: Locale): string {
     `Source: ${alert.scannerSource || base}`,
     `Family: ${family}`,
     `Pattern: ${patternLabel(alert.pattern)}`,
-    `Weekday: ${alert.inversionBadge ? "ĐẢO" : "GIỮ"}`,
+    `Signal: ${alert.signal ?? "—"}`,
+    `Base: ${alert.baseSymbol || "GBPUSD"} H${String(alert.baseHour ?? 0).padStart(2, "0")} · ${alert.baseDirection || "—"}`,
     `Broker: ${brokerDate} · H${String(alert.slotHour).padStart(2, "0")}:00`,
     "",
     "Pattern Evidence (newest → oldest)",
@@ -144,7 +145,7 @@ export function H1EvidencePanel({ selection, locale, onClose }: { selection: H1E
           <span data-kind="group"><small>GROUP</small><b>{alert.patternGroup ?? "—"}</b></span>
           <span><small>ENTRY</small><b>H{String(entryHour).padStart(2, "0")}</b></span>
           <span><small>BLOCK</small><b>H{String(alert.slotHour).padStart(2, "0")}</b></span>
-          {alert.inversionBadge ? <span data-kind="invert"><small>WEEKDAY</small><b>ĐẢO</b></span> : <span><small>WEEKDAY</small><b>GIỮ</b></span>}
+          <span data-kind={alert.signal === "BUY" ? "buy" : alert.signal === "SELL" ? "sell" : undefined}><small>SIGNAL</small><b>{alert.signal ?? "—"}</b></span>
         </div>
 
         <div className="oak-h1-evidence-meta">

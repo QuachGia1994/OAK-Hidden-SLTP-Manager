@@ -50,26 +50,26 @@ const { redactH1Signals } = await import(pathToFileURL(resolvePath(srcRoot, "lib
 const { brokerWallParts, icMarketsServerOffsetSeconds, normalizeHistoricalTrendbars } = await import(pathToFileURL(resolvePath(srcRoot, "lib/ctrader-json.ts")).href);
 const { latestH1Date, alertsForSymbol } = await import(pathToFileURL(resolvePath(repoRoot, "mobile/src/lib/h1.ts")).href);
 
-function alert(slotHour, entryHour = slotHour + 1, inverted = false) {
+function alert(slotHour, entryHour = slotHour + 1, signal = "BUY") {
   return {
     slotHour,
     symbol: "XAUUSD",
     profile: "MT5 ICMarkets Local",
-    baseSymbol: "XAUUSD",
-    baseSignal: null,
-    baseHour: slotHour,
+    baseSymbol: "GBPUSD",
+    baseSignal: signal,
+    baseHour: entryHour - 1,
     baseMinute: 0,
-    baseDirection: "",
-    signal: null,
+    baseDirection: signal === "BUY" ? "T" : "G",
+    signal,
     scheduledSignal: null,
-    postSignalInverted: inverted,
-    postSignalRule: inverted ? "weekday-invert" : "weekday-keep",
+    postSignalInverted: false,
+    postSignalRule: "none",
     entryHour,
     patternGroup: "BT",
     patternFamily: "SAME",
     pattern: "TGT",
     scannerSource: "XAUUSD",
-    inversionBadge: inverted,
+    inversionBadge: false,
   };
 }
 
@@ -82,7 +82,7 @@ function payload() {
     publishedAt: "2026-02-03T12:00:00.000Z",
     hours: [3, 6, 9, 12, 14, 16],
     symbols: ["XAUUSD"],
-    days: Object.fromEntries(dates.map((date, index) => [date, { symbols: { XAUUSD: { alerts: [alert(3, index % 2 ? 4 : 5, index % 3 === 0)] } } }])),
+    days: Object.fromEntries(dates.map((date, index) => [date, { symbols: { XAUUSD: { alerts: [alert(3, index % 2 ? 4 : 5, index % 3 === 0 ? "SELL" : "BUY")] } } }])),
   };
 }
 
@@ -106,14 +106,15 @@ test("H1 history renders one custom calendar trigger with newest date and covera
   assert.doesNotMatch(vn, />Tất cả<|Lọc theo thứ/);
 });
 
-test("local pattern entry hour and inversion badge render in the matching H1 table cell", () => {
+test("local pattern entry hour and BUY/SELL render in the matching H1 table cell", () => {
   const data = payload();
-  data.days["2026-02-03"].symbols.XAUUSD.alerts = [alert(3, 5, true)];
+  data.days["2026-02-03"].symbols.XAUUSD.alerts = [alert(3, 5, "SELL")];
   const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data, locale: "VN", unlocked: true }));
   assert.match(markup, /data-pattern-group="BT"/);
-  assert.match(markup, /data-post-signal-inverted="true"/);
   assert.match(markup, />H05<\/b>/);
-  assert.match(markup, />ĐẢO<\/small>/);
+  assert.match(markup, />SELL<\/small>/);
+  assert.doesNotMatch(markup, /data-post-signal-inverted/);
+  assert.doesNotMatch(markup, />ĐẢO<\/small>|>INVERT<\/small>/);
 });
 
 test("H1 empty live state stays current-day only without history calendar", () => {

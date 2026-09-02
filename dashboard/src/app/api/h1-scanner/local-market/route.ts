@@ -128,6 +128,11 @@ function sameAlert(left: H1StoredAlert, right: H1StoredAlert): boolean {
     && left.patternFamily === right.patternFamily
     && left.pattern === right.pattern
     && left.scannerSource === right.scannerSource
+    && left.baseSymbol === right.baseSymbol
+    && left.baseHour === right.baseHour
+    && left.baseDirection === right.baseDirection
+    && left.baseH1Signal === right.baseH1Signal
+    && left.symbolH1Signal === right.symbolH1Signal
     && Boolean(left.inversionBadge) === Boolean(right.inversionBadge)
     && JSON.stringify(left.sampleBars ?? []) === JSON.stringify(right.sampleBars ?? []);
 }

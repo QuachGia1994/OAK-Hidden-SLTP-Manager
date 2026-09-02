@@ -55,7 +55,7 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 rows and block set match the local ICMarkets v59 contract", () => {
+test("H1 rows and block set match the local ICMarkets v60 contract", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14, 16\]/);
@@ -63,16 +63,17 @@ test("H1 rows and block set match the local ICMarkets v59 contract", () => {
   assert.match(localMarketRouteSource, /evaluateLocalH1PatternsForTarget/);
 });
 
-test("H1 cells render entry hour plus per-cell inversion badge instead of scheduled BUY/SELL", () => {
+test("H1 cells render entry hour plus GBPUSD-derived BUY/SELL", () => {
   assert.match(boardSource, /oak-h1-cell-entry/);
   assert.match(boardSource, /alert\?\.entryHour/);
-  assert.match(boardSource, /alert\?\.inversionBadge/);
+  assert.match(boardSource, /alert\?\.signal/);
+  assert.match(boardSource, /data-signal=\{alert\?\.signal/);
   assert.match(boardSource, /data-pattern-group/);
   assert.match(boardSource, /scannerSource/);
   assert.doesNotMatch(boardSource, /data-scheduled-signal/);
-  assert.doesNotMatch(boardSource, /data-side=\{side\.toLowerCase\(\)\}/);
-  assert.match(redesignCss, /\.oak-h1-cell-entry/);
-  assert.match(redesignCss, /\.oak-h1-cell-entry small/);
+  assert.doesNotMatch(boardSource, /data-post-signal-inverted/);
+  assert.match(redesignCss, /\.oak-h1-cell-entry small\[data-signal="BUY"\]/);
+  assert.match(redesignCss, /\.oak-h1-cell-entry small\[data-signal="SELL"\]/);
 });
 
 test("H1 table sizes itself from the active columns and stretches across desktop viewports", () => {
@@ -127,12 +128,12 @@ test("H1 history uses a deterministic Sunday-first calendar without weekday filt
   assert.doesNotMatch(boardSource, /oak-h1-history-dates/);
 });
 
-test("weekday inversion is visualized only on the matching entry cell", () => {
-  assert.match(boardSource, /const inverted = Boolean\(alert\?\.inversionBadge\)/);
-  assert.match(boardSource, /data-post-signal-inverted=\{inverted \? "true" : undefined\}/);
-  assert.match(boardSource, /locale === "EN" \? "INVERT" : "ĐẢO"/);
-  assert.match(redesignCss, /\.oak-h1-table tbody td\[data-post-signal-inverted="true"\]/);
-  assert.doesNotMatch(boardSource, /isMonthEndBridgeCell|oak-h1-bridge-badge|data-month-end-bridge/);
+test("legacy weekday and CẦU presentation stays hidden from H1 cells", () => {
+  assert.doesNotMatch(boardSource, /inversionBadge|data-post-signal-inverted|INVERT|ĐẢO/);
+  assert.doesNotMatch(boardSource, /isMonthEndBridgeCell|oak-h1-bridge-badge|data-month-end-bridge|CẦU/);
+  assert.doesNotMatch(evidencePanelSource, /Weekday:|WEEKDAY|ĐẢO|GIỮ/);
+  assert.match(evidencePanelSource, /SIGNAL/);
+  assert.match(evidencePanelSource, /Base:/);
 });
 
 test("mobile H1 adapter preserves admin auth and normalized cloud feed semantics", () => {

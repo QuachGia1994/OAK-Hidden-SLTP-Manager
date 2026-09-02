@@ -58,10 +58,27 @@ function market(date: string, sequence = "TGTGTG", family: "ALT" | "SAME" = "ALT
   };
 }
 
-test("rule v59 uses local MT5 ICMarkets, schema 18 and six blocks", () => {
+function h1Bars(date: string, hour: number, direction: "T" | "G"): H1M15Bar[] {
+  return [0, 15, 30, 45].map((minute, index) => {
+    const open = 500 + index * 0.1;
+    const close = direction === "T" ? open + 1 : open - 1;
+    return {
+      brokerDate: date,
+      hour,
+      minute,
+      direction,
+      open,
+      high: Math.max(open, close) + 0.2,
+      low: Math.min(open, close) - 0.2,
+      close,
+    };
+  });
+}
+
+test("rule v60 uses local MT5 ICMarkets, schema 18 and six blocks", () => {
   assert.equal(H1_CLOUD_STATE_VERSION, 56);
   assert.equal(H1_PUBLIC_SCHEMA, 18);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 59);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 60);
   assert.equal(H1_CLOUD_PROFILE, "MT5 ICMarkets Local");
   assert.deepEqual(H1_SCAN_HOURS, [3, 6, 9, 12, 14, 16]);
   assert.deepEqual(H1_TARGET_BASES, ["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"]);
@@ -74,17 +91,44 @@ test("H3/H6 omit GBPUSD while later blocks expose all five rows", () => {
   assert.deepEqual(targetsForBlockHour(4), []);
 });
 
-test("local pattern evaluation writes entry hour, pattern group, source and weekday inversion", () => {
-  const date = "2026-09-02"; // Wednesday
-  const alerts = evaluateLocalH1PatternsForTarget("GBPAUD", date, market(date, "TGTGTG", "ALT"), [3], 3);
+test("local pattern evaluation derives signal from the previous GBPUSD H1 candle", () => {
+  const date = "2026-09-02";
+  const snapshot = market(date, "TTGTTT", "ALT");
+  snapshot.GBPUSD.bars = [...snapshot.GBPUSD.bars, ...h1Bars(date, 3, "T")];
+  const alerts = evaluateLocalH1PatternsForTarget("GBPAUD", date, snapshot, [3], 3);
   assert.equal(alerts.length, 1);
   assert.deepEqual(
-    [alerts[0].slotHour, alerts[0].entryHour, alerts[0].patternGroup, alerts[0].scannerSource, alerts[0].inversionBadge],
-    [3, 5, "SW", "AUDUSD", true],
+    [alerts[0].slotHour, alerts[0].entryHour, alerts[0].patternGroup, alerts[0].scannerSource],
+    [3, 4, "BT", "AUDUSD"],
   );
-  assert.equal(alerts[0].symbolH1Signal, null);
+  assert.deepEqual(
+    [alerts[0].baseSymbol, alerts[0].baseHour, alerts[0].baseDirection, alerts[0].baseH1Signal, alerts[0].symbolH1Signal],
+    ["GBPUSD", 3, "T", "BUY", "SELL"],
+  );
+  assert.equal(alerts[0].inversionBadge, false);
   assert.equal(alerts[0].sampleBars?.length, 6);
   assert.equal(alerts[0].sampleBars?.[0].brokerTime, "02:15");
+});
+
+test("XAUUSD entry H7 uses GBPUSD H6 and keeps its direction", () => {
+  const date = "2026-09-02";
+  const snapshot = market(date, "TTGTTT", "ALT");
+  snapshot.XAUUSD.bars = snapshot.XAUUSD.bars.map((row) => ({ ...row, hour: row.hour + 3 }));
+  snapshot.GBPUSD.bars = h1Bars(date, 6, "T");
+  const alert = evaluateLocalH1PatternsForTarget("XAUUSD", date, snapshot, [6], 6)[0];
+  assert.deepEqual([alert?.entryHour, alert?.baseHour, alert?.baseDirection, alert?.baseH1Signal, alert?.symbolH1Signal], [7, 6, "T", "BUY", "BUY"]);
+});
+
+test("GBPUSD H9 inverts its own previous-entry H1 base", () => {
+  const date = "2026-09-02";
+  const snapshot = market(date, "TTGTTT", "ALT");
+  snapshot.GBPUSD.bars = [
+    ...snapshot.GBPUSD.bars.map((row) => ({ ...row, hour: row.hour + 6 })),
+    ...h1Bars(date, 9, "T"),
+  ];
+  const alert = evaluateLocalH1PatternsForTarget("GBPUSD", date, snapshot, [9], 9)[0];
+  assert.deepEqual([alert?.entryHour, alert?.baseHour, alert?.baseDirection, alert?.baseH1Signal, alert?.symbolH1Signal], [10, 9, "T", "BUY", "SELL"]);
+  assert.equal(alert?.inversionBadge, false);
 });
 
 test("GBPCAD derives H3 from AUDUSD and later blocks from USDJPY", () => {
@@ -120,32 +164,37 @@ test("timed Telegram mapping follows the reopened six block set", () => {
   assert.equal(scheduledSignalSlotForVietnamWall("GBPUSD", date, 15, 5), 9);
 });
 
-test("cloud state v56 round-trips a local pattern alert", () => {
+test("cloud state v56 round-trips a local pattern signal", () => {
   const date = "2026-09-02";
   const state = emptyCloudState();
-  const alert = evaluateLocalH1PatternsForTarget("GBPAUD", date, market(date, "TGGTTT", "ALT"), [3], 3)[0];
+  const snapshot = market(date, "TTGTTT", "ALT");
+  snapshot.GBPUSD.bars = [...snapshot.GBPUSD.bars, ...h1Bars(date, 3, "G")];
+  const alert = evaluateLocalH1PatternsForTarget("GBPAUD", date, snapshot, [3], 3)[0];
   ensureSymbolDay(state, date, "GBPAUD").symbol.alerts.push(alert);
   const parsed = parseCloudState(JSON.stringify(state));
   const stored = parsed.days[date].symbols.GBPAUD?.alerts[0];
-  assert.equal(stored?.entryHour, 5);
-  assert.equal(stored?.patternGroup, "SW");
+  assert.equal(stored?.entryHour, 4);
+  assert.equal(stored?.patternGroup, "BT");
   assert.equal(stored?.scannerSource, "AUDUSD");
-  assert.equal(stored?.inversionBadge, true);
+  assert.deepEqual([stored?.baseH1Signal, stored?.symbolH1Signal, stored?.inversionBadge], ["SELL", "BUY", false]);
   assert.throws(() => parseCloudState({ version: 55, days: {} }), /schema/i);
 });
 
-test("public feed schema 18 exposes entry time and inversion badge and can seed state", () => {
+test("public feed schema 18 exposes entry time plus final BUY/SELL and can seed state", () => {
   const date = "2026-09-02";
   const state = emptyCloudState();
-  const alert = evaluateLocalH1PatternsForTarget("GBPAUD", date, market(date, "TTGTTT", "ALT"), [3], 3)[0];
+  const snapshot = market(date, "TTGTTT", "ALT");
+  snapshot.GBPUSD.bars = [...snapshot.GBPUSD.bars, ...h1Bars(date, 3, "T")];
+  const alert = evaluateLocalH1PatternsForTarget("GBPAUD", date, snapshot, [3], 3)[0];
   ensureSymbolDay(state, date, "GBPAUD").symbol.alerts.push(alert);
   const feed = buildPublicFeed(state, "2026-09-02T01:00:00.000Z");
-  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours], [18, 59, [3, 6, 9, 12, 14, 16]]);
+  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours], [18, 60, [3, 6, 9, 12, 14, 16]]);
   const row = feed.days[date].symbols.GBPAUD?.alerts[0];
-  assert.deepEqual([row?.entryHour, row?.patternGroup, row?.scannerSource, row?.inversionBadge], [4, "BT", "AUDUSD", true]);
+  assert.deepEqual([row?.entryHour, row?.patternGroup, row?.scannerSource, row?.baseSignal, row?.signal, row?.inversionBadge], [4, "BT", "AUDUSD", "BUY", "SELL", false]);
   assert.equal(row?.sampleBars.length, 6);
   assert.equal(row?.sampleBars[0]?.open, 202);
   const seeded = parsePublicFeedCloudState(feed);
-  assert.equal(seeded?.days[date].symbols.GBPAUD?.alerts[0].entryHour, 4);
-  assert.equal(seeded?.days[date].symbols.GBPAUD?.alerts[0].sampleBars?.length, 6);
+  const seededAlert = seeded?.days[date].symbols.GBPAUD?.alerts[0];
+  assert.deepEqual([seededAlert?.entryHour, seededAlert?.baseH1Signal, seededAlert?.symbolH1Signal], [4, "BUY", "SELL"]);
+  assert.equal(seededAlert?.sampleBars?.length, 6);
 });

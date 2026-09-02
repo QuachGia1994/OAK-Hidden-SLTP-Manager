@@ -63,8 +63,6 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     accent: "#4b8cff",
     buy: "#39d98a",
     sell: "#ff6b6b",
-    warning: "#e6a648",
-    warningSurface: "#2d2417",
   };
 
   ctx.fillStyle = colors.bg;
@@ -128,14 +126,9 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     hours.forEach((hour, hourIndex) => {
       const x = tableX + H1_SHARE_SYMBOL_WIDTH + hourIndex * H1_SHARE_HOUR_WIDTH;
       const alert = byHour.get(hour);
-      const inverted = Boolean(alert?.inversionBadge);
-      if (inverted) {
-        ctx.fillStyle = colors.warningSurface;
-        ctx.fillRect(x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT);
-      }
       if (Number.isInteger(alert?.entryHour)) {
-        const label = `H${String(alert?.entryHour).padStart(2, "0")}${alert?.inversionBadge ? " · ĐẢO" : ""}`;
-        drawCentered(label, x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT, colors.text, `950 14px ${H1_SHARE_FONT}`);
+        drawCentered(`H${String(alert?.entryHour).padStart(2, "0")}`, x, y + 5, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT / 2, colors.text, `950 14px ${H1_SHARE_FONT}`);
+        drawCentered(alert?.signal || "—", x, y + H1_SHARE_ROW_HEIGHT / 2 - 5, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT / 2, alert?.signal === "BUY" ? colors.buy : alert?.signal === "SELL" ? colors.sell : colors.muted, `950 13px ${H1_SHARE_FONT}`);
       } else {
         drawCentered("—", x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT, colors.muted, `700 16px ${H1_SHARE_FONT}`);
       }
@@ -502,9 +495,8 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
               const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
               return <tr key={base}><th id={`h1-symbol-${base}`} scope="row" className="oak-h1-symbol-sticky"><b>{base}</b></th>{activeHours.map((hour) => {
                 const alert = byHour.get(hour);
-                const inverted = Boolean(alert?.inversionBadge);
                 if (!Number.isInteger(alert?.entryHour)) return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`}><span className="oak-h1-cell-empty">—</span></td>;
-                return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-pattern-group={alert?.patternGroup || undefined} data-post-signal-inverted={inverted ? "true" : undefined} title={`${alert?.scannerSource || base} · ${alert?.pattern || ""} · ${alert?.patternGroup || ""}`}><button type="button" className="oak-h1-cell-entry oak-h1-cell-evidence" onClick={() => setEvidenceSelection({ base, brokerDate: date, alert: alert! })} aria-label={`${base} H${hour}: ${locale === "EN" ? "view pattern evidence" : "xem pattern evidence"}`}><b>H{String(alert?.entryHour).padStart(2, "0")}</b>{inverted ? <small>{locale === "EN" ? "INVERT" : "ĐẢO"}</small> : null}</button></td>;
+                return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-pattern-group={alert?.patternGroup || undefined} title={`${alert?.scannerSource || base} · ${alert?.pattern || ""} · ${alert?.patternGroup || ""}`}><button type="button" className="oak-h1-cell-entry oak-h1-cell-evidence" onClick={() => setEvidenceSelection({ base, brokerDate: date, alert: alert! })} aria-label={`${base} H${hour}: ${locale === "EN" ? "view pattern evidence" : "xem pattern evidence"}`}><b>H{String(alert?.entryHour).padStart(2, "0")}</b><small data-signal={alert?.signal || undefined}>{alert?.signal || "—"}</small></button></td>;
               })}</tr>;
             })}</tbody>
           </table>
