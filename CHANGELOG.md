@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Strengthened H1 light-theme contrast: entry-reference cells now use a more visible blue fill with a 2px inset outline, H16 manual CLOSE cells use a stronger warning fill/outline, and BUY/SELL/CLOSE pills get thicker borders and denser light-theme fills. Dark theme and v67 signal semantics are unchanged.
+
 - Advanced H1 signal rule to v67: if XAUUSD's first H3-derived entry of the broker day is H5, H16 is no longer signal-reversed. H16 becomes a manual `CLOSE` advisory block: every H16 BUY/SELL signal is suppressed to null while entry/pattern evidence remains visible, and web/mobile/PNG surfaces show a `CLOSE` badge. No broker close command is created or executed automatically; the user decides whether to close positions. A fresh v67 state key forces local MT5 history/live recalculation.
 
 - Temporarily hid GBPCAD and GBPJPY from H1 presentation on web Live/History, PNG export, and mobile H1 Calendar/Signals. Backend calculations remain intact so the rows can be restored without losing derived data.

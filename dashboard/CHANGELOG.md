@@ -18,6 +18,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Increased H1 light-theme matrix contrast after mobile Safari review: blue entry-reference cells and amber CLOSE cells now have stronger fills/inset borders, while BUY/SELL/CLOSE pills use thicker light-theme outlines. Dark theme is unchanged.
 - Advanced local H1 rule to v67. XAUUSD first-day entry H5 no longer flips H16 signals. Instead H16 becomes a manual `CLOSE` advisory: H16 BUY/SELL output is null for every row while entry/pattern evidence stays available, and web/mobile/PNG render a `CLOSE` badge. There is no automatic broker close wiring; only the user may choose to close positions.
 - Temporarily hid GBPCAD and GBPJPY from H1 web Live/History, PNG export, and mobile Calendar/Signals presentation while keeping backend calculations and feed data intact for easy restoration.
 - Advanced local H1 signal rule to v66. EURUSD H9/H12/H14/H16 inherits GBPUSD entry timing. GBPCAD and GBPJPY both inherit GBPAUD entry time + final signal at H3/H6; at H9/H12 they inherit GBPUSD entry time + XAUUSD final signal; at H14/H16 they retain GBPUSD entry time/evidence but publish a blank signal. GBPCAD keeps GBPJPY/USDJPY pattern/evidence derivation at H9+. GBPAUD H3/H6 and GBPUSD H9/H12/H14/H16 are highlighted as entry-reference cells. Monday FX-off and the existing 20-second soft refresh remain unchanged.

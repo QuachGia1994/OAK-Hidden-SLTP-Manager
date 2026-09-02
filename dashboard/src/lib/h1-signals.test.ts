@@ -130,6 +130,17 @@ test("H1 cells render entry hour plus final rule-derived BUY/SELL", () => {
   assert.match(redesignCss, /td\[data-entry-reference="true"\]/);
 });
 
+test("light theme gives H1 reference and CLOSE cells a high-contrast treatment", () => {
+  assert.match(redesignCss, /html\.light \.oak-h1-table tbody td\[data-entry-reference="true"\]/);
+  assert.match(redesignCss, /var\(--oak-accent-command\) 22%, #fff/);
+  assert.match(redesignCss, /html\.light \.oak-h1-table tbody td\[data-manual-close="true"\]/);
+  assert.match(redesignCss, /var\(--oak-status-warning\) 20%, #fff/);
+  assert.match(redesignCss, /html\.light \.oak-h1-cell-entry small\[data-signal="BUY"\]/);
+  assert.match(redesignCss, /html\.light \.oak-h1-cell-entry small\[data-signal="SELL"\]/);
+  assert.match(redesignCss, /html\.light \.oak-h1-cell-entry small\[data-action="CLOSE"\]/);
+  assert.match(redesignCss, /border-width: 2px/);
+});
+
 test("H1 table sizes itself from the active columns and stretches across desktop viewports", () => {
   assert.match(redesignCss, /\.oak-engine-screen \{[^}]*width: 100%;/);
   assert.match(redesignCss, /\.oak-h1-table \{[^}]*width: max-content;[^}]*min-width: 100%;/);

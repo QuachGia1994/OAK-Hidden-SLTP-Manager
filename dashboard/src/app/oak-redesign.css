@@ -451,6 +451,47 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-h1-cell-entry small[data-signal="BUY"] { border-color: var(--oak-signal-buy); color: var(--oak-signal-buy); background: color-mix(in srgb, var(--oak-signal-buy) 10%, var(--oak-bg-surface)); }
 .oak-h1-cell-entry small[data-signal="SELL"] { border-color: var(--oak-signal-sell); color: var(--oak-signal-sell); background: color-mix(in srgb, var(--oak-signal-sell) 10%, var(--oak-bg-surface)); }
 .oak-h1-cell-entry small[data-action="CLOSE"] { border-color: var(--oak-status-warning); color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 11%, var(--oak-bg-surface)); }
+
+/* Light theme needs a materially stronger matrix state than the dark-surface wash.
+   Keep this presentation-only: no signal semantics change. */
+html.light .oak-h1-table tbody td[data-entry-reference="true"] {
+  background: color-mix(in srgb, var(--oak-accent-command) 22%, #fff);
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--oak-accent-command) 58%, #fff),
+    inset 0 -3px 0 color-mix(in srgb, var(--oak-accent-command) 72%, #fff);
+}
+html.light .oak-h1-table thead th[data-manual-close="true"],
+html.light .oak-h1-table tbody td[data-manual-close="true"] {
+  background: color-mix(in srgb, var(--oak-status-warning) 20%, #fff);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--oak-status-warning) 58%, #fff);
+}
+html.light .oak-h1-table thead th[data-manual-close="true"] {
+  color: color-mix(in srgb, var(--oak-status-warning) 82%, #3b2a00);
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--oak-status-warning) 58%, #fff),
+    inset 0 -3px 0 color-mix(in srgb, var(--oak-status-warning) 84%, #3b2a00);
+}
+html.light .oak-h1-close-badge {
+  border-width: 2px;
+  color: color-mix(in srgb, var(--oak-status-warning) 82%, #3b2a00);
+  background: color-mix(in srgb, var(--oak-status-warning) 18%, #fff);
+}
+html.light .oak-h1-cell-entry small[data-signal="BUY"],
+html.light .oak-h1-cell-entry small[data-signal="SELL"],
+html.light .oak-h1-cell-entry small[data-action="CLOSE"] {
+  border-width: 2px;
+  font-weight: 950;
+}
+html.light .oak-h1-cell-entry small[data-signal="BUY"] {
+  background: color-mix(in srgb, var(--oak-signal-buy) 15%, #fff);
+}
+html.light .oak-h1-cell-entry small[data-signal="SELL"] {
+  background: color-mix(in srgb, var(--oak-signal-sell) 15%, #fff);
+}
+html.light .oak-h1-cell-entry small[data-action="CLOSE"] {
+  color: color-mix(in srgb, var(--oak-status-warning) 82%, #3b2a00);
+  background: color-mix(in srgb, var(--oak-status-warning) 18%, #fff);
+}
 .oak-h1-pattern-badge { position: absolute; top: .2rem; right: .24rem; padding: .08rem .18rem; border: 1px solid color-mix(in srgb, var(--oak-accent) 42%, transparent); border-radius: .22rem; color: var(--oak-accent); background: color-mix(in srgb, var(--oak-accent) 9%, var(--oak-bg-surface)); font: 900 .42rem "Cascadia Mono", Consolas, monospace; letter-spacing: .03em; line-height: 1.2; white-space: nowrap; }
 .oak-h1-pattern6-warning { position: absolute; top: .2rem; left: .24rem; padding: .08rem .18rem; border: 1px solid color-mix(in srgb, var(--oak-status-warning) 62%, transparent); border-radius: .22rem; color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 12%, var(--oak-bg-surface)); font: 900 .4rem "Cascadia Mono", Consolas, monospace; letter-spacing: .02em; line-height: 1.2; white-space: nowrap; }
 .oak-h1-table td[data-pattern-kind="pattern6"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oak-status-warning) 46%, transparent); }
