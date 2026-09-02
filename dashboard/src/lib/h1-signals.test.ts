@@ -57,7 +57,7 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 rows and block set match the local ICMarkets v65 contract", () => {
+test("H1 rows and block set match the local ICMarkets v66 contract", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14, 16\]/);
@@ -68,9 +68,15 @@ test("H1 rows and block set match the local ICMarkets v65 contract", () => {
   assert.match(scannerSource, /base === "GBPUSD"/);
   assert.match(scannerSource, /base === "EURUSD"/);
   assert.match(scannerSource, /patternDriverTargetFor/);
-  assert.match(scannerSource, /base === "EURUSD"[^\n]*return "XAUUSD"/);
+  assert.match(scannerSource, /entryDriverTargetFor/);
+  assert.match(scannerSource, /base === "EURUSD"[^\n]*return "GBPUSD"/);
   assert.doesNotMatch(scannerSource, /base === "GBPUSD"[^\n]*return "XAUUSD"/);
   assert.match(scannerSource, /return slotHour === 3 \|\| slotHour === 6 \? "GBPAUD" : "GBPJPY"/);
+  assert.match(scannerSource, /base === "GBPCAD" \|\| base === "GBPJPY"/);
+  assert.match(scannerSource, /return slotHour === 3 \|\| slotHour === 6 \? "GBPAUD" : "GBPUSD"/);
+  assert.match(scannerSource, /pairReferenceSignal/);
+  assert.match(scannerSource, /slotHour === 9 \|\| slotHour === 12/);
+  assert.doesNotMatch(scannerSource, /base === "GBPJPY"[^\n]*alert\.slotHour === 14[^\n]*alert\.slotHour === 16/);
 });
 
 test("web tab softly refreshes server data every 20 seconds", () => {
@@ -93,6 +99,11 @@ test("H1 cells render entry hour plus final rule-derived BUY/SELL", () => {
   assert.doesNotMatch(boardSource, /data-post-signal-inverted/);
   assert.match(redesignCss, /\.oak-h1-cell-entry small\[data-signal="BUY"\]/);
   assert.match(redesignCss, /\.oak-h1-cell-entry small\[data-signal="SELL"\]/);
+  assert.match(boardSource, /function isEntryReferenceCell/);
+  assert.match(boardSource, /base === "GBPAUD"[^\n]*hour === 3[^\n]*hour === 6/);
+  assert.match(boardSource, /base === "GBPUSD"[^\n]*\[9, 12, 14, 16\]/);
+  assert.match(boardSource, /data-entry-reference/);
+  assert.match(redesignCss, /td\[data-entry-reference="true"\]/);
 });
 
 test("H1 table sizes itself from the active columns and stretches across desktop viewports", () => {

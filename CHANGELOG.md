@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced H1 signal rule to v66: EURUSD H9/H12/H14/H16 takes the exact GBPUSD entry hour. GBPCAD and GBPJPY both take GBPAUD entry time + final signal at H3/H6; at H9/H12 they take GBPUSD entry time + XAUUSD final signal; at H14/H16 they still take GBPUSD entry time and retain pattern/evidence but publish no BUY/SELL signal. GBPCAD keeps GBPJPY/USDJPY pattern/evidence calculation for H9+. GBPAUD H3/H6 and GBPUSD H9/H12/H14/H16 are visually highlighted as entry-reference cells. Monday FX-off, Thursday GBPUSD flip, Friday EURUSD flip, XAU-H5 H16 behavior and the 20-second soft refresh remain unchanged. A fresh v66 state key prevents stale v65 timing rows from surviving.
+
 - Advanced H1 signal rule to v65: GBPUSD H9/H12/H14/H16 restores its own local GBPUSD M15 pattern-derived entry time (the pre-v64 behavior) while its final BUY/SELL still follows XAUUSD for the same block and retains the Thursday inversion. EURUSD keeps XAUUSD-synchronized entry time/final side with its Friday inversion. GBPCAD timing and the 20-second soft tab refresh remain unchanged. A fresh v65 state key prevents stale v64 GBPUSD entry rows from surviving.
 
 - Advanced H1 signal rule to v64: GBPUSD and EURUSD H9/H12/H14/H16 now inherit XAUUSD's exact pattern-derived entry hour as well as its final side, while preserving the Thursday GBPUSD and Friday EURUSD one-time flips. GBPCAD now explicitly inherits GBPAUD entry timing at H3/H6 and GBPJPY entry timing at H9/H12/H14/H16. Monday remains XAUUSD-only. The web shell again refreshes server-rendered tab data every 20 seconds using a soft Next.js router refresh, preserving client UI state instead of forcing a hard browser reload. A fresh v64 state key prevents stale entry-time rows from surviving.

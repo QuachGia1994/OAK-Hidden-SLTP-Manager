@@ -387,6 +387,10 @@ min-height: 2rem; padding: .35rem .6rem;
   .oak-h1-symbol-sticky { width: clamp(8rem, 10vw, 11rem) !important; min-width: clamp(8rem, 10vw, 11rem); }
 }
 .oak-h1-table tbody .oak-h1-symbol-sticky b { color: var(--oak-fg-primary); font: 900 .67rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-table tbody td[data-entry-reference="true"] {
+  background: color-mix(in srgb, var(--oak-accent-command) 10%, var(--oak-bg-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oak-accent-command) 32%, transparent);
+}
 .oak-h1-table thead th[data-post-signal-inverted="true"],
 .oak-h1-table tbody td[data-post-signal-inverted="true"] { background: color-mix(in srgb, var(--oak-status-warning) 12%, var(--oak-bg-surface)); }
 .oak-h1-table thead th[data-post-signal-inverted="true"] { color: var(--oak-status-warning); box-shadow: inset 0 -3px 0 var(--oak-status-warning); }
