@@ -12,6 +12,7 @@ export type H1SignalAlert = {
   baseDirection: "T" | "G" | "";
   signal: H1SignalSide | null;
   scheduledSignal?: H1SignalSide | null;
+  entryHour?: number | null;
   postSignalInverted?: boolean;
   postSignalRule?: H1PostSignalRule;
 };
