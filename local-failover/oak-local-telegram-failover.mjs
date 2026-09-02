@@ -1037,6 +1037,38 @@ export function createLocalFailoverRuntime(options = {}) {
     });
   }
 
+  async function reconcileLateUiEntry(config, intent, files) {
+    if (intent.status !== "uncertain" || intent.kind !== "entry") return null;
+    const task = taskForIntent(intent);
+    if (!shouldUseMt5UiEntry(task, config) || typeof mt5UiEntryAdapter.reconcile !== "function") return null;
+
+    const now = clock();
+    const startedAt = Number(intent.executionStartedAt || intent.dueAt || 0);
+    const maxAgeMs = Math.max(60_000, Math.min(Number(config.scheduledEntryLateReconcileMaxAgeMs || 2 * 60 * 60 * 1000), 24 * 60 * 60 * 1000));
+    const intervalMs = Math.max(5_000, Math.min(Number(config.scheduledEntryLateReconcileIntervalMs || 15_000), 5 * 60 * 1000));
+    if (!Number.isFinite(startedAt) || startedAt <= 0 || now - startedAt < 0 || now - startedAt > maxAgeMs) return null;
+    if (now - Number(intent.lastLateReconcileAt || 0) < intervalMs) return null;
+    intent.lastLateReconcileAt = now;
+
+    const dispatchArgs = { task, files, timeoutMs: config.localTaskTimeoutMs, clock, sleep, fs, paths, config };
+    try {
+      const recovered = await mt5UiEntryAdapter.reconcile({
+        ...dispatchArgs,
+        dispatchEa(innerTask) {
+          const innerFiles = mailboxPaths(paths.commonDir, innerTask.bridgeProfile, innerTask.login, innerTask.ledgerKey);
+          return eaAdapter.dispatch({ ...dispatchArgs, task: innerTask, files: innerFiles });
+        },
+      });
+      if (recovered?.status === "done" && recovered?.result?.ok === true) {
+        intent.lateReconciledAt = clock();
+        return recovered;
+      }
+    } catch (error) {
+      await log(`Late MT5 UI entry reconciliation deferred for ${intent.id}: ${sanitizeOperatorError(error)}`);
+    }
+    return null;
+  }
+
   // Realtime scheduler: the controller loop wakes at the nearest scheduled dueAt
   // instead of waiting a full fixed tick. Wall-clock remains authoritative for
   // dueAt (it is a wall-clock target); duplicate execution is prevented by the
@@ -1155,8 +1187,12 @@ export function createLocalFailoverRuntime(options = {}) {
         intent.executionFinishedAt = clock();
         intent.executionResult = { ok: false, uncertain: true, action: intent.kind, detail: "EA result ledger conflicts with the persisted origin/task digest; automatic replay is disabled." };
       } else {
-        applyEnvelopeToIntent(intent, result);
+        const recovered = result.status === "uncertain"
+          ? await reconcileLateUiEntry(config, intent, files)
+          : null;
+        applyEnvelopeToIntent(intent, recovered || result);
         queueScheduledIntentNotification(state, intent);
+        if (recovered) await log(`Late MT5 UI entry proof reconciled ${intent.id} @${intent.accountLabel || intent.bridgeProfile}.`);
       }
       await saveState(state);
       return true;

@@ -221,9 +221,14 @@ async function createHarness(name, options = {}) {
   };
   const mt5UiTasks = [];
   const mt5UiEntryAdapter = {
-    async dispatch({ task }) {
-      mt5UiTasks.push(task);
+    async dispatch(args) {
+      mt5UiTasks.push(args.task);
+      if (options.mt5UiDispatch) return options.mt5UiDispatch(args, mt5UiTasks);
       return { status: "done", result: { ok: true, action: "entry", detail: "synthetic no-mouse UI execution", brokerRef: "UI-TEST" } };
+    },
+    async reconcile(args) {
+      if (options.mt5UiReconcile) return options.mt5UiReconcile(args, mt5UiTasks);
+      return null;
     },
   };
 
@@ -1417,6 +1422,97 @@ test("successful scheduled entry/order notifies Telegram after execution", { con
     await h.runtime.runOneIteration(h.config, state);
     assert.equal(h.eaExecutions, 1);
     assert.equal(h.sent.filter((text) => /Scheduled order executed/i.test(text)).length, 1);
+  } finally { await h.cleanup(); }
+});
+
+test("same-time scheduled entries on two MT5 accounts each send their own execution notice", { concurrency: false }, async () => {
+  const providerA = "mt5:localtest01";
+  const providerB = "mt5:localtest02";
+  const h = await createHarness("scheduled-multi-account-notice", {
+    controlMode: "local-primary",
+    webhook: "",
+    scheduledEntryExecution: "mt5-ui",
+    accounts: [{ ...ACCOUNT_A }, { ...ACCOUNT_B }],
+    statuses: [
+      localPrimaryStatusFor(ACCOUNT_A, { providerAccountId: providerA }),
+      localPrimaryStatusFor(ACCOUNT_B, { providerAccountId: providerB }),
+    ],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, {
+      update_id: 414,
+      message: { chat: { id: 123 }, text: "/buy GBPUSD 0.02 23:59 @acct-a\n/buy GBPUSD 0.05 23:59 @acct-b" },
+    }, statuses);
+    const intents = Object.values(state.intents);
+    assert.equal(intents.length, 2);
+    assert.equal(new Set(intents.map((intent) => intent.dueAt)).size, 1);
+
+    h.setNow(intents[0].dueAt + 1);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, { providerAccountId: providerA }, h.now));
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_B, { providerAccountId: providerB }, h.now));
+    await h.runtime.runOneIteration(h.config, state);
+
+    assert.ok(intents.every((intent) => intent.status === "executed"));
+    assert.equal(h.mt5UiTasks.length, 2);
+    const notices = h.sent.filter((text) => /Scheduled order executed/i.test(text));
+    assert.equal(notices.length, 2);
+    assert.ok(notices.some((text) => /@acct-a/i.test(text) && /BUY GBPUSD 0\.02 lot/i.test(text)));
+    assert.ok(notices.some((text) => /@acct-b/i.test(text) && /BUY GBPUSD 0\.05 lot/i.test(text)));
+    assert.equal(state.deliveredTradeEventIds.filter((id) => id.startsWith("scheduled_entry:")).length, 2);
+  } finally { await h.cleanup(); }
+});
+
+test("late exact MT5 position proof upgrades an uncertain scheduled entry and sends the missing notice without replay", { concurrency: false }, async () => {
+  let reconciliations = 0;
+  const h = await createHarness("scheduled-late-proof-notice", {
+    controlMode: "local-primary",
+    webhook: "",
+    scheduledEntryExecution: "mt5-ui",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+    mt5UiReconcile: async () => {
+      reconciliations += 1;
+      return { status: "done", result: { ok: true, action: "entry", detail: "late exact EA position proof", brokerRef: "LATE-77", executor: "mt5-ui-no-mouse", lateReconciled: true } };
+    },
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 415, message: { chat: { id: 123 }, text: "/buy GBPUSD 0.02 23:59 @acct-a" } }, statuses);
+    const [intent] = Object.values(state.intents);
+    intent.status = "uncertain";
+    intent.executionStartedAt = h.now;
+    intent.executionFinishedAt = h.now;
+    intent.executionResult = { ok: false, uncertain: true, action: "entry", detail: "initial EA position snapshot missed the submitted order" };
+    const files = h.runtime.mailboxPaths(intent.bridgeProfile, intent.login, intent.ledgerKey);
+    await fs.writeFile(files.result, JSON.stringify({
+      version: 2,
+      taskId: intent.id,
+      originKey: intent.originKey,
+      ledgerKey: intent.ledgerKey,
+      taskDigest: intent.taskDigest,
+      providerAccountId: intent.providerAccountId,
+      bridgeProfile: intent.bridgeProfile,
+      login: intent.login,
+      server: intent.server,
+      action: "entry",
+      source: "local-primary",
+      executor: "mt5-ui",
+      at: h.now,
+      status: "uncertain",
+      result: intent.executionResult,
+    }), "utf8");
+
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(reconciliations, 1);
+    assert.equal(intent.status, "executed");
+    assert.equal(intent.executionResult?.brokerRef, "LATE-77");
+    assert.equal(intent.executionResult?.lateReconciled, true);
+    assert.equal(h.mt5UiTasks.length, 0);
+    assert.equal(h.eaExecutions, 0);
+    assert.equal(h.sent.filter((text) => /Scheduled order executed/i.test(text)).length, 1);
+    assert.ok(h.sent.some((text) => /@acct-a/i.test(text) && /Intent #1/i.test(text)));
   } finally { await h.cleanup(); }
 });
 

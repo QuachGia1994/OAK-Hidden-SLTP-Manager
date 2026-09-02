@@ -247,6 +247,27 @@ function matchingPosition(positions, uiTask) {
   ) || null;
 }
 
+async function readMatchingPosition(task, uiTask, dispatchEa) {
+  const positionsEnvelope = normalizedEnvelope(await dispatchEa(buildPositionsTask(task)), "positions");
+  return positionsEnvelope?.result?.ok
+    ? matchingPosition(positionsEnvelope.result.positions, uiTask)
+    : null;
+}
+
+function verifiedEntryEnvelope(uiTask, position, late = false) {
+  return {
+    status: "done",
+    result: {
+      ok: true,
+      action: "entry",
+      detail: `MT5 UI ${uiTask.side} ${uiTask.symbol} ${uiTask.volumeText} lot; verified by ${late ? "late " : ""}EA position snapshot`,
+      brokerRef: String(position.ticket || ""),
+      executor: "mt5-ui-no-mouse",
+      ...(late ? { lateReconciled: true } : {}),
+    },
+  };
+}
+
 export function shouldUseMt5UiEntry(task, config) {
   return String(config?.scheduledEntryExecution || "ea").toLowerCase() === "mt5-ui"
     && String(task?.action || "").toLowerCase() === "entry"
@@ -292,6 +313,32 @@ export function createMt5UiEntryAdapter(options = {}) {
   const fsOps = options.fsOps || nodeFs;
   const uiRunner = options.uiRunner || createPowerShellUiRunner({ fsOps });
   let sequence = Promise.resolve();
+
+  async function reconcileOne({ task, files, clock, paths, config, dispatchEa }) {
+    if (!shouldUseMt5UiEntry(task, config) || typeof dispatchEa !== "function") return null;
+    const persisted = await readJson(fsOps, files.result);
+    if (!persisted || !evidenceMatches(persisted, task) || persisted.status !== "uncertain") return null;
+
+    const workDir = path.join(paths.runtimeDir, "ui-entry", String(task.ledgerKey || "invalid"));
+    const reconciledPath = path.join(workDir, "reconciled.json");
+    const reconciled = await readJson(fsOps, reconciledPath);
+    if (reconciled?.status === "done" && evidenceMatches(reconciled, task)) return normalizedEnvelope(reconciled, task.action);
+
+    const uiTask = await readJson(fsOps, path.join(workDir, "task.json"));
+    if (
+      !uiTask
+      || String(uiTask.taskId || "") !== String(task.id)
+      || Number(uiTask.login) !== Number(task.login)
+      || String(uiTask.server || "") !== String(task.server || "")
+      || !uiTask.comment || !uiTask.symbol || !uiTask.side || !Number(uiTask.volumeText)
+    ) return null;
+
+    const position = await readMatchingPosition(task, uiTask, dispatchEa);
+    if (!position) return null;
+    const envelope = verifiedEntryEnvelope(uiTask, position, true);
+    await writeJsonAtomic(fsOps, reconciledPath, resultEnvelope(task, envelope, clock));
+    return envelope;
+  }
 
   async function dispatchOne({ task, files, timeoutMs, clock, sleep, paths, config, dispatchEa }) {
     if (!shouldUseMt5UiEntry(task, config)) throw new Error("MT5 UI adapter received a non-scheduled entry");
@@ -344,38 +391,36 @@ export function createMt5UiEntryAdapter(options = {}) {
       submitted = true;
 
       const attempts = Math.max(1, Math.min(Number(config?.scheduledEntryVerifyAttempts || DEFAULT_VERIFY_ATTEMPTS), 100));
+      const verifyDelayMs = Math.max(25, Number(config?.scheduledEntryVerifyDelayMs || DEFAULT_VERIFY_DELAY_MS));
       for (let attempt = 0; attempt < attempts; attempt += 1) {
-        const positionsEnvelope = normalizedEnvelope(await dispatchEa(buildPositionsTask(task)), "positions");
-        const position = positionsEnvelope?.result?.ok
-          ? matchingPosition(positionsEnvelope.result.positions, uiTask)
-          : null;
+        const position = await readMatchingPosition(task, uiTask, dispatchEa);
         if (position) {
-          const envelope = {
-            status: "done",
-            result: {
-              ok: true,
-              action: "entry",
-              detail: `MT5 UI ${uiTask.side} ${uiTask.symbol} ${uiTask.volumeText} lot; verified by EA position snapshot`,
-              brokerRef: String(position.ticket || ""),
-              executor: "mt5-ui-no-mouse",
-            },
-          };
-          const persisted = await persistFinal(fsOps, files, task, envelope, clock);
+          const persisted = await persistFinal(fsOps, files, task, verifiedEntryEnvelope(uiTask, position), clock);
           await uiRunner.run({ mode: "close", task: uiTask, workDir, timeoutMs: uiTimeoutMs }).catch(() => {});
           return persisted;
         }
-        if (attempt + 1 < attempts) await sleep(Math.max(25, Number(config?.scheduledEntryVerifyDelayMs || DEFAULT_VERIFY_DELAY_MS)));
+        if (attempt + 1 < attempts) await sleep(verifyDelayMs);
       }
 
-      const envelope = await persistFinal(
+      // Some MT5 terminals do not expose the freshly opened position to the EA
+      // while the manual order dialog remains open. Close only after the Buy/Sell
+      // button has already been submitted, then perform a second read-only proof
+      // pass before declaring the broker outcome uncertain.
+      await uiRunner.run({ mode: "close", task: uiTask, workDir, timeoutMs: uiTimeoutMs }).catch(() => {});
+      const postCloseAttempts = Math.max(1, Math.min(Number(config?.scheduledEntryPostCloseVerifyAttempts || DEFAULT_VERIFY_ATTEMPTS), 100));
+      for (let attempt = 0; attempt < postCloseAttempts; attempt += 1) {
+        const position = await readMatchingPosition(task, uiTask, dispatchEa);
+        if (position) return await persistFinal(fsOps, files, task, verifiedEntryEnvelope(uiTask, position), clock);
+        if (attempt + 1 < postCloseAttempts) await sleep(verifyDelayMs);
+      }
+
+      return await persistFinal(
         fsOps,
         files,
         task,
-        uncertain("MT5 Buy/Sell command was queued but no matching EA position snapshot arrived; automatic replay is disabled"),
+        uncertain("MT5 Buy/Sell command was queued but no matching EA position snapshot arrived after dialog close; automatic replay is disabled"),
         clock,
       );
-      await uiRunner.run({ mode: "close", task: uiTask, workDir, timeoutMs: uiTimeoutMs }).catch(() => {});
-      return envelope;
     } catch (error) {
       const envelope = submitStarted
         ? uncertain(`MT5 UI submit outcome is uncertain: ${safeError(error)}; automatic replay is disabled`)
@@ -390,6 +435,12 @@ export function createMt5UiEntryAdapter(options = {}) {
   return {
     dispatch(args) {
       const run = () => dispatchOne(args);
+      const pending = sequence.then(run, run);
+      sequence = pending.catch(() => {});
+      return pending;
+    },
+    reconcile(args) {
+      const run = () => reconcileOne(args);
       const pending = sequence.then(run, run);
       sequence = pending.catch(() => {});
       return pending;

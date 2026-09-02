@@ -147,6 +147,7 @@ async function harness(name, options = {}) {
   const config = {
     scheduledEntryExecution: "mt5-ui",
     scheduledEntryVerifyAttempts: options.verifyAttempts || 1,
+    scheduledEntryPostCloseVerifyAttempts: options.postCloseVerifyAttempts || 1,
     scheduledEntryVerifyDelayMs: 25,
   };
   const args = {
@@ -222,6 +223,82 @@ test("claim without result is UNCERTAIN and never reaches EA or UI", { concurren
     assert.equal(result.status, "uncertain");
     assert.equal(result.result.uncertain, true);
     assert.deepEqual(h.uiCalls, []);
+    assert.deepEqual(h.eaTasks, []);
+  } finally { await h.cleanup(); }
+});
+
+test("position verification retries after the submitted order dialog is closed", { concurrency: false }, async () => {
+  let dialogClosed = false;
+  let expectedComment = "";
+  const h = await harness("post-close-proof", {
+    verifyAttempts: 1,
+    postCloseVerifyAttempts: 1,
+    uiRun: async ({ mode }) => {
+      if (mode === "prepare") return { ok: true };
+      if (mode === "submit") return { ok: true, submitted: true };
+      if (mode === "close") dialogClosed = true;
+      return { ok: true, closed: true };
+    },
+    dispatchEa: async (innerTask) => {
+      if (innerTask.action === "entry_prepare") {
+        expectedComment = `OAK:${innerTask.payload.entryLedgerKey.slice(0, 16)}`;
+        return { status: "done", result: { ok: true, action: "entry_prepare", resolvedSymbol: "EURUSD", volumeText: "0.01000000", slText: "1.10000", tpText: "1.20500", comment: expectedComment } };
+      }
+      if (innerTask.action === "positions") {
+        return { status: "done", result: { ok: true, action: "positions", positions: dialogClosed ? [{ ticket: 88, symbol: "EURUSD", side: "BUY", lots: 0.01, comment: expectedComment }] : [] } };
+      }
+      throw new Error(`unexpected EA action ${innerTask.action}`);
+    },
+  });
+  try {
+    const result = await h.adapter.dispatch(h.args);
+    assert.equal(result.status, "done");
+    assert.equal(result.result.brokerRef, "88");
+    assert.deepEqual(h.uiCalls, ["prepare", "submit", "close"]);
+    assert.deepEqual(h.eaTasks.map((row) => row.action), ["entry_prepare", "positions", "positions"]);
+  } finally { await h.cleanup(); }
+});
+
+test("durable uncertain UI entry can reconcile later from the exact EA position without replay", { concurrency: false }, async () => {
+  let positionVisible = false;
+  let expectedComment = "";
+  const h = await harness("late-reconcile", {
+    verifyAttempts: 1,
+    postCloseVerifyAttempts: 1,
+    dispatchEa: async (innerTask) => {
+      if (innerTask.action === "entry_prepare") {
+        expectedComment = `OAK:${innerTask.payload.entryLedgerKey.slice(0, 16)}`;
+        return { status: "done", result: { ok: true, action: "entry_prepare", resolvedSymbol: "EURUSD", volumeText: "0.01000000", slText: "1.10000", tpText: "1.20500", comment: expectedComment } };
+      }
+      if (innerTask.action === "positions") {
+        return { status: "done", result: { ok: true, action: "positions", positions: positionVisible ? [{ ticket: 99, symbol: "EURUSD", side: "BUY", lots: 0.01, comment: expectedComment }] : [] } };
+      }
+      throw new Error(`unexpected EA action ${innerTask.action}`);
+    },
+  });
+  try {
+    const first = await h.adapter.dispatch(h.args);
+    assert.equal(first.status, "uncertain");
+    const persisted = JSON.parse(await fs.readFile(h.files.result, "utf8"));
+    assert.equal(persisted.status, "uncertain");
+    const workDir = path.join(h.args.paths.runtimeDir, "ui-entry", h.task.ledgerKey);
+    await fs.mkdir(workDir, { recursive: true });
+    await fs.writeFile(path.join(workDir, "task.json"), JSON.stringify(h.uiTasks[0]), "utf8");
+
+    positionVisible = true;
+    h.eaTasks.length = 0;
+    h.uiCalls.length = 0;
+    const recovered = await h.adapter.reconcile(h.args);
+    assert.equal(recovered.status, "done");
+    assert.equal(recovered.result.brokerRef, "99");
+    assert.equal(recovered.result.lateReconciled, true);
+    assert.deepEqual(h.uiCalls, []);
+    assert.deepEqual(h.eaTasks.map((row) => row.action), ["positions"]);
+
+    h.eaTasks.length = 0;
+    const durable = await h.adapter.reconcile(h.args);
+    assert.equal(durable.status, "done");
+    assert.equal(durable.result.brokerRef, "99");
     assert.deepEqual(h.eaTasks, []);
   } finally { await h.cleanup(); }
 });
