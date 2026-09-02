@@ -18,6 +18,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Advanced local H1 signal rule to v63. EURUSD is now a sixth row from H9/H12/H14/H16 with its own local ICMarkets pattern-derived entry time. GBPUSD and EURUSD H9+ use the same final side as XAUUSD for that block, except Thursday flips GBPUSD once and Friday flips EURUSD once. Monday remains XAUUSD-only, and the existing XAU-entry-H5 H16 toggle is inherited by the synced rows.
 - Advanced local H1 signal rule to v62. If XAUUSD's first entry-time of the broker day is H5, the complete H16 column flips the already-derived final BUY/SELL once more. Per-symbol rules still apply first, so GBPUSD H16 double-inverts back to its GBPUSD base while XAUUSD/GBPAUD/GBPCAD/GBPJPY H16 flip opposite. The old Thursday/Friday propagation and CẦU logic remain disabled/hidden.
 - Temporarily changed H1 access to `FREE ACCESS` for every Live/History entry cell, including XAUUSD, and removed the H1 VIP unlock/redaction path from those pages. The local H1/Telegram Windows tasks now launch through a hidden `wscript.exe` wrapper so scheduled background work no longer opens console windows while retaining the current user/network context.
 - H1 Live timed entries now map the Vietnam appointment schedule explicitly: `09:05→H03`, `10:05→H04`, `12:05→H06`, `15:05→H09`, `18:05→H12`, `20:05→H14`, `22:05→H16`. This prevents IC Markets DST conversion from putting `XAUUSD 10:05` in H06; a safe re-sync clears only the matching legacy side and restores it to H04 without broker execution.

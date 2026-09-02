@@ -55,7 +55,7 @@ test("local ICMarkets reader uses M15 only and does not double-shift MT5 server-
   assert.match(reader, /datetime\.fromtimestamp\(epoch_seconds, timezone\.utc\)/);
   assert.doesNotMatch(reader, /icmarkets_offset_seconds|timedelta|ZoneInfo/);
   assert.match(reader, /broker_wall_parts/);
-  assert.match(reader, /"XAUUSD", "AUDUSD", "USDJPY", "GBPUSD"/);
+  assert.match(reader, /"XAUUSD", "AUDUSD", "USDJPY", "GBPUSD", "EURUSD"/);
   assert.match(reader, /"icmarkets" not in server\.lower\(\)/);
   assert.doesNotMatch(reader, /order_send|positions_get|TRADE_ACTION|ORDER_TYPE_BUY|ORDER_TYPE_SELL/);
 });
@@ -64,6 +64,7 @@ test("local publisher keeps current-day scanner bars plus previous-broker-day GB
   assert.match(publisher, /MAX_BACKFILL_DAYS = 90/);
   assert.match(publisher, /--backfill/);
   assert.match(publisher, /currentDaySnapshot/);
+  assert.match(publisher, /"XAUUSD", "AUDUSD", "USDJPY", "GBPUSD", "EURUSD"/);
   assert.match(publisher, /snapshotBarsForSource/);
   assert.match(publisher, /previousAvailableDate/);
   assert.match(publisher, /source !== "GBPUSD"/);

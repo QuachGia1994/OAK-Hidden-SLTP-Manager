@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced H1 signal rule to v63: EURUSD is now a visible H1 row from H9/H12/H14/H16 and uses its own local ICMarkets M15 pattern for entry time. GBPUSD and EURUSD H9+ both take the final XAUUSD side for the same block; Thursday flips GBPUSD once and Friday flips EURUSD once. Monday remains XAUUSD-only with every FX row blank. The XAUUSD-entry-H5 H16 day toggle remains authoritative and is inherited by the synced GBPUSD/EURUSD sides. A fresh v63 state key prevents stale v62 rows from surviving.
+
 - Advanced H1 signal rule to v62: when the first XAUUSD entry-time of the broker day is H5, every H16 row flips its already-derived final signal once more. Existing per-symbol inversions still apply first, so GBPUSD H16 is double-inverted back to its GBPUSD base while XAUUSD/GBPAUD/GBPCAD/GBPJPY H16 take the opposite side. Legacy Thursday/Friday propagation and CẦU remain disabled/hidden. A fresh v62 state key prevents older H16 rows from surviving the rule change.
 
 - Fixed scheduled MT5 UI execution confirmations when the broker position appears after the initial EA snapshot window. After Buy/Sell is submitted, the controller now closes the order dialog and performs another read-only position proof; durable `UNCERTAIN` scheduled entries are also eligible for bounded late reconciliation using the exact account/comment/symbol/side/lot evidence. A late proof upgrades only the persisted intent to `executed` and sends its missing Telegram confirmation without replaying the broker mutation. Regression coverage also verifies that two same-time entries on different MT5 accounts each deliver an independent notification.

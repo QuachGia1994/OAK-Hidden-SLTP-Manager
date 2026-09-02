@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import MetaTrader5 as mt5
 
 DEFAULT_TERMINAL = r"C:\Program Files\MetaTrader 5 IC Markets Global\terminal64.exe"
-SOURCES = ("XAUUSD", "AUDUSD", "USDJPY", "GBPUSD")
+SOURCES = ("XAUUSD", "AUDUSD", "USDJPY", "GBPUSD", "EURUSD")
 DEFAULT_DAYS = 2
 MAX_DAYS = 120
 

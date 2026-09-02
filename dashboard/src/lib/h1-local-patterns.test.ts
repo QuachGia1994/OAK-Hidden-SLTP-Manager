@@ -53,14 +53,15 @@ function h3Bars(sequence: string, family: "ALT" | "SAME", date = "2026-09-02", s
   return barsFor(date, rows);
 }
 
-test("new H1 scanner exposes exactly six blocks and five display rows", () => {
+test("new H1 scanner exposes exactly six blocks and six display rows", () => {
   assert.deepEqual(H1_LOCAL_SCAN_HOURS, [3, 6, 9, 12, 14, 16]);
-  assert.deepEqual(H1_LOCAL_TARGETS, ["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"]);
+  assert.deepEqual(H1_LOCAL_TARGETS, ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"]);
 });
 
 test("scanner source mapping follows local ICMarkets symbol rules", () => {
   assert.equal(scannerSourceForTarget("XAUUSD", 3), "XAUUSD");
   assert.equal(scannerSourceForTarget("GBPUSD", 9), "GBPUSD");
+  assert.equal(scannerSourceForTarget("EURUSD", 9), "EURUSD");
   assert.equal(scannerSourceForTarget("GBPAUD", 6), "AUDUSD");
   assert.equal(scannerSourceForTarget("GBPJPY", 12), "USDJPY");
   assert.equal(scannerSourceForTarget("GBPCAD", 3), "AUDUSD");
@@ -69,19 +70,21 @@ test("scanner source mapping follows local ICMarkets symbol rules", () => {
   assert.equal(scannerSourceForTarget("GBPCAD", 16), "USDJPY");
 });
 
-test("Monday calculates only XAUUSD and GBPUSD H3/H6 stay blank on other weekdays", () => {
+test("Monday calculates only XAUUSD and GBPUSD/EURUSD start from H9 on other weekdays", () => {
   const monday = "2026-09-07";
   for (const hour of H1_LOCAL_SCAN_HOURS) {
     assert.equal(targetEnabledForDate("XAUUSD", monday, hour), true);
-    for (const fx of ["GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"] as const) assert.equal(targetEnabledForDate(fx, monday, hour), false);
+    for (const fx of ["GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"] as const) assert.equal(targetEnabledForDate(fx, monday, hour), false);
   }
   const tuesday = "2026-09-08";
-  assert.equal(targetEnabledForDate("GBPUSD", tuesday, 3), false);
-  assert.equal(targetEnabledForDate("GBPUSD", tuesday, 6), false);
-  assert.equal(targetEnabledForDate("GBPUSD", tuesday, 9), true);
+  for (const fx of ["GBPUSD", "EURUSD"] as const) {
+    assert.equal(targetEnabledForDate(fx, tuesday, 3), false);
+    assert.equal(targetEnabledForDate(fx, tuesday, 6), false);
+    assert.equal(targetEnabledForDate(fx, tuesday, 9), true);
+  }
 });
 
-test("weekday inversion badges follow GBPAUD and Thursday GBPUSD rules", () => {
+test("weekday inversion badges follow GBPAUD plus Thursday GBPUSD and Friday EURUSD rules", () => {
   const wed = "2026-09-02";
   assert.equal(weekdayInversionBadge("GBPAUD", wed, 3), true);
   assert.equal(weekdayInversionBadge("GBPCAD", wed, 6), true);
@@ -91,6 +94,7 @@ test("weekday inversion badges follow GBPAUD and Thursday GBPUSD rules", () => {
   for (const hour of [9, 12, 14, 16]) assert.equal(weekdayInversionBadge("GBPUSD", thu, hour), true);
   const fri = "2026-09-04";
   assert.equal(weekdayInversionBadge("GBPUSD", fri, 9), false);
+  for (const hour of [9, 12, 14, 16]) assert.equal(weekdayInversionBadge("EURUSD", fri, hour), true);
 });
 
 test("ALT family skips two newest bars and XAUUSD excludes H-2:00", () => {

@@ -13,7 +13,7 @@ const LOG_PATH = path.join(APP_LOCAL, "OAK Gatekeeper", "h1-scanner.log");
 const PYTHON = process.env.OAK_PYTHON || "python";
 const READER = path.join(HERE, "mt5-h1-market-reader.py");
 const DEFAULT_ENDPOINT = "https://www.oakgatekeeper.uk/api/h1-scanner/local-market";
-const SOURCE_KEYS = ["XAUUSD", "AUDUSD", "USDJPY", "GBPUSD"];
+const SOURCE_KEYS = ["XAUUSD", "AUDUSD", "USDJPY", "GBPUSD", "EURUSD"];
 const MAX_BACKFILL_DAYS = 90;
 
 function endpointFor(config) {
