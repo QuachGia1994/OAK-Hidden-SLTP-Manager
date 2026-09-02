@@ -27,6 +27,8 @@ const mobileMoreSource = readFileSync(new URL("../../../mobile/app/(tabs)/more.t
 const scannerSource = readFileSync(new URL("./h1-cloud-scanner.ts", import.meta.url), "utf8");
 const localPatternsSource = readFileSync(new URL("./h1-local-patterns.ts", import.meta.url), "utf8");
 const localMarketRouteSource = readFileSync(new URL("../app/api/h1-scanner/local-market/route.ts", import.meta.url), "utf8");
+const layoutSource = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+const tabAutoRefreshSource = readFileSync(new URL("../components/TabAutoRefresh.tsx", import.meta.url), "utf8");
 
 test("H1 Live and web History are reopened as primary trading navigation", () => {
   assert.match(navBarSource, /<span>H1 Live<\/span>/);
@@ -55,7 +57,7 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 rows and block set match the local ICMarkets v63 contract", () => {
+test("H1 rows and block set match the local ICMarkets v64 contract", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14, 16\]/);
@@ -65,6 +67,18 @@ test("H1 rows and block set match the local ICMarkets v63 contract", () => {
   assert.match(scannerSource, /weekdaySyncSignalInverted/);
   assert.match(scannerSource, /base === "GBPUSD"/);
   assert.match(scannerSource, /base === "EURUSD"/);
+  assert.match(scannerSource, /patternDriverTargetFor/);
+  assert.match(scannerSource, /return "XAUUSD"/);
+  assert.match(scannerSource, /return slotHour === 3 \|\| slotHour === 6 \? "GBPAUD" : "GBPJPY"/);
+});
+
+test("web tab softly refreshes server data every 20 seconds", () => {
+  assert.match(layoutSource, /<TabAutoRefresh \/>/);
+  assert.match(tabAutoRefreshSource, /TAB_AUTO_REFRESH_MS = 20_000/);
+  assert.match(tabAutoRefreshSource, /window\.setInterval/);
+  assert.match(tabAutoRefreshSource, /router\.refresh\(\)/);
+  assert.match(tabAutoRefreshSource, /window\.clearInterval/);
+  assert.doesNotMatch(tabAutoRefreshSource, /location\.reload/);
 });
 
 test("H1 cells render entry hour plus final rule-derived BUY/SELL", () => {

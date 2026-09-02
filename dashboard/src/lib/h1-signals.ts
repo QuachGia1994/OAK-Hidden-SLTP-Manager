@@ -43,7 +43,7 @@ export type H1SignalAlert = {
   patternGroup?: "SW" | "BT" | null;
   patternFamily?: "ALT" | "SAME" | null;
   pattern?: string;
-  scannerSource?: "XAUUSD" | "AUDUSD" | "USDJPY" | "GBPUSD" | "";
+  scannerSource?: "XAUUSD" | "AUDUSD" | "USDJPY" | "GBPUSD" | "EURUSD" | "";
   inversionBadge?: boolean;
   sampleBars?: H1SignalSampleBar[];
 };

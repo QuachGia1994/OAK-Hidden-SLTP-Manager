@@ -10,17 +10,18 @@ import {
   type H1M15Bar,
   type H1PatternFamily,
   type H1PatternGroup,
+  type H1PatternMatch,
   type H1PatternSampleBar,
 } from "./h1-local-patterns.ts";
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 63;
+export const H1_SIGNAL_RULE_VERSION = 64;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-// Rule v63 keeps XAUUSD as the H9+ reference side for GBPUSD/EURUSD, with weekday flips and the XAU-H5 H16 day toggle.
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v63";
+// Rule v64 synchronizes GBPUSD/EURUSD entry timing to XAUUSD and GBPCAD timing to GBPAUD/GBPJPY, while preserving weekday flips and the XAU-H5 H16 day toggle.
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v64";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "MT5 ICMarkets Local";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -78,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 63;
+  signalRuleVersion: 64;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -205,6 +206,24 @@ function weekdaySyncSignalInverted(base: H1TargetBase, brokerDate: string, slotH
   if (base === "GBPUSD") return weekday === 4;
   if (base === "EURUSD") return weekday === 5;
   return false;
+}
+
+function patternDriverTargetFor(base: H1TargetBase, slotHour: number): H1TargetBase {
+  if ((base === "GBPUSD" || base === "EURUSD") && [9, 12, 14, 16].includes(slotHour)) return "XAUUSD";
+  if (base === "GBPCAD") return slotHour === 3 || slotHour === 6 ? "GBPAUD" : "GBPJPY";
+  return base;
+}
+
+function localPatternMatchForTarget(
+  target: H1TargetBase,
+  brokerDate: string,
+  slotHour: number,
+  market: H1LocalMarketSnapshot,
+): H1PatternMatch | null {
+  const scannerSource = scannerSourceForTarget(target, slotHour);
+  const source = market[scannerSource];
+  if (!source) return null;
+  return evaluateLocalH1Pattern({ target, brokerDate, slotHour, bars: source.bars });
 }
 
 export function xauStartsDayAtEntryH5(brokerDate: string, market: H1LocalMarketSnapshot): boolean {
@@ -468,10 +487,8 @@ export function evaluateLocalH1PatternsForTarget(
   const invertH16FromXauH5 = xauStartsDayAtEntryH5(brokerDate, market);
   for (const slotHour of slotHours) {
     if (slotHour > throughHour || !targetEnabledForDate(base, brokerDate, slotHour)) continue;
-    const scannerSource = scannerSourceForTarget(base, slotHour);
-    const source = market[scannerSource];
-    if (!source) continue;
-    const match = evaluateLocalH1Pattern({ target: base, brokerDate, slotHour, bars: source.bars });
+    const patternDriver = patternDriverTargetFor(base, slotHour);
+    const match = localPatternMatchForTarget(patternDriver, brokerDate, slotHour, market);
     if (!match) continue;
     const reference = gbpusdH1DirectionForEntry(brokerDate, match.entryHour, market.GBPUSD.bars);
     const baseH1Signal = reference ? signalFromDirection(reference.direction) : null;
