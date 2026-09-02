@@ -88,6 +88,16 @@ test("web tab softly refreshes server data every 20 seconds", () => {
   assert.doesNotMatch(tabAutoRefreshSource, /location\.reload/);
 });
 
+test("GBPCAD and GBPJPY are temporarily hidden from H1 presentation while backend contracts stay intact", () => {
+  assert.match(boardSource, /H1_TEMP_HIDDEN_ROWS = new Set\(\["GBPCAD", "GBPJPY"\]\)/);
+  assert.match(boardSource, /visibleH1Symbols\(data\.symbols\)/);
+  assert.match(boardSource, /visibleH1Symbols\(H1_TARGET_BASES\)/);
+  assert.match(mobileCalendarSource, /TEMP_HIDDEN_H1_ROWS = new Set\(\["GBPCAD", "GBPJPY"\]\)/);
+  assert.match(mobileCalendarSource, /sourceSymbols\.filter/);
+  assert.match(mobileSignalsSource, /TEMP_HIDDEN_H1_ROWS\.has\(row\.symbol\)/);
+  assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
+});
+
 test("H1 cells render entry hour plus final rule-derived BUY/SELL", () => {
   assert.match(boardSource, /oak-h1-cell-entry/);
   assert.match(boardSource, /alert\?\.entryHour/);
@@ -246,7 +256,7 @@ test("H1 board exports the selected scanner day as a shareable PNG with download
   assert.match(boardSource, /anchor\.download = filename/);
   assert.match(boardSource, /activeH1ScanHoursForBrokerDate\(date, data\.hours\)/);
   assert.match(boardSource, /hours\.forEach/);
-  assert.match(boardSource, /data\.symbols\.forEach/);
+  assert.match(boardSource, /visibleSymbols\.forEach/);
   assert.match(redesignCss, /\.oak-h1-share-png \{/);
 });
 

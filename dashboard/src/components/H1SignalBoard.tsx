@@ -15,6 +15,11 @@ const H1_SHARE_SYMBOL_WIDTH = 172;
 const H1_SHARE_HOUR_WIDTH = 88;
 const H1_SHARE_ROW_HEIGHT = 82;
 const H1_SHARE_FONT = '"Cascadia Mono", "SFMono-Regular", Consolas, monospace';
+const H1_TEMP_HIDDEN_ROWS = new Set(["GBPCAD", "GBPJPY"]);
+
+function visibleH1Symbols(symbols: readonly string[]) {
+  return symbols.filter((symbol) => !H1_TEMP_HIDDEN_ROWS.has(symbol));
+}
 
 function isEntryReferenceCell(base: string, hour: number): boolean {
   return (base === "GBPAUD" && (hour === 3 || hour === 6))
@@ -44,13 +49,14 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   if (!day) throw new Error("Broker day unavailable");
 
   const hours = activeH1ScanHoursForBrokerDate(date, data.hours);
+  const visibleSymbols = visibleH1Symbols(data.symbols);
   const padding = 40;
   const titleHeight = 128;
   const headerHeight = 54;
   const footerHeight = 46;
   const tableWidth = H1_SHARE_SYMBOL_WIDTH + hours.length * H1_SHARE_HOUR_WIDTH;
   const logicalWidth = padding * 2 + tableWidth;
-  const logicalHeight = padding + titleHeight + headerHeight + data.symbols.length * H1_SHARE_ROW_HEIGHT + footerHeight + padding;
+  const logicalHeight = padding + titleHeight + headerHeight + visibleSymbols.length * H1_SHARE_ROW_HEIGHT + footerHeight + padding;
   const canvas = document.createElement("canvas");
   canvas.width = logicalWidth * H1_SHARE_SCALE;
   canvas.height = logicalHeight * H1_SHARE_SCALE;
@@ -92,7 +98,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   ctx.fillRect(tableX, tableY, tableWidth, headerHeight);
   ctx.strokeStyle = colors.border;
   ctx.lineWidth = 1;
-  ctx.strokeRect(tableX, tableY, tableWidth, headerHeight + data.symbols.length * H1_SHARE_ROW_HEIGHT);
+  ctx.strokeRect(tableX, tableY, tableWidth, headerHeight + visibleSymbols.length * H1_SHARE_ROW_HEIGHT);
 
   const drawCentered = (text: string, x: number, y: number, width: number, height: number, color: string, font: string) => {
     ctx.fillStyle = color;
@@ -113,11 +119,11 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     if (col === hours.length) continue;
     ctx.beginPath();
     ctx.moveTo(x, tableY);
-    ctx.lineTo(x, tableY + headerHeight + data.symbols.length * H1_SHARE_ROW_HEIGHT);
+    ctx.lineTo(x, tableY + headerHeight + visibleSymbols.length * H1_SHARE_ROW_HEIGHT);
     ctx.stroke();
   }
 
-  data.symbols.forEach((base, rowIndex) => {
+  visibleSymbols.forEach((base, rowIndex) => {
     const y = tableY + headerHeight + rowIndex * H1_SHARE_ROW_HEIGHT;
     const symbolState = day.symbols?.[base];
     ctx.fillStyle = rowIndex % 2 === 0 ? colors.panel : colors.bg;
@@ -145,7 +151,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     });
   });
 
-  const footerY = tableY + headerHeight + data.symbols.length * H1_SHARE_ROW_HEIGHT;
+  const footerY = tableY + headerHeight + visibleSymbols.length * H1_SHARE_ROW_HEIGHT;
   ctx.fillStyle = colors.muted;
   ctx.font = `700 12px ${H1_SHARE_FONT}`;
   ctx.textAlign = "left";
@@ -452,7 +458,7 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
         <div ref={tableScrollRef} className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
             <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{fallbackHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour}><span>H{String(hour).padStart(2, "0")}</span></th>)}</tr></thead>
-            <tbody>{H1_TARGET_BASES.map((base) => (
+            <tbody>{visibleH1Symbols(H1_TARGET_BASES).map((base) => (
               <tr key={base}><th id={`h1-symbol-${base}`} scope="row" className="oak-h1-symbol-sticky"><b>{base}</b></th>{fallbackHours.map((hour) => (
                 <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-entry-reference={isEntryReferenceCell(base, hour) ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>
               ))}</tr>
@@ -500,7 +506,7 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
         {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : <><p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe horizontally for later blocks" : "Vuốt ngang để xem H12 · H14 · H16"}</p><div ref={tableScrollRef} className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
             <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{activeHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour}><span>H{String(hour).padStart(2, "0")}</span></th>)}</tr></thead>
-            <tbody>{data.symbols.map((base) => {
+            <tbody>{visibleH1Symbols(data.symbols).map((base) => {
               const symbolState = day?.symbols?.[base];
               const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
               return <tr key={base}><th id={`h1-symbol-${base}`} scope="row" className="oak-h1-symbol-sticky"><b>{base}</b></th>{activeHours.map((hour) => {

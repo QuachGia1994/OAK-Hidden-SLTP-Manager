@@ -6,7 +6,8 @@ import { h1Hours, latestH1Date, signalFor } from "@/lib/h1";
 import { radius, spacing, useOakTheme } from "@/lib/theme";
 import { useOakData } from "@/state/data";
 
-const FALLBACK_SYMBOLS = ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"];
+const FALLBACK_SYMBOLS = ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD"];
+const TEMP_HIDDEN_H1_ROWS = new Set(["GBPCAD", "GBPJPY"]);
 
 function isoDaysAgo(days: number) {
   const value = new Date();
@@ -31,7 +32,8 @@ export default function CalendarScreen() {
   const latestDate = app?.calendar?.latestDate || latestH1Date(h1) || dates[0] || isoDaysAgo(0);
   const [selectedDate, setSelectedDate] = useState(latestDate);
   const selectedIndex = Math.max(0, dates.indexOf(selectedDate));
-  const symbols = app?.calendar?.symbols?.length ? app.calendar.symbols : h1?.symbols?.length ? h1.symbols : FALLBACK_SYMBOLS;
+  const sourceSymbols = app?.calendar?.symbols?.length ? app.calendar.symbols : h1?.symbols?.length ? h1.symbols : FALLBACK_SYMBOLS;
+  const symbols = sourceSymbols.filter((symbol) => !TEMP_HIDDEN_H1_ROWS.has(symbol));
   const hours = app?.calendar?.hours?.length ? app.calendar.hours : h1Hours(h1);
   const hasHistory = Boolean(app?.calendar?.hasHistory || Object.keys(h1?.days || {}).length);
 

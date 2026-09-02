@@ -10,6 +10,7 @@ import { useOakData } from "@/state/data";
 
 type Filter = "all" | "buy" | "sell";
 const FILTERS: Filter[] = ["all", "buy", "sell"];
+const TEMP_HIDDEN_H1_ROWS = new Set(["GBPCAD", "GBPJPY"]);
 
 export default function SignalsScreen() {
   const theme = useOakTheme();
@@ -29,6 +30,7 @@ export default function SignalsScreen() {
       postSignalRule: alert.postSignalRule || "none",
     }));
     return source.filter((row) => {
+      if (TEMP_HIDDEN_H1_ROWS.has(row.symbol)) return false;
       if (filter === "buy") return row.signal === "BUY";
       if (filter === "sell") return row.signal === "SELL";
       return true;
