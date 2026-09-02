@@ -57,7 +57,7 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 rows and block set match the local ICMarkets v64 contract", () => {
+test("H1 rows and block set match the local ICMarkets v65 contract", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14, 16\]/);
@@ -68,7 +68,8 @@ test("H1 rows and block set match the local ICMarkets v64 contract", () => {
   assert.match(scannerSource, /base === "GBPUSD"/);
   assert.match(scannerSource, /base === "EURUSD"/);
   assert.match(scannerSource, /patternDriverTargetFor/);
-  assert.match(scannerSource, /return "XAUUSD"/);
+  assert.match(scannerSource, /base === "EURUSD"[^\n]*return "XAUUSD"/);
+  assert.doesNotMatch(scannerSource, /base === "GBPUSD"[^\n]*return "XAUUSD"/);
   assert.match(scannerSource, /return slotHour === 3 \|\| slotHour === 6 \? "GBPAUD" : "GBPJPY"/);
 });
 
