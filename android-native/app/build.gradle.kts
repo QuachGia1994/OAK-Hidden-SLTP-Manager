@@ -55,15 +55,17 @@ android {
 }
 
 dependencies {
-    implementation(platform("androidx.compose:compose-bom:2026.04.01"))
+    // Compose 1.12+ requires compileSdk 37. Keep the April 2026 Compose 1.11
+    // train enforced until API 37 is present on the stable GitHub runner image.
+    implementation(enforcedPlatform("androidx.compose:compose-bom:2026.04.01"))
     implementation("androidx.activity:activity-compose:1.12.3")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-core")
+    implementation("androidx.compose.material3:material3:1.3.2")
+    implementation("androidx.compose.material:material-icons-core:1.11.0")
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
 

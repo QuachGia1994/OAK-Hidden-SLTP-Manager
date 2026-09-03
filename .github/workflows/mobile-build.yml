@@ -69,21 +69,19 @@ jobs:
           test -s app/src/main/res/drawable-nodpi/oak_launcher_foreground.png
           test -s app/src/main/res/drawable-nodpi/oak_launcher_monochrome.png
 
-      - name: Build, lint and unit test native Android
+      - name: Build release APK first
         working-directory: android-native
         run: |
           chmod +x gradlew
-          ./gradlew :app:test :app:lintRelease :app:assembleRelease :app:bundleRelease --no-daemon --stacktrace
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace
 
-      - name: Verify Google Play 2027 memory/page/DEX gates
+      - name: Verify APK Google Play 2027 memory/page/DEX gates
         working-directory: android-native
         shell: bash
         run: |
           set -euo pipefail
           APK="app/build/outputs/apk/release/app-release.apk"
-          AAB="app/build/outputs/bundle/release/app-release.aab"
           test -s "$APK"
-          test -s "$AAB"
 
           # 16 KB page-size readiness: this native Compose client intentionally
           # ships no app-owned NDK code; any packaged .so must still pass zipalign.
@@ -110,12 +108,23 @@ jobs:
             exit 1
           fi
 
-      - name: Upload native Android artifacts
+      - name: Upload installable APK early
         uses: actions/upload-artifact@v4
         with:
-          name: OAK-Gatekeeper-Android-native
+          name: OAK-Gatekeeper-Android-native-APK
+          path: android-native/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Run release lint, unit tests and build AAB
+        working-directory: android-native
+        run: ./gradlew :app:testReleaseUnitTest :app:lintRelease :app:bundleRelease --no-daemon --stacktrace
+
+      - name: Upload Play bundle and R8 mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: OAK-Gatekeeper-Android-native-AAB
           path: |
-            android-native/app/build/outputs/apk/release/app-release.apk
             android-native/app/build/outputs/bundle/release/app-release.aab
             android-native/app/build/outputs/mapping/release/mapping.txt
           if-no-files-found: error
