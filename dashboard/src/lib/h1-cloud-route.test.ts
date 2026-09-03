@@ -98,8 +98,12 @@ test("local H1 Scheduled Task runs once per minute, ignores overlap and starts a
 });
 
 test("H1 state publication still uses dual Redis evidence and owned singleton lock", () => {
-  assert.match(cloudStore, /redis\.get<unknown>\(H1_CLOUD_STATE_KEY\)/);
+  assert.match(cloudStore, /redis\.get<unknown>\(key\)/);
   assert.match(cloudStore, /readRedisReplicas/);
+  assert.match(cloudStore, /H1_LEGACY_CLOUD_STATE_KEYS/);
+  assert.match(cloudStore, /loadLegacyHistoryState/);
+  assert.match(cloudStore, /mergeH1CloudStateHistory/);
+  assert.match(cloudStore, /repairLegacyH16AdvisorySignals/);
   assert.match(cloudStore, /parsePublicFeedCloudState/);
   assert.match(cloudStore, /stateProgress/);
   assert.match(cloudStore, /H1_CLOUD_LOCK_KEY/);

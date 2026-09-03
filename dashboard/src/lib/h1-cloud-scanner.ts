@@ -20,8 +20,13 @@ export const H1_SIGNAL_RULE_VERSION = 73;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-// Rule v73 keeps v72 timing rules while H16 CLOSE remains advisory and never suppresses BUY/SELL.
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v73";
+// Persistent state follows the state schema, not the signal-rule revision. This
+// prevents a rule-only bump from silently starting History from an empty key.
+export const H1_CLOUD_STATE_KEY = `robot-sltp:cloud:h1-scanner:state:s${H1_CLOUD_STATE_VERSION}`;
+export const H1_LEGACY_CLOUD_STATE_KEYS = [
+  "robot-sltp:cloud:h1-scanner:state:v73",
+  "robot-sltp:cloud:h1-scanner:state:v72",
+] as const;
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "MT5 ICMarkets Local";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -684,6 +689,32 @@ export function parseCloudState(raw: unknown): H1CloudState {
     };
   }
   return migrated;
+}
+
+export function repairLegacyH16AdvisorySignals(state: H1CloudState): H1CloudState {
+  for (const day of Object.values(state.days)) {
+    const xauAlerts = day.symbols.XAUUSD?.alerts ?? [];
+    const manualCloseDay = xauAlerts.some((alert) => alert.slotHour === 3 && alert.entryHour === 5);
+    if (!manualCloseDay) continue;
+    const xauH16 = xauAlerts.find((alert) => alert.slotHour === 16);
+    const xauFinalSignal = xauH16?.symbolH1Signal ?? xauH16?.baseH1Signal ?? null;
+
+    for (const base of H1_TARGET_BASES) {
+      const alert = day.symbols[base]?.alerts.find((row) => row.slotHour === 16);
+      if (!alert || alert.symbolH1Signal || !Number.isInteger(alert.entryHour) || !alert.patternGroup) continue;
+      alert.symbolH1Signal = base === "GBPUSD" || base === "EURUSD"
+        ? xauFinalSignal
+        : alert.baseH1Signal;
+    }
+  }
+  return state;
+}
+
+export function mergeH1CloudStateHistory(history: H1CloudState, current: H1CloudState): H1CloudState {
+  return trimCloudState({
+    version: H1_CLOUD_STATE_VERSION,
+    days: { ...history.days, ...current.days },
+  });
 }
 
 export function parsePublicFeedCloudState(raw: unknown): H1CloudState | null {

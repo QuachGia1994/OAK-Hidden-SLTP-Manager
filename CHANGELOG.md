@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Advanced H1 to v73: H16 now keeps its normal entry-time calculation and BUY/SELL signal on XAU H5 manual-close days. CLOSE is presentation-only as an H16 advisory badge and no longer nulls or replaces the H16 signal across Web, native iOS/Android and copied H1 PNGs. A fresh v73 state key clears stale CLOSE-only H16 rows.
+- Advanced H1 to v73: H16 now keeps its normal entry-time calculation and BUY/SELL signal on XAU H5 manual-close days. CLOSE is presentation-only as an H16 advisory badge and no longer nulls or replaces the H16 signal across Web, native iOS/Android and copied H1 PNGs. H1 persistence now uses the schema-stable state key `state:s56` instead of a rule-version key; first load migrates retained v72/v73 state, repairs legacy CLOSE-only H16 rows, and preserves the 90-day History calendar across future rule-only bumps.
 
 - Advanced H1 to v72: GBPUSD and EURUSD now use the XAUUSD entry time for H9/H12/H14/H16 while keeping the existing XAUUSD-synchronized final side and all v71 weekday/block rules. Removed the special blue reference-cell tint from XAUUSD/GBPUSD across Web, iOS, Android and copied H1 PNG images; H16 CLOSE warning styling remains unchanged. A fresh v72 state key clears stale entry-hour rows.
 

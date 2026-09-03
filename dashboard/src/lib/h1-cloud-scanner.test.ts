@@ -3,7 +3,9 @@ import test from "node:test";
 
 import {
   H1_CLOUD_PROFILE,
+  H1_CLOUD_STATE_KEY,
   H1_CLOUD_STATE_VERSION,
+  H1_LEGACY_CLOUD_STATE_KEYS,
   H1_PUBLIC_SCHEMA,
   H1_SCAN_HOURS,
   H1_SIGNAL_RULE_VERSION,
@@ -13,8 +15,10 @@ import {
   ensureSymbolDay,
   evaluateLocalH1PatternsForTarget,
   h1TargetBaseFromSymbol,
+  mergeH1CloudStateHistory,
   parseCloudState,
   parsePublicFeedCloudState,
+  repairLegacyH16AdvisorySignals,
   scheduledSignalSlotForVietnamWall,
   targetsForBlockHour,
   xauStartsDayAtEntryH5,
@@ -318,6 +322,59 @@ test("public feed keeps GBPJPY H14/H16 entry rows with USDJPY-derived signals", 
   const rows = feed.days[date].symbols.GBPJPY?.alerts ?? [];
   assert.deepEqual(rows.map((row) => row.slotHour), [14, 16]);
   assert.deepEqual(rows.map((row) => [row.entryHour, row.signal]), [[15, "BUY"], [17, "BUY"]]);
+});
+
+test("rule bumps keep H1 history on a schema-stable state key and retain legacy migration keys", () => {
+  assert.equal(H1_CLOUD_STATE_KEY, `robot-sltp:cloud:h1-scanner:state:s${H1_CLOUD_STATE_VERSION}`);
+  assert.deepEqual(H1_LEGACY_CLOUD_STATE_KEYS, [
+    "robot-sltp:cloud:h1-scanner:state:v73",
+    "robot-sltp:cloud:h1-scanner:state:v72",
+  ]);
+});
+
+test("legacy v72 history merges under v73 without losing dates and repairs advisory-only H16 signals", () => {
+  const oldDate = "2026-09-02";
+  const currentDate = "2026-09-03";
+  const legacy = emptyCloudState();
+  legacy.days[oldDate] = { symbols: {} };
+  const oldDay = legacy.days[oldDate];
+  oldDay.symbols.XAUUSD = { alerts: [
+    {
+      slotHour: 3, symbol: "XAUUSD", profile: H1_CLOUD_PROFILE, baseSymbol: "GBPUSD",
+      baseH1Signal: "BUY", baseHour: 4, baseMinute: 0, baseDirection: "T", symbolH1Signal: "BUY",
+      scheduledSignal: null, postSignalInverted: false, postSignalRule: "none", entryHour: 5,
+      patternGroup: "BT", patternFamily: "ALT", pattern: "TTGTTT", scannerSource: "XAUUSD", inversionBadge: false, sampleBars: [],
+    },
+    {
+      slotHour: 16, symbol: "XAUUSD", profile: H1_CLOUD_PROFILE, baseSymbol: "GBPUSD",
+      baseH1Signal: "SELL", baseHour: 17, baseMinute: 0, baseDirection: "G", symbolH1Signal: null,
+      scheduledSignal: null, postSignalInverted: false, postSignalRule: "none", entryHour: 18,
+      patternGroup: "BT", patternFamily: "ALT", pattern: "TTGTTT", scannerSource: "XAUUSD", inversionBadge: false, sampleBars: [],
+    },
+  ] };
+  oldDay.symbols.GBPUSD = { alerts: [{
+    slotHour: 16, symbol: "GBPUSD", profile: H1_CLOUD_PROFILE, baseSymbol: "GBPUSD",
+    baseH1Signal: "BUY", baseHour: 17, baseMinute: 0, baseDirection: "T", symbolH1Signal: null,
+    scheduledSignal: null, postSignalInverted: false, postSignalRule: "none", entryHour: 18,
+    patternGroup: "BT", patternFamily: "ALT", pattern: "TTGTTT", scannerSource: "GBPUSD", inversionBadge: false, sampleBars: [],
+  }] };
+  oldDay.symbols.GBPAUD = { alerts: [{
+    slotHour: 16, symbol: "GBPAUD", profile: H1_CLOUD_PROFILE, baseSymbol: "AUDUSD",
+    baseH1Signal: "BUY", baseHour: 17, baseMinute: 0, baseDirection: "T", symbolH1Signal: null,
+    scheduledSignal: null, postSignalInverted: false, postSignalRule: "none", entryHour: 18,
+    patternGroup: "BT", patternFamily: "ALT", pattern: "TTGTTT", scannerSource: "GBPUSD", inversionBadge: false, sampleBars: [],
+  }] };
+
+  repairLegacyH16AdvisorySignals(legacy);
+  assert.equal(legacy.days[oldDate].symbols.XAUUSD?.alerts.find((row) => row.slotHour === 16)?.symbolH1Signal, "SELL");
+  assert.equal(legacy.days[oldDate].symbols.GBPUSD?.alerts.find((row) => row.slotHour === 16)?.symbolH1Signal, "SELL");
+  assert.equal(legacy.days[oldDate].symbols.GBPAUD?.alerts.find((row) => row.slotHour === 16)?.symbolH1Signal, "BUY");
+
+  const current = emptyCloudState();
+  current.days[currentDate] = { symbols: { XAUUSD: { alerts: [] } } };
+  const merged = mergeH1CloudStateHistory(legacy, current);
+  assert.deepEqual(Object.keys(merged.days).sort(), [oldDate, currentDate]);
+  assert.equal(merged.days[currentDate], current.days[currentDate]);
 });
 
 test("public feed schema 18 exposes entry time plus final BUY/SELL and can seed state", () => {
