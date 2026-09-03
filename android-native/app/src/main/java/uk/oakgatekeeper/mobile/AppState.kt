@@ -56,7 +56,7 @@ class OAKAppState(application: Application) : AndroidViewModel(application) {
         prefs.edit().putString("theme", next.name).apply()
     }
 
-    fun setLocale(next: OAKLocale) {
+    fun updateLocale(next: OAKLocale) {
         locale = next
         prefs.edit().putString("locale", next.name).apply()
     }

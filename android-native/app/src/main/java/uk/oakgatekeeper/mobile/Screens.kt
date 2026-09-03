@@ -506,7 +506,7 @@ fun MoreScreen(state: OAKAppState) {
                         state.setTheme(OAKThemeMode.valueOf(it.uppercase()))
                     }
                     Text(state.text("Ngôn ngữ", "Language"), color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    SegmentedRow(listOf("VN", "EN"), state.locale.name) { state.setLocale(OAKLocale.valueOf(it)) }
+                    SegmentedRow(listOf("VN", "EN"), state.locale.name) { state.updateLocale(OAKLocale.valueOf(it)) }
                 }
             }
         }
