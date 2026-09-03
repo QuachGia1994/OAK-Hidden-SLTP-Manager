@@ -55,6 +55,10 @@ export async function readLocalPrimaryFence(): Promise<LocalPrimaryFence | null>
   }
 }
 
+export async function writeLocalPrimaryFence(value: LocalPrimaryFence): Promise<void> {
+  await redis.set(LOCAL_PRIMARY_FENCE_KEY, JSON.stringify(value), { ex: LOCAL_PRIMARY_FENCE_TTL_SECONDS });
+}
+
 export async function isLocalPrimaryActive(): Promise<boolean> {
   if (LOCAL_ONLY_TRADING) return true;
   return (await readLocalPrimaryFence()) !== null;

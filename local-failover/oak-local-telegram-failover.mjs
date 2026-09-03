@@ -341,6 +341,34 @@ export function createLocalFailoverRuntime(options = {}) {
       }
     },
   };
+  const webStatus = options.webStatus || {
+    async publish(config, status) {
+      if (!config.webSignalUrl || (!config.dashboardApiKey && !config.telegramWebhookSecret)) return { ok: false, skipped: "not-configured" };
+      const url = new URL(config.webSignalUrl);
+      url.pathname = /\/local-signal\/?$/.test(url.pathname)
+        ? url.pathname.replace(/\/local-signal\/?$/, "/local-status")
+        : "/api/telegram/local-status";
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), config.webSyncTimeoutMs || DEFAULT_WEB_SYNC_TIMEOUT_MS);
+      try {
+        const authHeaders = config.dashboardApiKey
+          ? { Authorization: `Bearer ${config.dashboardApiKey}` }
+          : { "x-telegram-bot-api-secret-token": config.telegramWebhookSecret };
+        const response = await fetchImpl(url, {
+          method: "POST",
+          headers: { ...authHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify(status),
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok || body?.ok !== true) throw new Error(`Web local MT5 status sync failed (${response.status})`);
+        return body;
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+  };
 
   async function log(message) {
     const safe = sanitizeOperatorError(message);
@@ -727,23 +755,34 @@ export function createLocalFailoverRuntime(options = {}) {
   }
 
   async function refreshLocalPrimaryFence(config, state, statuses = []) {
-    if (!config.upstashUrl || !config.upstashToken) return;
+    const directConfigured = Boolean(config.upstashUrl && config.upstashToken);
+    const webConfigured = Boolean(config.webSignalUrl && (config.dashboardApiKey || config.telegramWebhookSecret));
+    if (!directConfigured && !webConfigured) return;
     const accounts = localPrimaryFenceAccounts(statuses);
     const digestRows = accounts.map(({ at: _at, ...row }) => row);
     const accountDigest = createHash("sha256").update(JSON.stringify(digestRows), "utf8").digest("hex").slice(0, 24);
     const changed = accountDigest !== String(state.lastFenceAccountDigest || "");
     if (!changed && clock() - Number(state.lastFenceHeartbeatAt || 0) < FENCE_HEARTBEAT_MIN_INTERVAL_MS) return;
     state.lastFenceHeartbeatAt = clock();
-    try {
-      await upstash.command(config, ["SET", LOCAL_PRIMARY_FENCE_KEY, JSON.stringify({
-        at: clock(),
-        epoch: String(state.epoch || ""),
-        accounts,
-      }), "EX", String(LOCAL_PRIMARY_FENCE_TTL_SECONDS)]);
-      state.lastFenceAccountDigest = accountDigest;
-    } catch (error) {
-      await log(`Local-primary fence heartbeat failed; the cloud kill-switch may lapse within ${LOCAL_PRIMARY_FENCE_TTL_SECONDS}s: ${sanitizeOperatorError(error)}`);
+    const payload = { at: clock(), epoch: String(state.epoch || ""), accounts };
+    let published = false;
+    if (directConfigured) {
+      try {
+        await upstash.command(config, ["SET", LOCAL_PRIMARY_FENCE_KEY, JSON.stringify(payload), "EX", String(LOCAL_PRIMARY_FENCE_TTL_SECONDS)]);
+        published = true;
+      } catch (error) {
+        await log(`Local-primary direct fence heartbeat failed: ${sanitizeOperatorError(error)}`);
+      }
     }
+    if (webConfigured) {
+      try {
+        const result = await webStatus.publish(config, payload);
+        if (result?.ok === true) published = true;
+      } catch (error) {
+        await log(`Local-primary web MT5 status heartbeat failed: ${sanitizeOperatorError(error)}`);
+      }
+    }
+    if (published) state.lastFenceAccountDigest = accountDigest;
     await saveState(state);
   }
 

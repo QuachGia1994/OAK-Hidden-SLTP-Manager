@@ -116,6 +116,7 @@ async function createHarness(name, options = {}) {
     controlMode: "local-primary",
     telegramToken: "test-token-not-live",
     telegramChatId: "123",
+    telegramWebhookSecret: "test-secret-not-live",
     takeTelegramOwnership: options.takeTelegramOwnership !== false,
     ...(options.noUpstash ? {} : { upstashUrl: "https://example.invalid/upstash", upstashToken: "test-upstash-not-live" }),
     snapshotAt: nowRef.value,
@@ -242,6 +243,15 @@ async function createHarness(name, options = {}) {
       return { ok: true };
     },
   };
+  const webStatus = {
+    publishes: [],
+    failure: options.webStatusError || "",
+    async publish(_config, status) {
+      webStatus.publishes.push(status);
+      if (webStatus.failure) throw new Error(webStatus.failure);
+      return { ok: true };
+    },
+  };
 
   const runtimeOptions = {
     paths,
@@ -257,6 +267,7 @@ async function createHarness(name, options = {}) {
     },
   };
   if (options.webSignal) runtimeOptions.webSignal = webSignal;
+  if (options.webStatus) runtimeOptions.webStatus = webStatus;
   if (!options.realMailbox) runtimeOptions.eaAdapter = eaAdapter;
   const runtime = createLocalFailoverRuntime(runtimeOptions);
 
@@ -267,7 +278,7 @@ async function createHarness(name, options = {}) {
   for (const row of options.statuses || []) await writeStatus(row);
 
   return {
-    root, paths, config, runtime, telegram, upstash, calls, sent, eaTasks, mt5UiTasks, webSignal, appliedConfigAcls,
+    root, paths, config, runtime, telegram, upstash, calls, sent, eaTasks, mt5UiTasks, webSignal, webStatus, appliedConfigAcls,
     get eaExecutions() { return eaExecutions; },
     get now() { return nowRef.value; },
     advance(ms) { nowRef.value += ms; },
@@ -1041,6 +1052,29 @@ test("31 local-primary heartbeats the cloud fence with throttling and tolerates 
     assert.equal(report.fenceHeartbeatConfigured, false);
     assert.equal(report.controlMode, "local-primary");
   } finally { await noUpstash.cleanup(); }
+});
+
+test("local-primary publishes sanitized MT5 heartbeat through web sync when direct Upstash credentials are absent", { concurrency: false }, async () => {
+  const h = await createHarness("31-web-status", {
+    controlMode: "local-primary",
+    noUpstash: true,
+    webhook: "",
+    webSignalUrl: "https://www.oakgatekeeper.uk/api/telegram/local-signal",
+    webStatus: true,
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(h.calls.filter((call) => call === "redis:SET").length, 0);
+    assert.equal(h.webStatus.publishes.length, 1);
+    assert.equal(h.webStatus.publishes[0].accounts.length, 1);
+    assert.equal(h.webStatus.publishes[0].accounts[0].providerAccountId, LOCAL_PRIMARY_PROVIDER_ACCOUNT_ID);
+    assert.equal(h.webStatus.publishes[0].accounts[0].login, ACCOUNT_A.login);
+    assert.equal(h.webStatus.publishes[0].accounts[0].localReady, true);
+    assert.ok(state.lastFenceHeartbeatAt > 0);
+    assert.ok(state.lastFenceAccountDigest);
+  } finally { await h.cleanup(); }
 });
 
 test("32 overdue local-primary scheduled intents expire without broker execution", { concurrency: false }, async () => {
