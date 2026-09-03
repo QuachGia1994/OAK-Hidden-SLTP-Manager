@@ -25,10 +25,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -56,6 +59,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import kotlinx.coroutines.launch
+import java.time.YearMonth
+import java.time.format.TextStyle
+import java.util.Locale
 import kotlin.math.max
 
 private val VisibleSymbols = listOf("XAUUSD", "GBPUSD", "EURUSD", "GBPAUD")
@@ -138,6 +144,7 @@ fun UnlockScreen(state: OAKAppState) {
 @Composable
 fun H1BoardScreen(state: OAKAppState, history: Boolean) {
     val p = LocalOAKPalette.current
+    val context = LocalContext.current
     val h1 = state.payload?.h1
     var selectedDate by remember(h1?.latestDate) { mutableStateOf(h1?.latestDate.orEmpty()) }
     var selectedAlert by remember { mutableStateOf<H1SignalAlert?>(null) }
@@ -170,14 +177,24 @@ fun H1BoardScreen(state: OAKAppState, history: Boolean) {
                                 Text(state.text("Lịch block H1", "H1 Block Schedule"), color = p.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.weight(1f))
-                            OAKPill("FREE ACCESS", PillTone.SUCCESS)
+                            TextButton(
+                                onClick = {
+                                    val shared = ShareStore.shareSchedule(context, h1, date, VisibleSymbols)
+                                    Toast.makeText(context, if (shared) state.text("Đã mở bảng chia sẻ PNG", "PNG share sheet opened") else state.text("Không thể tạo PNG", "Unable to create PNG"), Toast.LENGTH_SHORT).show()
+                                },
+                            ) {
+                                Text("↥ PNG", color = p.accent, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                            }
                         }
                         Row(Modifier.fillMaxWidth()) {
                             OAKMetric("BROKER DAY", date, modifier = Modifier.weight(1f))
                             MetricDivider()
                             OAKMetric("UPDATED", shortPublished(h1.publishedAt), modifier = Modifier.weight(1f))
                         }
-                        Text(state.text("Tất cả ô entry-time H1 đã được mở", "All H1 entry-time cells unlocked"), color = p.muted, fontSize = 13.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OAKPill("FREE ACCESS", PillTone.SUCCESS)
+                            Text(state.text("Tất cả ô entry-time H1 đã được mở", "All H1 entry-time cells unlocked"), color = p.muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                        }
                     }
                 }
             }
@@ -195,6 +212,8 @@ fun H1BoardScreen(state: OAKAppState, history: Boolean) {
                                     .padding(13.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
+                                Icon(Icons.Default.DateRange, contentDescription = null, tint = p.accent, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(10.dp))
                                 Text(displayDate(date), color = p.text, fontSize = 17.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
                                 Spacer(Modifier.weight(1f))
                                 Text("▾", color = p.muted)
@@ -225,34 +244,117 @@ fun H1BoardScreen(state: OAKAppState, history: Boolean) {
     }
 
     if (calendarOpen && h1 != null) {
-        ModalBottomSheet(onDismissRequest = { calendarOpen = false }, containerColor = p.canvas) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(state.text("Chọn ngày H1", "Choose H1 date"), color = p.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.weight(1f))
-                    TextButton(onClick = { calendarOpen = false }) { Text(state.text("Đóng", "Close")) }
-                }
-                h1.orderedDatesDescending.take(90).forEach { item ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .background(if (item == date) p.accent.copy(alpha = .10f) else p.surface, RoundedCornerShape(12.dp))
-                            .border(1.dp, if (item == date) p.accent else p.border.copy(alpha = .6f), RoundedCornerShape(12.dp))
-                            .clickable { selectedDate = item; calendarOpen = false }
-                            .padding(13.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(displayDate(item), color = if (item == date) p.accent else p.text, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
-                        Spacer(Modifier.weight(1f))
-                        Text("feed", color = p.success, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
+        BrokerCalendarSheet(
+            state = state,
+            dates = h1.orderedDatesDescending,
+            selectedDate = date,
+            onSelect = { selectedDate = it; calendarOpen = false },
+            onDismiss = { calendarOpen = false },
+        )
     }
 
     selectedAlert?.let { alert ->
         EvidenceSheet(alert = alert, brokerDate = date, manualClose = manualClose && alert.slotHour == 16, onDismiss = { selectedAlert = null })
+    }
+}
+
+@Composable
+private fun BrokerCalendarSheet(
+    state: OAKAppState,
+    dates: List<String>,
+    selectedDate: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val p = LocalOAKPalette.current
+    val initialMonth = remember(selectedDate) {
+        runCatching { YearMonth.parse(selectedDate.take(7)) }.getOrElse { YearMonth.now() }
+    }
+    var monthAnchor by remember(selectedDate) { mutableStateOf(initialMonth) }
+    val activeDates = remember(dates) { dates.toSet() }
+    val firstDay = monthAnchor.atDay(1)
+    val sundayOffset = firstDay.dayOfWeek.value % 7
+    val monthCells = remember(monthAnchor) {
+        val start = firstDay.minusDays(sundayOffset.toLong())
+        List(42) { index -> start.plusDays(index.toLong()) }
+    }
+    val monthTitle = if (state.locale == OAKLocale.VN) {
+        "Tháng ${monthAnchor.monthValue} ${monthAnchor.year}"
+    } else {
+        "${monthAnchor.month.getDisplayName(TextStyle.FULL, Locale.ENGLISH)} ${monthAnchor.year}"
+    }
+    val weekdays = if (state.locale == OAKLocale.VN) {
+        listOf("CN", "T2", "T3", "T4", "T5", "T6", "T7")
+    } else {
+        listOf("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT")
+    }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = p.canvas) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 26.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(state.text("Chọn ngày H1", "Choose H1 date"), color = p.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onDismiss) { Text(state.text("Đóng", "Close")) }
+            }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { monthAnchor = monthAnchor.minusMonths(1) }) {
+                    Text("‹", color = p.accent, fontSize = 30.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.weight(1f))
+                Text(monthTitle, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = { monthAnchor = monthAnchor.plusMonths(1) }) {
+                    Text("›", color = p.accent, fontSize = 30.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            Row(Modifier.fillMaxWidth()) {
+                weekdays.forEach { weekday ->
+                    Text(
+                        weekday,
+                        modifier = Modifier.weight(1f),
+                        color = p.muted,
+                        fontSize = if (state.locale == OAKLocale.VN) 11.sp else 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                }
+            }
+            monthCells.chunked(7).forEach { week ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    week.forEach { cellDate ->
+                        val key = cellDate.toString()
+                        val active = key in activeDates
+                        val selected = key == selectedDate
+                        val inMonth = cellDate.month == monthAnchor.month
+                        val background = when {
+                            selected -> p.accent
+                            active -> p.accent.copy(alpha = .08f)
+                            else -> Color.Transparent
+                        }
+                        val foreground = when {
+                            selected -> Color.White
+                            active -> p.text
+                            inMonth -> p.muted.copy(alpha = .35f)
+                            else -> p.muted.copy(alpha = .20f)
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(42.dp)
+                                .background(background, RoundedCornerShape(10.dp))
+                                .clickable(enabled = active) { onSelect(key) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(cellDate.dayOfMonth.toString(), color = foreground, fontSize = 14.sp, fontWeight = if (selected) FontWeight.Black else FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -731,25 +833,41 @@ private fun CandlestickChart(bars: List<H1SampleBar>) {
     val p = LocalOAKPalette.current
     val safe = bars.take(6)
     OAKCard {
-        if (safe.isEmpty()) {
-            Text("No M15 bars", color = p.muted)
-            return@OAKCard
-        }
-        val maxPrice = safe.maxOf { it.high }
-        val minPrice = safe.minOf { it.low }
-        val range = (maxPrice - minPrice).takeIf { it > 0 } ?: 1.0
-        Canvas(Modifier.fillMaxWidth().height(180.dp)) {
-            val slot = size.width / safe.size
-            safe.forEachIndexed { index, bar ->
-                val centerX = slot * index + slot / 2
-                fun y(price: Double): Float = ((maxPrice - price) / range * (size.height - 26.dp.toPx()) + 10.dp.toPx()).toFloat()
-                val up = bar.close >= bar.open
-                val color = if (up) p.buy else p.sell
-                drawLine(color, Offset(centerX, y(bar.high)), Offset(centerX, y(bar.low)), strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
-                val top = minOf(y(bar.open), y(bar.close))
-                val bottom = maxOf(y(bar.open), y(bar.close))
-                val bodyHeight = max(3.dp.toPx(), bottom - top)
-                drawRoundRect(color, Offset(centerX - slot * .18f, top), Size(slot * .36f, bodyHeight), androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (safe.isEmpty()) {
+                Text("No M15 bars", color = p.muted)
+                return@Column
+            }
+            val maxPrice = safe.maxOf { it.high }
+            val minPrice = safe.minOf { it.low }
+            val range = (maxPrice - minPrice).takeIf { it > 0 } ?: 1.0
+            Canvas(Modifier.fillMaxWidth().height(160.dp)) {
+                val slot = size.width / safe.size
+                safe.forEachIndexed { index, bar ->
+                    val centerX = slot * index + slot / 2
+                    fun y(price: Double): Float = ((maxPrice - price) / range * (size.height - 18.dp.toPx()) + 8.dp.toPx()).toFloat()
+                    val up = bar.close >= bar.open
+                    val color = if (up) p.buy else p.sell
+                    drawLine(color, Offset(centerX, y(bar.high)), Offset(centerX, y(bar.low)), strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
+                    val top = minOf(y(bar.open), y(bar.close))
+                    val bottom = maxOf(y(bar.open), y(bar.close))
+                    val bodyHeight = max(3.dp.toPx(), bottom - top)
+                    drawRoundRect(color, Offset(centerX - slot * .18f, top), Size(slot * .36f, bodyHeight), androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
+                }
+            }
+            Row(Modifier.fillMaxWidth()) {
+                safe.forEach { bar ->
+                    Text(
+                        bar.brokerTime,
+                        modifier = Modifier.weight(1f),
+                        color = p.muted,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        maxLines = 1,
+                    )
+                }
             }
         }
     }

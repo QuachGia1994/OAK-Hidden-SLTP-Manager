@@ -328,10 +328,20 @@ test("native Android copies the iOS H1 presentation, evidence, reports, themes a
   assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD", "GBPUSD", "EURUSD", "GBPAUD"\)/);
   assert.match(androidScreensSource, /entryReference = \(symbol == "XAUUSD" && hour in listOf\(3, 6\)\)/);
   assert.match(androidScreensSource, /OAKPill\("FREE ACCESS", PillTone\.SUCCESS\)/);
+  assert.match(androidScreensSource, /BrokerCalendarSheet/);
+  assert.match(androidScreensSource, /listOf\("CN", "T2", "T3", "T4", "T5", "T6", "T7"\)/);
+  assert.match(androidScreensSource, /List\(42\)/);
+  assert.match(androidScreensSource, /monthAnchor\.minusMonths\(1\)/);
+  assert.match(androidScreensSource, /monthAnchor\.plusMonths\(1\)/);
+  assert.match(androidScreensSource, /Icons\.Default\.DateRange/);
+  assert.match(androidScreensSource, /↥ PNG/);
   assert.match(androidScreensSource, /COPY CHART/);
+  assert.match(androidShareSource, /shareSchedule/);
+  assert.match(androidShareSource, /Intent\.ACTION_SEND/);
   assert.match(androidShareSource, /ClipData\.newUri/);
   assert.match(androidShareSource, /createBitmap\(Width, Height/);
   assert.match(androidShareSource, /bitmap\.recycle\(\)/);
+  assert.match(androidScreensSource, /bar\.brokerTime/);
   assert.match(androidScreensSource, /index == 0 \|\| index == trend\.lastIndex \|\| index % 2 == 0/);
   assert.match(androidThemeSource, /canvas = Color\.Black/);
   assert.match(androidThemeSource, /text = Color\.White/);
@@ -340,6 +350,11 @@ test("native Android copies the iOS H1 presentation, evidence, reports, themes a
   assert.match(androidScreensSource, /Switch\(checked = account\.enabled/);
   assert.match(androidScreensSource, /© 2026 QuachGia/);
   assert.match(androidScreensSource, /MIT License/);
+  assert.match(androidMainSource, /R\.drawable\.ic_tab_live/);
+  assert.match(androidMainSource, /R\.drawable\.ic_tab_history/);
+  assert.match(androidMainSource, /R\.drawable\.ic_tab_signals/);
+  assert.match(androidMainSource, /R\.drawable\.ic_tab_reports/);
+  assert.match(androidMainSource, /R\.drawable\.ic_tab_more/);
 });
 
 test("native Android is hardened for Google Play February 2027 memory and DEX requirements", () => {

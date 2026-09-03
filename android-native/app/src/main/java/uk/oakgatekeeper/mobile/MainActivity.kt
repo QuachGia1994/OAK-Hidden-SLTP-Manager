@@ -12,12 +12,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Star
+import androidx.annotation.DrawableRes
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -28,7 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -58,14 +53,14 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private data class TabSpec(val tab: OAKTab, val vn: String, val en: String, val icon: ImageVector)
+private data class TabSpec(val tab: OAKTab, val vn: String, val en: String, @DrawableRes val iconRes: Int)
 
 private val tabs = listOf(
-    TabSpec(OAKTab.LIVE, "Live", "Live", Icons.Default.Home),
-    TabSpec(OAKTab.HISTORY, "Lịch sử", "History", Icons.Default.DateRange),
-    TabSpec(OAKTab.SIGNALS, "Tín hiệu", "Signals", Icons.Default.Star),
-    TabSpec(OAKTab.REPORTS, "Báo cáo", "Reports", Icons.Default.Info),
-    TabSpec(OAKTab.MORE, "Thêm", "More", Icons.Default.MoreVert),
+    TabSpec(OAKTab.LIVE, "Live", "Live", R.drawable.ic_tab_live),
+    TabSpec(OAKTab.HISTORY, "Lịch sử", "History", R.drawable.ic_tab_history),
+    TabSpec(OAKTab.SIGNALS, "Tín hiệu", "Signals", R.drawable.ic_tab_signals),
+    TabSpec(OAKTab.REPORTS, "Báo cáo", "Reports", R.drawable.ic_tab_reports),
+    TabSpec(OAKTab.MORE, "Thêm", "More", R.drawable.ic_tab_more),
 )
 
 @Composable
@@ -106,7 +101,7 @@ private fun OAKRoot(state: OAKAppState) {
                         NavigationBarItem(
                             selected = selected,
                             onClick = { state.selectedTab = item.tab },
-                            icon = { Icon(item.icon, contentDescription = state.text(item.vn, item.en)) },
+                            icon = { Icon(painterResource(item.iconRes), contentDescription = state.text(item.vn, item.en)) },
                             label = { Text(state.text(item.vn, item.en)) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = p.accent,
