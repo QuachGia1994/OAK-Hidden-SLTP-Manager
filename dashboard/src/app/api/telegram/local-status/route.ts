@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/redis-core";
 import { loadH1CloudConfig } from "@/lib/h1-cloud-config";
 import { writeLocalPrimaryFence, type LocalPrimaryMt5Heartbeat } from "@/lib/local-primary-fence";
+import { syncManagedMt5AccountsFromLocalHeartbeats } from "@/lib/provider-accounts";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -51,7 +52,7 @@ function normalizeHeartbeat(value: unknown, now: number): LocalPrimaryMt5Heartbe
   if (!/^mt5:[A-Za-z0-9_-]{8,80}$/.test(providerAccountId)) return null;
   if (!profile || !Number.isSafeInteger(login) || login <= 0 || !server) return null;
   if (!Number.isFinite(at) || Math.abs(now - at) > MAX_CLOCK_SKEW_MS) return null;
-  return { providerAccountId, profile, login, server, at, localReady: row.localReady !== false, eaVersion };
+  return { providerAccountId, profile, login, server, at, localReady: row.localReady !== false, enabled: row.enabled !== false, eaVersion };
 }
 
 export async function POST(request: Request) {
@@ -74,7 +75,8 @@ export async function POST(request: Request) {
 
   try {
     await writeLocalPrimaryFence({ at: now, epoch: String(body.epoch || "").slice(0, 120), accounts });
-    return NextResponse.json({ ok: true, accounts: accounts.length, at: now }, { headers: { "Cache-Control": "no-store" } });
+    const synced = await syncManagedMt5AccountsFromLocalHeartbeats(accounts);
+    return NextResponse.json({ ok: true, accounts: accounts.length, synced, at: now }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("[TELEGRAM LOCAL STATUS]", error instanceof Error ? error.message : String(error));
     return NextResponse.json({ ok: false, error: "Local MT5 status sync failed; retry later." }, { status: 503 });

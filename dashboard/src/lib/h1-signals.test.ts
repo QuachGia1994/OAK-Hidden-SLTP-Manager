@@ -202,6 +202,8 @@ test("mobile account status prefers sanitized local-primary MT5 heartbeat eviden
   assert.match(localControllerSource, /\/api\/telegram\/local-status/);
   assert.match(localStatusRouteSource, /x-telegram-bot-api-secret-token/);
   assert.match(localStatusRouteSource, /writeLocalPrimaryFence/);
+  assert.match(localStatusRouteSource, /syncManagedMt5AccountsFromLocalHeartbeats/);
+  assert.match(localStatusRouteSource, /enabled: row\.enabled !== false/);
   assert.match(localStatusRouteSource, /MAX_CLOCK_SKEW_MS/);
   assert.match(androidMoreSource, /© 2026 QuachGia/);
   assert.match(androidMoreSource, /local heartbeat online/);
@@ -209,12 +211,22 @@ test("mobile account status prefers sanitized local-primary MT5 heartbeat eviden
   assert.match(mobileAppConfigSource, /"icon": "\.\/assets\/icon\.png"/);
   assert.match(mobileAppConfigSource, /"foregroundImage": "\.\/assets\/adaptive-icon\.png"/);
   assert.match(mobileAppConfigSource, /"monochromeImage": "\.\/assets\/adaptive-monochrome\.png"/);
+  const nativeProjectSource = readFileSync(new URL("../../../ios-native/project.yml", import.meta.url), "utf8");
+  const nativeAppIconCatalogSource = readFileSync(new URL("../../../ios-native/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json", import.meta.url), "utf8");
+  assert.match(nativeProjectSource, /ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon/);
+  assert.match(nativeProjectSource, /path: Resources[\s\S]*buildPhase: resources/);
+  assert.match(nativeAppIconCatalogSource, /"filename" : "AppIcon\.png"/);
+  assert.match(nativeAppIconCatalogSource, /"size" : "1024x1024"/);
   assert.match(providerAccountStatusSource, /readLocalPrimaryFence/);
   assert.match(providerAccountStatusSource, /bridgeRuntime: "local-primary"/);
-  assert.match(providerAccountStatusSource, /bridgeRuntime: "local-primary-pending"/);
+  assert.match(providerAccountStatusSource, /local-primary-offline/);
+  assert.match(providerAccountStatusSource, /Boolean\(account\.bridgeProfile\) && sameText\(row\.profile, account\.bridgeProfile\)/);
+  assert.match(providerAccountStatusSource, /const bridgeRuntime: "local-primary-offline" \| "local-primary-pending"/);
   assert.match(providerAccountStatusSource, /getMt5BridgeHeartbeat/);
   assert.match(mobileAppBackendSource, /providerAccountsWithRuntimeStatus\(accounts\)/);
   assert.match(nativeMoreSource, /Local heartbeat online/);
+  assert.match(nativeMoreSource, /Local heartbeat offline/);
+  assert.match(androidMoreSource, /Local heartbeat offline/);
   assert.doesNotMatch(nativeMoreSource, /Bridge offline|bridge online/);
 });
 

@@ -108,6 +108,16 @@ jobs:
         working-directory: mobile
         run: pnpm exec expo prebuild --platform android --clean --no-install
 
+      - name: Verify generated Android launcher icon
+        working-directory: mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp
+          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp
+          grep -R -n 'android:icon="@mipmap/ic_launcher"' android/app/src/main/AndroidManifest.xml
+          grep -R -n 'ic_launcher_foreground' android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+
       - name: Build standalone release APK
         working-directory: mobile/android
         run: |
@@ -150,6 +160,16 @@ jobs:
       - name: Generate native Xcode project
         working-directory: ios-native
         run: xcodegen generate --spec project.yml
+
+      - name: Verify native iOS AppIcon
+        working-directory: ios-native
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+          test "$(sips -g pixelWidth Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png | awk '/pixelWidth/ {print $2}')" = "1024"
+          test "$(sips -g pixelHeight Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png | awk '/pixelHeight/ {print $2}')" = "1024"
+          grep -n 'ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon' project.yml
 
       - name: Verify native-only iOS sources
         shell: bash

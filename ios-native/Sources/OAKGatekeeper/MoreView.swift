@@ -182,7 +182,9 @@ struct MoreView: View {
                     let local = account.bridgeRuntime?.hasPrefix("local-primary") == true
                     let status = account.bridgeOnline == true
                         ? (local ? "Local heartbeat online" : "EA heartbeat online")
-                        : (local ? "Local heartbeat pending" : "Heartbeat unavailable")
+                        : account.bridgeRuntime == "local-primary-offline"
+                            ? "Local heartbeat offline"
+                            : (local ? "Local heartbeat pending" : "Heartbeat unavailable")
                     Text(status)
                         .font(.caption2.bold())
                         .foregroundStyle(account.bridgeOnline == true ? OAKColor.success : OAKColor.warning)

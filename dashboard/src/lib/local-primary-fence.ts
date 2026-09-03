@@ -16,6 +16,7 @@ export type LocalPrimaryMt5Heartbeat = {
   server: string;
   at: number;
   localReady: boolean;
+  enabled?: boolean;
   eaVersion: string;
 };
 
@@ -44,6 +45,7 @@ export async function readLocalPrimaryFence(): Promise<LocalPrimaryFence | null>
             server: String(value.server || ""),
             at,
             localReady: value.localReady !== false,
+            enabled: value.enabled !== false,
             eaVersion: String(value.eaVersion || ""),
           }];
         })

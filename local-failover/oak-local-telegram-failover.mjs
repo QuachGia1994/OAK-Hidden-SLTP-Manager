@@ -739,18 +739,24 @@ export function createLocalFailoverRuntime(options = {}) {
     await refreshLocalPrimaryFence(config, state);
   }
 
-  function localPrimaryFenceAccounts(statuses) {
+  function localPrimaryFenceAccounts(config, statuses) {
     return freshEaStatuses(statuses)
       .filter((row) => row.localPrimary === true && row.localReady !== false)
-      .map((row) => ({
-        providerAccountId: String(row.providerAccountId || ""),
-        profile: String(row.profile || ""),
-        login: Number(row.login),
-        server: String(row.server || ""),
-        at: Number(row.at),
-        localReady: row.localReady !== false,
-        eaVersion: String(row.eaVersion || ""),
-      }))
+      .map((row) => {
+        const configured = (config.accounts || []).find((account) =>
+          String(account.bridgeProfile || account.label || "").trim().toLowerCase() === String(row.profile || "").trim().toLowerCase(),
+        );
+        return {
+          providerAccountId: String(row.providerAccountId || ""),
+          profile: String(row.profile || ""),
+          login: Number(row.login),
+          server: String(row.server || ""),
+          at: Number(row.at),
+          localReady: row.localReady !== false,
+          enabled: configured?.enabled !== false,
+          eaVersion: String(row.eaVersion || ""),
+        };
+      })
       .filter((row) => /^mt5:[A-Za-z0-9_-]{8,80}$/.test(row.providerAccountId) && Number.isSafeInteger(row.login) && row.login > 0 && row.server);
   }
 
@@ -758,7 +764,7 @@ export function createLocalFailoverRuntime(options = {}) {
     const directConfigured = Boolean(config.upstashUrl && config.upstashToken);
     const webConfigured = Boolean(config.webSignalUrl && (config.dashboardApiKey || config.telegramWebhookSecret));
     if (!directConfigured && !webConfigured) return;
-    const accounts = localPrimaryFenceAccounts(statuses);
+    const accounts = localPrimaryFenceAccounts(config, statuses);
     const digestRows = accounts.map(({ at: _at, ...row }) => row);
     const accountDigest = createHash("sha256").update(JSON.stringify(digestRows), "utf8").digest("hex").slice(0, 24);
     const changed = accountDigest !== String(state.lastFenceAccountDigest || "");

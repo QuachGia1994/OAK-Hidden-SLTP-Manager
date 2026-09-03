@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Mobile runtime status + icon fix: fresh local-primary MT5 heartbeat now matches by stable profile alias after an in-terminal account switch, authenticated local heartbeat sync reconciles missing/stale managed MT5 rows so active IC Markets appears in Accounts, unmatched profiles report offline instead of indefinite pending, native iOS now ships a real 1024px AppIcon asset catalog, and CI verifies both native iOS and regenerated Android launcher icons.
+
 - H1 presentation reference highlight: H3/H6 blue reference cells now highlight XAUUSD instead of GBPAUD across web Live/History + PNG, native iOS Live/History + PNG, and Android H1 Calendar. GBPUSD H9/H12/H14/H16 reference highlighting is unchanged; v67 signal/entry derivation is unchanged.
 
 - Native iOS polish v3: added project MIT licensing/copyright attribution (`© 2026 QuachGia`), changed evidence copy from raw SVG source to an actual rendered chart image on the iOS clipboard, and replaced obsolete MT5 cloud-bridge account status with sanitized local-primary EA heartbeat evidence published through the existing Redis fence heartbeat. Native account rows now report Local heartbeat online/pending instead of Bridge offline.

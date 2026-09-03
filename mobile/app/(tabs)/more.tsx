@@ -97,7 +97,9 @@ export default function MoreScreen() {
             const heartbeat = account.provider === "mt5"
               ? account.bridgeOnline === true
                 ? local ? "Local heartbeat online" : "EA heartbeat online"
-                : local ? "Local heartbeat pending" : "Heartbeat unavailable"
+                : account.bridgeRuntime === "local-primary-offline"
+                  ? "Local heartbeat offline"
+                  : local ? "Local heartbeat pending" : "Heartbeat unavailable"
               : null;
             return (
               <View key={account.id} style={[styles.accountRow, { borderBottomColor: theme.border }]}>

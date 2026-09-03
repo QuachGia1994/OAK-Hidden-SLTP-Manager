@@ -15,9 +15,13 @@ function matchingLocalHeartbeat(account: ProviderAccountSummary, rows: LocalPrim
   return rows.find((row) => {
     if (!row.localReady || now - row.at > LOCAL_HEARTBEAT_FRESH_MS) return false;
     if (row.providerAccountId && row.providerAccountId === account.id) return true;
-    return row.login === account.traderLogin
+    if (row.login === account.traderLogin
       && sameText(row.server, account.bridgeServer)
-      && sameText(row.profile, account.bridgeProfile);
+      && sameText(row.profile, account.bridgeProfile)) return true;
+    // Local-primary profiles are stable terminal aliases. The MT5 login/provider
+    // id may legitimately change after the operator switches account inside the
+    // same terminal/profile, while broker routing remains reconciled separately.
+    return Boolean(account.bridgeProfile) && sameText(row.profile, account.bridgeProfile);
   }) || null;
 }
 
@@ -38,11 +42,14 @@ export async function providerAccountsWithRuntimeStatus(accounts: ProviderAccoun
     }
 
     if (fence) {
+      const bridgeRuntime: "local-primary-offline" | "local-primary-pending" = fence.accounts.length
+        ? "local-primary-offline"
+        : "local-primary-pending";
       return {
         ...account,
         bridgeOnline: false,
         bridgeLastSeenAt: fence.at || null,
-        bridgeRuntime: "local-primary-pending" as const,
+        bridgeRuntime,
         bridgeVersion: null,
       };
     }

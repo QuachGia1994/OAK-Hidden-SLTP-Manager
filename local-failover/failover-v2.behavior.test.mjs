@@ -1032,6 +1032,7 @@ test("31 local-primary heartbeats the cloud fence with throttling and tolerates 
     assert.equal(fencePayload.accounts[0].login, ACCOUNT_A.login);
     assert.equal(fencePayload.accounts[0].server, ACCOUNT_A.server);
     assert.equal(fencePayload.accounts[0].localReady, true);
+    assert.equal(fencePayload.accounts[0].enabled, true);
     assert.equal("fxSlPoints" in fencePayload.accounts[0], false);
     await h.runtime.runOneIteration(h.config, state);
     assert.equal(h.calls.filter((call) => call === "redis:SET").length, firstStreak);

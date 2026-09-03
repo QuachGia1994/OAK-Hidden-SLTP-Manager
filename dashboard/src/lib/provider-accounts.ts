@@ -76,6 +76,85 @@ export async function listManagedMt5Accounts(): Promise<ManagedMt5Account[]> {
     .sort((left, right) => Number(right.enabled) - Number(left.enabled) || left.broker.localeCompare(right.broker) || left.login - right.login);
 }
 
+function brokerNameFromLocalHeartbeat(profile: string, server: string): string {
+  const joined = `${profile} ${server}`;
+  if (/icmarkets/i.test(joined)) return "IC Markets";
+  if (/vantage/i.test(joined)) return "Vantage";
+  if (/neotech|fxce/i.test(joined)) return "FXCE";
+  return "MT5";
+}
+
+export async function syncManagedMt5AccountsFromLocalHeartbeats(rows: Array<{
+  providerAccountId: string;
+  profile: string;
+  login: number;
+  server: string;
+  enabled?: boolean;
+}>): Promise<{ created: number; updated: number }> {
+  const accounts = await listManagedMt5Accounts();
+  let created = 0;
+  let updated = 0;
+  for (const row of rows) {
+    const profile = String(row.profile || "").trim();
+    const server = String(row.server || "").trim();
+    const login = Number(row.login || 0);
+    if (!profile || !server || !Number.isSafeInteger(login) || login <= 0) continue;
+    const existing = accounts.find((account) =>
+      account.id === row.providerAccountId
+      || account.bridgeProfile.trim().toLowerCase() === profile.toLowerCase()
+      || (account.login === login && normalizeMt5Server(account.bridgeServer) === normalizeMt5Server(server)),
+    );
+    const now = Date.now();
+    if (existing) {
+      const enabled = row.enabled !== false;
+      const changed = existing.login !== login
+        || existing.bridgeProfile !== profile
+        || normalizeMt5Server(existing.bridgeServer) !== normalizeMt5Server(server)
+        || existing.enabled !== enabled;
+      if (changed) {
+        const next: ManagedMt5Account = {
+          ...existing,
+          login,
+          bridgeProfile: profile,
+          bridgeServer: server,
+          enabled,
+          updatedAt: now,
+        };
+        await redis.hset(MT5_ACCOUNTS_KEY, { [existing.id]: JSON.stringify(next) });
+        await syncMt5AutoBind(existing, next);
+        Object.assign(existing, next);
+        updated += 1;
+      }
+      continue;
+    }
+
+    const id = /^mt5:[A-Za-z0-9_-]{8,80}$/.test(row.providerAccountId)
+      ? row.providerAccountId
+      : `mt5:${randomUUID().replace(/-/g, "")}`;
+    const account: ManagedMt5Account = {
+      id,
+      broker: brokerNameFromLocalHeartbeat(profile, server),
+      environment: /demo/i.test(server) ? "demo" : "live",
+      login,
+      label: profile,
+      enabled: row.enabled !== false,
+      bridgeProfile: profile,
+      bridgeServer: server,
+      fxSlPoints: 500,
+      fxTpPoints: 10000,
+      goldSlPoints: 1000,
+      goldTpPoints: 20000,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await redis.hset(MT5_ACCOUNTS_KEY, { [id]: JSON.stringify(account) });
+    await syncMt5AutoBind(null, account);
+    accounts.push(account);
+    created += 1;
+  }
+  return { created, updated };
+}
+
 async function syncMt5LoginAutoBind(login: number): Promise<void> {
   const enabled = (await listManagedMt5Accounts()).filter((account) => account.enabled && account.bridgeProfile && account.login === login);
   if (enabled.length === 1 && !enabled[0].bridgeServer) {
