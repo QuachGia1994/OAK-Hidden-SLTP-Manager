@@ -212,6 +212,12 @@ transform: none; background: var(--oak-accent-command-strong); box-shadow: none;
 }
 .oak-empty-state > span { color: var(--terminal-accent); font: 900 1.25rem "Cascadia Mono", Consolas, monospace; }
 
+.oak-loading-splash { min-height: min(72vh, 38rem); display: grid; place-items: center; align-content: center; gap: .8rem; text-align: center; color: var(--oak-fg-primary); }
+.oak-loading-logo { width: 6.5rem; height: 6.5rem; border-radius: 1.55rem; object-fit: cover; box-shadow: 0 12px 32px color-mix(in srgb, var(--oak-accent-command) 14%, transparent); }
+.oak-loading-splash > b { font: 900 .82rem "Cascadia Mono", Consolas, monospace; letter-spacing: .12em; }
+.oak-loading-splash > small { color: var(--oak-fg-muted); font: 700 .62rem "Cascadia Mono", Consolas, monospace; }
+.oak-loading-spinner { width: 1.45rem; height: 1.45rem; border: 2px solid color-mix(in srgb, var(--oak-accent-command) 24%, var(--oak-border-subtle)); border-top-color: var(--oak-accent-command); border-radius: 50%; animation: oak-spin .8s linear infinite; }
+
 /* H1 cloud trading workspace */
 .oak-engine-screen {
   display: grid;
@@ -344,6 +350,10 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-h1-share-png:disabled { opacity: .38; cursor: wait; }
 .oak-h1-share-png[data-copied="true"] { color: var(--oak-status-success); border-color: color-mix(in srgb, var(--oak-status-success) 70%, var(--oak-border-subtle)); background: color-mix(in srgb, var(--oak-status-success) 10%, var(--oak-bg-raised)); }
 .oak-h1-share-png[data-failed="true"] { color: var(--oak-status-danger); border-color: color-mix(in srgb, var(--oak-status-danger) 70%, var(--oak-border-subtle)); background: color-mix(in srgb, var(--oak-status-danger) 10%, var(--oak-bg-raised)); }
+.oak-h1-close-advisory { display: flex; align-items: flex-start; gap: .7rem; margin: .7rem; padding: .72rem .8rem; border: 1px solid color-mix(in srgb, var(--oak-status-warning) 66%, var(--oak-border-subtle)); border-radius: var(--oak-radius-md); color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 6%, var(--oak-bg-surface)); }
+.oak-h1-close-advisory-icon { flex: 0 0 auto; font-size: 1rem; line-height: 1.3; }
+.oak-h1-close-advisory b { font: 900 .62rem "Cascadia Mono", Consolas, monospace; letter-spacing: .05em; }
+.oak-h1-close-advisory p { margin-top: .24rem; color: var(--oak-fg-muted); font-size: .65rem; line-height: 1.55; }
 .oak-h1-locked { padding: .48rem .75rem; border-bottom: 1px solid var(--oak-border-subtle); color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 6%, var(--oak-bg-surface)); font: 800 .58rem "Cascadia Mono", Consolas, monospace; }
 .oak-h1-locked-preview { display: flex; align-items: center; gap: .7rem; min-height: 5rem; padding: .8rem; border: 1px dashed var(--oak-border-subtle); border-radius: var(--oak-radius-sm); color: var(--oak-fg-muted); background: var(--oak-bg-raised); }
 .oak-h1-locked-preview-icon { color: var(--oak-accent-command); font: 900 1.15rem "Cascadia Mono", Consolas, monospace; }

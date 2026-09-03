@@ -62,7 +62,7 @@ import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.max
 
-private val VisibleSymbols = listOf("XAUUSD", "GBPUSD", "EURUSD", "GBPAUD")
+private val VisibleSymbols = listOf("XAUUSD", "GBPUSD", "EURUSD")
 
 @Composable
 fun UnlockScreen(state: OAKAppState) {
@@ -216,9 +216,12 @@ fun H1BoardScreen(state: OAKAppState, history: Boolean) {
             if (manualClose) {
                 item {
                     OAKCard(tint = p.warning) {
-                        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Text("H16 CLOSE", color = p.warning, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
-                            Text(state.text("XAUUSD đầu ngày có entry H5. CLOSE chỉ là badge khuyến nghị; ứng dụng không tự đóng lệnh.", "XAUUSD starts the day at entry H5. CLOSE is advisory only; the app never closes positions automatically."), color = p.muted, fontSize = 13.sp, lineHeight = 19.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+                            Text("✋", color = p.warning, fontSize = 24.sp, lineHeight = 28.sp)
+                            Column(verticalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.weight(1f)) {
+                                Text("H16 CLOSE", color = p.warning, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                                Text(state.text("XAUUSD đầu ngày có entry H5. CLOSE chỉ là badge khuyến nghị; ứng dụng không tự đóng lệnh.", "XAUUSD starts the day at entry H5. CLOSE is advisory only; the app never closes positions automatically."), color = p.muted, fontSize = 13.sp, lineHeight = 19.sp)
+                            }
                         }
                     }
                 }

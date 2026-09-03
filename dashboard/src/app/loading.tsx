@@ -1,9 +1,9 @@
 import { OAKLoadingSplash } from "@/components/OAKLoadingSplash";
 
-export default function EngineLoading() {
+export default function AppLoading() {
   return (
     <div className="page-shell">
-      <OAKLoadingSplash label="Loading current broker-day H1…" />
+      <OAKLoadingSplash />
     </div>
   );
 }

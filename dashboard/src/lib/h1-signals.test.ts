@@ -23,6 +23,9 @@ const androidThemeSource = readFileSync(new URL("../../../android-native/app/src
 const androidShareSource = readFileSync(new URL("../../../android-native/app/src/main/java/uk/oakgatekeeper/mobile/ShareStore.kt", import.meta.url), "utf8");
 const androidBuildSource = readFileSync(new URL("../../../android-native/app/build.gradle.kts", import.meta.url), "utf8");
 const androidManifestSource = readFileSync(new URL("../../../android-native/app/src/main/AndroidManifest.xml", import.meta.url), "utf8");
+const androidStylesSource = readFileSync(new URL("../../../android-native/app/src/main/res/values/styles.xml", import.meta.url), "utf8");
+const webLoadingSource = readFileSync(new URL("../components/OAKLoadingSplash.tsx", import.meta.url), "utf8");
+const brandSyncSource = readFileSync(new URL("../../../tools/sync_brand_assets.py", import.meta.url), "utf8");
 const scannerSource = readFileSync(new URL("./h1-cloud-scanner.ts", import.meta.url), "utf8");
 const localPatternsSource = readFileSync(new URL("./h1-local-patterns.ts", import.meta.url), "utf8");
 const localMarketRouteSource = readFileSync(new URL("../app/api/h1-scanner/local-market/route.ts", import.meta.url), "utf8");
@@ -107,19 +110,23 @@ test("XAU H5 turns H16 into a manual CLOSE badge without auto-close execution wi
   assert.match(boardSource, /oak-h1-close-badge/);
   assert.match(boardSource, /data-manual-close/);
   assert.match(boardSource, /data-action=\{manualCloseCell \? "CLOSE"/);
+  assert.match(boardSource, /oak-h1-close-advisory/);
+  assert.match(boardSource, /XAUUSD đầu ngày có entry H5/);
   assert.match(redesignCss, /\.oak-h1-close-badge/);
+  assert.match(redesignCss, /\.oak-h1-close-advisory/);
   assert.match(androidScreensSource, /manualCloseH16/);
   assert.match(androidScreensSource, /OAKPill\("CLOSE", PillTone\.WARNING\)/);
   assert.match(androidScreensSource, /manualClose && alert\.slotHour == 16/);
   assert.doesNotMatch(boardSource + androidScreensSource, /order_send|closePosition|dispatchTask|\/approve/);
 });
 
-test("GBPCAD and GBPJPY are temporarily hidden from H1 presentation while backend contracts stay intact", () => {
-  assert.match(boardSource, /H1_TEMP_HIDDEN_ROWS = new Set\(\["GBPCAD", "GBPJPY"\]\)/);
+test("GBPAUD, GBPCAD and GBPJPY are hidden from H1 presentation while backend contracts stay intact", () => {
+  assert.match(boardSource, /H1_TEMP_HIDDEN_ROWS = new Set\(\["GBPAUD", "GBPCAD", "GBPJPY"\]\)/);
   assert.match(boardSource, /visibleH1Symbols\(data\.symbols\)/);
   assert.match(boardSource, /visibleH1Symbols\(H1_TARGET_BASES\)/);
-  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD", "GBPUSD", "EURUSD", "GBPAUD"\)/);
-  assert.doesNotMatch(androidScreensSource, /VisibleSymbols = listOf\([^\n]*GBPCAD|VisibleSymbols = listOf\([^\n]*GBPJPY/);
+  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD", "GBPUSD", "EURUSD"\)/);
+  assert.match(nativeH1BoardSource, /visibleSymbols = \["XAUUSD", "GBPUSD", "EURUSD"\]/);
+  assert.doesNotMatch(androidScreensSource, /VisibleSymbols = listOf\([^\n]*GBPAUD|VisibleSymbols = listOf\([^\n]*GBPCAD|VisibleSymbols = listOf\([^\n]*GBPJPY/);
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
 });
 
@@ -207,8 +214,8 @@ test("mobile account status prefers sanitized local-primary MT5 heartbeat eviden
   assert.match(androidScreensSource, /Local heartbeat pending/);
   assert.match(androidManifestSource, /android:icon="@mipmap\/ic_launcher"/);
   const androidAdaptiveIconSource = readFileSync(new URL("../../../android-native/app/src/main/res/mipmap-anydpi/ic_launcher.xml", import.meta.url), "utf8");
-  assert.match(androidAdaptiveIconSource, /@drawable\/oak_launcher_foreground/);
-  assert.match(androidAdaptiveIconSource, /@drawable\/oak_launcher_monochrome/);
+  assert.match(androidAdaptiveIconSource, /@drawable\/oak_launcher_foreground_inset/);
+  assert.doesNotMatch(androidAdaptiveIconSource, /monochrome/);
   const nativeProjectSource = readFileSync(new URL("../../../ios-native/project.yml", import.meta.url), "utf8");
   const nativeAppIconCatalogSource = readFileSync(new URL("../../../ios-native/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json", import.meta.url), "utf8");
   assert.match(nativeProjectSource, /ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon/);
@@ -325,7 +332,7 @@ test("native Android mirrors the iOS five-tab hierarchy and removes the legacy D
 });
 
 test("native Android copies the iOS H1 presentation, evidence, reports, themes and account interaction", () => {
-  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD", "GBPUSD", "EURUSD", "GBPAUD"\)/);
+  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD", "GBPUSD", "EURUSD"\)/);
   assert.match(androidScreensSource, /entryReference = \(symbol == "XAUUSD" && hour in listOf\(3, 6\)\)/);
   assert.match(androidScreensSource, /OAKPill\("FREE ACCESS", PillTone\.SUCCESS\)/);
   assert.match(androidScreensSource, /BrokerCalendarSheet/);
@@ -379,6 +386,19 @@ test("native Android is hardened for Google Play February 2027 memory and DEX re
   assert.match(androidManifestSource, /android:allowBackup="false"/);
   assert.match(androidManifestSource, /android:fullBackupContent="false"/);
   assert.match(androidManifestSource, /android:dataExtractionRules="@xml\/data_extraction_rules"/);
+  assert.match(androidManifestSource, /Theme\.OAKGatekeeper\.Splash/);
+  assert.match(androidStylesSource, /parent="Theme\.SplashScreen"/);
+  assert.match(androidStylesSource, /windowSplashScreenAnimatedIcon/);
+  assert.match(androidMainSource, /installSplashScreen\(\)/);
+  assert.match(androidMainSource, /OAKLaunchLoading/);
+  assert.match(androidMainSource, /R\.drawable\.oak_app_icon_exact/);
+  assert.match(nativeAppSource, /OAKLaunchLoadingView/);
+  assert.match(nativeAppSource, /Image\("OAKLogo"\)/);
+  assert.match(webLoadingSource, /oak-app-icon\.png/);
+  assert.match(webLoadingSource, /oak-loading-spinner/);
+  assert.match(brandSyncSource, /AppIcon\.appiconset/);
+  assert.match(brandSyncSource, /oak_app_icon_exact\.png/);
+  assert.match(brandSyncSource, /oak-app-icon\.png/);
   assert.doesNotMatch(androidManifestSource, /android:screenOrientation="portrait"/);
 });
 
