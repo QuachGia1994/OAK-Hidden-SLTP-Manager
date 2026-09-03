@@ -31,8 +31,7 @@ struct SignalsView: View {
 
                 if let h1 = state.payload?.h1, !h1.latestDate.isEmpty {
                     let date = h1.latestDate
-                    let manualClose = h1.manualCloseH16(date: date)
-                    let rows = filteredAlerts(h1: h1, date: date, manualClose: manualClose)
+                    let rows = filteredAlerts(h1: h1, date: date)
 
                     HStack {
                         Text("H1 ACTIVITY")
@@ -45,9 +44,8 @@ struct SignalsView: View {
                     }
 
                     ForEach(rows) { alert in
-                        let close = manualClose && alert.slotHour == 16
                         Button { selectedAlert = alert } label: {
-                            OAKCard(tint: close ? OAKColor.warning : alert.signal == .buy ? OAKColor.buy : alert.signal == .sell ? OAKColor.sell : nil) {
+                            OAKCard(tint: alert.signal == .buy ? OAKColor.buy : alert.signal == .sell ? OAKColor.sell : nil) {
                                 HStack(alignment: .center, spacing: 12) {
                                     VStack(alignment: .leading, spacing: 6) {
                                         HStack(spacing: 8) {
@@ -63,9 +61,7 @@ struct SignalsView: View {
                                         }
                                     }
                                     Spacer()
-                                    if close {
-                                        OAKPill(label: "CLOSE", tone: .warning)
-                                    } else if let signal = alert.signal {
+                                    if let signal = alert.signal {
                                         OAKPill(label: signal.rawValue, tone: signal == .buy ? .buy : .sell)
                                     } else {
                                         Text("—").foregroundStyle(OAKColor.muted)
@@ -96,11 +92,10 @@ struct SignalsView: View {
         }
     }
 
-    private func filteredAlerts(h1: H1SignalPayload, date: String, manualClose: Bool) -> [H1SignalAlert] {
+    private func filteredAlerts(h1: H1SignalPayload, date: String) -> [H1SignalAlert] {
         h1.alerts(date: date, visibleSymbols: visibleSymbols)
             .filter { $0.entryHour != nil }
             .filter { alert in
-                if manualClose && alert.slotHour == 16 { return filter == .all }
                 switch filter {
                 case .all: return alert.signal != nil
                 case .buy: return alert.signal == .buy

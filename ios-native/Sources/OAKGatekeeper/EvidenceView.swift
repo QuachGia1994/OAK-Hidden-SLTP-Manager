@@ -57,7 +57,7 @@ struct H1EvidenceSheet: View {
                             fact("FAMILY", familyLabel(alert.patternFamily))
                             fact("PATTERN", alert.pattern ?? "—")
                             fact("BASE", alert.baseDirection.isEmpty ? "—" : "GBPUSD H\(alert.baseHour ?? 0) · \(alert.baseDirection)")
-                            fact("FINAL", manualClose ? "CLOSE · manual only" : (alert.signal?.rawValue ?? "—"))
+                            fact("FINAL", alert.signal?.rawValue ?? "—")
                         }
                     }
 

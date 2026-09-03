@@ -78,10 +78,10 @@ function h1Bars(date: string, hour: number, direction: "T" | "G"): H1M15Bar[] {
   });
 }
 
-test("rule v72 uses local MT5 ICMarkets, schema 18 and six blocks", () => {
+test("rule v73 uses local MT5 ICMarkets, schema 18 and six blocks", () => {
   assert.equal(H1_CLOUD_STATE_VERSION, 56);
   assert.equal(H1_PUBLIC_SCHEMA, 18);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 72);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 73);
   assert.equal(H1_CLOUD_PROFILE, "MT5 ICMarkets Local");
   assert.deepEqual(H1_SCAN_HOURS, [3, 6, 9, 12, 14, 16]);
   assert.deepEqual(H1_TARGET_BASES, ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"]);
@@ -205,7 +205,7 @@ test("H9 can publish an H11 signal immediately because its GBPUSD H10 base comes
   assert.deepEqual([alert?.slotHour, alert?.entryHour, alert?.baseHour, alert?.baseDirection, alert?.symbolH1Signal], [9, 11, 10, "G", "SELL"]);
 });
 
-test("XAUUSD first entry H5 turns H16 into manual CLOSE-only with no BUY/SELL signal", () => {
+test("XAUUSD first entry H5 keeps normal H16 BUY/SELL while CLOSE remains advisory-only", () => {
   const date = "2026-09-02";
   const snapshot = market(date, "TGGTTT", "ALT");
   for (const source of ["XAUUSD", "AUDUSD", "USDCAD", "USDJPY", "GBPUSD", "EURUSD"] as const) {
@@ -226,12 +226,12 @@ test("XAUUSD first entry H5 turns H16 into manual CLOSE-only with no BUY/SELL si
     return [base, alert?.symbolH1Signal];
   }));
   assert.deepEqual(finalSignals, {
-    XAUUSD: null,
-    GBPUSD: null,
-    EURUSD: null,
-    GBPAUD: null,
-    GBPCAD: null,
-    GBPJPY: null,
+    XAUUSD: "BUY",
+    GBPUSD: "BUY",
+    EURUSD: "BUY",
+    GBPAUD: "BUY",
+    GBPCAD: "BUY",
+    GBPJPY: "BUY",
   });
 });
 
@@ -281,7 +281,7 @@ test("timed Telegram mapping follows the reopened six block set", () => {
   assert.equal(scheduledSignalSlotForVietnamWall("GBPJPY", date, 12, 5), 6);
 });
 
-test("cloud state v56 round-trips the v72 GBP-cross scanner/base contract", () => {
+test("cloud state v56 round-trips the v73 GBP-cross scanner/base contract", () => {
   const date = "2026-09-02";
   const state = emptyCloudState();
   const snapshot = market(date, "TTGTTT", "ALT");
@@ -328,7 +328,7 @@ test("public feed schema 18 exposes entry time plus final BUY/SELL and can seed 
   const alert = evaluateLocalH1PatternsForTarget("GBPAUD", date, snapshot, [3], 3)[0];
   ensureSymbolDay(state, date, "GBPAUD").symbol.alerts.push(alert);
   const feed = buildPublicFeed(state, "2026-09-02T01:00:00.000Z");
-  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours], [18, 72, [3, 6, 9, 12, 14, 16]]);
+  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours], [18, 73, [3, 6, 9, 12, 14, 16]]);
   const row = feed.days[date].symbols.GBPAUD?.alerts[0];
   assert.deepEqual([row?.entryHour, row?.patternGroup, row?.scannerSource, row?.baseSymbol, row?.baseSignal, row?.signal, row?.inversionBadge], [4, "BT", "GBPUSD", "AUDUSD", "BUY", "BUY", false]);
   assert.equal(row?.sampleBars.length, 6);

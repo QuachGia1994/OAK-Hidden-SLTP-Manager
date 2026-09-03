@@ -279,7 +279,6 @@ private struct H1MatrixView: View {
                                             alert: h1.alert(date: date, symbol: symbol, hour: hour),
                                             width: cellWidth,
                                             height: rowHeight,
-                                            manualClose: manualClose && hour == 16,
                                             onSelect: onSelect
                                         )
                                     }
@@ -327,13 +326,7 @@ private struct H1MatrixCell: View {
     let alert: H1SignalAlert?
     let width: CGFloat
     let height: CGFloat
-    let manualClose: Bool
     let onSelect: (H1SignalAlert) -> Void
-
-    private var background: Color {
-        if manualClose { return OAKColor.warning.opacity(0.16) }
-        return OAKColor.surface
-    }
 
     var body: some View {
         Group {
@@ -343,9 +336,7 @@ private struct H1MatrixCell: View {
                         Text("H\(String(format: "%02d", entry))")
                             .font(.system(size: 16, weight: .black, design: .monospaced))
                             .foregroundStyle(OAKColor.text)
-                        if manualClose {
-                            OAKPill(label: "CLOSE", tone: .warning)
-                        } else if let signal = alert.signal {
+                        if let signal = alert.signal {
                             OAKPill(label: signal.rawValue, tone: signal == .buy ? .buy : .sell)
                         } else {
                             Text("—").foregroundStyle(OAKColor.muted)
@@ -356,19 +347,13 @@ private struct H1MatrixCell: View {
                 }
                 .buttonStyle(.plain)
             } else {
-                Text(manualClose ? "CLOSE" : "—")
-                    .font(.system(size: manualClose ? 10 : 15, weight: .black, design: .monospaced))
-                    .foregroundStyle(manualClose ? OAKColor.warning : OAKColor.muted.opacity(0.55))
+                Text("—")
+                    .font(.system(size: 15, weight: .black, design: .monospaced))
+                    .foregroundStyle(OAKColor.muted.opacity(0.55))
                     .frame(width: width, height: height)
             }
         }
-        .background(background, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-        .overlay {
-            if manualClose {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .stroke(OAKColor.warning.opacity(0.72), lineWidth: 1.8)
-            }
-        }
+        .background(OAKColor.surface, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
     }
 }
 

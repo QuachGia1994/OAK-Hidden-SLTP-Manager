@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced H1 to v73: H16 now keeps its normal entry-time calculation and BUY/SELL signal on XAU H5 manual-close days. CLOSE is presentation-only as an H16 advisory badge and no longer nulls or replaces the H16 signal across Web, native iOS/Android and copied H1 PNGs. A fresh v73 state key clears stale CLOSE-only H16 rows.
+
 - Advanced H1 to v72: GBPUSD and EURUSD now use the XAUUSD entry time for H9/H12/H14/H16 while keeping the existing XAUUSD-synchronized final side and all v71 weekday/block rules. Removed the special blue reference-cell tint from XAUUSD/GBPUSD across Web, iOS, Android and copied H1 PNG images; H16 CLOSE warning styling remains unchanged. A fresh v72 state key clears stale entry-hour rows.
 
 - Fixed scheduled MT5 reversals and advanced H1 to v71. EA v1.11 now validates non-mutating entry fields first, closes an opposite-side position, waits for the broker/terminal position state to settle, then applies exposure limits and refreshes price before the MT5 UI submit; this prevents an existing BUY from blocking a due SELL (and vice versa). The scheduler now terminalizes unexpected per-intent errors and queues a Telegram failure/uncertain notice instead of aborting silently. H1 keeps all v70 block/base rules but removes weekday signal flips: Tuesday GBPAUD stays on its AUDUSD base, Thursday GBPUSD follows XAUUSD without inversion, and Friday EURUSD follows XAUUSD without inversion. A fresh v71 state key clears stale inverted rows.

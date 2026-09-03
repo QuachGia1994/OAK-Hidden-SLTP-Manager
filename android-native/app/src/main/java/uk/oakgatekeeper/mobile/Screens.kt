@@ -246,7 +246,7 @@ fun H1BoardScreen(state: OAKAppState, history: Boolean) {
     }
 
     selectedAlert?.let { alert ->
-        EvidenceSheet(alert = alert, brokerDate = date, manualClose = manualClose && alert.slotHour == 16, onDismiss = { selectedAlert = null })
+        EvidenceSheet(alert = alert, brokerDate = date, onDismiss = { selectedAlert = null })
     }
 }
 
@@ -372,7 +372,6 @@ private fun H1Matrix(h1: H1SignalPayload, date: String, manualClose: Boolean, on
                                 val alert = h1.alert(date, symbol, hour)
                                 H1MatrixCell(
                                     alert = alert,
-                                    manualClose = manualClose && hour == 16,
                                     onSelect = onSelect,
                                 )
                             }
@@ -409,22 +408,13 @@ private fun MatrixHour(hour: Int, manualClose: Boolean) {
 }
 
 @Composable
-private fun H1MatrixCell(alert: H1SignalAlert?, manualClose: Boolean, onSelect: (H1SignalAlert) -> Unit) {
+private fun H1MatrixCell(alert: H1SignalAlert?, onSelect: (H1SignalAlert) -> Unit) {
     val p = LocalOAKPalette.current
-    val bg = when {
-        manualClose -> p.warning.copy(alpha = .16f)
-        else -> p.surface
-    }
-    val border = when {
-        manualClose -> p.warning.copy(alpha = .72f)
-        else -> Color.Transparent
-    }
     Column(
         modifier = Modifier
             .width(82.dp)
             .height(78.dp)
-            .background(bg, RoundedCornerShape(11.dp))
-            .then(if (border != Color.Transparent) Modifier.border(1.8.dp, border, RoundedCornerShape(11.dp)) else Modifier)
+            .background(p.surface, RoundedCornerShape(11.dp))
             .then(if (alert?.entryHour != null) Modifier.clickable { onSelect(alert) } else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
@@ -432,14 +422,13 @@ private fun H1MatrixCell(alert: H1SignalAlert?, manualClose: Boolean, onSelect: 
         if (alert?.entryHour != null) {
             Text("H${alert.entryHour.toString().padStart(2, '0')}", color = p.text, fontSize = 16.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
             Spacer(Modifier.height(7.dp))
-            when {
-                manualClose -> OAKPill("CLOSE", PillTone.WARNING)
-                alert.signal == SignalSide.BUY -> OAKPill("BUY", PillTone.BUY)
-                alert.signal == SignalSide.SELL -> OAKPill("SELL", PillTone.SELL)
-                else -> Text("—", color = p.muted)
+            when (alert.signal) {
+                SignalSide.BUY -> OAKPill("BUY", PillTone.BUY)
+                SignalSide.SELL -> OAKPill("SELL", PillTone.SELL)
+                null -> Text("—", color = p.muted)
             }
         } else {
-            Text(if (manualClose) "CLOSE" else "—", color = if (manualClose) p.warning else p.muted.copy(alpha = .55f), fontSize = if (manualClose) 10.sp else 15.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+            Text("—", color = p.muted.copy(alpha = .55f), fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
         }
     }
 }
@@ -451,14 +440,12 @@ fun SignalsScreen(state: OAKAppState) {
     val p = LocalOAKPalette.current
     val h1 = state.payload?.h1
     val date = h1?.latestDate.orEmpty()
-    val manualClose = h1?.manualCloseH16(date) == true
     var filter by remember { mutableStateOf(SignalFilter.ALL) }
     var selectedAlert by remember { mutableStateOf<H1SignalAlert?>(null) }
     val rows = h1?.alerts(date, VisibleSymbols).orEmpty()
         .filter { it.entryHour != null }
         .filter {
-            if (manualClose && it.slotHour == 16) filter == SignalFilter.ALL
-            else when (filter) {
+            when (filter) {
                 SignalFilter.ALL -> it.signal != null
                 SignalFilter.BUY -> it.signal == SignalSide.BUY
                 SignalFilter.SELL -> it.signal == SignalSide.SELL
@@ -475,8 +462,7 @@ fun SignalsScreen(state: OAKAppState) {
         }
         item { SectionTitle("H1 ACTIVITY", date) }
         items(rows, key = { it.id }) { alert ->
-            val close = manualClose && alert.slotHour == 16
-            val tint = if (close) p.warning else if (alert.signal == SignalSide.BUY) p.buy else if (alert.signal == SignalSide.SELL) p.sell else null
+            val tint = if (alert.signal == SignalSide.BUY) p.buy else if (alert.signal == SignalSide.SELL) p.sell else null
             OAKCard(modifier = Modifier.clickable { selectedAlert = alert }, tint = tint) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -490,11 +476,10 @@ fun SignalsScreen(state: OAKAppState) {
                         }
                     }
                     Spacer(Modifier.weight(1f))
-                    when {
-                        close -> OAKPill("CLOSE", PillTone.WARNING)
-                        alert.signal == SignalSide.BUY -> OAKPill("BUY", PillTone.BUY)
-                        alert.signal == SignalSide.SELL -> OAKPill("SELL", PillTone.SELL)
-                        else -> Text("—", color = p.muted)
+                    when (alert.signal) {
+                        SignalSide.BUY -> OAKPill("BUY", PillTone.BUY)
+                        SignalSide.SELL -> OAKPill("SELL", PillTone.SELL)
+                        null -> Text("—", color = p.muted)
                     }
                 }
             }
@@ -502,7 +487,7 @@ fun SignalsScreen(state: OAKAppState) {
         if (rows.isEmpty()) item { OAKCard { Text("No matching alerts", color = p.muted) } }
     }
 
-    selectedAlert?.let { alert -> EvidenceSheet(alert, date, manualClose && alert.slotHour == 16) { selectedAlert = null } }
+    selectedAlert?.let { alert -> EvidenceSheet(alert, date) { selectedAlert = null } }
 }
 
 @Composable
@@ -741,7 +726,7 @@ private fun SegmentedRow(choices: List<String>, selected: String, onSelect: (Str
 }
 
 @Composable
-private fun EvidenceSheet(alert: H1SignalAlert, brokerDate: String, manualClose: Boolean, onDismiss: () -> Unit) {
+private fun EvidenceSheet(alert: H1SignalAlert, brokerDate: String, onDismiss: () -> Unit) {
     val p = LocalOAKPalette.current
     val context = LocalContext.current
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = p.canvas) {
@@ -772,7 +757,7 @@ private fun EvidenceSheet(alert: H1SignalAlert, brokerDate: String, manualClose:
                         Fact("FAMILY", alert.patternFamily ?: "—")
                         Fact("PATTERN", alert.pattern ?: "—")
                         Fact("BASE", "${alert.baseSymbol} H${alert.baseHour ?: 0} · ${alert.baseDirection}")
-                        Fact("FINAL", if (manualClose) "CLOSE" else alert.signal?.name ?: "—")
+                        Fact("FINAL", alert.signal?.name ?: "—")
                     }
                 }
             }

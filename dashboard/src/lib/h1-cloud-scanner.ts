@@ -16,12 +16,12 @@ import {
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 72;
+export const H1_SIGNAL_RULE_VERSION = 73;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-// Rule v72 keeps v71 signal/block rules and synchronizes GBPUSD/EURUSD entry time to XAUUSD.
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v72";
+// Rule v73 keeps v72 timing rules while H16 CLOSE remains advisory and never suppresses BUY/SELL.
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v73";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "MT5 ICMarkets Local";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -79,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 72;
+  signalRuleVersion: 73;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -482,7 +482,6 @@ export function evaluateLocalH1PatternsForTarget(
   throughHour = Number.POSITIVE_INFINITY,
 ): H1StoredAlert[] {
   const alerts: H1StoredAlert[] = [];
-  const closeH16FromXauH5 = xauStartsDayAtEntryH5(brokerDate, market);
   for (const slotHour of slotHours) {
     if (slotHour > throughHour || !targetEnabledForDate(base, brokerDate, slotHour)) continue;
     const patternDriver = patternDriverTargetFor(base, slotHour);
@@ -499,9 +498,8 @@ export function evaluateLocalH1PatternsForTarget(
     const baseH1Signal = reference ? signalFromDirection(reference.direction) : null;
     const syncToXau = (base === "GBPUSD" || base === "EURUSD") && [9, 12, 14, 16].includes(slotHour);
     const xauSignal = syncToXau ? xauFinalSignalForSlot(brokerDate, slotHour, market) : null;
-    const manualCloseOnly = slotHour === 16 && closeH16FromXauH5;
     const derivedSignal = syncToXau ? xauSignal : baseH1Signal;
-    const symbolH1Signal = manualCloseOnly ? null : derivedSignal;
+    const symbolH1Signal = derivedSignal;
     alerts.push({
       slotHour,
       symbol: base,

@@ -32,6 +32,7 @@ const localMarketRouteSource = readFileSync(new URL("../app/api/h1-scanner/local
 const layoutSource = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const tabAutoRefreshSource = readFileSync(new URL("../components/TabAutoRefresh.tsx", import.meta.url), "utf8");
 const nativeH1BoardSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/H1BoardView.swift", import.meta.url), "utf8");
+const nativeSignalsSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/SignalsView.swift", import.meta.url), "utf8");
 const nativeEvidenceSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/EvidenceView.swift", import.meta.url), "utf8");
 const nativeReportsSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/ReportsView.swift", import.meta.url), "utf8");
 const nativeThemeSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/Theme.swift", import.meta.url), "utf8");
@@ -72,7 +73,7 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 rows and block set match the local ICMarkets v72 contract", () => {
+test("H1 rows and block set match the local ICMarkets v73 contract", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14, 16\]/);
@@ -80,10 +81,11 @@ test("H1 rows and block set match the local ICMarkets v72 contract", () => {
   assert.match(scannerSource, /if \(hour === 6\) return \["XAUUSD", "GBPAUD", "GBPJPY"\]/);
   assert.match(localMarketRouteSource, /evaluateLocalH1PatternsForTarget/);
   assert.match(scannerSource, /xauStartsDayAtEntryH5/);
-  assert.match(scannerSource, /manualCloseOnly/);
-  assert.match(scannerSource, /symbolH1Signal = manualCloseOnly \? null : derivedSignal/);
+  assert.doesNotMatch(scannerSource, /manualCloseOnly|closeH16FromXauH5/);
+  assert.doesNotMatch(scannerSource, /symbolH1Signal = manualCloseOnly \? null : derivedSignal/);
   assert.doesNotMatch(scannerSource, /weekdaySyncSignalInverted/);
   assert.match(scannerSource, /const derivedSignal = syncToXau \? xauSignal : baseH1Signal/);
+  assert.match(scannerSource, /const symbolH1Signal = derivedSignal/);
   assert.match(scannerSource, /base === "GBPUSD"/);
   assert.match(scannerSource, /base === "EURUSD"/);
   assert.match(scannerSource, /patternDriverTargetFor/);
@@ -109,18 +111,24 @@ test("web tab softly refreshes server data every 20 seconds", () => {
   assert.doesNotMatch(tabAutoRefreshSource, /location\.reload/);
 });
 
-test("XAU H5 turns H16 into a manual CLOSE badge without auto-close execution wiring", () => {
+test("XAU H5 keeps H16 BUY/SELL and uses CLOSE as an advisory badge only", () => {
   assert.match(boardSource, /function isManualCloseH16Day/);
   assert.match(boardSource, /oak-h1-close-badge/);
-  assert.match(boardSource, /data-manual-close/);
-  assert.match(boardSource, /data-action=\{manualCloseCell \? "CLOSE"/);
+  assert.match(boardSource, /data-manual-close=\{hour === 16 && manualCloseH16/);
+  assert.match(boardSource, /drawCentered\(alert\?\.signal \|\| "—"/);
+  assert.match(boardSource, /<small data-signal=\{alert\?\.signal \|\| undefined\}>\{alert\?\.signal \|\| "—"\}<\/small>/);
+  assert.doesNotMatch(boardSource, /manualCloseCell|data-action=/);
   assert.match(boardSource, /oak-h1-close-advisory/);
-  assert.match(boardSource, /XAUUSD đầu ngày có entry H5/);
   assert.match(redesignCss, /\.oak-h1-close-badge/);
-  assert.match(redesignCss, /\.oak-h1-close-advisory/);
-  assert.match(androidScreensSource, /manualCloseH16/);
-  assert.match(androidScreensSource, /OAKPill\("CLOSE", PillTone\.WARNING\)/);
-  assert.match(androidScreensSource, /manualClose && alert\.slotHour == 16/);
+  assert.doesNotMatch(redesignCss, /tbody td\[data-manual-close="true"\]|data-action="CLOSE"/);
+  assert.match(androidScreensSource, /if \(manualClose\) Text\("CLOSE", color = p\.warning/);
+  assert.doesNotMatch(androidScreensSource, /manualClose -> OAKPill\("CLOSE", PillTone\.WARNING\)/);
+  assert.match(androidScreensSource, /Fact\("FINAL", alert\.signal\?\.name \?: "—"\)/);
+  assert.match(androidShareSource, /val closeBadge = manualClose && hour == 16/);
+  assert.match(androidShareSource, /when \(alert\?\.signal\)/);
+  assert.match(nativeH1BoardSource, /OAKPill\(label: "CLOSE", tone: \.warning\)/);
+  assert.doesNotMatch(nativeSignalsSource, /let close =|if close|manualClose && alert\.slotHour == 16/);
+  assert.match(nativeEvidenceSource, /fact\("FINAL", alert\.signal\?\.rawValue \?\? "—"\)/);
   assert.doesNotMatch(boardSource + androidScreensSource, /order_send|closePosition|dispatchTask|\/approve/);
 });
 
@@ -151,13 +159,13 @@ test("H1 cells render entry hour plus final rule-derived BUY/SELL", () => {
   assert.doesNotMatch(androidShareSource, /val reference = \(symbol == "XAUUSD"/);
 });
 
-test("light theme keeps CLOSE cells and signal pills high-contrast without reference-row tint", () => {
+test("light theme keeps the H16 CLOSE badge and normal signal pills high-contrast", () => {
   assert.doesNotMatch(redesignCss, /data-entry-reference/);
-  assert.match(redesignCss, /html\.light \.oak-h1-table tbody td\[data-manual-close="true"\]/);
-  assert.match(redesignCss, /var\(--oak-status-warning\) 20%, #fff/);
+  assert.match(redesignCss, /html\.light \.oak-h1-table thead th\[data-manual-close="true"\]/);
+  assert.match(redesignCss, /html\.light \.oak-h1-close-badge/);
+  assert.doesNotMatch(redesignCss, /tbody td\[data-manual-close="true"\]|data-action="CLOSE"/);
   assert.match(redesignCss, /html\.light \.oak-h1-cell-entry small\[data-signal="BUY"\]/);
   assert.match(redesignCss, /html\.light \.oak-h1-cell-entry small\[data-signal="SELL"\]/);
-  assert.match(redesignCss, /html\.light \.oak-h1-cell-entry small\[data-action="CLOSE"\]/);
   assert.match(redesignCss, /border-width: 2px/);
 });
 
