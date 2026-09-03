@@ -14,8 +14,7 @@ struct H1BoardScreen: View {
     @State private var selectedDate = ""
     @State private var calendarOpen = false
     @State private var selectedAlert: H1SignalAlert?
-    @State private var shareItem: ShareItem?
-    @State private var exporting = false
+    @State private var copiedSchedule = false
 
     private let visibleSymbols = ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD"]
 
@@ -101,9 +100,6 @@ struct H1BoardScreen: View {
                 H1EvidenceSheet(alert: alert, brokerDate: date, manualClose: alert.slotHour == 16 && h1.manualCloseH16(date: date))
             }
         }
-        .sheet(item: $shareItem) { item in
-            ActivityView(items: [item.url])
-        }
         .onAppear { syncSelectedDate() }
         .onChange(of: state.payload?.h1?.publishedAt) { _, _ in syncSelectedDate() }
     }
@@ -133,13 +129,12 @@ struct H1BoardScreen: View {
                     }
                     Spacer()
                     Button {
-                        exportPNG(h1: h1, date: date)
+                        copySchedulePNG(h1: h1, date: date)
                     } label: {
-                        Label(exporting ? "…" : "PNG", systemImage: "square.and.arrow.up")
+                        Label(copiedSchedule ? "COPIED" : "COPY PNG", systemImage: copiedSchedule ? "checkmark.circle.fill" : "doc.on.clipboard")
                             .font(.system(size: 12, weight: .black, design: .monospaced))
                     }
                     .buttonStyle(.glass)
-                    .disabled(exporting)
                 }
 
                 HStack(spacing: 0) {
@@ -192,9 +187,7 @@ struct H1BoardScreen: View {
         }
     }
 
-    private func exportPNG(h1: H1SignalPayload, date: String) {
-        guard !exporting else { return }
-        exporting = true
+    private func copySchedulePNG(h1: H1SignalPayload, date: String) {
         let view = ScheduleExportView(h1: h1, date: date, symbols: visibleSymbols)
             .frame(width: 980)
             .padding(28)
@@ -202,14 +195,12 @@ struct H1BoardScreen: View {
             .preferredColorScheme(state.themeMode.colorScheme)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 2
-        defer { exporting = false }
-        guard let image = renderer.uiImage, let data = image.pngData() else { return }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("oak-h1-scanner-\(date).png")
-        do {
-            try data.write(to: url, options: .atomic)
-            shareItem = ShareItem(url: url)
-        } catch {
-            state.errorMessage = error.localizedDescription
+        guard let image = renderer.uiImage else { return }
+        UIPasteboard.general.image = image
+        copiedSchedule = true
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.4))
+            copiedSchedule = false
         }
     }
 
@@ -521,19 +512,4 @@ private struct ScheduleExportView: View {
             H1MatrixView(h1: h1, date: date, symbols: symbols, onSelect: { _ in })
         }
     }
-}
-
-private struct ShareItem: Identifiable {
-    let id = UUID()
-    let url: URL
-}
-
-private struct ActivityView: UIViewControllerRepresentable {
-    let items: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

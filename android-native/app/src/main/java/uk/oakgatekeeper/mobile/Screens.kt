@@ -42,7 +42,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,7 +57,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
-import kotlinx.coroutines.launch
 import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
@@ -69,9 +67,7 @@ private val VisibleSymbols = listOf("XAUUSD", "GBPUSD", "EURUSD", "GBPAUD")
 @Composable
 fun UnlockScreen(state: OAKAppState) {
     val p = LocalOAKPalette.current
-    val scope = rememberCoroutineScope()
     var key by remember { mutableStateOf("") }
-    var busy by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize().background(p.canvas)) {
         LazyColumn(
@@ -105,25 +101,16 @@ fun UnlockScreen(state: OAKAppState) {
                             keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
                         )
                         Button(
-                            onClick = {
-                                if (busy) return@Button
-                                busy = true
-                                scope.launch {
-                                    try {
-                                        state.unlock(key)
-                                    } catch (error: Throwable) {
-                                        Toast.makeText(state.getApplication(), error.message ?: "Unlock failed", Toast.LENGTH_LONG).show()
-                                    } finally {
-                                        busy = false
-                                    }
-                                }
-                            },
-                            enabled = key.trim().isNotEmpty() && !busy,
+                            onClick = { state.unlock(key) },
+                            enabled = key.trim().isNotEmpty() && !state.isUnlocking,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            if (busy) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                            if (busy) Spacer(Modifier.width(8.dp))
+                            if (state.isUnlocking) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            if (state.isUnlocking) Spacer(Modifier.width(8.dp))
                             Text(state.text("MỞ KHÓA", "UNLOCK"), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Black)
+                        }
+                        if (state.unlockError.isNotBlank()) {
+                            Text(state.unlockError, color = p.danger, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
                         Text(
                             state.text(
@@ -149,6 +136,7 @@ fun H1BoardScreen(state: OAKAppState, history: Boolean) {
     var selectedDate by remember(h1?.latestDate) { mutableStateOf(h1?.latestDate.orEmpty()) }
     var selectedAlert by remember { mutableStateOf<H1SignalAlert?>(null) }
     var calendarOpen by remember { mutableStateOf(false) }
+    var copiedSchedule by remember(h1?.latestDate, history, selectedDate) { mutableStateOf(false) }
     if (!history && h1 != null && selectedDate != h1.latestDate) selectedDate = h1.latestDate
     if (history && h1 != null && (selectedDate.isBlank() || h1.days[selectedDate] == null)) selectedDate = h1.latestDate
 
@@ -179,11 +167,12 @@ fun H1BoardScreen(state: OAKAppState, history: Boolean) {
                             Spacer(Modifier.weight(1f))
                             TextButton(
                                 onClick = {
-                                    val shared = ShareStore.shareSchedule(context, h1, date, VisibleSymbols)
-                                    Toast.makeText(context, if (shared) state.text("Đã mở bảng chia sẻ PNG", "PNG share sheet opened") else state.text("Không thể tạo PNG", "Unable to create PNG"), Toast.LENGTH_SHORT).show()
+                                    val copied = ShareStore.copyScheduleToClipboard(context, h1, date, VisibleSymbols)
+                                    copiedSchedule = copied
+                                    Toast.makeText(context, if (copied) state.text("Đã lưu ảnh H1 vào clipboard", "H1 image copied to clipboard") else state.text("Không thể copy ảnh H1", "Unable to copy H1 image"), Toast.LENGTH_SHORT).show()
                                 },
                             ) {
-                                Text("↥ PNG", color = p.accent, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                                Text(if (copiedSchedule) "✓ COPIED" else "COPY PNG", color = p.accent, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
                             }
                         }
                         Row(Modifier.fillMaxWidth()) {

@@ -334,10 +334,10 @@ test("native Android copies the iOS H1 presentation, evidence, reports, themes a
   assert.match(androidScreensSource, /monthAnchor\.minusMonths\(1\)/);
   assert.match(androidScreensSource, /monthAnchor\.plusMonths\(1\)/);
   assert.match(androidScreensSource, /Icons\.Default\.DateRange/);
-  assert.match(androidScreensSource, /↥ PNG/);
+  assert.match(androidScreensSource, /COPY PNG/);
   assert.match(androidScreensSource, /COPY CHART/);
-  assert.match(androidShareSource, /shareSchedule/);
-  assert.match(androidShareSource, /Intent\.ACTION_SEND/);
+  assert.match(androidShareSource, /copyScheduleToClipboard/);
+  assert.doesNotMatch(androidShareSource, /Intent\.ACTION_SEND|createChooser/);
   assert.match(androidShareSource, /ClipData\.newUri/);
   assert.match(androidShareSource, /createBitmap\(Width, Height/);
   assert.match(androidShareSource, /bitmap\.recycle\(\)/);
@@ -347,6 +347,11 @@ test("native Android copies the iOS H1 presentation, evidence, reports, themes a
   assert.match(androidThemeSource, /text = Color\.White/);
   assert.match(androidStateSource, /applyAccountEnabledLocally\(id, enabled\)/);
   assert.match(androidStateSource, /payload = previous/);
+  assert.match(androidStateSource, /fun unlock\(candidate: String\)/);
+  assert.match(androidStateSource, /viewModelScope\.launch/);
+  assert.match(androidStateSource, /val initialPayload = api\.fetchApp\(key\)/);
+  assert.doesNotMatch(androidScreensSource, /rememberCoroutineScope/);
+  assert.doesNotMatch(androidStateSource, /refresh\(forceLoading = true\)/);
   assert.match(androidScreensSource, /Switch\(checked = account\.enabled/);
   assert.match(androidScreensSource, /© 2026 QuachGia/);
   assert.match(androidScreensSource, /MIT License/);
@@ -385,20 +390,25 @@ test("engine web surface is local-H1-only with the compact command header", () =
   assert.doesNotMatch(engineBoardSource, /UNLOCK SIGNALS/);
 });
 
-test("H1 board exports the selected scanner day as a shareable PNG with download fallback", () => {
+test("H1 board copies the selected scanner day as a PNG image to clipboard across web and native apps", () => {
   assert.match(boardSource, /oak-h1-share-png/);
   assert.match(boardSource, /document\.createElement\("canvas"\)/);
   assert.match(boardSource, /canvas\.toBlob/);
   assert.match(boardSource, /H1_SHARE_SCALE = 2/);
-  assert.match(boardSource, /oak-h1-scanner-\$\{shareArtifact\.date\}\.png/);
-  assert.match(boardSource, /new File\(\[shareArtifact\.blob\]/);
-  assert.match(boardSource, /navigator\.canShare\(shareData\)/);
-  assert.match(boardSource, /navigator\.share\(shareData\)/);
-  assert.match(boardSource, /anchor\.download = filename/);
+  assert.match(boardSource, /navigator\.clipboard\?\.write/);
+  assert.match(boardSource, /new ClipboardItem\(\{ "image\/png": shareArtifact\.blob \}\)/);
+  assert.doesNotMatch(boardSource, /navigator\.share\(|navigator\.canShare|anchor\.download|downloadPng/);
+  assert.match(nativeH1BoardSource, /copySchedulePNG/);
+  assert.match(nativeH1BoardSource, /UIPasteboard\.general\.image = image/);
+  assert.doesNotMatch(nativeH1BoardSource, /UIActivityViewController|ActivityView|shareItem/);
+  assert.match(androidShareSource, /copyScheduleToClipboard/);
+  assert.match(androidShareSource, /clipboard\.setPrimaryClip\(ClipData\.newUri/);
+  assert.match(androidScreensSource, /Đã lưu ảnh H1 vào clipboard/);
   assert.match(boardSource, /activeH1ScanHoursForBrokerDate\(date, data\.hours\)/);
   assert.match(boardSource, /hours\.forEach/);
   assert.match(boardSource, /visibleSymbols\.forEach/);
   assert.match(redesignCss, /\.oak-h1-share-png \{/);
+  assert.match(redesignCss, /data-copied="true"/);
 });
 
 test("populated H1 cells open deterministic M15 pattern evidence without cluttering the cell", () => {

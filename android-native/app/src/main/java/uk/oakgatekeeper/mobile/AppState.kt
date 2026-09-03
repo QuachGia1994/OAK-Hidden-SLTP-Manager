@@ -41,6 +41,10 @@ class OAKAppState(application: Application) : AndroidViewModel(application) {
         private set
     var isRefreshing by mutableStateOf(false)
         private set
+    var isUnlocking by mutableStateOf(false)
+        private set
+    var unlockError by mutableStateOf("")
+        private set
     var errorMessage by mutableStateOf("")
         private set
     var themeMode by mutableStateOf(runCatching { OAKThemeMode.valueOf(prefs.getString("theme", "LIGHT")!!) }.getOrDefault(OAKThemeMode.LIGHT))
@@ -62,20 +66,38 @@ class OAKAppState(application: Application) : AndroidViewModel(application) {
         prefs.edit { putString("locale", next.name) }
     }
 
-    suspend fun unlock(candidate: String) {
+    fun unlock(candidate: String) {
+        if (isUnlocking) return
         val key = candidate.trim()
-        require(key.isNotEmpty()) { "Dashboard API key is required" }
-        api.fetchAccounts(key)
-        secureStore.write(key)
-        apiKey = key
+        if (key.isEmpty()) {
+            unlockError = "Dashboard API key is required"
+            return
+        }
+        isUnlocking = true
+        unlockError = ""
         errorMessage = ""
-        refresh(forceLoading = true)
+        viewModelScope.launch {
+            try {
+                val initialPayload = api.fetchApp(key)
+                secureStore.write(key)
+                payload = initialPayload
+                isLoading = false
+                isRefreshing = false
+                apiKey = key
+            } catch (error: Throwable) {
+                unlockError = error.message ?: error.javaClass.simpleName
+            } finally {
+                isUnlocking = false
+            }
+        }
     }
 
     fun signOut() {
         secureStore.clear()
         apiKey = ""
         payload = null
+        unlockError = ""
+        errorMessage = ""
         selectedTab = OAKTab.LIVE
     }
 

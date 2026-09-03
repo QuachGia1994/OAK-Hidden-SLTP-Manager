@@ -3,7 +3,6 @@ package uk.oakgatekeeper.mobile
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -33,19 +32,16 @@ object ShareStore {
         true
     }.getOrDefault(false)
 
-    fun shareSchedule(context: Context, h1: H1SignalPayload, brokerDate: String, symbols: List<String>): Boolean = runCatching {
+    fun copyScheduleToClipboard(context: Context, h1: H1SignalPayload, brokerDate: String, symbols: List<String>): Boolean = runCatching {
         val bitmap = renderSchedule(h1, brokerDate, symbols)
         val directory = File(context.cacheDir, "shared-charts").apply { mkdirs() }
+        directory.listFiles()?.forEach { if (it.name.startsWith("oak-h1-scanner-")) it.delete() }
         val file = File(directory, "oak-h1-scanner-$brokerDate.png")
         FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         bitmap.recycle()
         val uri = FileProvider.getUriForFile(context, Authority, file)
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "image/png"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        context.startActivity(Intent.createChooser(intent, "Share OAK H1 PNG").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        val clipboard = context.getSystemService(ClipboardManager::class.java)
+        clipboard.setPrimaryClip(ClipData.newUri(context.contentResolver, "OAK H1 schedule", uri))
         true
     }.getOrDefault(false)
 

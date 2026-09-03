@@ -36,18 +36,6 @@ function canvasPngBlob(canvas: HTMLCanvasElement) {
   });
 }
 
-function downloadPng(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.style.display = "none";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
 async function renderScannerPng(data: H1SignalPayload, date: string, locale: Locale) {
   const day = data.days[date];
   if (!day) throw new Error("Broker day unavailable");
@@ -342,6 +330,8 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
   const [evidenceSelection, setEvidenceSelection] = useState<H1EvidenceSelection | null>(null);
   const [shareArtifact, setShareArtifact] = useState<ShareArtifact | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [shareFailed, setShareFailed] = useState(false);
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const hasData = Boolean(data);
   const allDates = data ? historyDatesForWeekday(data.days, "all") : [];
@@ -401,26 +391,26 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
     setSelectedDate(nextDate);
   };
 
-  const shareScannerPng = () => {
+  const copyScannerPng = async () => {
     if (!shareArtifact || shareBusy) return;
-    const filename = `oak-h1-scanner-${shareArtifact.date}.png`;
-    const file = new File([shareArtifact.blob], filename, { type: "image/png", lastModified: Date.now() });
-    const shareData: ShareData = {
-      files: [file],
-      title: locale === "EN" ? "OAK H1 Block Schedule" : "OAK · Lịch block H1 trong ngày",
-      text: `${shareArtifact.date} · oakgatekeeper.uk`,
-    };
-    const canShareFile = typeof navigator.share === "function" && typeof navigator.canShare === "function" && navigator.canShare(shareData);
-    if (!canShareFile) {
-      downloadPng(shareArtifact.blob, filename);
-      return;
-    }
     setShareBusy(true);
-    navigator.share(shareData)
-      .catch((error: unknown) => {
-        if (!(error instanceof DOMException && error.name === "AbortError")) downloadPng(shareArtifact.blob, filename);
-      })
-      .finally(() => setShareBusy(false));
+    setShareFailed(false);
+    try {
+      if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
+        throw new Error("Image clipboard is unavailable");
+      }
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": shareArtifact.blob }),
+      ]);
+      setShareCopied(true);
+      window.setTimeout(() => setShareCopied(false), 1600);
+    } catch {
+      setShareCopied(false);
+      setShareFailed(true);
+      window.setTimeout(() => setShareFailed(false), 1800);
+    } finally {
+      setShareBusy(false);
+    }
   };
 
   if (!data) {
@@ -491,9 +481,9 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
           <div className="oak-h1-meta">
             <span><small>BROKER DAY</small><b>{date || "—"}</b></span>
             <span><small>UPDATED</small><b>{formatPublished(data.publishedAt, locale)}</b></span>
-            <button type="button" className="oak-h1-share-png" onClick={shareScannerPng} disabled={!shareArtifact || shareBusy} aria-label={locale === "EN" ? "Share H1 scanner as PNG" : "Chia sẻ bảng H1 dạng PNG"} title={locale === "EN" ? "Share / download PNG" : "Chia sẻ / tải PNG"}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M5 11v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /></svg>
-              <b>{shareBusy ? "..." : "PNG"}</b>
+            <button type="button" className="oak-h1-share-png" onClick={() => void copyScannerPng()} disabled={!shareArtifact || shareBusy} aria-label={locale === "EN" ? "Copy H1 scanner PNG to clipboard" : "Copy ảnh PNG bảng H1 vào clipboard"} title={locale === "EN" ? "Copy PNG image to clipboard" : "Copy ảnh PNG vào clipboard để dán nơi khác"} data-copied={shareCopied ? "true" : undefined} data-failed={shareFailed ? "true" : undefined}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h9a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm-3 9H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2" /></svg>
+              <b>{shareBusy ? "..." : shareCopied ? "COPIED" : shareFailed ? "FAILED" : "COPY PNG"}</b>
             </button>
           </div>
         </header>
