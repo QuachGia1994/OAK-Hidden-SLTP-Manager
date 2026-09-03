@@ -157,7 +157,7 @@ export type ProviderAccount = {
   } | null;
   bridgeOnline?: boolean;
   bridgeLastSeenAt?: number | null;
-  bridgeRuntime?: "mql5-ea" | null;
+  bridgeRuntime?: "mql5-ea" | "local-primary" | "local-primary-pending" | null;
   bridgeVersion?: string | null;
 };
 

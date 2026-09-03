@@ -5,7 +5,13 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "scheme": "oakgatekeeper",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#08111F"
+    },
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
@@ -13,6 +19,11 @@
     },
     "android": {
       "package": "uk.oakgatekeeper.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#08111F",
+        "monochromeImage": "./assets/adaptive-monochrome.png"
+      },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": true
     },

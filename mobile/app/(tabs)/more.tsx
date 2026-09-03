@@ -37,8 +37,8 @@ export default function MoreScreen() {
       <GlassCard glow={system ? "buy" : "warning"}>
         <View style={styles.statusHead}>
           <View style={styles.statusCopy}>
-            <Text style={[styles.statusTitle, { color: theme.text }]}>OAK Gatekeeper Mobile</Text>
-            <Text style={[styles.statusMeta, { color: theme.muted }]}>App v{version} · payload v{system?.payloadVersion ?? "—"}</Text>
+            <Text style={[styles.statusTitle, { color: theme.text }]}>© 2026 QuachGia</Text>
+            <Text style={[styles.statusMeta, { color: theme.muted }]}>MIT License · Android · Expo/React Native · App v{version}</Text>
           </View>
           <Pill label={backendMode} tone={backendTone} />
         </View>
@@ -83,7 +83,7 @@ export default function MoreScreen() {
         <View style={styles.providerRow}>
           <View style={styles.providerCopy}>
             <Text style={[styles.providerName, { color: theme.text }]}>MT5</Text>
-            <Text style={[styles.providerMeta, { color: theme.muted }]}>{system?.providers.mt5.onlineAccounts ?? 0}/{system?.providers.mt5.totalAccounts ?? 0} bridge online</Text>
+            <Text style={[styles.providerMeta, { color: theme.muted }]}>{system?.providers.mt5.onlineAccounts ?? 0}/{system?.providers.mt5.totalAccounts ?? 0} local heartbeat online</Text>
           </View>
           <Pill label={system?.providers.mt5.connected ? "CONNECTED" : "OFFLINE"} tone={system?.providers.mt5.connected ? "online" : "warning"} />
         </View>
@@ -91,9 +91,25 @@ export default function MoreScreen() {
 
       <SectionTitle title="Accounts" meta={`${system?.accounts.total ?? accounts?.accounts.length ?? 0} total`} />
       <GlassCard glow="muted">
-        <View style={styles.metrics}>
-          <Metric label="ENABLED" value={String(system?.accounts.enabled ?? accounts?.accounts.filter((item) => item.enabled).length ?? 0)} tone="accent" />
-          <Metric label="DEFAULT" value={system?.accounts.defaultAccountId ? "SET" : "NONE"} />
+        <View style={styles.accountList}>
+          {(accounts?.accounts ?? []).map((account) => {
+            const local = account.bridgeRuntime?.startsWith("local-primary") === true;
+            const heartbeat = account.provider === "mt5"
+              ? account.bridgeOnline === true
+                ? local ? "Local heartbeat online" : "EA heartbeat online"
+                : local ? "Local heartbeat pending" : "Heartbeat unavailable"
+              : null;
+            return (
+              <View key={account.id} style={[styles.accountRow, { borderBottomColor: theme.border }]}>
+                <View style={styles.accountCopy}>
+                  <Text style={[styles.accountName, { color: theme.text }]}>{account.label}</Text>
+                  <Text style={[styles.accountMeta, { color: theme.muted }]}>{account.provider.toUpperCase()} · {account.broker} · {account.traderLogin ?? account.externalAccountId}</Text>
+                  {heartbeat ? <Text style={[styles.accountHeartbeat, { color: account.bridgeOnline ? theme.online : theme.warning }]}>{heartbeat}</Text> : null}
+                </View>
+                <Pill label={account.enabled ? "ON" : "OFF"} tone={account.enabled ? "online" : "warning"} />
+              </View>
+            );
+          })}
         </View>
         <Detail label="DEFAULT ID" value={system?.accounts.defaultAccountId || "—"} selectable />
       </GlassCard>
@@ -146,6 +162,12 @@ const styles = StyleSheet.create({
   providerMeta: { fontSize: 11, fontWeight: "700" },
   divider: { height: StyleSheet.hairlineWidth, marginVertical: spacing.md },
   errorBox: { padding: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.md },
+  accountList: { gap: spacing.sm },
+  accountRow: { minHeight: 72, flexDirection: "row", alignItems: "center", gap: spacing.md, paddingBottom: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth },
+  accountCopy: { flex: 1, gap: 4 },
+  accountName: { fontSize: 17, fontWeight: "900" },
+  accountMeta: { fontSize: 11, fontWeight: "700" },
+  accountHeartbeat: { fontSize: 10, fontWeight: "900" },
   actions: { gap: spacing.sm },
   action: { minHeight: 50, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
   actionText: { fontSize: 11, fontWeight: "900", letterSpacing: 1 },

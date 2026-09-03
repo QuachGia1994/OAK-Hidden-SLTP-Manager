@@ -41,6 +41,8 @@ const localPrimaryFenceSource = readFileSync(new URL("./local-primary-fence.ts",
 const localControllerSource = readFileSync(new URL("../../../local-failover/oak-local-telegram-failover.mjs", import.meta.url), "utf8");
 const licenseSource = readFileSync(new URL("../../../LICENSE", import.meta.url), "utf8");
 const localStatusRouteSource = readFileSync(new URL("../app/api/telegram/local-status/route.ts", import.meta.url), "utf8");
+const androidMoreSource = readFileSync(new URL("../../../mobile/app/(tabs)/more.tsx", import.meta.url), "utf8");
+const mobileAppConfigSource = readFileSync(new URL("../../../mobile/app.json", import.meta.url), "utf8");
 
 test("H1 Live and web History are reopened as primary trading navigation", () => {
   assert.match(navBarSource, /<span>H1 Live<\/span>/);
@@ -197,6 +199,12 @@ test("mobile account status prefers sanitized local-primary MT5 heartbeat eviden
   assert.match(localStatusRouteSource, /x-telegram-bot-api-secret-token/);
   assert.match(localStatusRouteSource, /writeLocalPrimaryFence/);
   assert.match(localStatusRouteSource, /MAX_CLOCK_SKEW_MS/);
+  assert.match(androidMoreSource, /© 2026 QuachGia/);
+  assert.match(androidMoreSource, /local heartbeat online/);
+  assert.match(androidMoreSource, /Local heartbeat pending/);
+  assert.match(mobileAppConfigSource, /"icon": "\.\/assets\/icon\.png"/);
+  assert.match(mobileAppConfigSource, /"foregroundImage": "\.\/assets\/adaptive-icon\.png"/);
+  assert.match(mobileAppConfigSource, /"monochromeImage": "\.\/assets\/adaptive-monochrome\.png"/);
   assert.match(providerAccountStatusSource, /readLocalPrimaryFence/);
   assert.match(providerAccountStatusSource, /bridgeRuntime: "local-primary"/);
   assert.match(providerAccountStatusSource, /bridgeRuntime: "local-primary-pending"/);
