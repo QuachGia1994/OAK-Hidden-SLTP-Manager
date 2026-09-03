@@ -372,8 +372,6 @@ private fun H1Matrix(h1: H1SignalPayload, date: String, manualClose: Boolean, on
                                 val alert = h1.alert(date, symbol, hour)
                                 H1MatrixCell(
                                     alert = alert,
-                                    hour = hour,
-                                    entryReference = (symbol == "XAUUSD" && hour in listOf(3, 6)) || (symbol == "GBPUSD" && hour in listOf(9, 12, 14, 16)),
                                     manualClose = manualClose && hour == 16,
                                     onSelect = onSelect,
                                 )
@@ -411,16 +409,14 @@ private fun MatrixHour(hour: Int, manualClose: Boolean) {
 }
 
 @Composable
-private fun H1MatrixCell(alert: H1SignalAlert?, hour: Int, entryReference: Boolean, manualClose: Boolean, onSelect: (H1SignalAlert) -> Unit) {
+private fun H1MatrixCell(alert: H1SignalAlert?, manualClose: Boolean, onSelect: (H1SignalAlert) -> Unit) {
     val p = LocalOAKPalette.current
     val bg = when {
         manualClose -> p.warning.copy(alpha = .16f)
-        entryReference -> p.accent.copy(alpha = .18f)
         else -> p.surface
     }
     val border = when {
         manualClose -> p.warning.copy(alpha = .72f)
-        entryReference -> p.accent.copy(alpha = .72f)
         else -> Color.Transparent
     }
     Column(

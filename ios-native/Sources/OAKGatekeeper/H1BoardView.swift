@@ -277,10 +277,8 @@ private struct H1MatrixView: View {
                                     ForEach(h1.hours, id: \.self) { hour in
                                         H1MatrixCell(
                                             alert: h1.alert(date: date, symbol: symbol, hour: hour),
-                                            hour: hour,
                                             width: cellWidth,
                                             height: rowHeight,
-                                            entryReference: isReference(symbol: symbol, hour: hour),
                                             manualClose: manualClose && hour == 16,
                                             onSelect: onSelect
                                         )
@@ -294,9 +292,6 @@ private struct H1MatrixView: View {
         }
     }
 
-    private func isReference(symbol: String, hour: Int) -> Bool {
-        (symbol == "XAUUSD" && [3, 6].contains(hour)) || (symbol == "GBPUSD" && [9, 12, 14, 16].contains(hour))
-    }
 
     @ViewBuilder
     private func matrixHourHeader(_ hour: Int) -> some View {
@@ -330,16 +325,13 @@ private struct H1MatrixView: View {
 @MainActor
 private struct H1MatrixCell: View {
     let alert: H1SignalAlert?
-    let hour: Int
     let width: CGFloat
     let height: CGFloat
-    let entryReference: Bool
     let manualClose: Bool
     let onSelect: (H1SignalAlert) -> Void
 
     private var background: Color {
         if manualClose { return OAKColor.warning.opacity(0.16) }
-        if entryReference { return OAKColor.accent.opacity(0.18) }
         return OAKColor.surface
     }
 
@@ -372,10 +364,7 @@ private struct H1MatrixCell: View {
         }
         .background(background, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         .overlay {
-            if entryReference && !manualClose {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .stroke(OAKColor.accent.opacity(0.72), lineWidth: 1.8)
-            } else if manualClose {
+            if manualClose {
                 RoundedRectangle(cornerRadius: 11, style: .continuous)
                     .stroke(OAKColor.warning.opacity(0.72), lineWidth: 1.8)
             }

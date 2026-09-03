@@ -405,10 +405,6 @@ min-height: 2rem; padding: .35rem .6rem;
 }
 .oak-h1-table thead th[data-manual-close="true"] { box-shadow: inset 0 -2px 0 var(--oak-status-warning); }
 .oak-h1-close-badge { display: block; width: max-content; margin: .14rem auto 0; padding: .08rem .24rem; border: 1px solid var(--oak-status-warning); border-radius: 999px; color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 8%, var(--oak-bg-raised)); font: 900 .4rem/1 "Cascadia Mono", Consolas, monospace; letter-spacing: .05em; }
-.oak-h1-table tbody td[data-entry-reference="true"] {
-  background: color-mix(in srgb, var(--oak-accent-command) 10%, var(--oak-bg-surface));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oak-accent-command) 32%, transparent);
-}
 .oak-h1-table thead th[data-post-signal-inverted="true"],
 .oak-h1-table tbody td[data-post-signal-inverted="true"] { background: color-mix(in srgb, var(--oak-status-warning) 12%, var(--oak-bg-surface)); }
 .oak-h1-table thead th[data-post-signal-inverted="true"] { color: var(--oak-status-warning); box-shadow: inset 0 -3px 0 var(--oak-status-warning); }
@@ -464,14 +460,7 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-h1-cell-entry small[data-signal="SELL"] { border-color: var(--oak-signal-sell); color: var(--oak-signal-sell); background: color-mix(in srgb, var(--oak-signal-sell) 10%, var(--oak-bg-surface)); }
 .oak-h1-cell-entry small[data-action="CLOSE"] { border-color: var(--oak-status-warning); color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 11%, var(--oak-bg-surface)); }
 
-/* Light theme needs a materially stronger matrix state than the dark-surface wash.
-   Keep this presentation-only: no signal semantics change. */
-html.light .oak-h1-table tbody td[data-entry-reference="true"] {
-  background: color-mix(in srgb, var(--oak-accent-command) 22%, #fff);
-  box-shadow:
-    inset 0 0 0 2px color-mix(in srgb, var(--oak-accent-command) 58%, #fff),
-    inset 0 -3px 0 color-mix(in srgb, var(--oak-accent-command) 72%, #fff);
-}
+/* Light theme keeps manual CLOSE and signal pills high-contrast. */
 html.light .oak-h1-table thead th[data-manual-close="true"],
 html.light .oak-h1-table tbody td[data-manual-close="true"] {
   background: color-mix(in srgb, var(--oak-status-warning) 20%, #fff);

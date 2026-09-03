@@ -101,15 +101,12 @@ object ShareStore {
                 val x = left + symbolWidth + colIndex * cellWidth
                 val alert = h1.alert(brokerDate, symbol, hour)
                 val close = manualClose && hour == 16
-                val reference = (symbol == "XAUUSD" && hour in listOf(3, 6)) || (symbol == "GBPUSD" && hour in listOf(9, 12, 14, 16))
                 val fill = when {
                     close -> Color.rgb(255, 244, 224)
-                    reference -> Color.rgb(232, 241, 255)
                     else -> Color.rgb(248, 250, 253)
                 }
                 val stroke = when {
                     close -> Color.rgb(155, 91, 0)
-                    reference -> Color.rgb(46, 109, 204)
                     else -> Color.rgb(212, 220, 230)
                 }
                 cellRect(x, y, cellWidth - 6f, rowHeight - 6f, fill, stroke)

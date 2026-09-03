@@ -25,10 +25,6 @@ function isManualCloseH16Day(day: H1SignalDay | undefined): boolean {
   return Boolean(day?.symbols?.XAUUSD?.alerts?.some((alert) => alert.slotHour === 3 && alert.entryHour === 5));
 }
 
-function isEntryReferenceCell(base: string, hour: number): boolean {
-  return (base === "XAUUSD" && (hour === 3 || hour === 6))
-    || (base === "GBPUSD" && [9, 12, 14, 16].includes(hour));
-}
 
 function canvasPngBlob(canvas: HTMLCanvasElement) {
   return new Promise<Blob>((resolve, reject) => {
@@ -65,7 +61,6 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     text: "#f4f7fb",
     muted: "#8fa2b8",
     accent: "#4b8cff",
-    reference: "rgba(75, 140, 255, 0.12)",
     buy: "#39d98a",
     sell: "#ff6b6b",
   };
@@ -136,10 +131,6 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     hours.forEach((hour, hourIndex) => {
       const x = tableX + H1_SHARE_SYMBOL_WIDTH + hourIndex * H1_SHARE_HOUR_WIDTH;
       const alert = byHour.get(hour);
-      if (isEntryReferenceCell(base, hour)) {
-        ctx.fillStyle = colors.reference;
-        ctx.fillRect(x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT);
-      }
       if (Number.isInteger(alert?.entryHour)) {
         const manualCloseCell = hour === 16 && manualCloseH16;
         drawCentered(`H${String(alert?.entryHour).padStart(2, "0")}`, x, y + 5, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT / 2, colors.text, `950 14px ${H1_SHARE_FONT}`);
@@ -462,7 +453,7 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
             <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{fallbackHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour}><span>H{String(hour).padStart(2, "0")}</span></th>)}</tr></thead>
             <tbody>{visibleH1Symbols(H1_TARGET_BASES).map((base) => (
               <tr key={base}><th id={`h1-symbol-${base}`} scope="row" className="oak-h1-symbol-sticky"><b>{base}</b></th>{fallbackHours.map((hour) => (
-                <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-entry-reference={isEntryReferenceCell(base, hour) ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>
+                <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`}><span className="oak-h1-cell-empty">—</span></td>
               ))}</tr>
             ))}</tbody>
           </table>
@@ -513,10 +504,9 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
               const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
               return <tr key={base}><th id={`h1-symbol-${base}`} scope="row" className="oak-h1-symbol-sticky"><b>{base}</b></th>{activeHours.map((hour) => {
                 const alert = byHour.get(hour);
-                const entryReference = isEntryReferenceCell(base, hour);
                 const manualCloseCell = hour === 16 && manualCloseH16;
-                if (!Number.isInteger(alert?.entryHour)) return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-entry-reference={entryReference ? "true" : undefined} data-manual-close={manualCloseCell ? "true" : undefined}><span className="oak-h1-cell-empty">{manualCloseCell ? "CLOSE" : "—"}</span></td>;
-                return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-entry-reference={entryReference ? "true" : undefined} data-manual-close={manualCloseCell ? "true" : undefined} data-pattern-group={alert?.patternGroup || undefined} title={`${alert?.scannerSource || base} · ${alert?.pattern || ""} · ${alert?.patternGroup || ""}${manualCloseCell ? " · CLOSE manual only" : ""}`}><button type="button" className="oak-h1-cell-entry oak-h1-cell-evidence" onClick={() => setEvidenceSelection({ base, brokerDate: date, alert: alert! })} aria-label={`${base} H${hour}: ${manualCloseCell ? (locale === "EN" ? "manual close advisory; view pattern evidence" : "khuyến nghị CLOSE thủ công; xem pattern evidence") : (locale === "EN" ? "view pattern evidence" : "xem pattern evidence")}`}><b>H{String(alert?.entryHour).padStart(2, "0")}</b><small data-signal={alert?.signal || undefined} data-action={manualCloseCell ? "CLOSE" : undefined}>{manualCloseCell ? "CLOSE" : (alert?.signal || "—")}</small></button></td>;
+                if (!Number.isInteger(alert?.entryHour)) return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-manual-close={manualCloseCell ? "true" : undefined}><span className="oak-h1-cell-empty">{manualCloseCell ? "CLOSE" : "—"}</span></td>;
+                return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-manual-close={manualCloseCell ? "true" : undefined} data-pattern-group={alert?.patternGroup || undefined} title={`${alert?.scannerSource || base} · ${alert?.pattern || ""} · ${alert?.patternGroup || ""}${manualCloseCell ? " · CLOSE manual only" : ""}`}><button type="button" className="oak-h1-cell-entry oak-h1-cell-evidence" onClick={() => setEvidenceSelection({ base, brokerDate: date, alert: alert! })} aria-label={`${base} H${hour}: ${manualCloseCell ? (locale === "EN" ? "manual close advisory; view pattern evidence" : "khuyến nghị CLOSE thủ công; xem pattern evidence") : (locale === "EN" ? "view pattern evidence" : "xem pattern evidence")}`}><b>H{String(alert?.entryHour).padStart(2, "0")}</b><small data-signal={alert?.signal || undefined} data-action={manualCloseCell ? "CLOSE" : undefined}>{manualCloseCell ? "CLOSE" : (alert?.signal || "—")}</small></button></td>;
               })}</tr>;
             })}</tbody>
           </table>

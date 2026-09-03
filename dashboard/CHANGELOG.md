@@ -18,6 +18,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Advanced local H1 to v72. GBPUSD and EURUSD H9/H12/H14/H16 now take the same entry time as XAUUSD for each block while retaining v71 signal synchronization and eligibility. Removed XAUUSD/GBPUSD reference-cell tinting from web/native matrices and H1 PNG exports, while preserving H16 CLOSE warning styling. A fresh v72 state key prevents stale entry times.
 - Advanced local H1 to v71 and hardened local scheduled reversals. Tuesday GBPAUD now keeps its AUDUSD-derived side, Thursday GBPUSD follows XAUUSD without inversion, and Friday EURUSD follows XAUUSD without inversion; all v70 block eligibility remains unchanged and a fresh v71 key removes stale flipped rows. EA v1.11 moves exposure validation after opposite-side net settlement and the PC scheduler converts unexpected due-intent exceptions into durable Telegram-visible failed/uncertain outcomes instead of silently dropping the run.
 - Advanced local H1 rule to v70. GBPAUD remains active on all six H3/H6/H9/H12/H14/H16 blocks Tuesday-Friday; GBPJPY no longer calculates H3 and starts at H6; GBPCAD no longer calculates H3/H6 and now shares the GBPUSD/EURUSD H9/H12/H14/H16 eligibility. Monday remains XAUUSD-only, while shared GBPUSD entry timing and AUDUSD/USDCAD/USDJPY signal bases remain unchanged. The fresh v70 key clears stale early-block rows.
 - Advanced local H1 rule to v69. Monday is XAUUSD-only again: GBPAUD, GBPCAD and GBPJPY are blank for all H3/H6/H9/H12/H14/H16 Monday blocks, while their v68 GBPUSD-shared entry timing and AUDUSD/USDCAD/USDJPY signal-base rules continue Tuesday-Friday. The v69 state key clears stale Monday cross rows.
@@ -52,6 +53,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Advanced local H1 to v72. GBPUSD and EURUSD H9/H12/H14/H16 now take the same entry time as XAUUSD for each block while retaining v71 signal synchronization and eligibility. Removed XAUUSD/GBPUSD reference-cell tinting from web/native matrices and H1 PNG exports, while preserving H16 CLOSE warning styling. A fresh v72 state key prevents stale entry times.
 - NeoTech Connector v1.0.4 now treats server-confirmed `connector unauthorized` / `account unauthorized` as revoked or purged credentials instead of retrying HTTP 401 forever. It clears only matching stale per-account credential files, stops sync in `WAITING_PAIR`, preserves revocation semantics, and prints the server error for other failures. Generate a fresh pairing code once for a revoked account; no EA detach/attach is required.
 
 ## [0.7.0] - 2026-08-26
@@ -62,6 +64,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Advanced local H1 to v72. GBPUSD and EURUSD H9/H12/H14/H16 now take the same entry time as XAUUSD for each block while retaining v71 signal synchronization and eligibility. Removed XAUUSD/GBPUSD reference-cell tinting from web/native matrices and H1 PNG exports, while preserving H16 CLOSE warning styling. A fresh v72 state key prevents stale entry times.
 - NeoTech connector v1.0.2 now uses a fresh Master pairing code to replace legacy stored `READ_ONLY` credentials when the terminal is trading-capable, and stores the consumed pairing-code hash so subsequent restarts reuse the retained connector credential instead of re-submitting a one-time code.
 - NeoTech clipboard toasts now render through `document.body` with a higher overlay layer and footer clearance, preventing the page/footer stacking context from covering Copy feedback.
 
@@ -69,6 +72,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Advanced local H1 to v72. GBPUSD and EURUSD H9/H12/H14/H16 now take the same entry time as XAUUSD for each block while retaining v71 signal synchronization and eligibility. Removed XAUUSD/GBPUSD reference-cell tinting from web/native matrices and H1 PNG exports, while preserving H16 CLOSE warning styling. A fresh v72 state key prevents stale entry times.
 - `/accounts` now follows the global EN/VN locale across the admin sign-in state, provider descriptions, MT5 registration form, account controls, confirmations, errors and empty states. Added a regression contract for the exact EN admin-login copy shown after a 401 response.
 
 ## [0.6.0] - 2026-08-26
@@ -80,6 +84,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Advanced local H1 to v72. GBPUSD and EURUSD H9/H12/H14/H16 now take the same entry time as XAUUSD for each block while retaining v71 signal synchronization and eligibility. Removed XAUUSD/GBPUSD reference-cell tinting from web/native matrices and H1 PNG exports, while preserving H16 CLOSE warning styling. A fresh v72 state key prevents stale entry times.
 - NeoTech C9 now evaluates deposit/withdrawal events only from the first trading episode onward. Demo-account opening balance/funding events that occur before the evaluation starts no longer create a false C9 violation; later deposits/withdrawals still fail C9.
 
 ### Security / privacy
@@ -93,6 +98,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Advanced local H1 to v72. GBPUSD and EURUSD H9/H12/H14/H16 now take the same entry time as XAUUSD for each block while retaining v71 signal synchronization and eligibility. Removed XAUUSD/GBPUSD reference-cell tinting from web/native matrices and H1 PNG exports, while preserving H16 CLOSE warning styling. A fresh v72 state key prevents stale entry times.
 - Telegram `/help` and `/start` now respond even when the chat is not the configured cloud-control chat. The bypass is limited to read-only help; trading/control commands remain chat-fenced.
 - Fixed dashboard UI/UX regressions: the EN/VN switch remains available on mobile, provider-account network/API failures no longer masquerade as an admin-auth lock, VIP/H1/NeoTech dialogs trap keyboard focus and close with Escape, VIP logout failures remain visible, expired/missing shared Fact Check pages respect the active locale, NeoTech Copy actions report success/failure, and the removed H1 `PROFILE` card no longer reappears.
 - Added a UI/UX contract test to the normal test/build gate so the repaired mobile locale, account error-state, dialog focus, H1 header and locale contracts are regression-checked.
@@ -105,6 +111,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Advanced local H1 to v72. GBPUSD and EURUSD H9/H12/H14/H16 now take the same entry time as XAUUSD for each block while retaining v71 signal synchronization and eligibility. Removed XAUUSD/GBPUSD reference-cell tinting from web/native matrices and H1 PNG exports, while preserving H16 CLOSE warning styling. A fresh v72 state key prevents stale entry times.
 - Scheduled MT5 Telegram intents now persist bridge task envelopes as schema v2 with canonical origin, ledger, digest and broker identity. Legacy/stale v1 tasks fail closed before broker execution and are never replayed automatically, preventing the intent #16 task-version rejection from recurring for future intents.
 
 ## [0.4.0] - 2026-08-24
