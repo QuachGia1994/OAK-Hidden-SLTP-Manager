@@ -215,7 +215,7 @@ test("mobile account status prefers sanitized local-primary MT5 heartbeat eviden
   assert.match(androidManifestSource, /android:icon="@mipmap\/ic_launcher"/);
   const androidAdaptiveIconSource = readFileSync(new URL("../../../android-native/app/src/main/res/mipmap-anydpi/ic_launcher.xml", import.meta.url), "utf8");
   assert.match(androidAdaptiveIconSource, /@drawable\/oak_launcher_foreground_inset/);
-  assert.doesNotMatch(androidAdaptiveIconSource, /monochrome/);
+  assert.match(androidAdaptiveIconSource, /@drawable\/oak_launcher_monochrome/);
   const nativeProjectSource = readFileSync(new URL("../../../ios-native/project.yml", import.meta.url), "utf8");
   const nativeAppIconCatalogSource = readFileSync(new URL("../../../ios-native/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json", import.meta.url), "utf8");
   assert.match(nativeProjectSource, /ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon/);

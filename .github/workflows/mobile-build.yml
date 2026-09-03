@@ -66,8 +66,10 @@ jobs:
           grep -n 'onTrimMemory' app/src/main/java/uk/oakgatekeeper/mobile/MainActivity.kt
           grep -n 'TRIM_MEMORY_UI_HIDDEN' app/src/main/java/uk/oakgatekeeper/mobile/MainActivity.kt
           grep -n 'android:icon="@mipmap/ic_launcher"' app/src/main/AndroidManifest.xml
-          test -s app/src/main/res/drawable-nodpi/oak_launcher_foreground.png
+          test -s app/src/main/res/drawable-nodpi/oak_app_icon_exact.png
           test -s app/src/main/res/drawable-nodpi/oak_launcher_monochrome.png
+          grep -n '@drawable/oak_launcher_foreground_inset' app/src/main/res/mipmap-anydpi/ic_launcher.xml
+          grep -n '@drawable/oak_launcher_monochrome' app/src/main/res/mipmap-anydpi/ic_launcher.xml
 
       - name: Build release APK first
         working-directory: android-native
