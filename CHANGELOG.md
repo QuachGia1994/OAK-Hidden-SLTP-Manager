@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- H1 presentation reference highlight: H3/H6 blue reference cells now highlight XAUUSD instead of GBPAUD across web Live/History + PNG, native iOS Live/History + PNG, and Android H1 Calendar. GBPUSD H9/H12/H14/H16 reference highlighting is unchanged; v67 signal/entry derivation is unchanged.
+
 - Native iOS polish v3: added project MIT licensing/copyright attribution (`© 2026 QuachGia`), changed evidence copy from raw SVG source to an actual rendered chart image on the iOS clipboard, and replaced obsolete MT5 cloud-bridge account status with sanitized local-primary EA heartbeat evidence published through the existing Redis fence heartbeat. Native account rows now report Local heartbeat online/pending instead of Bridge offline.
 
 - Polished the native iOS app after on-device review: removed dense H1 matrix inner grid strokes in favor of separated rounded cells, changed evidence copy to a standalone SVG candlestick chart clipboard payload, reduced report x-axis date labels to a sparse non-overlapping set, gave Contrast its own true-black/high-contrast palette instead of reusing Dark, and made account enable/disable switches update optimistically in-place with rollback/reconciliation instead of requiring a tab change.

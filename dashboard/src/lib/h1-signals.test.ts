@@ -138,8 +138,12 @@ test("H1 cells render entry hour plus final rule-derived BUY/SELL", () => {
   assert.match(redesignCss, /\.oak-h1-cell-entry small\[data-signal="BUY"\]/);
   assert.match(redesignCss, /\.oak-h1-cell-entry small\[data-signal="SELL"\]/);
   assert.match(boardSource, /function isEntryReferenceCell/);
-  assert.match(boardSource, /base === "GBPAUD"[^\n]*hour === 3[^\n]*hour === 6/);
+  assert.match(boardSource, /base === "XAUUSD"[^\n]*hour === 3[^\n]*hour === 6/);
+  assert.doesNotMatch(boardSource, /base === "GBPAUD"[^\n]*hour === 3[^\n]*hour === 6/);
   assert.match(boardSource, /base === "GBPUSD"[^\n]*\[9, 12, 14, 16\]/);
+  assert.match(nativeH1BoardSource, /symbol == "XAUUSD" && \[3, 6\]\.contains\(hour\)/);
+  assert.doesNotMatch(nativeH1BoardSource, /symbol == "GBPAUD" && \[3, 6\]\.contains\(hour\)/);
+  assert.match(mobileCalendarSource, /symbol === "XAUUSD" && \(hour === 3 \|\| hour === 6\)/);
   assert.match(boardSource, /data-entry-reference/);
   assert.match(redesignCss, /td\[data-entry-reference="true"\]/);
 });
@@ -317,7 +321,7 @@ test("mobile bottom navigation keeps five primary tabs and hides duplicate legac
 });
 
 test("mobile reverse phase is visualized only by H1 calendar cell highlight", () => {
-  assert.match(mobileCalendarSource, /postSignalInverted \? `\$\{theme\.warning\}20`/);
+  assert.match(mobileCalendarSource, /postSignalInverted[\s\S]*?`\$\{theme\.warning\}20`/);
   assert.doesNotMatch(mobileHomeSource, /HẬU: ĐẢO|HẬU: GIỮ|BRIDGE/);
   assert.doesNotMatch(mobileSignalsSource, /phaseLabel|reverse|keep|HẬU/);
   assert.doesNotMatch(mobileReportsSource, /HẬU ĐẢO|HẬU GIỮ|reversePct|reverseSignals|keepSignals/);

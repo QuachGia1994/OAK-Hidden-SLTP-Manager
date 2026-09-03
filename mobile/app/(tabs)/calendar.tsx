@@ -9,6 +9,11 @@ import { useOakData } from "@/state/data";
 const FALLBACK_SYMBOLS = ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD"];
 const TEMP_HIDDEN_H1_ROWS = new Set(["GBPCAD", "GBPJPY"]);
 
+function isEntryReferenceCell(symbol: string, hour: number) {
+  return (symbol === "XAUUSD" && (hour === 3 || hour === 6))
+    || (symbol === "GBPUSD" && [9, 12, 14, 16].includes(hour));
+}
+
 function isoDaysAgo(days: number) {
   const value = new Date();
   value.setDate(value.getDate() - days);
@@ -97,9 +102,24 @@ export default function CalendarScreen() {
                 const alert = signalFor(h1, selectedDate, symbol, hour);
                 const signal = alert?.signal;
                 const manualCloseCell = hour === 16 && manualCloseH16;
+                const entryReference = isEntryReferenceCell(symbol, hour);
                 const tone = manualCloseCell ? "warning" : signal === "SELL" ? "sell" : signal === "BUY" ? "buy" : "muted";
                 return (
-                  <View key={hour} style={[styles.cell, { borderLeftColor: theme.border, backgroundColor: manualCloseCell ? `${theme.warning}18` : alert?.postSignalInverted ? `${theme.warning}20` : "transparent" }]}>
+                  <View key={hour} style={[
+                    styles.cell,
+                    {
+                      borderLeftColor: theme.border,
+                      borderColor: entryReference && !manualCloseCell ? theme.cyan : undefined,
+                      borderWidth: entryReference && !manualCloseCell ? 1.5 : undefined,
+                      backgroundColor: manualCloseCell
+                        ? `${theme.warning}18`
+                        : entryReference
+                          ? `${theme.cyan}18`
+                          : alert?.postSignalInverted
+                            ? `${theme.warning}20`
+                            : "transparent",
+                    },
+                  ]}>
                     {manualCloseCell ? <Pill label="CLOSE" tone={tone} /> : signal ? <Pill label={signal} tone={tone} /> : <Text style={[styles.empty, { color: theme.muted }]}>–</Text>}
                   </View>
                 );

@@ -26,7 +26,7 @@ function isManualCloseH16Day(day: H1SignalDay | undefined): boolean {
 }
 
 function isEntryReferenceCell(base: string, hour: number): boolean {
-  return (base === "GBPAUD" && (hour === 3 || hour === 6))
+  return (base === "XAUUSD" && (hour === 3 || hour === 6))
     || (base === "GBPUSD" && [9, 12, 14, 16].includes(hour));
 }
 

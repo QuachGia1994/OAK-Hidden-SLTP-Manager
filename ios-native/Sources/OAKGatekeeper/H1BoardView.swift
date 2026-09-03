@@ -304,7 +304,7 @@ private struct H1MatrixView: View {
     }
 
     private func isReference(symbol: String, hour: Int) -> Bool {
-        (symbol == "GBPAUD" && [3, 6].contains(hour)) || (symbol == "GBPUSD" && [9, 12, 14, 16].contains(hour))
+        (symbol == "XAUUSD" && [3, 6].contains(hour)) || (symbol == "GBPUSD" && [9, 12, 14, 16].contains(hour))
     }
 
     @ViewBuilder
