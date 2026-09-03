@@ -27,6 +27,20 @@ test("EA symbol readiness preflight selects Market Watch and gates entry trade m
   assert.match(managerEaSource, /ExecuteSymbolPrepareTask/);
 });
 
+test("EA scheduled reversal nets the opposite side before the post-net exposure guard", () => {
+  assert.match(managerEaSource, /#property version\s+"1\.11"/);
+  assert.match(managerEaSource, /bool WaitForEntryNetSettled\(/);
+  assert.match(managerEaSource, /ClosePositionFull\(ticket,close_detail\)/);
+  const prepareStart = managerEaSource.indexOf("bool PrepareMarketEntryFields(");
+  const prepareEnd = managerEaSource.indexOf("bool SendMarketEntry(", prepareStart);
+  const prepare = managerEaSource.slice(prepareStart, prepareEnd);
+  const netIndex = prepare.indexOf("PreEntryNet(symbol,buy,net_detail)");
+  const settleIndex = prepare.indexOf("WaitForEntryNetSettled(symbol,buy,net_detail)");
+  const exposureIndex = prepare.indexOf("if(InpMaxExposurePerSymbol>0)");
+  assert.ok(netIndex >= 0 && settleIndex > netIndex && exposureIndex > settleIndex);
+  assert.match(prepare, /symbol exposure guard exceeded after netting/);
+});
+
 test("EA emits local trade-event evidence for BE, SL, pending fills and partial closes", () => {
   assert.match(managerEaSource, /event_id="be:"\+IntegerToString\(position_id\);/);
   assert.match(managerEaSource, /EmitLocalTradeEvent\(event_id,"break_even"/);

@@ -16,12 +16,12 @@ import {
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 70;
+export const H1_SIGNAL_RULE_VERSION = 71;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-// Rule v70 keeps Monday XAUUSD-only and gates GBP-cross early blocks while preserving shared GBPUSD timing and dedicated signal bases.
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v70";
+// Rule v71 keeps v70 block/base rules and removes weekday BUY/SELL inversions.
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v71";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "MT5 ICMarkets Local";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -79,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 70;
+  signalRuleVersion: 71;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -194,14 +194,6 @@ export function signalFromDirection(direction: H1Direction): H1Signal {
 
 function invertSignal(signal: H1Signal): H1Signal {
   return signal === "BUY" ? "SELL" : "BUY";
-}
-
-function weekdaySyncSignalInverted(base: H1TargetBase, brokerDate: string, slotHour: number): boolean {
-  if (![9, 12, 14, 16].includes(slotHour)) return false;
-  const weekday = brokerDateWeekdayIndex(brokerDate);
-  if (base === "GBPUSD") return weekday === 4;
-  if (base === "EURUSD") return weekday === 5;
-  return false;
 }
 
 function patternDriverTargetFor(base: H1TargetBase, slotHour: number): H1TargetBase {
@@ -508,9 +500,7 @@ export function evaluateLocalH1PatternsForTarget(
     const syncToXau = (base === "GBPUSD" || base === "EURUSD") && [9, 12, 14, 16].includes(slotHour);
     const xauSignal = syncToXau ? xauFinalSignalForSlot(brokerDate, slotHour, market) : null;
     const manualCloseOnly = slotHour === 16 && closeH16FromXauH5;
-    const derivedSignal = syncToXau
-      ? (xauSignal ? (weekdaySyncSignalInverted(base, brokerDate, slotHour) ? invertSignal(xauSignal) : xauSignal) : null)
-      : baseH1Signal;
+    const derivedSignal = syncToXau ? xauSignal : baseH1Signal;
     const symbolH1Signal = manualCloseOnly ? null : derivedSignal;
     alerts.push({
       slotHour,

@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.10"
+#property version   "1.11"
 #property description "OAK local-only MT5 execution manager"
 
 // OAK Local Manager EA
@@ -59,7 +59,7 @@ input string InpPartialPercents            = "50";      // 1 pct = current-volum
 #define OAK_HEARTBEAT_PREFIX  "oak:mt5:bridge:heartbeat:v1:"
 #define OAK_TASK_TTL          604800
 #define OAK_HEARTBEAT_TTL     45
-#define OAK_EA_VERSION        "1.10"
+#define OAK_EA_VERSION        "1.11"
 #define OAK_LOCAL_DIR         "OAKLocalFailover\\"
 
 string g_profile = "";
@@ -1353,6 +1353,39 @@ bool PreEntryNet(const string symbol, bool buy, string &detail)
    return true;
 }
 
+bool WaitForEntryNetSettled(const string symbol, bool buy, string &detail)
+{
+   const ulong started=GetTickCount64();
+   const ulong timeout_ms=2500;
+   while(GetTickCount64()-started<=timeout_ms)
+   {
+      bool opposite_found=false;
+      for(int i=PositionsTotal()-1;i>=0;i--)
+      {
+         ulong ticket=PositionGetTicket(i);
+         if(ticket==0) continue;
+         if(PositionGetString(POSITION_SYMBOL)!=symbol) continue;
+         long type=PositionGetInteger(POSITION_TYPE);
+         bool same=(buy && type==POSITION_TYPE_BUY) || (!buy && type==POSITION_TYPE_SELL);
+         bool opposite=(buy && type==POSITION_TYPE_SELL) || (!buy && type==POSITION_TYPE_BUY);
+         if(same && InpNetSkipSameDirection)
+         {
+            detail="same-direction position appeared while waiting for opposite netting";
+            return false;
+         }
+         if(opposite) opposite_found=true;
+      }
+      if(!opposite_found)
+      {
+         detail="opposite netting settled";
+         return true;
+      }
+      Sleep(50);
+   }
+   detail="opposite position still present after netting settlement timeout";
+   return false;
+}
+
 bool EntryCommentExists(const string symbol, const string comment, ulong &ticket)
 {
    for(int i=PositionsTotal()-1;i>=0;i--)
@@ -1422,6 +1455,22 @@ bool PrepareMarketEntryFields(
    if(minv<=0 || maxv<=0 || step<=0) { detail="symbol volume constraints unavailable"; return false; }
    lots=NormalizeVolume(symbol,requested_lots);
 
+   if(sl_points<=0 || tp_points<=0) DefaultProtection(symbol,sl_points,tp_points);
+   if(sl_points<=0 || tp_points<=0) { detail="SL/TP points must be positive"; return false; }
+
+   // Validate market data before any netting mutation. Exposure is intentionally
+   // checked only after opposite-side positions are broker-confirmed gone; doing
+   // it earlier can reject a reversal because the old hedge still counts.
+   MqlTick tick;
+   if(!WaitForUsableTick(symbol,tick,detail)) return false;
+   double point=SymbolInfoDouble(symbol,SYMBOL_POINT);
+   digits=(int)SymbolInfoInteger(symbol,SYMBOL_DIGITS);
+   if(point<=0) { detail="price/point unavailable"; return false; }
+
+   string net_detail="";
+   if(!PreEntryNet(symbol,buy,net_detail)) { detail=net_detail; return false; }
+   if(!WaitForEntryNetSettled(symbol,buy,net_detail)) { detail=net_detail; return false; }
+
    if(InpMaxExposurePerSymbol>0)
    {
       double exposure=0;
@@ -1430,22 +1479,17 @@ bool PrepareMarketEntryFields(
          ulong t=PositionGetTicket(i); if(t==0) continue;
          if(PositionGetString(POSITION_SYMBOL)==symbol) exposure+=PositionGetDouble(POSITION_VOLUME);
       }
-      if(exposure+lots>InpMaxExposurePerSymbol+1e-10) { detail="symbol exposure guard exceeded"; return false; }
+      if(exposure+lots>InpMaxExposurePerSymbol+1e-10) { detail="symbol exposure guard exceeded after netting"; return false; }
    }
 
-   string net_detail="";
-   if(!PreEntryNet(symbol,buy,net_detail)) { detail=net_detail; return false; }
-   MqlTick tick;
+   // Refresh the tick after closing the opposite side so UI SL/TP is based on the
+   // current post-net market price rather than the pre-close snapshot.
    if(!WaitForUsableTick(symbol,tick,detail)) return false;
-   double point=SymbolInfoDouble(symbol,SYMBOL_POINT);
-   digits=(int)SymbolInfoInteger(symbol,SYMBOL_DIGITS);
    price=(buy?tick.ask:tick.bid);
-   if(price<=0 || point<=0) { detail="price/point unavailable"; return false; }
-   if(sl_points<=0 || tp_points<=0) DefaultProtection(symbol,sl_points,tp_points);
-   if(sl_points<=0 || tp_points<=0) { detail="SL/TP points must be positive"; return false; }
+   if(price<=0) { detail="price/point unavailable"; return false; }
    sl_price=NormalizeDouble(buy ? price-sl_points*point : price+sl_points*point,digits);
    tp_price=NormalizeDouble(buy ? price+tp_points*point : price-tp_points*point,digits);
-   detail="entry fields prepared";
+   detail="entry fields prepared after opposite netting settled";
    return true;
 }
 

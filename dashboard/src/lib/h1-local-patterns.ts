@@ -88,10 +88,10 @@ export function targetEnabledForDate(target: H1LocalTarget, brokerDate: string, 
 }
 
 export function weekdayInversionBadge(target: H1LocalTarget, brokerDate: string, slotHour: number): boolean {
-  if (!targetEnabledForDate(target, brokerDate, slotHour)) return false;
-  const weekday = brokerDateWeekdayIndex(brokerDate);
-  if (target === "GBPUSD" && weekday === 4 && [9, 12, 14, 16].includes(slotHour)) return true;
-  return target === "EURUSD" && weekday === 5 && [9, 12, 14, 16].includes(slotHour);
+  void target;
+  void brokerDate;
+  void slotHour;
+  return false;
 }
 
 export function patternFamilyForSlot(bars: H1M15Bar[], brokerDate: string, slotHour: number): H1PatternFamily | null {

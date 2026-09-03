@@ -72,7 +72,7 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 rows and block set match the local ICMarkets v70 contract", () => {
+test("H1 rows and block set match the local ICMarkets v71 contract", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14, 16\]/);
@@ -82,7 +82,8 @@ test("H1 rows and block set match the local ICMarkets v70 contract", () => {
   assert.match(scannerSource, /xauStartsDayAtEntryH5/);
   assert.match(scannerSource, /manualCloseOnly/);
   assert.match(scannerSource, /symbolH1Signal = manualCloseOnly \? null : derivedSignal/);
-  assert.match(scannerSource, /weekdaySyncSignalInverted/);
+  assert.doesNotMatch(scannerSource, /weekdaySyncSignalInverted/);
+  assert.match(scannerSource, /const derivedSignal = syncToXau \? xauSignal : baseH1Signal/);
   assert.match(scannerSource, /base === "GBPUSD"/);
   assert.match(scannerSource, /base === "EURUSD"/);
   assert.match(scannerSource, /patternDriverTargetFor/);

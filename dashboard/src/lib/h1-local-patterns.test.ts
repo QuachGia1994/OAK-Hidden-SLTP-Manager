@@ -84,16 +84,15 @@ test("GBP cross early-block gates apply Tuesday-Friday while Monday remains XAUU
   for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(targetEnabledForDate("GBPAUD", tuesday, hour), true);
 });
 
-test("weekday inversion badges stay only on Thursday GBPUSD and Friday EURUSD", () => {
-  const wed = "2026-09-02";
-  for (const cross of ["GBPAUD", "GBPCAD", "GBPJPY"] as const) {
-    for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(weekdayInversionBadge(cross, wed, hour), false);
-  }
+test("rule v71 has no weekday inversion badges", () => {
+  const tue = "2026-09-08";
   const thu = "2026-09-03";
-  for (const hour of [9, 12, 14, 16]) assert.equal(weekdayInversionBadge("GBPUSD", thu, hour), true);
   const fri = "2026-09-04";
-  assert.equal(weekdayInversionBadge("GBPUSD", fri, 9), false);
-  for (const hour of [9, 12, 14, 16]) assert.equal(weekdayInversionBadge("EURUSD", fri, hour), true);
+  for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(weekdayInversionBadge("GBPAUD", tue, hour), false);
+  for (const hour of [9, 12, 14, 16]) {
+    assert.equal(weekdayInversionBadge("GBPUSD", thu, hour), false);
+    assert.equal(weekdayInversionBadge("EURUSD", fri, hour), false);
+  }
 });
 
 test("ALT family skips two newest bars and XAUUSD excludes H-2:00", () => {

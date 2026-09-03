@@ -78,10 +78,10 @@ function h1Bars(date: string, hour: number, direction: "T" | "G"): H1M15Bar[] {
   });
 }
 
-test("rule v70 uses local MT5 ICMarkets, schema 18 and six blocks", () => {
+test("rule v71 uses local MT5 ICMarkets, schema 18 and six blocks", () => {
   assert.equal(H1_CLOUD_STATE_VERSION, 56);
   assert.equal(H1_PUBLIC_SCHEMA, 18);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 70);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 71);
   assert.equal(H1_CLOUD_PROFILE, "MT5 ICMarkets Local");
   assert.deepEqual(H1_SCAN_HOURS, [3, 6, 9, 12, 14, 16]);
   assert.deepEqual(H1_TARGET_BASES, ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"]);
@@ -113,6 +113,18 @@ test("GBP cross pattern timing comes from GBPUSD while GBPAUD signal base comes 
   assert.equal(alerts[0].sampleBars?.[0].brokerTime, "02:15");
 });
 
+test("Tuesday GBPAUD keeps the AUDUSD base side with no inversion", () => {
+  const date = "2026-09-08";
+  const snapshot = market(date, "TTGTTT", "ALT");
+  snapshot.AUDUSD.bars = [...snapshot.AUDUSD.bars, ...h1Bars("2026-09-07", 3, "G")];
+  const alert = evaluateLocalH1PatternsForTarget("GBPAUD", date, snapshot, [3], 3)[0];
+  assert.equal(alert?.scannerSource, "GBPUSD");
+  assert.equal(alert?.baseSymbol, "AUDUSD");
+  assert.equal(alert?.baseH1Signal, "SELL");
+  assert.equal(alert?.symbolH1Signal, "SELL");
+  assert.equal(alert?.inversionBadge, false);
+});
+
 test("XAUUSD entry H7 uses the latest previous broker day GBPUSD H6 and keeps its direction", () => {
   const date = "2026-09-02";
   const snapshot = market(date, "TTGTTT", "ALT");
@@ -122,11 +134,11 @@ test("XAUUSD entry H7 uses the latest previous broker day GBPUSD H6 and keeps it
   assert.deepEqual([alert?.entryHour, alert?.baseHour, alert?.baseDirection, alert?.baseH1Signal, alert?.symbolH1Signal], [7, 6, "T", "BUY", "BUY"]);
 });
 
-test("GBPUSD keeps its own H9+ entry time and EURUSD now follows GBPUSD; both keep XAUUSD final-side sync", () => {
-  for (const [date, previousDate, expectedGbp, expectedEur] of [
-    ["2026-09-02", "2026-09-01", "BUY", "BUY"],
-    ["2026-09-03", "2026-09-02", "SELL", "BUY"],
-    ["2026-09-04", "2026-09-03", "BUY", "SELL"],
+test("GBPUSD and EURUSD keep XAUUSD final-side sync with no Thursday/Friday inversion", () => {
+  for (const [date, previousDate] of [
+    ["2026-09-02", "2026-09-01"],
+    ["2026-09-03", "2026-09-02"],
+    ["2026-09-04", "2026-09-03"],
   ] as const) {
     for (const slotHour of [9, 12, 14, 16] as const) {
       const snapshot = market(date, "TGGTTT", "ALT");
@@ -148,8 +160,8 @@ test("GBPUSD keeps its own H9+ entry time and EURUSD now follows GBPUSD; both ke
       assert.equal(gbp?.scannerSource, "GBPUSD");
       assert.equal(eur?.scannerSource, "GBPUSD");
       assert.equal(xau?.symbolH1Signal, "BUY");
-      assert.equal(gbp?.symbolH1Signal, expectedGbp);
-      assert.equal(eur?.symbolH1Signal, expectedEur);
+      assert.equal(gbp?.symbolH1Signal, "BUY");
+      assert.equal(eur?.symbolH1Signal, "BUY");
     }
   }
 });
@@ -269,7 +281,7 @@ test("timed Telegram mapping follows the reopened six block set", () => {
   assert.equal(scheduledSignalSlotForVietnamWall("GBPJPY", date, 12, 5), 6);
 });
 
-test("cloud state v56 round-trips the v70 GBP-cross scanner/base contract", () => {
+test("cloud state v56 round-trips the v71 GBP-cross scanner/base contract", () => {
   const date = "2026-09-02";
   const state = emptyCloudState();
   const snapshot = market(date, "TTGTTT", "ALT");
@@ -316,7 +328,7 @@ test("public feed schema 18 exposes entry time plus final BUY/SELL and can seed 
   const alert = evaluateLocalH1PatternsForTarget("GBPAUD", date, snapshot, [3], 3)[0];
   ensureSymbolDay(state, date, "GBPAUD").symbol.alerts.push(alert);
   const feed = buildPublicFeed(state, "2026-09-02T01:00:00.000Z");
-  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours], [18, 70, [3, 6, 9, 12, 14, 16]]);
+  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours], [18, 71, [3, 6, 9, 12, 14, 16]]);
   const row = feed.days[date].symbols.GBPAUD?.alerts[0];
   assert.deepEqual([row?.entryHour, row?.patternGroup, row?.scannerSource, row?.baseSymbol, row?.baseSignal, row?.signal, row?.inversionBadge], [4, "BT", "GBPUSD", "AUDUSD", "BUY", "BUY", false]);
   assert.equal(row?.sampleBars.length, 6);

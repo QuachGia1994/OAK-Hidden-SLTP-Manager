@@ -7,7 +7,7 @@ const legacyBackfillRoute = readFileSync(new URL("../app/api/h1-scanner/backfill
 const publisher = readFileSync(new URL("../../../local-failover/oak-local-h1-scanner.mjs", import.meta.url), "utf8");
 const reader = readFileSync(new URL("../../../local-failover/mt5-h1-market-reader.py", import.meta.url), "utf8");
 
-test("rule v70 history is rebuilt from local ICMarkets M15 snapshots, not legacy cTrader H1 reconstruction", () => {
+test("rule v71 history is rebuilt from local ICMarkets M15 snapshots, not legacy cTrader H1 reconstruction", () => {
   assert.match(legacyBackfillRoute, /local-mt5-history-only/);
   assert.doesNotMatch(legacyBackfillRoute, /reconstructHistoricalDays|fetchHistoricalBrokerH1/);
   assert.match(localRoute, /evaluateLocalH1PatternsForTarget/);

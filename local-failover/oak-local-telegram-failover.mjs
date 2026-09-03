@@ -150,6 +150,14 @@ function compactVolume(value) {
   return number.toFixed(8).replace(/0+$/, "").replace(/\.$/, "");
 }
 
+function versionAtLeast(value, minimumMajor, minimumMinor) {
+  const match = String(value || "").trim().match(/^(\d+)\.(\d+)/);
+  if (!match) return false;
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  return major > minimumMajor || (major === minimumMajor && minor >= minimumMinor);
+}
+
 function normalizeEnvelope(value, action) {
   if (value && typeof value === "object" && value.result && value.status) return value;
   return {
@@ -1235,6 +1243,19 @@ export function createLocalFailoverRuntime(options = {}) {
 
   async function executeIntent(config, state, intent, statuses) {
     const selection = selectAccount(config, statuses, intent.accountLabel || intent.bridgeProfile);
+    const scheduledUiEntry = config.scheduledEntryExecution === "mt5-ui"
+      && intent.kind === "entry"
+      && Number.isFinite(Number(intent.dueAt))
+      && Number(intent.dueAt) > 0;
+    if (scheduledUiEntry && !versionAtLeast(selection.heartbeat?.eaVersion, 1, 11)) {
+      intent.status = "failed";
+      intent.executionFinishedAt = clock();
+      intent.executionError = `EA v1.11+ is required for safe scheduled opposite-side netting; current heartbeat reports ${String(selection.heartbeat?.eaVersion || "unknown")}.`;
+      intent.executionResult = { ok: false, action: intent.kind, detail: intent.executionError };
+      queueScheduledIntentNotification(state, intent);
+      await saveState(state);
+      return { status: "failed", result: intent.executionResult };
+    }
     if (selection.account.providerAccountId !== intent.providerAccountId || Number(selection.account.login) !== Number(intent.login) || String(selection.account.server) !== String(intent.server)) {
       intent.status = "failed";
       intent.executionFinishedAt = clock();
@@ -1349,7 +1370,29 @@ export function createLocalFailoverRuntime(options = {}) {
     const due = Object.values(state.intents || {}).filter((intent) =>
       intent.status === "approved" || isDueScheduledIntent(intent, now),
     );
-    for (const intent of due) await executeIntent(config, state, intent, statuses);
+    for (const intent of due) {
+      try {
+        await executeIntent(config, state, intent, statuses);
+      } catch (error) {
+        const detail = sanitizeOperatorError(error);
+        if (!isTerminalIntentStatus(intent.status)) {
+          const mayHaveMutated = intent.status === "executing";
+          intent.status = mayHaveMutated ? "uncertain" : "failed";
+          intent.executionFinishedAt = clock();
+          intent.executionResult = {
+            ok: false,
+            ...(mayHaveMutated ? { uncertain: true } : {}),
+            action: intent.kind,
+            detail: mayHaveMutated
+              ? `Unexpected scheduled execution error after dispatch began: ${detail}; automatic replay is disabled.`
+              : `Scheduled execution stopped before broker dispatch: ${detail}`,
+          };
+        }
+        queueScheduledIntentNotification(state, intent);
+        await saveState(state);
+        await log(`Scheduled intent ${intent.id} terminalized after unexpected error: ${detail}`);
+      }
+    }
   }
 
   function localIntentTimeText(intent) {

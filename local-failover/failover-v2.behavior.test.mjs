@@ -78,6 +78,7 @@ test("local failover Scheduled Task keeps user context but launches Node hidden"
 function localPrimaryStatusFor(account = ACCOUNT_A, overrides = {}, now = BASE_NOW) {
   return statusFor(account, {
     providerAccountId: LOCAL_PRIMARY_PROVIDER_ACCOUNT_ID,
+    eaVersion: "1.11",
     localPrimary: true,
     localReady: true,
     fxSlPoints: 500,
@@ -1498,6 +1499,31 @@ test("failed scheduled MT5 UI entry immediately notifies Telegram with the execu
     assert.equal(h.mt5UiTasks.length, 1);
     assert.ok(h.sent.some((text) => /Scheduled execution failed.*acct-a/i.test(text)));
     assert.ok(h.sent.some((text) => /BUY XAUUSD 0\.01 lot/i.test(text) && /MetaTrader top-level window/i.test(text)));
+    assert.equal(state.deliveredTradeEventIds.filter((value) => value === `scheduled_failed:${id}`).length, 1);
+  } finally { await h.cleanup(); }
+});
+
+test("unexpected pre-dispatch scheduled entry failure is terminalized and notified instead of going silent", { concurrency: false }, async () => {
+  const h = await createHarness("scheduled-pre-dispatch-failure-notice", {
+    controlMode: "local-primary",
+    webhook: "",
+    scheduledEntryExecution: "mt5-ui",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 417, message: { chat: { id: 123 }, text: "/sell XAUUSD 0.01 23:59 @acct-a" } }, statuses);
+    const [id] = Object.keys(state.intents);
+    h.setNow(state.intents[id].dueAt + 1);
+    // Intentionally leave the original heartbeat stale so selectAccount throws
+    // before broker dispatch. The scheduler must convert that exception into a
+    // durable failed intent and Telegram notice instead of aborting the loop.
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(state.intents[id].status, "failed");
+    assert.equal(h.mt5UiTasks.length, 0);
+    assert.ok(h.sent.some((text) => /Scheduled execution failed.*acct-a/i.test(text)));
+    assert.ok(h.sent.some((text) => /SELL XAUUSD 0\.01 lot/i.test(text)));
     assert.equal(state.deliveredTradeEventIds.filter((value) => value === `scheduled_failed:${id}`).length, 1);
   } finally { await h.cleanup(); }
 });
