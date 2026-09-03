@@ -154,6 +154,7 @@ export async function POST(request: Request) {
   if (!lockToken) return NextResponse.json({ ok: true, skipped: "already-running", brokerDate: parsed.brokerDate });
   try {
     const { state, source } = await loadH1CloudState(parsed.brokerDate, parsed.brokerHour);
+    const dayWasMissing = !state.days[parsed.brokerDate];
     const readyHours = H1_LOCAL_SCAN_HOURS.filter((hour) => hour <= parsed.brokerHour);
     let changed = false;
     let matched = 0;
@@ -196,7 +197,7 @@ export async function POST(request: Request) {
       symbol.alerts = next;
     }
 
-    if (changed || source === "public-seed") {
+    if (changed || source === "public-seed" || dayWasMissing) {
       await saveH1CloudState(state);
       await publishH1CloudState(state);
     }

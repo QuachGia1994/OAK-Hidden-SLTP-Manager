@@ -42,6 +42,8 @@ test("local MT5 market endpoint is private, ICMarkets-only, stale-guarded and si
   assert.match(localRoute, /targetEnabledForDate/);
   assert.match(localRoute, /acquireH1CloudLock/);
   assert.match(localRoute, /releaseH1CloudLock/);
+  assert.match(localRoute, /const dayWasMissing = !state\.days\[parsed\.brokerDate\]/);
+  assert.match(localRoute, /changed \|\| source === "public-seed" \|\| dayWasMissing/);
   assert.match(localRoute, /source === "public-seed"/);
   assert.match(localRoute, /saveH1CloudState/);
   assert.match(localRoute, /publishH1CloudState/);
@@ -62,6 +64,17 @@ test("local ICMarkets reader uses M15 only and does not double-shift MT5 server-
 
 test("local publisher keeps current-day scanner bars plus previous-broker-day signal bases and supports bounded 90-day history backfill", () => {
   assert.match(publisher, /MAX_BACKFILL_DAYS = 90/);
+  assert.match(publisher, /HISTORICAL_READER_TIMEOUT_MS = 180_000/);
+  assert.match(publisher, /HISTORICAL_READER_MAX_BUFFER = 32_000_000/);
+  assert.match(publisher, /BACKFILL_BUSY_RETRY_ATTEMPTS = 8/);
+  assert.match(publisher, /BACKFILL_BUSY_RETRY_MS = 750/);
+  assert.match(publisher, /body\?\.skipped === "already-running"/);
+  assert.match(publisher, /response\.status === 429 \|\| response\.status >= 500/);
+  assert.match(publisher, /catch \(error\)/);
+  assert.match(publisher, /retryBusy/);
+  assert.match(publisher, /postSnapshot\(config, snapshot, fetchImpl, \{ retryBusy: true \}\)/);
+  assert.match(publisher, /days > 4 \? HISTORICAL_READER_TIMEOUT_MS : LIVE_READER_TIMEOUT_MS/);
+  assert.match(publisher, /days > 4 \? HISTORICAL_READER_MAX_BUFFER : LIVE_READER_MAX_BUFFER/);
   assert.match(publisher, /--backfill/);
   assert.match(publisher, /currentDaySnapshot/);
   assert.match(publisher, /"XAUUSD", "AUDUSD", "USDCAD", "USDJPY", "GBPUSD", "EURUSD"/);

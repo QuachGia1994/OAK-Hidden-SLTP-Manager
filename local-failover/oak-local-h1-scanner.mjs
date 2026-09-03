@@ -16,6 +16,12 @@ const DEFAULT_ENDPOINT = "https://www.oakgatekeeper.uk/api/h1-scanner/local-mark
 const SOURCE_KEYS = ["XAUUSD", "AUDUSD", "USDCAD", "USDJPY", "GBPUSD", "EURUSD"];
 const PREVIOUS_DAY_BASE_SOURCES = new Set(["AUDUSD", "USDCAD", "USDJPY", "GBPUSD"]);
 const MAX_BACKFILL_DAYS = 90;
+const LIVE_READER_TIMEOUT_MS = 30_000;
+const HISTORICAL_READER_TIMEOUT_MS = 180_000;
+const LIVE_READER_MAX_BUFFER = 12_000_000;
+const HISTORICAL_READER_MAX_BUFFER = 32_000_000;
+const BACKFILL_BUSY_RETRY_ATTEMPTS = 8;
+const BACKFILL_BUSY_RETRY_MS = 750;
 
 function endpointFor(config) {
   if (config.h1LocalMarketUrl) return String(config.h1LocalMarketUrl);
@@ -42,7 +48,9 @@ function parseBackfillDays(argv = process.argv.slice(2)) {
 }
 
 export async function readIcMarketsM15({ exec = execFile, days = 2 } = {}) {
-  const { stdout } = await exec(PYTHON, [READER, "--days", String(days)], { windowsHide: true, timeout: 30_000, maxBuffer: 12_000_000 });
+  const timeout = days > 4 ? HISTORICAL_READER_TIMEOUT_MS : LIVE_READER_TIMEOUT_MS;
+  const maxBuffer = days > 4 ? HISTORICAL_READER_MAX_BUFFER : LIVE_READER_MAX_BUFFER;
+  const { stdout } = await exec(PYTHON, [READER, "--days", String(days)], { windowsHide: true, timeout, maxBuffer });
   const payload = JSON.parse(String(stdout || "{}"));
   if (payload?.version !== 1 || !payload?.brokerDate || !payload?.symbols || !/icmarkets/i.test(String(payload.server || ""))) {
     throw new Error("invalid ICMarkets M15 snapshot");
@@ -50,20 +58,40 @@ export async function readIcMarketsM15({ exec = execFile, days = 2 } = {}) {
   return payload;
 }
 
-async function postSnapshot(config, payload, fetchImpl) {
-  const response = await fetchImpl(endpointFor(config), {
-    method: "POST",
-    headers: { ...authHeaders(config), "Content-Type": "application/json" },
-    body: JSON.stringify({ ...payload, capturedAt: Date.now() }),
-    cache: "no-store",
-    signal: AbortSignal.timeout(20_000),
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || body?.ok !== true) {
-    const detail = String(body?.error || body?.skipped || "unexpected response").slice(0, 240);
-    throw new Error(`local H1 publish failed (${response.status}): ${detail}`);
+async function postSnapshot(config, payload, fetchImpl, { retryBusy = false } = {}) {
+  for (let attempt = 0; attempt <= BACKFILL_BUSY_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetchImpl(endpointFor(config), {
+        method: "POST",
+        headers: { ...authHeaders(config), "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, capturedAt: Date.now() }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(20_000),
+      });
+      const body = await response.json().catch(() => ({}));
+      const transientHttp = response.status === 429 || response.status >= 500;
+      const busy = body?.skipped === "already-running";
+      if (retryBusy && (busy || transientHttp) && attempt < BACKFILL_BUSY_RETRY_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, BACKFILL_BUSY_RETRY_MS));
+        continue;
+      }
+      if (!response.ok || body?.ok !== true) {
+        const detail = String(body?.error || body?.skipped || "unexpected response").slice(0, 240);
+        throw new Error(`local H1 publish failed (${response.status}): ${detail}`);
+      }
+      if (retryBusy && busy) {
+        throw new Error(`local H1 backfill stayed busy for ${payload.brokerDate || "unknown-date"}`);
+      }
+      return body;
+    } catch (error) {
+      if (retryBusy && attempt < BACKFILL_BUSY_RETRY_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, BACKFILL_BUSY_RETRY_MS));
+        continue;
+      }
+      throw error;
+    }
   }
-  return body;
+  throw new Error("local H1 publish retry loop exhausted");
 }
 
 function addCalendarDays(dateKey, days) {
@@ -138,7 +166,7 @@ export async function publishIcMarketsM15({ fetchImpl = globalThis.fetch, exec =
     let updated = 0;
     let changedDays = 0;
     for (const snapshot of snapshots) {
-      const result = await postSnapshot(config, snapshot, fetchImpl);
+      const result = await postSnapshot(config, snapshot, fetchImpl, { retryBusy: true });
       matched += Number(result.matched || 0);
       updated += Number(result.updated || 0);
       if (result.changed) changedDays += 1;
@@ -156,6 +184,7 @@ async function appendRuntimeLog(level, message) {
 
 export async function main() {
   const backfillDays = parseBackfillDays();
+  if (backfillDays > 0) await appendRuntimeLog("START", JSON.stringify({ backfillDays }));
   const result = await publishIcMarketsM15({ dryRun: process.argv.includes("--dry-run"), backfillDays });
   const summary = {
     ok: true,

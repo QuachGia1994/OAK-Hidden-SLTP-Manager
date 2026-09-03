@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fixed sparse disabled dates in H1 History backfill. Valid ICMarkets broker days are now persisted even if no H1 pattern matches occur, and historical publishing retries singleton-lock `already-running` responses instead of silently dropping the date when the minute live scanner overlaps. Verified 2026-08-21 has 29 v73 matches and 2026-08-31 has 6 XAUUSD-only matches with complete M15 source coverage.
+
+- Restored H1 History production data after the v73 migration: local ICMarkets backfill now gives historical MT5 reads a dedicated 180s/32MB budget while the minute live reader stays at 30s/12MB. A one-time 90-calendar-day rebuild published 64 broker snapshots (`1,336` matches / `1,272` updated rows); the production History page now exposes 56 selectable trading days from `2026-06-08` through `2026-09-03` instead of a single day.
+
 - Advanced H1 to v73: H16 now keeps its normal entry-time calculation and BUY/SELL signal on XAU H5 manual-close days. CLOSE is presentation-only as an H16 advisory badge and no longer nulls or replaces the H16 signal across Web, native iOS/Android and copied H1 PNGs. H1 persistence now uses the schema-stable state key `state:s56` instead of a rule-version key; first load migrates retained v72/v73 state, repairs legacy CLOSE-only H16 rows, and preserves the 90-day History calendar across future rule-only bumps.
 
 - Advanced H1 to v72: GBPUSD and EURUSD now use the XAUUSD entry time for H9/H12/H14/H16 while keeping the existing XAUUSD-synchronized final side and all v71 weekday/block rules. Removed the special blue reference-cell tint from XAUUSD/GBPUSD across Web, iOS, Android and copied H1 PNG images; H16 CLOSE warning styling remains unchanged. A fresh v72 state key clears stale entry-hour rows.

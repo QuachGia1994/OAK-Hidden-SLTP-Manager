@@ -24,7 +24,8 @@ test("local history publisher is bounded to 90 calendar days and carries every p
   assert.match(publisher, /dateSnapshots/);
   assert.match(publisher, /brokerHour: currentDay \? payload\.brokerHour : 23/);
   assert.match(publisher, /for \(const snapshot of snapshots\)/);
-  assert.match(publisher, /await postSnapshot\(config, snapshot, fetchImpl\)/);
+  assert.match(publisher, /await postSnapshot\(config, snapshot, fetchImpl, \{ retryBusy: true \}\)/);
+  assert.match(publisher, /body\?\.skipped === "already-running"/);
 });
 
 test("local M15 reader fetches enough retained bars while excluding the still-open candle", () => {
