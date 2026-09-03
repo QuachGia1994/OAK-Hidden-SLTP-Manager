@@ -1,6 +1,10 @@
-# OAK Gatekeeper Android
+# OAK Gatekeeper legacy Expo client
 
-Android client for OAK Gatekeeper using Expo SDK 57 / React Native 0.86. As of the native iOS overhaul, this `mobile/` tree is the Android app only; the iPhone app now lives in `ios-native/` and is pure SwiftUI.
+This `mobile/` Expo/React-Native tree is retained only as migration/reference code. It is no longer the Android artifact shipped by `.github/workflows/mobile-build.yml`.
+
+Current mobile clients:
+- Android: `android-native/` — native Kotlin + Jetpack Compose.
+- iOS: `ios-native/` — native SwiftUI.
 
 ## Runtime contract
 - Backend SSoT: `https://www.oakgatekeeper.uk` on Vercel.
@@ -21,9 +25,9 @@ pnpm android
 ```
 
 ## GitHub Actions artifacts
-`.github/workflows/mobile-build.yml` now has independent platform paths:
-1. Android: Expo TypeScript/Metro verification, Android prebuild, Gradle release APK.
+`.github/workflows/mobile-build.yml` now has independent native platform paths:
+1. Android: `android-native/` Gradle build, lint/unit verification, release APK+AAB, R8/DEX/16-KB-page-size gates.
 2. iOS: `ios-native/` SwiftUI project generated with XcodeGen and compiled on the GitHub `xcode-27` runner with the iOS 27 SDK into an unsigned IPA.
 
-Android artifact: `OAK-Gatekeeper-Android-release`.
+Android artifact: `OAK-Gatekeeper-Android-native`.
 Native iOS artifact: `OAK-Gatekeeper-iOS27-native-unsigned`.

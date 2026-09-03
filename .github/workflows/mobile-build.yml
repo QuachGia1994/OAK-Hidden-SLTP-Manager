@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, master]
     paths:
-      - "mobile/**"
+      - "android-native/**"
       - "ios-native/**"
       - "dashboard/src/app/api/mobile/**"
       - "dashboard/src/lib/h1-signals.ts"
@@ -13,7 +13,7 @@ on:
   pull_request:
     branches: [main, master]
     paths:
-      - "mobile/**"
+      - "android-native/**"
       - "ios-native/**"
       - "dashboard/src/app/api/mobile/**"
       - "dashboard/src/lib/h1-signals.ts"
@@ -26,63 +26,16 @@ permissions:
 
 env:
   CI: "1"
-  EXPO_NO_TELEMETRY: "1"
 
 jobs:
-  verify-android:
-    name: Verify Android bundle
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.22.0
-          run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22.14.0"
-          cache: pnpm
-          cache-dependency-path: mobile/pnpm-lock.yaml
-
-      - name: Install mobile dependencies
-        working-directory: mobile
-        run: pnpm install --frozen-lockfile
-
-      - name: Typecheck Android app
-        working-directory: mobile
-        run: pnpm typecheck
-
-      - name: Bundle Android JavaScript
-        working-directory: mobile
-        run: pnpm bundle:android
-
   build-android:
-    name: Build Android APK
-    needs: verify-android
+    name: Build native Android APK/AAB
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.22.0
-          run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22.14.0"
-          cache: pnpm
-          cache-dependency-path: mobile/pnpm-lock.yaml
-
-      - name: Set up Java
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -91,53 +44,81 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android API 36
+      - name: Install Android API 37 and build tools
         shell: bash
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          sdkmanager "platforms;android-37" "build-tools;36.0.0"
 
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Install mobile dependencies
-        working-directory: mobile
-        run: pnpm install --frozen-lockfile
-
-      - name: Generate Android native project
-        working-directory: mobile
-        run: pnpm exec expo prebuild --platform android --clean --no-install
-
-      - name: Verify generated Android launcher icon
-        working-directory: mobile
+      - name: Verify native Android configuration
+        working-directory: android-native
         shell: bash
         run: |
           set -euo pipefail
-          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp
-          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp
-          grep -R -n 'android:icon="@mipmap/ic_launcher"' android/app/src/main/AndroidManifest.xml
-          grep -R -n 'ic_launcher_foreground' android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          grep -n 'compileSdk = 37' app/build.gradle.kts
+          grep -n 'targetSdk = 36' app/build.gradle.kts
+          grep -n 'isMinifyEnabled = true' app/build.gradle.kts
+          grep -n 'isShrinkResources = true' app/build.gradle.kts
+          grep -n 'jniLibs.useLegacyPackaging = false' app/build.gradle.kts
+          grep -n 'android.enableR8.fullMode=true' gradle.properties
+          grep -n 'onTrimMemory' app/src/main/java/uk/oakgatekeeper/mobile/MainActivity.kt
+          grep -n 'TRIM_MEMORY_UI_HIDDEN' app/src/main/java/uk/oakgatekeeper/mobile/MainActivity.kt
+          grep -n 'android:icon="@mipmap/ic_launcher"' app/src/main/AndroidManifest.xml
+          test -s app/src/main/res/drawable-nodpi/oak_launcher_foreground.png
+          test -s app/src/main/res/drawable-nodpi/oak_launcher_monochrome.png
 
-      - name: Build standalone release APK
-        working-directory: mobile/android
+      - name: Build, lint and unit test native Android
+        working-directory: android-native
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleRelease --no-daemon
+          ./gradlew :app:test :app:lintRelease :app:assembleRelease :app:bundleRelease --no-daemon --stacktrace
 
-      - name: Verify release APK contains bundled JS
-        working-directory: mobile
+      - name: Verify Google Play 2027 memory/page/DEX gates
+        working-directory: android-native
         shell: bash
         run: |
           set -euo pipefail
-          APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
-          test -s "$APK_PATH"
-          unzip -l "$APK_PATH" | grep -E 'assets/(index.android.bundle|index.android\.bundle\.hbc)$'
+          APK="app/build/outputs/apk/release/app-release.apk"
+          AAB="app/build/outputs/bundle/release/app-release.aab"
+          test -s "$APK"
+          test -s "$AAB"
 
-      - name: Upload Android APK
+          # 16 KB page-size readiness: this native Compose client intentionally
+          # ships no app-owned NDK code; any packaged .so must still pass zipalign.
+          "${ANDROID_HOME}/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$APK"
+          if unzip -Z1 "$APK" | grep -qE '^lib/.+\.so$'; then
+            echo "Packaged native libraries:"
+            unzip -Z1 "$APK" | grep -E '^lib/.+\.so$'
+          else
+            echo "No packaged native libraries; 16 KB ELF alignment is vacuously satisfied."
+          fi
+
+          # Keep the app below Google's >10 MB app DEX enforcement floor.
+          DEX_BYTES=$(zipinfo -l "$APK" | awk '/classes([0-9]+)?\.dex$/ {sum += $4} END {print sum+0}')
+          echo "Release DEX bytes: $DEX_BYTES"
+          test "$DEX_BYTES" -lt 10485760
+
+          # R8 must actually produce optimization artifacts, not just be configured.
+          test -s app/build/outputs/mapping/release/mapping.txt
+          test -s app/build/outputs/mapping/release/usage.txt
+
+          # This UI is text/vector/Canvas-first. No persistent image loader/cache is allowed.
+          if grep -R -n -E 'Coil|Glide|BitmapFactory|LruCache<.*Bitmap|static.*Bitmap' app/src/main/java; then
+            echo "Memory-heavy bitmap cache/loader found" >&2
+            exit 1
+          fi
+
+      - name: Upload native Android artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: OAK-Gatekeeper-Android-release
-          path: mobile/android/app/build/outputs/apk/release/app-release.apk
+          name: OAK-Gatekeeper-Android-native
+          path: |
+            android-native/app/build/outputs/apk/release/app-release.apk
+            android-native/app/build/outputs/bundle/release/app-release.aab
+            android-native/app/build/outputs/mapping/release/mapping.txt
           if-no-files-found: error
           retention-days: 14
 

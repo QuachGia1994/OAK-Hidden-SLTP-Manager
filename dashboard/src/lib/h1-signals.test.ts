@@ -16,14 +16,13 @@ const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx"
 const mobileH1RouteSource = readFileSync(new URL("../app/api/mobile/h1/route.ts", import.meta.url), "utf8");
 const mobileAppRouteSource = readFileSync(new URL("../app/api/mobile/app/route.ts", import.meta.url), "utf8");
 const mobileAppBackendSource = readFileSync(new URL("./mobile-app-backend.ts", import.meta.url), "utf8");
-const mobileThemeSource = readFileSync(new URL("../../../mobile/src/lib/theme.ts", import.meta.url), "utf8");
-const mobileDataSource = readFileSync(new URL("../../../mobile/src/state/data.tsx", import.meta.url), "utf8");
-const mobileTabsSource = readFileSync(new URL("../../../mobile/app/(tabs)/_layout.tsx", import.meta.url), "utf8");
-const mobileHomeSource = readFileSync(new URL("../../../mobile/app/(tabs)/index.tsx", import.meta.url), "utf8");
-const mobileCalendarSource = readFileSync(new URL("../../../mobile/app/(tabs)/calendar.tsx", import.meta.url), "utf8");
-const mobileSignalsSource = readFileSync(new URL("../../../mobile/app/(tabs)/signals.tsx", import.meta.url), "utf8");
-const mobileReportsSource = readFileSync(new URL("../../../mobile/app/(tabs)/reports.tsx", import.meta.url), "utf8");
-const mobileMoreSource = readFileSync(new URL("../../../mobile/app/(tabs)/more.tsx", import.meta.url), "utf8");
+const androidScreensSource = readFileSync(new URL("../../../android-native/app/src/main/java/uk/oakgatekeeper/mobile/Screens.kt", import.meta.url), "utf8");
+const androidStateSource = readFileSync(new URL("../../../android-native/app/src/main/java/uk/oakgatekeeper/mobile/AppState.kt", import.meta.url), "utf8");
+const androidMainSource = readFileSync(new URL("../../../android-native/app/src/main/java/uk/oakgatekeeper/mobile/MainActivity.kt", import.meta.url), "utf8");
+const androidThemeSource = readFileSync(new URL("../../../android-native/app/src/main/java/uk/oakgatekeeper/mobile/Theme.kt", import.meta.url), "utf8");
+const androidShareSource = readFileSync(new URL("../../../android-native/app/src/main/java/uk/oakgatekeeper/mobile/ShareStore.kt", import.meta.url), "utf8");
+const androidBuildSource = readFileSync(new URL("../../../android-native/app/build.gradle.kts", import.meta.url), "utf8");
+const androidManifestSource = readFileSync(new URL("../../../android-native/app/src/main/AndroidManifest.xml", import.meta.url), "utf8");
 const scannerSource = readFileSync(new URL("./h1-cloud-scanner.ts", import.meta.url), "utf8");
 const localPatternsSource = readFileSync(new URL("./h1-local-patterns.ts", import.meta.url), "utf8");
 const localMarketRouteSource = readFileSync(new URL("../app/api/h1-scanner/local-market/route.ts", import.meta.url), "utf8");
@@ -41,8 +40,7 @@ const localPrimaryFenceSource = readFileSync(new URL("./local-primary-fence.ts",
 const localControllerSource = readFileSync(new URL("../../../local-failover/oak-local-telegram-failover.mjs", import.meta.url), "utf8");
 const licenseSource = readFileSync(new URL("../../../LICENSE", import.meta.url), "utf8");
 const localStatusRouteSource = readFileSync(new URL("../app/api/telegram/local-status/route.ts", import.meta.url), "utf8");
-const androidMoreSource = readFileSync(new URL("../../../mobile/app/(tabs)/more.tsx", import.meta.url), "utf8");
-const mobileAppConfigSource = readFileSync(new URL("../../../mobile/app.json", import.meta.url), "utf8");
+const androidGradlePropertiesSource = readFileSync(new URL("../../../android-native/gradle.properties", import.meta.url), "utf8");
 
 test("H1 Live and web History are reopened as primary trading navigation", () => {
   assert.match(navBarSource, /<span>H1 Live<\/span>/);
@@ -110,19 +108,18 @@ test("XAU H5 turns H16 into a manual CLOSE badge without auto-close execution wi
   assert.match(boardSource, /data-manual-close/);
   assert.match(boardSource, /data-action=\{manualCloseCell \? "CLOSE"/);
   assert.match(redesignCss, /\.oak-h1-close-badge/);
-  assert.match(mobileCalendarSource, /manualCloseH16/);
-  assert.match(mobileCalendarSource, /Pill label="CLOSE"/);
-  assert.match(mobileSignalsSource, /manualCloseRow \? "CLOSE"/);
-  assert.doesNotMatch(boardSource + mobileCalendarSource + mobileSignalsSource, /order_send|closePosition|dispatchTask|\/approve/);
+  assert.match(androidScreensSource, /manualCloseH16/);
+  assert.match(androidScreensSource, /OAKPill\("CLOSE", PillTone\.WARNING\)/);
+  assert.match(androidScreensSource, /manualClose && alert\.slotHour == 16/);
+  assert.doesNotMatch(boardSource + androidScreensSource, /order_send|closePosition|dispatchTask|\/approve/);
 });
 
 test("GBPCAD and GBPJPY are temporarily hidden from H1 presentation while backend contracts stay intact", () => {
   assert.match(boardSource, /H1_TEMP_HIDDEN_ROWS = new Set\(\["GBPCAD", "GBPJPY"\]\)/);
   assert.match(boardSource, /visibleH1Symbols\(data\.symbols\)/);
   assert.match(boardSource, /visibleH1Symbols\(H1_TARGET_BASES\)/);
-  assert.match(mobileCalendarSource, /TEMP_HIDDEN_H1_ROWS = new Set\(\["GBPCAD", "GBPJPY"\]\)/);
-  assert.match(mobileCalendarSource, /sourceSymbols\.filter/);
-  assert.match(mobileSignalsSource, /TEMP_HIDDEN_H1_ROWS\.has\(row\.symbol\)/);
+  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD", "GBPUSD", "EURUSD", "GBPAUD"\)/);
+  assert.doesNotMatch(androidScreensSource, /VisibleSymbols = listOf\([^\n]*GBPCAD|VisibleSymbols = listOf\([^\n]*GBPJPY/);
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
 });
 
@@ -143,7 +140,7 @@ test("H1 cells render entry hour plus final rule-derived BUY/SELL", () => {
   assert.match(boardSource, /base === "GBPUSD"[^\n]*\[9, 12, 14, 16\]/);
   assert.match(nativeH1BoardSource, /symbol == "XAUUSD" && \[3, 6\]\.contains\(hour\)/);
   assert.doesNotMatch(nativeH1BoardSource, /symbol == "GBPAUD" && \[3, 6\]\.contains\(hour\)/);
-  assert.match(mobileCalendarSource, /symbol === "XAUUSD" && \(hour === 3 \|\| hour === 6\)/);
+  assert.match(androidScreensSource, /symbol == "XAUUSD" && hour in listOf\(3, 6\)/);
   assert.match(boardSource, /data-entry-reference/);
   assert.match(redesignCss, /td\[data-entry-reference="true"\]/);
 });
@@ -205,12 +202,13 @@ test("mobile account status prefers sanitized local-primary MT5 heartbeat eviden
   assert.match(localStatusRouteSource, /syncManagedMt5AccountsFromLocalHeartbeats/);
   assert.match(localStatusRouteSource, /enabled: row\.enabled !== false/);
   assert.match(localStatusRouteSource, /MAX_CLOCK_SKEW_MS/);
-  assert.match(androidMoreSource, /© 2026 QuachGia/);
-  assert.match(androidMoreSource, /local heartbeat online/);
-  assert.match(androidMoreSource, /Local heartbeat pending/);
-  assert.match(mobileAppConfigSource, /"icon": "\.\/assets\/icon\.png"/);
-  assert.match(mobileAppConfigSource, /"foregroundImage": "\.\/assets\/adaptive-icon\.png"/);
-  assert.match(mobileAppConfigSource, /"monochromeImage": "\.\/assets\/adaptive-monochrome\.png"/);
+  assert.match(androidScreensSource, /© 2026 QuachGia/);
+  assert.match(androidScreensSource, /local heartbeat online/);
+  assert.match(androidScreensSource, /Local heartbeat pending/);
+  assert.match(androidManifestSource, /android:icon="@mipmap\/ic_launcher"/);
+  const androidAdaptiveIconSource = readFileSync(new URL("../../../android-native/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml", import.meta.url), "utf8");
+  assert.match(androidAdaptiveIconSource, /@drawable\/oak_launcher_foreground/);
+  assert.match(androidAdaptiveIconSource, /@drawable\/oak_launcher_monochrome/);
   const nativeProjectSource = readFileSync(new URL("../../../ios-native/project.yml", import.meta.url), "utf8");
   const nativeAppIconCatalogSource = readFileSync(new URL("../../../ios-native/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json", import.meta.url), "utf8");
   assert.match(nativeProjectSource, /ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon/);
@@ -226,7 +224,7 @@ test("mobile account status prefers sanitized local-primary MT5 heartbeat eviden
   assert.match(mobileAppBackendSource, /providerAccountsWithRuntimeStatus\(accounts\)/);
   assert.match(nativeMoreSource, /Local heartbeat online/);
   assert.match(nativeMoreSource, /Local heartbeat offline/);
-  assert.match(androidMoreSource, /Local heartbeat offline/);
+  assert.match(androidScreensSource, /Local heartbeat offline/);
   assert.doesNotMatch(nativeMoreSource, /Bridge offline|bridge online/);
 });
 
@@ -311,43 +309,52 @@ test("mobile app backend exposes one authenticated app payload without leaking s
   assert.doesNotMatch(mobileAppRouteSource + mobileAppBackendSource, /CTRADER_CLIENT_SECRET|DASHBOARD_API_KEY|UPSTASH_REDIS_REST_TOKEN/);
 });
 
-test("mobile concept app uses backend summary and forced dark high-contrast palette", () => {
-  assert.match(mobileThemeSource, /return dark/);
-  assert.doesNotMatch(mobileThemeSource, /useColorScheme\(\)/);
-  assert.match(mobileThemeSource, /text: "#F8FAFF"/);
-  assert.match(mobileThemeSource, /muted: "#A9B8D3"/);
-  assert.match(mobileDataSource, /fetchMobileApp/);
-  assert.match(mobileDataSource, /App backend fallback/);
+test("native Android mirrors the iOS five-tab hierarchy and removes the legacy Dashboard/VIP surface", () => {
+  assert.match(androidMainSource, /OAKTab\.LIVE/);
+  assert.match(androidMainSource, /OAKTab\.HISTORY/);
+  assert.match(androidMainSource, /OAKTab\.SIGNALS/);
+  assert.match(androidMainSource, /OAKTab\.REPORTS/);
+  assert.match(androidMainSource, /OAKTab\.MORE/);
+  assert.match(androidMainSource, /NavigationBarItem/);
+  assert.match(androidScreensSource, /TRADING \/ H1 LIVE/);
+  assert.match(androidScreensSource, /TRADING \/ HISTORY/);
+  assert.match(androidScreensSource, /TRADING \/ SIGNALS/);
+  assert.match(androidScreensSource, /TRADING \/ REPORTS/);
+  assert.match(androidScreensSource, /OAK \/ SYSTEM/);
+  assert.doesNotMatch(androidScreensSource + androidMainSource, /VIP UNLOCKED|HỆ THỐNG ONLINE|DashboardScreen|OAK SLTP/);
 });
 
-test("mobile bottom navigation keeps five primary tabs and hides duplicate legacy routes", () => {
-  assert.match(mobileTabsSource, /name: "index"/);
-  assert.match(mobileTabsSource, /name: "calendar"/);
-  assert.match(mobileTabsSource, /name: "signals"/);
-  assert.match(mobileTabsSource, /name: "reports"/);
-  assert.match(mobileTabsSource, /name: "more"/);
-  assert.doesNotMatch(mobileTabsSource, /name: "bridge", title:/);
-  assert.match(mobileTabsSource, /name="alerts" options=\{\{ href: null \}\}/);
-  assert.match(mobileTabsSource, /name="accounts" options=\{\{ href: null \}\}/);
-  assert.match(mobileTabsSource, /name="bridge" options=\{\{ href: null \}\}/);
+test("native Android copies the iOS H1 presentation, evidence, reports, themes and account interaction", () => {
+  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD", "GBPUSD", "EURUSD", "GBPAUD"\)/);
+  assert.match(androidScreensSource, /entryReference = \(symbol == "XAUUSD" && hour in listOf\(3, 6\)\)/);
+  assert.match(androidScreensSource, /OAKPill\("FREE ACCESS", PillTone\.SUCCESS\)/);
+  assert.match(androidScreensSource, /COPY CHART/);
+  assert.match(androidShareSource, /ClipData\.newUri/);
+  assert.match(androidShareSource, /Bitmap\.createBitmap/);
+  assert.match(androidShareSource, /bitmap\.recycle\(\)/);
+  assert.match(androidScreensSource, /index == 0 \|\| index == trend\.lastIndex \|\| index % 2 == 0/);
+  assert.match(androidThemeSource, /canvas = Color\.Black/);
+  assert.match(androidThemeSource, /text = Color\.White/);
+  assert.match(androidStateSource, /applyAccountEnabledLocally\(id, enabled\)/);
+  assert.match(androidStateSource, /payload = previous/);
+  assert.match(androidScreensSource, /Switch\(checked = account\.enabled/);
+  assert.match(androidScreensSource, /© 2026 QuachGia/);
+  assert.match(androidScreensSource, /MIT License/);
 });
 
-test("mobile reverse phase is visualized only by H1 calendar cell highlight", () => {
-  assert.match(mobileCalendarSource, /postSignalInverted[\s\S]*?`\$\{theme\.warning\}20`/);
-  assert.doesNotMatch(mobileHomeSource, /HẬU: ĐẢO|HẬU: GIỮ|BRIDGE/);
-  assert.doesNotMatch(mobileSignalsSource, /phaseLabel|reverse|keep|HẬU/);
-  assert.doesNotMatch(mobileReportsSource, /HẬU ĐẢO|HẬU GIỮ|reversePct|reverseSignals|keepSignals/);
-});
-
-test("mobile More is backend telemetry instead of placeholder settings menu", () => {
-  assert.match(mobileMoreSource, /app\?\.system/);
-  assert.match(mobileMoreSource, /SERVER TIME/);
-  assert.match(mobileMoreSource, /SCHEMA/);
-  assert.match(mobileMoreSource, /RULE/);
-  assert.match(mobileMoreSource, /cTrader/);
-  assert.match(mobileMoreSource, /MT5/);
-  assert.match(mobileMoreSource, /DEFAULT ID/);
-  assert.doesNotMatch(mobileMoreSource, /Cài đặt cảnh báo|Kết nối Telegram|Ngôn ngữ|Quản lý VIP/);
+test("native Android is hardened for Google Play February 2027 memory and DEX requirements", () => {
+  assert.match(androidBuildSource, /compileSdk = 37/);
+  assert.match(androidBuildSource, /targetSdk = 36/);
+  assert.match(androidBuildSource, /isMinifyEnabled = true/);
+  assert.match(androidBuildSource, /isShrinkResources = true/);
+  assert.match(androidBuildSource, /jniLibs\.useLegacyPackaging = false/);
+  assert.match(androidGradlePropertiesSource, /android\.enableR8\.fullMode=true/);
+  assert.match(androidMainSource, /onTrimMemory/);
+  assert.match(androidMainSource, /TRIM_MEMORY_UI_HIDDEN/);
+  assert.match(androidMainSource, /onLowMemory/);
+  assert.match(androidShareSource, /trimTransient/);
+  assert.doesNotMatch(androidScreensSource + androidStateSource, /Coil|Glide|BitmapFactory|staticBitmap|imageCache/i);
+  assert.match(androidManifestSource, /android:allowBackup="false"/);
 });
 
 test("engine web surface is local-H1-only with the compact command header", () => {
