@@ -18,6 +18,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Advanced local H1 rule to v69. Monday is XAUUSD-only again: GBPAUD, GBPCAD and GBPJPY are blank for all H3/H6/H9/H12/H14/H16 Monday blocks, while their v68 GBPUSD-shared entry timing and AUDUSD/USDCAD/USDJPY signal-base rules continue Tuesday-Friday. The v69 state key clears stale Monday cross rows.
 - Advanced local H1 rule to v68. GBPAUD, GBPCAD and GBPJPY are visible again and all three use GBPUSD M15 pattern/evidence for one shared entry-time schedule across H3/H6/H9/H12/H14/H16. Their final BUY/SELL bases are now independent previous-broker-day candles at H(entry-1): AUDUSD for GBPAUD, USDCAD for GBPCAD and USDJPY for GBPJPY. The ICMarkets reader/publisher now includes USDCAD and preserves previous-day bars for all four base sources; old GBP-cross H3/H6 inversion behavior is removed. H16 CLOSE-only remains authoritative on an XAUUSD-start-H5 day.
 - Increased H1 light-theme matrix contrast after mobile Safari review: blue entry-reference cells and amber CLOSE cells now have stronger fills/inset borders, while BUY/SELL/CLOSE pills use thicker light-theme outlines. Dark theme is unchanged.
 - Advanced local H1 rule to v67. XAUUSD first-day entry H5 no longer flips H16 signals. Instead H16 becomes a manual `CLOSE` advisory: H16 BUY/SELL output is null for every row while entry/pattern evidence stays available, and web/mobile/PNG render a `CLOSE` badge. There is no automatic broker close wiring; only the user may choose to close positions.

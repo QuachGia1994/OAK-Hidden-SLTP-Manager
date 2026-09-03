@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced H1 signal rule to v69: Monday is XAUUSD-only again. GBPAUD, GBPCAD and GBPJPY keep the v68 shared GBPUSD scanner/entry-time contract and dedicated AUDUSD/USDCAD/USDJPY signal bases, but all three GBP crosses are disabled for every H3/H6/H9/H12/H14/H16 block on Monday and resume Tuesday-Friday. A fresh v69 state key prevents stale Monday GBP-cross rows from surviving.
+
 - Advanced H1 signal rule to v68: reopened GBPAUD, GBPCAD and GBPJPY on web/iOS/Android. All three GBP crosses now use the same GBPUSD local-M15 pattern/evidence and entry hour for H3/H6/H9/H12/H14/H16, while BUY/SELL uses a dedicated previous-broker-day H(entry-1) base: AUDUSD for GBPAUD, USDCAD for GBPCAD and USDJPY for GBPJPY. The local ICMarkets reader/publisher now carries USDCAD plus prior-day AUDUSD/USDCAD/USDJPY/GBPUSD base bars. Cross-specific H3/H6 inversions are removed; H16 manual CLOSE remains authoritative when XAUUSD starts at H5.
 
 - Android mobile overhaul: replaced the shipped Expo/React-Native UI path with a standalone native Kotlin + Jetpack Compose client under `android-native/`, mirroring the current native iOS hierarchy and presentation (Live, History, Signals, Reports, More, H1 matrix/evidence, Light/Dark/Contrast, optimistic account toggles, real image clipboard). The GitHub Mobile Build now builds native Android APK+AAB directly instead of running pnpm + Expo prebuild.

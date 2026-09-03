@@ -81,7 +81,7 @@ export function targetEnabledForDate(target: H1LocalTarget, brokerDate: string, 
   if (!isValidBrokerDateKey(brokerDate) || !(H1_LOCAL_SCAN_HOURS as readonly number[]).includes(slotHour)) return false;
   const weekday = brokerDateWeekdayIndex(brokerDate);
   if (weekday === 0 || weekday === 6) return false;
-  if (weekday === 1) return target === "XAUUSD" || target === "GBPAUD" || target === "GBPCAD" || target === "GBPJPY";
+  if (weekday === 1) return target === "XAUUSD";
   if ((target === "GBPUSD" || target === "EURUSD") && (slotHour === 3 || slotHour === 6)) return false;
   return true;
 }

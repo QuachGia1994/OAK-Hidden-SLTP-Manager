@@ -16,12 +16,12 @@ import {
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 68;
+export const H1_SIGNAL_RULE_VERSION = 69;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-// Rule v68 keeps manual CLOSE-only H16 and makes GBP crosses share GBPUSD pattern/entry timing with pair-specific H1 signal bases.
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v68";
+// Rule v69 keeps v68 GBP-cross timing/base rules but disables all FX rows on Monday.
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v69";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "MT5 ICMarkets Local";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -79,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 68;
+  signalRuleVersion: 69;
   profile: string;
   publishedAt: string;
   hours: number[];

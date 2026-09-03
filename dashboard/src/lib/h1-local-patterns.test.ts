@@ -67,12 +67,11 @@ test("GBP crosses share GBPUSD scanner source across all six blocks", () => {
   }
 });
 
-test("GBP crosses run H3 through H16 on weekdays while GBPUSD/EURUSD retain their later-block gate", () => {
+test("GBP crosses run H3 through H16 Tuesday-Friday while Monday remains XAUUSD-only", () => {
   const monday = "2026-09-07";
   for (const hour of H1_LOCAL_SCAN_HOURS) {
     assert.equal(targetEnabledForDate("XAUUSD", monday, hour), true);
-    for (const cross of ["GBPAUD", "GBPCAD", "GBPJPY"] as const) assert.equal(targetEnabledForDate(cross, monday, hour), true);
-    for (const major of ["GBPUSD", "EURUSD"] as const) assert.equal(targetEnabledForDate(major, monday, hour), false);
+    for (const fx of ["GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"] as const) assert.equal(targetEnabledForDate(fx, monday, hour), false);
   }
   const tuesday = "2026-09-08";
   for (const fx of ["GBPUSD", "EURUSD"] as const) {
