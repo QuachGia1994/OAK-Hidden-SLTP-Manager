@@ -1,0 +1,40 @@
+name: OAKGatekeeper
+options:
+  minimumXcodeGenVersion: 2.44.1
+  deploymentTarget:
+    iOS: "26.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 1.0.0
+    PRODUCT_BUNDLE_IDENTIFIER: uk.oakgatekeeper.mobile
+    GENERATE_INFOPLIST_FILE: YES
+    INFOPLIST_KEY_CFBundleDisplayName: OAK Gatekeeper
+    INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.finance
+    INFOPLIST_KEY_UILaunchScreen_Generation: YES
+    INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+    INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+    TARGETED_DEVICE_FAMILY: "1,2"
+targets:
+  OAKGatekeeper:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/OAKGatekeeper
+    settings:
+      base:
+        PRODUCT_NAME: OAKGatekeeper
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: ""
+        CODE_SIGN_STYLE: Automatic
+schemes:
+  OAKGatekeeper:
+    build:
+      targets:
+        OAKGatekeeper: all
+    run:
+      config: Debug
+    archive:
+      config: Release

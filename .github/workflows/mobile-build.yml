@@ -5,6 +5,7 @@ on:
     branches: [main, master]
     paths:
       - "mobile/**"
+      - "ios-native/**"
       - "dashboard/src/app/api/mobile/**"
       - "dashboard/src/lib/h1-signals.ts"
       - "dashboard/src/lib/h1-signals.test.ts"
@@ -13,6 +14,7 @@ on:
     branches: [main, master]
     paths:
       - "mobile/**"
+      - "ios-native/**"
       - "dashboard/src/app/api/mobile/**"
       - "dashboard/src/lib/h1-signals.ts"
       - "dashboard/src/lib/h1-signals.test.ts"
@@ -27,8 +29,8 @@ env:
   EXPO_NO_TELEMETRY: "1"
 
 jobs:
-  verify-mobile:
-    name: Verify mobile bundle
+  verify-android:
+    name: Verify Android bundle
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -51,7 +53,7 @@ jobs:
         working-directory: mobile
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck mobile
+      - name: Typecheck Android app
         working-directory: mobile
         run: pnpm typecheck
 
@@ -59,13 +61,9 @@ jobs:
         working-directory: mobile
         run: pnpm bundle:android
 
-      - name: Bundle iOS JavaScript
-        working-directory: mobile
-        run: pnpm bundle:ios
-
   build-android:
     name: Build Android APK
-    needs: verify-mobile
+    needs: verify-android
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -134,62 +132,44 @@ jobs:
           retention-days: 14
 
   build-ios:
-    name: Build unsigned iOS IPA
-    needs: verify-mobile
-    runs-on: macos-26
+    name: Build native iOS 27 unsigned IPA
+    runs-on: xcode-27
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.22.0
-          run_install: false
+      - name: Show Xcode and Swift toolchain
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          xcrun swift --version
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22.14.0"
-          cache: pnpm
-          cache-dependency-path: mobile/pnpm-lock.yaml
+      - name: Install XcodeGen
+        run: brew install xcodegen
 
-      - name: Install mobile dependencies
-        working-directory: mobile
-        run: pnpm install --frozen-lockfile
+      - name: Generate native Xcode project
+        working-directory: ios-native
+        run: xcodegen generate --spec project.yml
 
-      - name: Generate iOS native project
-        working-directory: mobile
-        run: pnpm exec expo prebuild --platform ios --clean --no-install
-
-      - name: Install CocoaPods
-        working-directory: mobile/ios
-        run: pod install
-
-      - name: Build unsigned iPhoneOS app and package IPA
-        working-directory: mobile/ios
+      - name: Verify native-only iOS sources
         shell: bash
         run: |
           set -euo pipefail
-          WORKSPACE=$(find . -maxdepth 1 -name '*.xcworkspace' -print -quit)
-          if [ -z "$WORKSPACE" ]; then
-            echo "No Xcode workspace generated" >&2
+          if grep -R -n -E 'ReactNative|ExpoModules|expo-router|react-native' ios-native/Sources; then
+            echo "Native iOS source unexpectedly depends on React Native / Expo" >&2
             exit 1
           fi
-          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
-          if [ -z "$SCHEME" ]; then
-            echo "Unable to derive app scheme from workspace: $WORKSPACE" >&2
-            exit 1
-          fi
-          echo "Building app scheme: $SCHEME"
-          if ! xcodebuild -list -json -workspace "$WORKSPACE" | python3 -c 'import json,sys; expected=sys.argv[1]; d=json.load(sys.stdin); schemes=d.get("workspace",{}).get("schemes",[]); sys.exit(0 if expected in schemes else 1)' "$SCHEME"; then
-            echo "Expected app scheme $SCHEME is not present in $WORKSPACE" >&2
-            xcodebuild -list -workspace "$WORKSPACE"
-            exit 1
-          fi
+          grep -R -n 'TabView' ios-native/Sources/OAKGatekeeper/MainTabView.swift
+          grep -R -n 'tabBarMinimizeBehavior' ios-native/Sources/OAKGatekeeper/MainTabView.swift
+
+      - name: Build unsigned native iPhoneOS app
+        working-directory: ios-native
+        shell: bash
+        run: |
+          set -euo pipefail
           xcodebuild \
-            -workspace "$WORKSPACE" \
-            -scheme "$SCHEME" \
+            -project OAKGatekeeper.xcodeproj \
+            -scheme OAKGatekeeper \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
@@ -199,9 +179,15 @@ jobs:
             CODE_SIGN_IDENTITY='' \
             DEVELOPMENT_TEAM='' \
             build
+
+      - name: Package unsigned IPA
+        working-directory: ios-native
+        shell: bash
+        run: |
+          set -euo pipefail
           APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)
           if [ -z "$APP_PATH" ]; then
-            echo "No unsigned iPhoneOS app produced" >&2
+            echo "No unsigned native iPhoneOS app produced" >&2
             exit 1
           fi
           rm -rf ipa-payload
@@ -211,14 +197,14 @@ jobs:
           find ipa-payload/Payload -name 'embedded.mobileprovision' -delete
           (
             cd ipa-payload
-            /usr/bin/zip -qry ../OAK-Gatekeeper-unsigned.ipa Payload
+            /usr/bin/zip -qry ../OAK-Gatekeeper-native-unsigned.ipa Payload
           )
-          test -s OAK-Gatekeeper-unsigned.ipa
+          test -s OAK-Gatekeeper-native-unsigned.ipa
 
-      - name: Upload unsigned iOS IPA
+      - name: Upload native iOS IPA
         uses: actions/upload-artifact@v4
         with:
-          name: OAK-Gatekeeper-iOS-unsigned
-          path: mobile/ios/OAK-Gatekeeper-unsigned.ipa
+          name: OAK-Gatekeeper-iOS27-native-unsigned
+          path: ios-native/OAK-Gatekeeper-native-unsigned.ipa
           if-no-files-found: error
           retention-days: 14

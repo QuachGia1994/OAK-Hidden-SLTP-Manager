@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Rebuilt the iPhone client as a pure SwiftUI native app under `ios-native/`, compiled with the GitHub Xcode 27 / iOS 27 SDK preview runner. The native app mirrors the current web H1 Live/History surfaces with the same light/dark visual language, H1 matrix/reference highlighting, H16 manual CLOSE advisory, M15 evidence sheet, PNG sharing, 20-second refresh, reports/system/account views, and Keychain-backed API-key unlock. Its bottom navigation is the system SwiftUI `TabView` with native Liquid Glass and `.tabBarMinimizeBehavior(.onScrollDown)` rather than a custom React Native bar. Android remains in `mobile/` and keeps the Expo/Gradle build path.
+
 - Strengthened H1 light-theme contrast: entry-reference cells now use a more visible blue fill with a 2px inset outline, H16 manual CLOSE cells use a stronger warning fill/outline, and BUY/SELL/CLOSE pills get thicker borders and denser light-theme fills. Dark theme and v67 signal semantics are unchanged.
 
 - Advanced H1 signal rule to v67: if XAUUSD's first H3-derived entry of the broker day is H5, H16 is no longer signal-reversed. H16 becomes a manual `CLOSE` advisory block: every H16 BUY/SELL signal is suppressed to null while entry/pattern evidence remains visible, and web/mobile/PNG surfaces show a `CLOSE` badge. No broker close command is created or executed automatically; the user decides whether to close positions. A fresh v67 state key forces local MT5 history/live recalculation.
