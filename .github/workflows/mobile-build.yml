@@ -116,9 +116,9 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Run unit tests, release lint and build AAB
+      - name: Run unit tests and build AAB
         working-directory: android-native
-        run: ./gradlew :app:test :app:lintRelease :app:bundleRelease --no-daemon --stacktrace
+        run: ./gradlew :app:test :app:bundleRelease --no-daemon --stacktrace
 
       - name: Upload Play bundle and R8 mapping
         uses: actions/upload-artifact@v4
@@ -129,6 +129,31 @@ jobs:
             android-native/app/build/outputs/mapping/release/mapping.txt
           if-no-files-found: error
           retention-days: 14
+
+      - name: Run strict release lint
+        id: android_lint
+        continue-on-error: true
+        working-directory: android-native
+        run: ./gradlew :app:lintRelease --no-daemon --stacktrace
+
+      - name: Upload Android lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OAK-Gatekeeper-Android-lint
+          path: |
+            android-native/app/build/reports/lint-results-release.html
+            android-native/app/build/reports/lint-results-release.sarif
+            android-native/app/build/intermediates/lint_intermediate_text_report/release/lintReportRelease/lint-results-release.txt
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Enforce strict Android lint
+        if: steps.android_lint.outcome != 'success'
+        shell: bash
+        run: |
+          echo "Strict Android lint failed; inspect OAK-Gatekeeper-Android-lint artifact." >&2
+          exit 1
 
   build-ios:
     name: Build native iOS 27 unsigned IPA
