@@ -67,21 +67,21 @@ test("GBP crosses share GBPUSD scanner source across all six blocks", () => {
   }
 });
 
-test("GBP crosses run H3 through H16 Tuesday-Friday while Monday remains XAUUSD-only", () => {
+test("GBP cross early-block gates apply Tuesday-Friday while Monday remains XAUUSD-only", () => {
   const monday = "2026-09-07";
   for (const hour of H1_LOCAL_SCAN_HOURS) {
     assert.equal(targetEnabledForDate("XAUUSD", monday, hour), true);
     for (const fx of ["GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"] as const) assert.equal(targetEnabledForDate(fx, monday, hour), false);
   }
   const tuesday = "2026-09-08";
-  for (const fx of ["GBPUSD", "EURUSD"] as const) {
+  for (const fx of ["GBPUSD", "EURUSD", "GBPCAD"] as const) {
     assert.equal(targetEnabledForDate(fx, tuesday, 3), false);
     assert.equal(targetEnabledForDate(fx, tuesday, 6), false);
-    assert.equal(targetEnabledForDate(fx, tuesday, 9), true);
+    for (const hour of [9, 12, 14, 16]) assert.equal(targetEnabledForDate(fx, tuesday, hour), true);
   }
-  for (const cross of ["GBPAUD", "GBPCAD", "GBPJPY"] as const) {
-    for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(targetEnabledForDate(cross, tuesday, hour), true);
-  }
+  assert.equal(targetEnabledForDate("GBPJPY", tuesday, 3), false);
+  for (const hour of [6, 9, 12, 14, 16]) assert.equal(targetEnabledForDate("GBPJPY", tuesday, hour), true);
+  for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(targetEnabledForDate("GBPAUD", tuesday, hour), true);
 });
 
 test("weekday inversion badges stay only on Thursday GBPUSD and Friday EURUSD", () => {

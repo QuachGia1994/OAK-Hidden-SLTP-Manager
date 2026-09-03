@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced H1 signal rule to v70: refined GBP-cross block eligibility while keeping the v69 Monday XAUUSD-only rule. GBPAUD remains active H3/H6/H9/H12/H14/H16 Tuesday-Friday; GBPJPY now starts at H6 (H3 disabled); GBPCAD now matches GBPUSD/EURUSD timing eligibility and starts at H9 (H3/H6 disabled). Shared GBPUSD scanner/entry timing and AUDUSD/USDCAD/USDJPY signal bases are unchanged. A fresh v70 state key clears stale early-block rows.
+
 - Advanced H1 signal rule to v69: Monday is XAUUSD-only again. GBPAUD, GBPCAD and GBPJPY keep the v68 shared GBPUSD scanner/entry-time contract and dedicated AUDUSD/USDCAD/USDJPY signal bases, but all three GBP crosses are disabled for every H3/H6/H9/H12/H14/H16 block on Monday and resume Tuesday-Friday. A fresh v69 state key prevents stale Monday GBP-cross rows from surviving.
 
 - Advanced H1 signal rule to v68: reopened GBPAUD, GBPCAD and GBPJPY on web/iOS/Android. All three GBP crosses now use the same GBPUSD local-M15 pattern/evidence and entry hour for H3/H6/H9/H12/H14/H16, while BUY/SELL uses a dedicated previous-broker-day H(entry-1) base: AUDUSD for GBPAUD, USDCAD for GBPCAD and USDJPY for GBPJPY. The local ICMarkets reader/publisher now carries USDCAD plus prior-day AUDUSD/USDCAD/USDJPY/GBPUSD base bars. Cross-specific H3/H6 inversions are removed; H16 manual CLOSE remains authoritative when XAUUSD starts at H5.

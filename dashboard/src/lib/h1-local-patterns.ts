@@ -82,7 +82,8 @@ export function targetEnabledForDate(target: H1LocalTarget, brokerDate: string, 
   const weekday = brokerDateWeekdayIndex(brokerDate);
   if (weekday === 0 || weekday === 6) return false;
   if (weekday === 1) return target === "XAUUSD";
-  if ((target === "GBPUSD" || target === "EURUSD") && (slotHour === 3 || slotHour === 6)) return false;
+  if ((target === "GBPUSD" || target === "EURUSD" || target === "GBPCAD") && (slotHour === 3 || slotHour === 6)) return false;
+  if (target === "GBPJPY" && slotHour === 3) return false;
   return true;
 }
 

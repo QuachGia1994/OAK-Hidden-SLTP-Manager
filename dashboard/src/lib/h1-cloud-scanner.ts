@@ -16,12 +16,12 @@ import {
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 69;
+export const H1_SIGNAL_RULE_VERSION = 70;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-// Rule v69 keeps v68 GBP-cross timing/base rules but disables all FX rows on Monday.
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v69";
+// Rule v70 keeps Monday XAUUSD-only and gates GBP-cross early blocks while preserving shared GBPUSD timing and dedicated signal bases.
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v70";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "MT5 ICMarkets Local";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -79,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 69;
+  signalRuleVersion: 70;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -111,7 +111,8 @@ export type H1PublicFeed = {
 
 export function targetsForBlockHour(hour: number): readonly H1TargetBase[] {
   if (!(H1_SCAN_HOURS as readonly number[]).includes(hour)) return [];
-  if (hour === 3 || hour === 6) return ["XAUUSD", "GBPAUD", "GBPCAD", "GBPJPY"];
+  if (hour === 3) return ["XAUUSD", "GBPAUD"];
+  if (hour === 6) return ["XAUUSD", "GBPAUD", "GBPJPY"];
   return H1_TARGET_BASES;
 }
 
