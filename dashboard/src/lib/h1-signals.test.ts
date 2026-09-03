@@ -357,6 +357,7 @@ test("native Android is hardened for Google Play February 2027 memory and DEX re
   assert.match(androidShareSource, /trimTransient/);
   assert.doesNotMatch(androidScreensSource + androidStateSource, /Coil|Glide|BitmapFactory|staticBitmap|imageCache/i);
   assert.match(androidManifestSource, /android:allowBackup="false"/);
+  assert.match(androidManifestSource, /android:fullBackupContent="false"/);
   assert.match(androidManifestSource, /android:dataExtractionRules="@xml\/data_extraction_rules"/);
   assert.doesNotMatch(androidManifestSource, /android:screenOrientation="portrait"/);
 });
