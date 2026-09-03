@@ -36,19 +36,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android API 37 and build tools
+      - name: Ensure Android API 36 and build tools
         shell: bash
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-37" "build-tools;36.0.0"
+          SDKMANAGER="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v4
@@ -58,7 +57,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -n 'compileSdk = 37' app/build.gradle.kts
+          grep -n 'compileSdk = 36' app/build.gradle.kts
           grep -n 'targetSdk = 36' app/build.gradle.kts
           grep -n 'isMinifyEnabled = true' app/build.gradle.kts
           grep -n 'isShrinkResources = true' app/build.gradle.kts

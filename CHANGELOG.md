@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Android mobile overhaul: replaced the shipped Expo/React-Native UI path with a standalone native Kotlin + Jetpack Compose client under `android-native/`, mirroring the current native iOS hierarchy and presentation (Live, History, Signals, Reports, More, H1 matrix/evidence, Light/Dark/Contrast, optimistic account toggles, real image clipboard). The GitHub Mobile Build now builds native Android APK+AAB directly instead of running pnpm + Expo prebuild.
-- Google Play Feb-2027 hardening for the Android app: API 36 target, API 37 compile SDK, R8 full-mode + resource shrinking, 16 KB zip alignment verification, no retained image-loader/bitmap cache, explicit transient chart cleanup on Android memory trim, and a CI DEX-size gate keeping the app under Google's >10 MB DEX optimization threshold.
+- Google Play Feb-2027 hardening for the Android app: API 36 target/compile SDK, R8 full-mode + resource shrinking, 16 KB zip alignment verification, no retained image-loader/bitmap cache, explicit transient chart cleanup on Android memory trim, and a CI DEX-size gate keeping the app under Google's >10 MB DEX optimization threshold.
 
 - Scheduled MT5 UI reliability: replaced unreliable `Process.MainWindowTitle/MainWindowHandle` terminal discovery with direct Win32 `EnumWindows` fencing on the MetaTrader top-level class plus exact login/server and process identity; scheduled intents now carry `terminalId`; failed/uncertain scheduled executions immediately notify Telegram instead of remaining silently at the earlier `scheduled` message. Live probes resolve both current FXCE and IC Markets terminal windows without submitting an order.
 

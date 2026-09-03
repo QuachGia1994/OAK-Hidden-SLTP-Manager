@@ -343,7 +343,7 @@ test("native Android copies the iOS H1 presentation, evidence, reports, themes a
 });
 
 test("native Android is hardened for Google Play February 2027 memory and DEX requirements", () => {
-  assert.match(androidBuildSource, /compileSdk = 37/);
+  assert.match(androidBuildSource, /compileSdk = 36/);
   assert.match(androidBuildSource, /targetSdk = 36/);
   assert.match(androidBuildSource, /isMinifyEnabled = true/);
   assert.match(androidBuildSource, /isShrinkResources = true/);

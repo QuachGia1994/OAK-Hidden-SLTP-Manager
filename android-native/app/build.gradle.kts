@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "uk.oakgatekeeper.mobile"
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "uk.oakgatekeeper.mobile"
