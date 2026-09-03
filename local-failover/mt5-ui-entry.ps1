@@ -1,6 +1,6 @@
 param(
   [Parameter(Mandatory = $true)]
-  [ValidateSet("prepare", "submit", "close")]
+  [ValidateSet("prepare", "submit", "close", "probe")]
   [string]$Mode,
   [Parameter(Mandatory = $true)]
   [string]$TaskPath,
@@ -21,6 +21,8 @@ using System.Text;
 using System.Runtime.InteropServices;
 
 public static class OakMt5UiWin32 {
+  public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
   [StructLayout(LayoutKind.Sequential)]
   public struct RECT {
     public int Left;
@@ -46,6 +48,12 @@ public static class OakMt5UiWin32 {
 
   [DllImport("user32.dll", CharSet=CharSet.Unicode)]
   public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
+
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)]
+  public static extern int GetClassName(IntPtr hWnd, StringBuilder text, int count);
+
+  [DllImport("user32.dll")]
+  public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
 
   [DllImport("user32.dll")]
   public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
@@ -129,28 +137,55 @@ function Commit-ControlText(
   }
 }
 
-function Get-TerminalProcess($task) {
+function Get-WindowClass([IntPtr]$handle) {
+  $buffer = [System.Text.StringBuilder]::new(256)
+  [void][OakMt5UiWin32]::GetClassName($handle, $buffer, $buffer.Capacity)
+  return $buffer.ToString()
+}
+
+function Get-TerminalWindow($task) {
   $login = [string][long]$task.login
   $server = [string]$task.server
   if (-not $login -or -not $server) {
     throw "MT5 UI task has incomplete terminal identity"
   }
 
+  # Do not trust Process.MainWindowTitle/MainWindowHandle here. Some MT5 builds
+  # expose N/A/zero through System.Diagnostics.Process even while their real
+  # MetaQuotes top-level window is visible. Enumerate Win32 top-level windows
+  # directly, then fence by class + exact account/server title + process image.
   $pattern = "^" + [regex]::Escape($login) + "\s+-\s+" + [regex]::Escape($server) + "(?:\s+-|\s*:)"
-  $matches = @(
-    Get-Process -Name "terminal64" -ErrorAction SilentlyContinue |
-      Where-Object { [string]$_.MainWindowTitle -match $pattern }
-  )
+  $terminalWindows = [System.Collections.Generic.List[object]]::new()
+  $callback = [OakMt5UiWin32+EnumWindowsProc]{
+    param([IntPtr]$handle, [IntPtr]$lParam)
+    if ((Get-WindowClass $handle) -ne "MetaQuotes::MetaTrader::5.00") { return $true }
+    $title = Get-WindowTitle $handle
+    if ($title -notmatch $pattern) { return $true }
 
-  if ($matches.Count -ne 1) {
-    throw "Expected exactly one terminal64 window for login/server; found $($matches.Count)"
+    [uint32]$processId = 0
+    [void][OakMt5UiWin32]::GetWindowThreadProcessId($handle, [ref]$processId)
+    if ($processId -le 0) { return $true }
+    try {
+      $process = Get-Process -Id $processId -ErrorAction Stop
+    } catch {
+      return $true
+    }
+    if ([string]$process.ProcessName -ne "terminal64") { return $true }
+    $terminalWindows.Add([pscustomobject]@{
+      Process = $process
+      Handle = $handle
+      Title = $title
+    }) | Out-Null
+    return $true
+  }
+  [void][OakMt5UiWin32]::EnumWindows($callback, [IntPtr]::Zero)
+
+  if ($terminalWindows.Count -ne 1) {
+    throw "Expected exactly one MetaTrader top-level window for login/server; found $($terminalWindows.Count)"
   }
 
-  $process = $matches[0]
-  if ($process.MainWindowHandle -eq [IntPtr]::Zero) {
-    throw "Matched MT5 terminal has no main window"
-  }
-
+  $match = $terminalWindows[0]
+  $process = $match.Process
   $expectedPath = [string]$task.terminalPath
   if ($expectedPath) {
     $actualPath = [System.IO.Path]::GetFullPath([string]$process.Path)
@@ -160,7 +195,7 @@ function Get-TerminalProcess($task) {
     }
   }
 
-  return $process
+  return $match
 }
 
 function Get-MainElement([IntPtr]$mainHandle) {
@@ -362,8 +397,20 @@ $openedByThisRun = $false
 $openedDialog = $null
 
 try {
-  $process = Get-TerminalProcess $task
-  $mainHandle = [IntPtr]$process.MainWindowHandle
+  $terminalWindow = Get-TerminalWindow $task
+  $process = $terminalWindow.Process
+  $mainHandle = [IntPtr]$terminalWindow.Handle
+  if ($Mode -eq "probe") {
+    Write-Result ([ordered]@{
+      ok = $true
+      processId = [int]$process.Id
+      handle = [long]$mainHandle
+      title = [string]$terminalWindow.Title
+      path = [string]$process.Path
+      terminalId = [string]$task.terminalId
+    })
+    exit 0
+  }
   $mainElement = Get-MainElement $mainHandle
 
   if ($Mode -eq "close") {

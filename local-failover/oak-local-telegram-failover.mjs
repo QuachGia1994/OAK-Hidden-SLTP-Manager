@@ -532,8 +532,28 @@ export function createLocalFailoverRuntime(options = {}) {
   }
 
   function queueScheduledIntentNotification(state, intent) {
-    if (intent?.status !== "executed" || intent?.executionResult?.ok !== true) return false;
-    if (!Number.isFinite(Number(intent.dueAt)) || Number(intent.dueAt) <= 0) return false;
+    if (!Number.isFinite(Number(intent?.dueAt)) || Number(intent.dueAt) <= 0) return false;
+    if (intent.status === "failed" || intent.status === "uncertain") {
+      const uncertain = intent.status === "uncertain";
+      const detail = String(intent.executionResult?.detail || intent.executionError || "Scheduled execution did not complete").slice(0, 900);
+      const actionLine = intent.kind === "entry"
+        ? `${String(intent.payload?.side || "").toUpperCase()} ${String(intent.resolvedSymbol || intent.payload?.symbol || "")} ${compactVolume(intent.payload?.lot)} lot`
+        : `Action: ${intent.kind}`;
+      return queueTradeNotification(
+        state,
+        `scheduled_${intent.status}:${intent.id}`,
+        [
+          `${uncertain ? "⚠️" : "❌"} Scheduled execution ${uncertain ? "uncertain" : "failed"} @${intent.accountLabel}`,
+          `• ${actionLine}`,
+          `• Due: ${intent.dueText || "scheduled time"}`,
+          `• ${detail}`,
+          `• Intent #${shortIntentId(intent)}`,
+          ...(uncertain ? ["• Automatic replay is disabled; inspect broker state before retrying."] : []),
+        ].join("\n"),
+        Number(intent.executionFinishedAt || clock()),
+      );
+    }
+    if (intent.status !== "executed" || intent.executionResult?.ok !== true) return false;
     if (intent.kind === "entry") {
       const side = String(intent.payload?.side || "").toUpperCase();
       const symbol = String(intent.resolvedSymbol || intent.payload?.symbol || "");
@@ -678,6 +698,7 @@ export function createLocalFailoverRuntime(options = {}) {
         ...selection.account,
         bridgeProfile: String(heartbeat.profile || "").trim(),
         providerAccountId: runtimeProviderAccountId,
+        terminalId: String(heartbeat.terminalId || selection.account.terminalId || ""),
         fxSlPoints: Number(heartbeat.fxSlPoints || selection.account.fxSlPoints || 0),
         fxTpPoints: Number(heartbeat.fxTpPoints || selection.account.fxTpPoints || 0),
         goldSlPoints: Number(heartbeat.goldSlPoints || selection.account.goldSlPoints || 0),
@@ -1198,6 +1219,7 @@ export function createLocalFailoverRuntime(options = {}) {
       payload: intent.payload,
       protection: intent.protection,
       dueAt: intent.dueAt,
+      terminalId: intent.terminalId || "",
       terminalPath: intent.terminalPath || "",
       createdAt: clock(),
     };
@@ -1217,6 +1239,7 @@ export function createLocalFailoverRuntime(options = {}) {
       intent.status = "failed";
       intent.executionFinishedAt = clock();
       intent.executionError = "Bootstrap/EA identity changed before execution; local execution rejected.";
+      queueScheduledIntentNotification(state, intent);
       await saveState(state);
       return { status: "failed", result: { ok: false, action: intent.kind, detail: intent.executionError } };
     }
@@ -1255,6 +1278,7 @@ export function createLocalFailoverRuntime(options = {}) {
         intent.status = "uncertain";
         intent.executionFinishedAt = clock();
         intent.executionResult = { ok: false, uncertain: true, action: intent.kind, detail: "EA result ledger conflicts with the persisted origin/task digest; automatic replay is disabled." };
+        queueScheduledIntentNotification(state, intent);
       } else {
         const recovered = result.status === "uncertain"
           ? await reconcileLateUiEntry(config, intent, files)
@@ -1278,6 +1302,7 @@ export function createLocalFailoverRuntime(options = {}) {
           ? "Durable EA origin claim exists without a final result; automatic replay is disabled."
           : "EA claim ledger conflicts with the persisted origin/task digest; automatic replay is disabled.",
       };
+      queueScheduledIntentNotification(state, intent);
       await saveState(state);
       return true;
     }
@@ -1285,6 +1310,7 @@ export function createLocalFailoverRuntime(options = {}) {
       intent.status = "uncertain";
       intent.executionFinishedAt = clock();
       intent.executionResult = { ok: false, uncertain: true, action: intent.kind, detail: "Local task was issued before controller crash; it is not being replayed. Await/inspect EA ledger evidence." };
+      queueScheduledIntentNotification(state, intent);
       await saveState(state);
       return true;
     }
@@ -1292,6 +1318,7 @@ export function createLocalFailoverRuntime(options = {}) {
       intent.status = "failed";
       intent.executionFinishedAt = clock();
       intent.executionResult = { ok: false, action: intent.kind, detail: "Controller crashed before any mailbox claim/result evidence; automatic replay is disabled." };
+      queueScheduledIntentNotification(state, intent);
       await saveState(state);
       return true;
     }
@@ -1443,6 +1470,7 @@ export function createLocalFailoverRuntime(options = {}) {
         login: account.login,
         server: account.server,
         environment: account.environment,
+        terminalId: String(account.terminalId || ""),
         terminalPath: String(account.terminalPath || ""),
         sourceUpdateId: updateId,
         sourceCommandIndex: commandIndex,

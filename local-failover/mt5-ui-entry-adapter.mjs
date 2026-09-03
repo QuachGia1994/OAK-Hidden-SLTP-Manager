@@ -226,6 +226,7 @@ function buildUiTask(task, prepared) {
     taskId: task.id,
     login: Number(task.login),
     server: String(task.server || ""),
+    terminalId: String(task.terminalId || ""),
     terminalPath: String(task.terminalPath || ""),
     side,
     symbol: String(prepared.resolvedSymbol || ""),

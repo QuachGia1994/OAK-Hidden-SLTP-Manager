@@ -1301,11 +1301,13 @@ test("39 untargeted close fans out atomically to every enabled MT5 account", { c
 });
 
 test("scheduled MT5 UI entry prepares broker symbol before saving the intent", { concurrency: false }, async () => {
+  const account = { ...ACCOUNT_A, terminalId: "mt5term:acct-a" };
   const h = await createHarness("ui-symbol-prepare", {
     controlMode: "local-primary",
     scheduledEntryExecution: "mt5-ui",
     webhook: "",
-    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+    accounts: [account],
+    statuses: [localPrimaryStatusFor(account, { terminalId: account.terminalId })],
     eaDispatch(task) {
       if (task.action === "symbol_prepare") {
         return { status: "done", result: { ok: true, action: "symbol_prepare", detail: "symbol ready", resolvedSymbol: "XAUUSD.a" } };
@@ -1326,6 +1328,7 @@ test("scheduled MT5 UI entry prepares broker symbol before saving the intent", {
     assert.equal(Object.keys(state.intents).length, 1);
     const intent = Object.values(state.intents)[0];
     assert.equal(intent.resolvedSymbol, "XAUUSD.a");
+    assert.equal(intent.terminalId, "mt5term:acct-a");
     assert.match(state.commands["401:0"].outcome, /Symbol: XAUUSD\.a/);
     assert.match(state.commands["401:0"].outcome, /Status: scheduled/);
   } finally { await h.cleanup(); }
@@ -1471,6 +1474,34 @@ test("successful scheduled entry/order notifies Telegram after execution", { con
   } finally { await h.cleanup(); }
 });
 
+test("failed scheduled MT5 UI entry immediately notifies Telegram with the execution reason", { concurrency: false }, async () => {
+  const h = await createHarness("scheduled-ui-failure-notice", {
+    controlMode: "local-primary",
+    webhook: "",
+    scheduledEntryExecution: "mt5-ui",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+    mt5UiDispatch: async () => ({
+      status: "failed",
+      result: { ok: false, action: "entry", detail: "Expected exactly one MetaTrader top-level window for login/server; found 0" },
+    }),
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 416, message: { chat: { id: 123 }, text: "/buy XAUUSD 0.01 23:59 @acct-a" } }, statuses);
+    const [id] = Object.keys(state.intents);
+    h.setNow(state.intents[id].dueAt + 1);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    await h.runtime.runOneIteration(h.config, state);
+
+    assert.equal(state.intents[id].status, "failed");
+    assert.equal(h.mt5UiTasks.length, 1);
+    assert.ok(h.sent.some((text) => /Scheduled execution failed.*acct-a/i.test(text)));
+    assert.ok(h.sent.some((text) => /BUY XAUUSD 0\.01 lot/i.test(text) && /MetaTrader top-level window/i.test(text)));
+    assert.equal(state.deliveredTradeEventIds.filter((value) => value === `scheduled_failed:${id}`).length, 1);
+  } finally { await h.cleanup(); }
+});
+
 test("same-time scheduled entries on two MT5 accounts each send their own execution notice", { concurrency: false }, async () => {
   const providerA = "mt5:localtest01";
   const providerB = "mt5:localtest02";
@@ -1562,7 +1593,7 @@ test("late exact MT5 position proof upgrades an uncertain scheduled entry and se
   } finally { await h.cleanup(); }
 });
 
-test("successful scheduled close notifies Telegram while failed scheduled close stays silent", { concurrency: false }, async () => {
+test("successful scheduled close and failed scheduled close both report their final outcome", { concurrency: false }, async () => {
   const success = await createHarness("scheduled-close-notice", {
     controlMode: "local-primary",
     webhook: "",
@@ -1600,7 +1631,7 @@ test("successful scheduled close notifies Telegram while failed scheduled close 
     await failure.runtime.runOneIteration(failure.config, state);
     assert.equal(state.intents[id].status, "failed");
     assert.equal(failure.eaExecutions, 1);
-    assert.equal(failure.sent.some((text) => /Scheduled close/i.test(text)), false);
+    assert.ok(failure.sent.some((text) => /Scheduled execution failed.*acct-a/i.test(text) && /synthetic close rejection/i.test(text)));
   } finally { await failure.cleanup(); }
 });
 

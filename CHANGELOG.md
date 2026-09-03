@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Scheduled MT5 UI reliability: replaced unreliable `Process.MainWindowTitle/MainWindowHandle` terminal discovery with direct Win32 `EnumWindows` fencing on the MetaTrader top-level class plus exact login/server and process identity; scheduled intents now carry `terminalId`; failed/uncertain scheduled executions immediately notify Telegram instead of remaining silently at the earlier `scheduled` message. Live probes resolve both current FXCE and IC Markets terminal windows without submitting an order.
+
 - Mobile runtime status + icon fix: fresh local-primary MT5 heartbeat now matches by stable profile alias after an in-terminal account switch, authenticated local heartbeat sync reconciles missing/stale managed MT5 rows so active IC Markets appears in Accounts, unmatched profiles report offline instead of indefinite pending, native iOS now ships a real 1024px AppIcon asset catalog, and CI verifies both native iOS and regenerated Android launcher icons.
 
 - H1 presentation reference highlight: H3/H6 blue reference cells now highlight XAUUSD instead of GBPAUD across web Live/History + PNG, native iOS Live/History + PNG, and Android H1 Calendar. GBPUSD H9/H12/H14/H16 reference highlighting is unchanged; v67 signal/entry derivation is unchanged.

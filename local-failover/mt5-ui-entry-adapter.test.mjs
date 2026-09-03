@@ -67,6 +67,7 @@ function scheduledTask(overrides = {}) {
     payload,
     protection,
     dueAt: NOW,
+    terminalId: "mt5term:test-terminal-a",
     terminalPath: "",
     createdAt: NOW,
   };
@@ -177,6 +178,7 @@ test("scheduled entry uses EA preparation, no-mouse UI submit and EA snapshot ve
     assert.equal(h.eaTasks[0].originKey, "tg:900:1000000000:mt5:abcdefgh");
     assert.equal(h.eaTasks[0].payload.entryLedgerKey, h.task.ledgerKey);
     assert.deepEqual(h.uiCalls, ["prepare", "submit", "close"]);
+    assert.ok(h.uiTasks.every((row) => row.terminalId === "mt5term:test-terminal-a"));
 
     const claim = JSON.parse(await fs.readFile(h.files.claim, "utf8"));
     const persisted = JSON.parse(await fs.readFile(h.files.result, "utf8"));
@@ -360,6 +362,11 @@ test("driver selection is restricted to timed entry only", () => {
 test("PowerShell executor contains no global mouse or keyboard injection API", async () => {
   const script = await fs.readFile(path.join(HERE, "mt5-ui-entry.ps1"), "utf8");
   assert.doesNotMatch(script, /SendInput|SetCursorPos|mouse_event|SetPhysicalCursorPos|keybd_event/i);
+  assert.match(script, /EnumWindows/);
+  assert.match(script, /MetaQuotes::MetaTrader::5\.00/);
+  assert.match(script, /GetWindowThreadProcessId/);
+  assert.doesNotMatch(script, /\$process\.MainWindowTitle/);
+  assert.doesNotMatch(script, /\$process\.MainWindowHandle/);
   assert.match(script, /BM_CLICK/);
   assert.match(script, /WM_SETTEXT/);
   assert.match(script, /function Commit-ControlText/);
