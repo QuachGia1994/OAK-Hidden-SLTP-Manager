@@ -3,7 +3,6 @@
 package uk.oakgatekeeper.mobile
 
 import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -55,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import kotlinx.coroutines.launch
 import kotlin.math.max
 
@@ -523,8 +523,8 @@ fun MoreScreen(state: OAKAppState) {
                             OAKPill(system.apiStatus, PillTone.SUCCESS)
                         }
                         Row {
-                            OAKMetric("API LATENCY", "${system.latencyMs}ms", p.accent, Modifier.weight(1f))
-                            OAKMetric("H1 FEED", if (system.h1.ready) "READY" else "WAIT", if (system.h1.ready) p.success else p.warning, Modifier.weight(1f))
+                            OAKMetric("API LATENCY", "${system.latencyMs}ms", modifier = Modifier.weight(1f), valueColor = p.accent)
+                            OAKMetric("H1 FEED", if (system.h1.ready) "READY" else "WAIT", modifier = Modifier.weight(1f), valueColor = if (system.h1.ready) p.success else p.warning)
                         }
                     }
                 }
@@ -536,7 +536,7 @@ fun MoreScreen(state: OAKAppState) {
                         Row {
                             OAKMetric("SCHEMA", "v${system.h1.schemaVersion}", modifier = Modifier.weight(1f))
                             OAKMetric("RULE", "v${system.h1.signalRuleVersion}", modifier = Modifier.weight(1f))
-                            OAKMetric("HISTORY", "${system.h1.historyDays} days", p.accent, Modifier.weight(1f))
+                            OAKMetric("HISTORY", "${system.h1.historyDays} days", modifier = Modifier.weight(1f), valueColor = p.accent)
                             OAKMetric("SYMBOLS/BLOCKS", "${system.h1.symbolCount} / ${system.h1.blockCount}", modifier = Modifier.weight(1f))
                         }
                         HorizontalDivider(color = p.border.copy(alpha = .55f))
@@ -572,7 +572,7 @@ fun MoreScreen(state: OAKAppState) {
             OAKCard {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Button(
-                        onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.oakgatekeeper.uk"))) },
+                        onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, "https://www.oakgatekeeper.uk".toUri())) },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = p.raised, contentColor = p.accent),
                     ) { Text(state.text("MỞ WEB", "OPEN WEB"), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Black) }

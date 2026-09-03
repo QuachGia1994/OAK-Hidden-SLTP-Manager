@@ -8,6 +8,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import androidx.core.content.FileProvider
+import androidx.core.graphics.createBitmap
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.max
@@ -36,7 +37,7 @@ object ShareStore {
     }
 
     private fun renderChart(alert: H1SignalAlert, brokerDate: String): Bitmap {
-        val bitmap = Bitmap.createBitmap(Width, Height, Bitmap.Config.ARGB_8888)
+        val bitmap = createBitmap(Width, Height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         canvas.drawColor(Color.rgb(248, 250, 253))

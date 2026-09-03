@@ -206,7 +206,7 @@ test("mobile account status prefers sanitized local-primary MT5 heartbeat eviden
   assert.match(androidScreensSource, /local heartbeat online/);
   assert.match(androidScreensSource, /Local heartbeat pending/);
   assert.match(androidManifestSource, /android:icon="@mipmap\/ic_launcher"/);
-  const androidAdaptiveIconSource = readFileSync(new URL("../../../android-native/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml", import.meta.url), "utf8");
+  const androidAdaptiveIconSource = readFileSync(new URL("../../../android-native/app/src/main/res/mipmap-anydpi/ic_launcher.xml", import.meta.url), "utf8");
   assert.match(androidAdaptiveIconSource, /@drawable\/oak_launcher_foreground/);
   assert.match(androidAdaptiveIconSource, /@drawable\/oak_launcher_monochrome/);
   const nativeProjectSource = readFileSync(new URL("../../../ios-native/project.yml", import.meta.url), "utf8");
@@ -330,7 +330,7 @@ test("native Android copies the iOS H1 presentation, evidence, reports, themes a
   assert.match(androidScreensSource, /OAKPill\("FREE ACCESS", PillTone\.SUCCESS\)/);
   assert.match(androidScreensSource, /COPY CHART/);
   assert.match(androidShareSource, /ClipData\.newUri/);
-  assert.match(androidShareSource, /Bitmap\.createBitmap/);
+  assert.match(androidShareSource, /createBitmap\(Width, Height/);
   assert.match(androidShareSource, /bitmap\.recycle\(\)/);
   assert.match(androidScreensSource, /index == 0 \|\| index == trend\.lastIndex \|\| index % 2 == 0/);
   assert.match(androidThemeSource, /canvas = Color\.Black/);
@@ -357,6 +357,7 @@ test("native Android is hardened for Google Play February 2027 memory and DEX re
   assert.match(androidShareSource, /trimTransient/);
   assert.doesNotMatch(androidScreensSource + androidStateSource, /Coil|Glide|BitmapFactory|staticBitmap|imageCache/i);
   assert.match(androidManifestSource, /android:allowBackup="false"/);
+  assert.match(androidManifestSource, /android:dataExtractionRules="@xml\/data_extraction_rules"/);
   assert.doesNotMatch(androidManifestSource, /android:screenOrientation="portrait"/);
 });
 

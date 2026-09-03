@@ -8,6 +8,7 @@ import android.util.Base64
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -53,12 +54,12 @@ class OAKAppState(application: Application) : AndroidViewModel(application) {
 
     fun setTheme(next: OAKThemeMode) {
         themeMode = next
-        prefs.edit().putString("theme", next.name).apply()
+        prefs.edit { putString("theme", next.name) }
     }
 
     fun updateLocale(next: OAKLocale) {
         locale = next
-        prefs.edit().putString("locale", next.name).apply()
+        prefs.edit { putString("locale", next.name) }
     }
 
     suspend fun unlock(candidate: String) {
@@ -200,14 +201,14 @@ private class SecureStore(context: Context) {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key())
         val encrypted = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
-        prefs.edit()
-            .putString("iv", Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
-            .putString("cipher", Base64.encodeToString(encrypted, Base64.NO_WRAP))
-            .apply()
+        prefs.edit {
+            putString("iv", Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
+            putString("cipher", Base64.encodeToString(encrypted, Base64.NO_WRAP))
+        }
     }
 
     fun clear() {
-        prefs.edit().clear().apply()
+        prefs.edit { clear() }
     }
 
     private fun key(): SecretKey {

@@ -169,7 +169,7 @@ fun OAKPill(label: String, tone: PillTone = PillTone.MUTED) {
 }
 
 @Composable
-fun OAKMetric(label: String, value: String, valueColor: Color? = null, modifier: Modifier = Modifier) {
+fun OAKMetric(label: String, value: String, modifier: Modifier = Modifier, valueColor: Color? = null) {
     val p = LocalOAKPalette.current
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Text(
