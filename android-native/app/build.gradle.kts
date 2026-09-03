@@ -51,10 +51,10 @@ android {
         abortOnError = true
         warningsAsErrors = true
         checkReleaseBuilds = true
-        // API 36 is the current Play target for this release train. AGP 9.4
-        // knows about API 37 and otherwise upgrades this informational warning
-        // to an error because warningsAsErrors is intentionally enabled.
-        disable += "OldTargetApi"
+        // The API 36 / Compose 1.11 / Gradle 9.6 train is intentionally pinned
+        // until API 37 is on the stable hosted runner. Keep real code/resource
+        // warnings fatal while excluding only toolchain-update recommendations.
+        disable += setOf("OldTargetApi", "AndroidGradlePluginVersion", "GradleDependency")
     }
 }
 

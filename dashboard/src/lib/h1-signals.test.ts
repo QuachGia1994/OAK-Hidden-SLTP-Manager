@@ -347,6 +347,8 @@ test("native Android is hardened for Google Play February 2027 memory and DEX re
   assert.match(androidBuildSource, /targetSdk = 36/);
   assert.match(androidBuildSource, /isMinifyEnabled = true/);
   assert.match(androidBuildSource, /isShrinkResources = true/);
+  assert.match(androidBuildSource, /warningsAsErrors = true/);
+  assert.match(androidBuildSource, /"OldTargetApi", "AndroidGradlePluginVersion", "GradleDependency"/);
   assert.match(androidBuildSource, /jniLibs\.useLegacyPackaging = false/);
   assert.match(androidGradlePropertiesSource, /android\.enableR8\.fullMode=true/);
   assert.match(androidMainSource, /onTrimMemory/);
