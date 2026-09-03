@@ -16,7 +16,7 @@ import {
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 73;
+export const H1_SIGNAL_RULE_VERSION = 74;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
@@ -84,7 +84,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 73;
+  signalRuleVersion: 74;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -232,10 +232,15 @@ function localPatternMatchForTarget(
   return evaluateLocalH1Pattern({ target, brokerDate, slotHour, bars: source.bars });
 }
 
-export function xauStartsDayAtEntryH5(brokerDate: string, market: H1LocalMarketSnapshot): boolean {
+export function xauH3EntryHour(brokerDate: string, market: H1LocalMarketSnapshot): number | null {
   const source = market.XAUUSD;
-  if (!source || !targetEnabledForDate("XAUUSD", brokerDate, 3)) return false;
-  return evaluateLocalH1Pattern({ target: "XAUUSD", brokerDate, slotHour: 3, bars: source.bars })?.entryHour === 5;
+  if (!source || !targetEnabledForDate("XAUUSD", brokerDate, 3)) return null;
+  const entryHour = evaluateLocalH1Pattern({ target: "XAUUSD", brokerDate, slotHour: 3, bars: source.bars })?.entryHour;
+  return Number.isInteger(entryHour) ? Number(entryHour) : null;
+}
+
+export function xauStartsDayAtEntryH5(brokerDate: string, market: H1LocalMarketSnapshot): boolean {
+  return xauH3EntryHour(brokerDate, market) === 5;
 }
 
 function xauFinalSignalForSlot(brokerDate: string, slotHour: number, market: H1LocalMarketSnapshot): H1Signal | null {
@@ -504,7 +509,14 @@ export function evaluateLocalH1PatternsForTarget(
     const syncToXau = (base === "GBPUSD" || base === "EURUSD") && [9, 12, 14, 16].includes(slotHour);
     const xauSignal = syncToXau ? xauFinalSignalForSlot(brokerDate, slotHour, market) : null;
     const derivedSignal = syncToXau ? xauSignal : baseH1Signal;
-    const symbolH1Signal = derivedSignal;
+    let symbolH1Signal = derivedSignal;
+    if (slotHour === 16) {
+      const h3EntryHour = xauH3EntryHour(brokerDate, market);
+      if (h3EntryHour === 4 || h3EntryHour === 5) {
+        const h14Signal = evaluateLocalH1PatternsForTarget(base, brokerDate, market, [14], 14)[0]?.symbolH1Signal ?? null;
+        symbolH1Signal = h3EntryHour === 4 && h14Signal ? invertSignal(h14Signal) : h14Signal;
+      }
+    }
     alerts.push({
       slotHour,
       symbol: base,
@@ -693,18 +705,15 @@ export function parseCloudState(raw: unknown): H1CloudState {
 
 export function repairLegacyH16AdvisorySignals(state: H1CloudState): H1CloudState {
   for (const day of Object.values(state.days)) {
-    const xauAlerts = day.symbols.XAUUSD?.alerts ?? [];
-    const manualCloseDay = xauAlerts.some((alert) => alert.slotHour === 3 && alert.entryHour === 5);
-    if (!manualCloseDay) continue;
-    const xauH16 = xauAlerts.find((alert) => alert.slotHour === 16);
-    const xauFinalSignal = xauH16?.symbolH1Signal ?? xauH16?.baseH1Signal ?? null;
+    const xauH3EntryHour = day.symbols.XAUUSD?.alerts.find((alert) => alert.slotHour === 3)?.entryHour ?? null;
+    if (xauH3EntryHour !== 4 && xauH3EntryHour !== 5) continue;
 
     for (const base of H1_TARGET_BASES) {
-      const alert = day.symbols[base]?.alerts.find((row) => row.slotHour === 16);
-      if (!alert || alert.symbolH1Signal || !Number.isInteger(alert.entryHour) || !alert.patternGroup) continue;
-      alert.symbolH1Signal = base === "GBPUSD" || base === "EURUSD"
-        ? xauFinalSignal
-        : alert.baseH1Signal;
+      const alerts = day.symbols[base]?.alerts ?? [];
+      const h14Signal = alerts.find((row) => row.slotHour === 14)?.symbolH1Signal ?? null;
+      const h16 = alerts.find((row) => row.slotHour === 16);
+      if (!h16 || !Number.isInteger(h16.entryHour) || !h16.patternGroup || !h14Signal) continue;
+      h16.symbolH1Signal = xauH3EntryHour === 4 ? invertSignal(h14Signal) : h14Signal;
     }
   }
   return state;

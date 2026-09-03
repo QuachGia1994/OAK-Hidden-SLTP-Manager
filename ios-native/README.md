@@ -13,7 +13,7 @@ Pure SwiftUI iPhone client for ROBOT SLTP. This target replaces the previous Exp
 - Tabs: Live, History, Signals, Reports, More.
 - H1 Live/History matrix uses the same server payload and visible rows as web: XAUUSD, GBPUSD, EURUSD, GBPAUD. GBPCAD/GBPJPY remain calculated server-side but hidden in presentation.
 - Entry-reference cells: GBPAUD H3/H6 and GBPUSD H9/H12/H14/H16.
-- XAUUSD H3 entry H5 => H16 `CLOSE` advisory only. H16 BUY/SELL is null and the app never auto-closes positions.
+- H16 keeps its calculated entry time. XAUUSD H3 entry H5 => H16 copies each symbol's H14 BUY/SELL with no `CLOSE` badge. XAUUSD H3 entry H4 => H16 inverts each symbol's H14 BUY/SELL and shows the advisory-only `CLOSE` badge. The app never auto-closes positions.
 - M15 evidence sheet with candlestick rendering and copy evidence.
 - Native PNG export/share for the selected H1 day.
 - Pull-to-refresh + 20-second server refresh loop.

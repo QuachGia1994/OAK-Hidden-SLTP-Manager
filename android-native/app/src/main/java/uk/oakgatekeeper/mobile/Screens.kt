@@ -220,7 +220,7 @@ fun H1BoardScreen(state: OAKAppState, history: Boolean) {
                             Text("✋", color = p.warning, fontSize = 24.sp, lineHeight = 28.sp)
                             Column(verticalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.weight(1f)) {
                                 Text("H16 CLOSE", color = p.warning, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
-                                Text(state.text("XAUUSD đầu ngày có entry H5. CLOSE chỉ là badge khuyến nghị; ứng dụng không tự đóng lệnh.", "XAUUSD starts the day at entry H5. CLOSE is advisory only; the app never closes positions automatically."), color = p.muted, fontSize = 13.sp, lineHeight = 19.sp)
+                                Text(state.text("XAUUSD block H3 có entry H4. H16 lấy tín hiệu đảo ngược H14; CLOSE chỉ là badge khuyến nghị và không tự đóng lệnh.", "XAUUSD H3 entry is H4. H16 uses the inverse of H14; CLOSE is advisory only and never closes positions automatically."), color = p.muted, fontSize = 13.sp, lineHeight = 19.sp)
                             }
                         }
                     }

@@ -84,7 +84,7 @@ test("GBP cross early-block gates apply Tuesday-Friday while Monday remains XAUU
   for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(targetEnabledForDate("GBPAUD", tuesday, hour), true);
 });
 
-test("rule v73 has no weekday inversion badges", () => {
+test("rule v74 has no weekday inversion badges", () => {
   const tue = "2026-09-08";
   const thu = "2026-09-03";
   const fri = "2026-09-04";

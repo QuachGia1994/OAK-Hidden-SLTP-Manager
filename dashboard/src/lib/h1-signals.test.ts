@@ -17,6 +17,7 @@ const mobileH1RouteSource = readFileSync(new URL("../app/api/mobile/h1/route.ts"
 const mobileAppRouteSource = readFileSync(new URL("../app/api/mobile/app/route.ts", import.meta.url), "utf8");
 const mobileAppBackendSource = readFileSync(new URL("./mobile-app-backend.ts", import.meta.url), "utf8");
 const androidScreensSource = readFileSync(new URL("../../../android-native/app/src/main/java/uk/oakgatekeeper/mobile/Screens.kt", import.meta.url), "utf8");
+const androidModelsSource = readFileSync(new URL("../../../android-native/app/src/main/java/uk/oakgatekeeper/mobile/Models.kt", import.meta.url), "utf8");
 const androidStateSource = readFileSync(new URL("../../../android-native/app/src/main/java/uk/oakgatekeeper/mobile/AppState.kt", import.meta.url), "utf8");
 const androidMainSource = readFileSync(new URL("../../../android-native/app/src/main/java/uk/oakgatekeeper/mobile/MainActivity.kt", import.meta.url), "utf8");
 const androidThemeSource = readFileSync(new URL("../../../android-native/app/src/main/java/uk/oakgatekeeper/mobile/Theme.kt", import.meta.url), "utf8");
@@ -32,6 +33,7 @@ const localMarketRouteSource = readFileSync(new URL("../app/api/h1-scanner/local
 const layoutSource = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const tabAutoRefreshSource = readFileSync(new URL("../components/TabAutoRefresh.tsx", import.meta.url), "utf8");
 const nativeH1BoardSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/H1BoardView.swift", import.meta.url), "utf8");
+const nativeModelsSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/Models.swift", import.meta.url), "utf8");
 const nativeSignalsSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/SignalsView.swift", import.meta.url), "utf8");
 const nativeEvidenceSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/EvidenceView.swift", import.meta.url), "utf8");
 const nativeReportsSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/ReportsView.swift", import.meta.url), "utf8");
@@ -73,19 +75,21 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 rows and block set match the local ICMarkets v73 contract", () => {
+test("H1 rows and block set match the local ICMarkets v74 contract", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14, 16\]/);
   assert.match(scannerSource, /if \(hour === 3\) return \["XAUUSD", "GBPAUD"\]/);
   assert.match(scannerSource, /if \(hour === 6\) return \["XAUUSD", "GBPAUD", "GBPJPY"\]/);
   assert.match(localMarketRouteSource, /evaluateLocalH1PatternsForTarget/);
-  assert.match(scannerSource, /xauStartsDayAtEntryH5/);
+  assert.match(scannerSource, /xauH3EntryHour/);
   assert.doesNotMatch(scannerSource, /manualCloseOnly|closeH16FromXauH5/);
   assert.doesNotMatch(scannerSource, /symbolH1Signal = manualCloseOnly \? null : derivedSignal/);
   assert.doesNotMatch(scannerSource, /weekdaySyncSignalInverted/);
   assert.match(scannerSource, /const derivedSignal = syncToXau \? xauSignal : baseH1Signal/);
-  assert.match(scannerSource, /const symbolH1Signal = derivedSignal/);
+  assert.match(scannerSource, /if \(slotHour === 16\)/);
+  assert.match(scannerSource, /evaluateLocalH1PatternsForTarget\(base, brokerDate, market, \[14\], 14\)/);
+  assert.match(scannerSource, /h3EntryHour === 4 && h14Signal \? invertSignal\(h14Signal\) : h14Signal/);
   assert.match(scannerSource, /base === "GBPUSD"/);
   assert.match(scannerSource, /base === "EURUSD"/);
   assert.match(scannerSource, /patternDriverTargetFor/);
@@ -111,8 +115,14 @@ test("web tab softly refreshes server data every 20 seconds", () => {
   assert.doesNotMatch(tabAutoRefreshSource, /location\.reload/);
 });
 
-test("XAU H5 keeps H16 BUY/SELL and uses CLOSE as an advisory badge only", () => {
+test("H16 copies H14 for XAU H3 entry H5 and inverts H14 with CLOSE only for H3 entry H4", () => {
   assert.match(boardSource, /function isManualCloseH16Day/);
+  assert.match(boardSource, /slotHour === 3 && alert\.entryHour === 4/);
+  assert.doesNotMatch(boardSource, /slotHour === 3 && alert\.entryHour === 5/);
+  assert.match(nativeModelsSource, /\$0\.slotHour == 3 && \$0\.entryHour == 4/);
+  assert.doesNotMatch(nativeModelsSource, /\$0\.slotHour == 3 && \$0\.entryHour == 5/);
+  assert.match(androidModelsSource, /it\.slotHour == 3 && it\.entryHour == 4/);
+  assert.doesNotMatch(androidModelsSource, /it\.slotHour == 3 && it\.entryHour == 5/);
   assert.match(boardSource, /oak-h1-close-badge/);
   assert.match(boardSource, /data-manual-close=\{hour === 16 && manualCloseH16/);
   assert.match(boardSource, /drawCentered\(alert\?\.signal \|\| "—"/);

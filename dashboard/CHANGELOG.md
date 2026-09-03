@@ -18,6 +18,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Advanced local H1 to v74. H16 keeps its existing entry hour/pattern evidence but derives final BUY/SELL from that symbol's H14 signal: XAUUSD H3 entry H5 copies H14 with no CLOSE badge; XAUUSD H3 entry H4 inverts H14 and enables the CLOSE advisory badge. Web/PNG/native iOS/native Android use the same H4-only CLOSE predicate.
 - Fixed missing selectable dates in H1 History: valid ICMarkets broker days are retained even with zero pattern matches, and local historical publishing retries transient singleton-lock `already-running` responses instead of silently skipping that date during overlap with the minute live scanner.
 - Advanced local H1 to v73. H16 keeps normal entry-time calculation and BUY/SELL rendering on XAU H5 manual-close days; CLOSE remains an advisory badge only and no longer suppresses or replaces the H16 signal on Web, native iOS/Android or copied H1 PNGs. H1 persistence now uses schema-stable `state:s56`; first load merges retained v72/v73 state, repairs legacy CLOSE-only H16 rows, and keeps the 90-day History calendar intact across future rule-only bumps.
 - Advanced local H1 to v72. GBPUSD and EURUSD H9/H12/H14/H16 now take the same entry time as XAUUSD for each block while retaining v71 signal synchronization and eligibility. Removed XAUUSD/GBPUSD reference-cell tinting from web/native matrices and H1 PNG exports, while preserving H16 CLOSE warning styling. A fresh v72 state key prevents stale entry times.

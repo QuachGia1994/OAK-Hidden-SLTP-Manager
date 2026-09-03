@@ -61,7 +61,7 @@ data class H1SignalPayload(
         days[date]?.symbols?.get(symbol)?.alerts?.firstOrNull { it.slotHour == hour }
 
     fun manualCloseH16(date: String): Boolean =
-        days[date]?.symbols?.get("XAUUSD")?.alerts?.any { it.slotHour == 3 && it.entryHour == 5 } == true
+        days[date]?.symbols?.get("XAUUSD")?.alerts?.any { it.slotHour == 3 && it.entryHour == 4 } == true
 
     fun alerts(date: String, visibleSymbols: List<String>): List<H1SignalAlert> =
         visibleSymbols.flatMap { days[date]?.symbols?.get(it)?.alerts.orEmpty() }

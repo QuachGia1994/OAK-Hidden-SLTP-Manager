@@ -266,7 +266,7 @@ extension H1SignalPayload {
     }
 
     func manualCloseH16(date: String) -> Bool {
-        days[date]?.symbols["XAUUSD"]?.alerts.contains(where: { $0.slotHour == 3 && $0.entryHour == 5 }) == true
+        days[date]?.symbols["XAUUSD"]?.alerts.contains(where: { $0.slotHour == 3 && $0.entryHour == 4 }) == true
     }
 
     func alerts(date: String, visibleSymbols: [String]) -> [H1SignalAlert] {

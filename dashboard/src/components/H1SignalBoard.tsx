@@ -22,7 +22,7 @@ function visibleH1Symbols(symbols: readonly string[]) {
 }
 
 function isManualCloseH16Day(day: H1SignalDay | undefined): boolean {
-  return Boolean(day?.symbols?.XAUUSD?.alerts?.some((alert) => alert.slotHour === 3 && alert.entryHour === 5));
+  return Boolean(day?.symbols?.XAUUSD?.alerts?.some((alert) => alert.slotHour === 3 && alert.entryHour === 4));
 }
 
 
@@ -510,7 +510,7 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
           </table>
         </div>{manualCloseH16 && <aside className="oak-h1-close-advisory" role="note" aria-label="H16 CLOSE advisory">
           <span className="oak-h1-close-advisory-icon" aria-hidden="true">✋</span>
-          <div><b>H16 CLOSE</b><p>{locale === "EN" ? "XAUUSD starts the day at entry H5. CLOSE is advisory only; the app never closes positions automatically." : "XAUUSD đầu ngày có entry H5. CLOSE chỉ là badge khuyến nghị; ứng dụng không tự đóng lệnh."}</p></div>
+          <div><b>H16 CLOSE</b><p>{locale === "EN" ? "XAUUSD H3 entry is H4. H16 uses the inverse of H14; CLOSE is advisory only and never closes positions automatically." : "XAUUSD block H3 có entry H4. H16 lấy tín hiệu đảo ngược H14; CLOSE chỉ là badge khuyến nghị và không tự đóng lệnh."}</p></div>
         </aside>}</>}
       </section>
       <H1EvidencePanel selection={evidenceSelection} locale={locale} onClose={() => setEvidenceSelection(null)} />

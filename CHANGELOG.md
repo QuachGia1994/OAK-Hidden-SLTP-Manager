@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced H1 to v74. H16 entry time/pattern evidence is unchanged, but its final BUY/SELL is now derived from the same symbol's H14 signal using XAUUSD H3 entry as the selector: XAU H3 entry H5 => H16 copies H14 and no CLOSE badge; XAU H3 entry H4 => H16 inverts H14 and shows the CLOSE advisory badge. The rule applies to XAUUSD plus all FX rows across Web, copied PNG, native iOS and native Android; CLOSE remains presentation-only with no broker-close action.
+
 - Fixed sparse disabled dates in H1 History backfill. Valid ICMarkets broker days are now persisted even if no H1 pattern matches occur, and historical publishing retries singleton-lock `already-running` responses instead of silently dropping the date when the minute live scanner overlaps. Verified 2026-08-21 has 29 v73 matches and 2026-08-31 has 6 XAUUSD-only matches with complete M15 source coverage.
 
 - Restored H1 History production data after the v73 migration: local ICMarkets backfill now gives historical MT5 reads a dedicated 180s/32MB budget while the minute live reader stays at 30s/12MB. A one-time 90-calendar-day rebuild published 64 broker snapshots (`1,336` matches / `1,272` updated rows); the production History page now exposes 56 selectable trading days from `2026-06-08` through `2026-09-03` instead of a single day.
