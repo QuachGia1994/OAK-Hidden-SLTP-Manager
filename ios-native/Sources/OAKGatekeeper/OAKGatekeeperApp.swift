@@ -8,6 +8,7 @@ struct OAKGatekeeperApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .id(state.themeMode)
                 .environment(state)
                 .preferredColorScheme(state.themeMode.colorScheme)
                 .tint(OAKColor.accent)

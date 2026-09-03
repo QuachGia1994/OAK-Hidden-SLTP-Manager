@@ -29,6 +29,13 @@ const localPatternsSource = readFileSync(new URL("./h1-local-patterns.ts", impor
 const localMarketRouteSource = readFileSync(new URL("../app/api/h1-scanner/local-market/route.ts", import.meta.url), "utf8");
 const layoutSource = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const tabAutoRefreshSource = readFileSync(new URL("../components/TabAutoRefresh.tsx", import.meta.url), "utf8");
+const nativeH1BoardSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/H1BoardView.swift", import.meta.url), "utf8");
+const nativeEvidenceSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/EvidenceView.swift", import.meta.url), "utf8");
+const nativeReportsSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/ReportsView.swift", import.meta.url), "utf8");
+const nativeThemeSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/Theme.swift", import.meta.url), "utf8");
+const nativeAppStateSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/AppState.swift", import.meta.url), "utf8");
+const nativeMoreSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/MoreView.swift", import.meta.url), "utf8");
+const nativeAppSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/OAKGatekeeperApp.swift", import.meta.url), "utf8");
 
 test("H1 Live and web History are reopened as primary trading navigation", () => {
   assert.match(navBarSource, /<span>H1 Live<\/span>/);
@@ -139,6 +146,35 @@ test("light theme gives H1 reference and CLOSE cells a high-contrast treatment",
   assert.match(redesignCss, /html\.light \.oak-h1-cell-entry small\[data-signal="SELL"\]/);
   assert.match(redesignCss, /html\.light \.oak-h1-cell-entry small\[data-action="CLOSE"\]/);
   assert.match(redesignCss, /border-width: 2px/);
+});
+
+test("native iOS polish keeps H1 matrix clean, SVG clipboard vector-only, sparse report dates, distinct contrast, and live account toggles", () => {
+  const matrixCellStart = nativeH1BoardSource.indexOf("private struct H1MatrixCell");
+  const matrixCellEnd = nativeH1BoardSource.indexOf("private struct BrokerCalendarSheet");
+  const matrixCellSource = nativeH1BoardSource.slice(matrixCellStart, matrixCellEnd);
+  assert.match(nativeH1BoardSource, /HStack\(alignment: \.top, spacing: 6\)/);
+  assert.match(matrixCellSource, /RoundedRectangle\(cornerRadius: 11/);
+  assert.doesNotMatch(matrixCellSource, /overlay\(alignment: \.trailing\)|overlay\(alignment: \.bottom\)|Divider\(\)/);
+
+  assert.match(nativeEvidenceSource, /COPY CHART SVG/);
+  assert.match(nativeEvidenceSource, /public\.svg-image/);
+  assert.match(nativeEvidenceSource, /public\.utf8-plain-text/);
+  assert.doesNotMatch(nativeEvidenceSource, /COPY EVIDENCE|evidenceText/);
+
+  assert.match(nativeReportsSource, /x: \.value\("Index", point\.index\)/);
+  assert.match(nativeReportsSource, /AxisMarks\(values: visibleAxisIndices\(reports\.trend\)\)/);
+  assert.match(nativeReportsSource, /font\(\.system\(size: 9, weight: \.bold, design: \.monospaced\)\)/);
+
+  assert.match(nativeThemeSource, /case \.contrast: Color\(hex: contrast\)/);
+  assert.match(nativeThemeSource, /contrast: 0x000000/);
+  assert.match(nativeThemeSource, /contrast: 0xFFFFFF/);
+  assert.match(nativeThemeSource, /contrast: 0x66A3FF/);
+  assert.match(nativeAppSource, /\.id\(state\.themeMode\)/);
+
+  assert.match(nativeAppStateSource, /applyAccountEnabledLocally\(id: id, enabled: enabled\)/);
+  assert.match(nativeAppStateSource, /payload = previous/);
+  assert.match(nativeAppStateSource, /Task \{ @MainActor \[weak self\] in/);
+  assert.match(nativeMoreSource, /first\(where: \{ \$0\.id == account\.id \}\)\?\.enabled/);
 });
 
 test("H1 table sizes itself from the active columns and stretches across desktop viewports", () => {

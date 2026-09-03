@@ -36,7 +36,7 @@ struct ReportsView: View {
 
                             Chart(reports.trend) { point in
                                 BarMark(
-                                    x: .value("Date", shortDate(point.date)),
+                                    x: .value("Index", point.index),
                                     y: .value("Signals", point.value)
                                 )
                                 .foregroundStyle(OAKColor.accent.gradient)
@@ -49,7 +49,16 @@ struct ReportsView: View {
                                 }
                             }
                             .chartXAxis {
-                                AxisMarks { _ in AxisValueLabel().foregroundStyle(OAKColor.muted) }
+                                AxisMarks(values: visibleAxisIndices(reports.trend)) { value in
+                                    AxisTick().foregroundStyle(OAKColor.borderStrong.opacity(0.6))
+                                    AxisValueLabel {
+                                        if let index = value.as(Int.self), let point = reports.trend.first(where: { $0.index == index }) {
+                                            Text(shortDate(point.date))
+                                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                                .foregroundStyle(OAKColor.muted)
+                                        }
+                                    }
+                                }
                             }
                             .frame(height: 230)
                         }
@@ -89,6 +98,12 @@ struct ReportsView: View {
                     .foregroundStyle(color)
             }
         }
+    }
+
+    private func visibleAxisIndices(_ trend: [MobileReportTrend]) -> [Int] {
+        guard !trend.isEmpty else { return [] }
+        let last = trend.count - 1
+        return trend.indices.filter { $0 == 0 || $0 == last || $0 % 2 == 0 }.map { trend[$0].index }
     }
 
     private func shortDate(_ value: String) -> String {

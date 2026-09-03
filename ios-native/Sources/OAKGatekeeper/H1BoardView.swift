@@ -260,8 +260,8 @@ private struct H1MatrixView: View {
                         .foregroundStyle(OAKColor.muted)
                 }
 
-                HStack(alignment: .top, spacing: 0) {
-                    VStack(spacing: 0) {
+                HStack(alignment: .top, spacing: 6) {
+                    VStack(spacing: 6) {
                         matrixHeaderLabel("SYMBOL", width: symbolWidth)
                         ForEach(symbols, id: \.self) { symbol in
                             Text(symbol)
@@ -269,21 +269,20 @@ private struct H1MatrixView: View {
                                 .foregroundStyle(OAKColor.text)
                                 .frame(width: symbolWidth, height: rowHeight, alignment: .leading)
                                 .padding(.leading, 10)
-                                .background(OAKColor.raised)
-                                .overlay(alignment: .bottom) { Divider().background(OAKColor.border) }
+                                .background(OAKColor.raised, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
                         }
                     }
                     .zIndex(2)
 
                     ScrollView(.horizontal, showsIndicators: true) {
-                        VStack(spacing: 0) {
-                            HStack(spacing: 0) {
+                        VStack(spacing: 6) {
+                            HStack(spacing: 6) {
                                 ForEach(h1.hours, id: \.self) { hour in
                                     matrixHourHeader(hour)
                                 }
                             }
                             ForEach(symbols, id: \.self) { symbol in
-                                HStack(spacing: 0) {
+                                HStack(spacing: 6) {
                                     ForEach(h1.hours, id: \.self) { hour in
                                         H1MatrixCell(
                                             alert: h1.alert(date: date, symbol: symbol, hour: hour),
@@ -300,8 +299,6 @@ private struct H1MatrixView: View {
                         }
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay { RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(OAKColor.borderStrong.opacity(0.85), lineWidth: 1) }
             }
         }
     }
@@ -322,8 +319,10 @@ private struct H1MatrixView: View {
         }
         .foregroundStyle(manualClose && hour == 16 ? OAKColor.warning : OAKColor.muted)
         .frame(width: cellWidth, height: 52)
-        .background(manualClose && hour == 16 ? OAKColor.warning.opacity(0.14) : OAKColor.raised)
-        .overlay(alignment: .trailing) { Divider().background(OAKColor.border) }
+        .background(
+            manualClose && hour == 16 ? OAKColor.warning.opacity(0.14) : OAKColor.raised,
+            in: RoundedRectangle(cornerRadius: 11, style: .continuous)
+        )
     }
 
     @ViewBuilder
@@ -333,8 +332,7 @@ private struct H1MatrixView: View {
             .foregroundStyle(OAKColor.text)
             .frame(width: width, height: 52, alignment: .leading)
             .padding(.leading, 10)
-            .background(OAKColor.raised)
-            .overlay(alignment: .trailing) { Divider().background(OAKColor.border) }
+            .background(OAKColor.raised, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
     }
 }
 
@@ -381,14 +379,14 @@ private struct H1MatrixCell: View {
                     .frame(width: width, height: height)
             }
         }
-        .background(background)
-        .overlay(alignment: .trailing) { Divider().background(OAKColor.border) }
-        .overlay(alignment: .bottom) { Divider().background(OAKColor.border) }
+        .background(background, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         .overlay {
             if entryReference && !manualClose {
-                Rectangle().stroke(OAKColor.accent.opacity(0.62), lineWidth: 1.7)
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .stroke(OAKColor.accent.opacity(0.72), lineWidth: 1.8)
             } else if manualClose {
-                Rectangle().stroke(OAKColor.warning.opacity(0.62), lineWidth: 1.7)
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .stroke(OAKColor.warning.opacity(0.72), lineWidth: 1.8)
             }
         }
     }

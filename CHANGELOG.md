@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Polished the native iOS app after on-device review: removed dense H1 matrix inner grid strokes in favor of separated rounded cells, changed evidence copy to a standalone SVG candlestick chart clipboard payload, reduced report x-axis date labels to a sparse non-overlapping set, gave Contrast its own true-black/high-contrast palette instead of reusing Dark, and made account enable/disable switches update optimistically in-place with rollback/reconciliation instead of requiring a tab change.
+
 - Rebuilt the iPhone client as a pure SwiftUI native app under `ios-native/`, compiled with the GitHub Xcode 27 / iOS 27 SDK preview runner. The native app mirrors the current web H1 Live/History surfaces with the same light/dark visual language, H1 matrix/reference highlighting, H16 manual CLOSE advisory, M15 evidence sheet, PNG sharing, 20-second refresh, reports/system/account views, and Keychain-backed API-key unlock. Its bottom navigation is the system SwiftUI `TabView` with native Liquid Glass and `.tabBarMinimizeBehavior(.onScrollDown)` rather than a custom React Native bar. Android remains in `mobile/` and keeps the Expo/Gradle build path.
 
 - Strengthened H1 light-theme contrast: entry-reference cells now use a more visible blue fill with a 2px inset outline, H16 manual CLOSE cells use a stronger warning fill/outline, and BUY/SELL/CLOSE pills get thicker borders and denser light-theme fills. Dark theme and v67 signal semantics are unchanged.

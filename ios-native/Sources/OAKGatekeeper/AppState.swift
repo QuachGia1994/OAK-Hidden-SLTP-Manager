@@ -86,24 +86,61 @@ final class AppState {
 
     func toggleAccount(id: String, enabled: Bool) async {
         guard isUnlocked else { return }
+        let previous = payload
+        applyAccountEnabledLocally(id: id, enabled: enabled)
         do {
             let accounts = try await api.setAccountEnabled(apiKey: apiKey, id: id, enabled: enabled)
-            if let current = payload {
-                payload = MobileAppPayload(
-                    ok: current.ok,
-                    h1: current.h1,
-                    accounts: accounts,
-                    calendar: current.calendar,
-                    signals: current.signals,
-                    dashboard: current.dashboard,
-                    reports: current.reports,
-                    bridge: current.bridge,
-                    system: current.system
-                )
-            }
+            applyAccountSnapshot(accounts)
             errorMessage = ""
+            Task { @MainActor [weak self] in
+                await self?.refresh()
+            }
         } catch {
+            payload = previous
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func applyAccountEnabledLocally(id: String, enabled: Bool) {
+        guard let current = payload else { return }
+        let nextAccounts = current.accounts.accounts.map { account in
+            account.id == id ? account.withEnabled(enabled) : account
+        }
+        let snapshot = AccountPayload(
+            ok: current.accounts.ok,
+            providers: current.accounts.providers,
+            defaultAccountId: current.accounts.defaultAccountId,
+            accounts: nextAccounts
+        )
+        applyAccountSnapshot(snapshot)
+    }
+
+    private func applyAccountSnapshot(_ accounts: AccountPayload) {
+        guard let current = payload else { return }
+        let enabledCount = accounts.accounts.filter(\.enabled).count
+        let system = MobileSystemPayload(
+            payloadVersion: current.system.payloadVersion,
+            serverTime: current.system.serverTime,
+            apiStatus: current.system.apiStatus,
+            latencyMs: current.system.latencyMs,
+            h1: current.system.h1,
+            providers: current.system.providers,
+            accounts: MobileSystemPayload.AccountSummary(
+                total: accounts.accounts.count,
+                enabled: enabledCount,
+                defaultAccountId: accounts.defaultAccountId
+            )
+        )
+        payload = MobileAppPayload(
+            ok: current.ok,
+            h1: current.h1,
+            accounts: accounts,
+            calendar: current.calendar,
+            signals: current.signals,
+            dashboard: current.dashboard,
+            reports: current.reports,
+            bridge: current.bridge,
+            system: system
+        )
     }
 }

@@ -217,6 +217,30 @@ struct ProviderAccount: Codable, Sendable, Identifiable, Hashable {
     let bridgeLastSeenAt: Double?
     let bridgeRuntime: String?
     let bridgeVersion: String?
+
+    func withEnabled(_ nextEnabled: Bool) -> ProviderAccount {
+        ProviderAccount(
+            id: id,
+            provider: provider,
+            broker: broker,
+            environment: environment,
+            externalAccountId: externalAccountId,
+            traderLogin: traderLogin,
+            label: label,
+            enabled: nextEnabled,
+            isDefault: isDefault,
+            connectionMode: connectionMode,
+            bridgeProfile: bridgeProfile,
+            fxSlPoints: fxSlPoints,
+            fxTpPoints: fxTpPoints,
+            goldSlPoints: goldSlPoints,
+            goldTpPoints: goldTpPoints,
+            bridgeOnline: bridgeOnline,
+            bridgeLastSeenAt: bridgeLastSeenAt,
+            bridgeRuntime: bridgeRuntime,
+            bridgeVersion: bridgeVersion
+        )
+    }
 }
 
 struct MobileAppPayload: Codable, Sendable {

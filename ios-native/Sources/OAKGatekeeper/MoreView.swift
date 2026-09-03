@@ -186,7 +186,9 @@ struct MoreView: View {
             }
             Spacer()
             Toggle("", isOn: Binding(
-                get: { account.enabled },
+                get: {
+                    state.payload?.accounts.accounts.first(where: { $0.id == account.id })?.enabled ?? account.enabled
+                },
                 set: { enabled in Task { await state.toggleAccount(id: account.id, enabled: enabled) } }
             ))
             .labelsHidden()
