@@ -13,7 +13,8 @@ const LOG_PATH = path.join(APP_LOCAL, "OAK Gatekeeper", "h1-scanner.log");
 const PYTHON = process.env.OAK_PYTHON || "python";
 const READER = path.join(HERE, "mt5-h1-market-reader.py");
 const DEFAULT_ENDPOINT = "https://www.oakgatekeeper.uk/api/h1-scanner/local-market";
-const SOURCE_KEYS = ["XAUUSD", "AUDUSD", "USDJPY", "GBPUSD", "EURUSD"];
+const SOURCE_KEYS = ["XAUUSD", "AUDUSD", "USDCAD", "USDJPY", "GBPUSD", "EURUSD"];
+const PREVIOUS_DAY_BASE_SOURCES = new Set(["AUDUSD", "USDCAD", "USDJPY", "GBPUSD"]);
 const MAX_BACKFILL_DAYS = 90;
 
 function endpointFor(config) {
@@ -79,7 +80,7 @@ function previousAvailableDate(rows, brokerDate) {
 function snapshotBarsForSource(payload, source, brokerDate) {
   const rows = payload.symbols?.[source]?.bars || [];
   const current = rows.filter((bar) => bar.brokerDate === brokerDate);
-  if (source !== "GBPUSD") return current;
+  if (!PREVIOUS_DAY_BASE_SOURCES.has(source)) return current;
   const previousDate = previousAvailableDate(rows, brokerDate);
   if (!previousDate) return current;
   return [...rows.filter((bar) => bar.brokerDate === previousDate), ...current];

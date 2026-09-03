@@ -16,7 +16,7 @@ struct H1BoardScreen: View {
     @State private var selectedAlert: H1SignalAlert?
     @State private var copiedSchedule = false
 
-    private let visibleSymbols = ["XAUUSD", "GBPUSD", "EURUSD"]
+    private let visibleSymbols = ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"]
 
     var body: some View {
         ScrollView {

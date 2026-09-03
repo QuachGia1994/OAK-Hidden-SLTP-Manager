@@ -2,7 +2,7 @@ import { brokerDateWeekdayIndex, isValidBrokerDateKey } from "./h1-broker-date.t
 
 export const H1_LOCAL_SCAN_HOURS = [3, 6, 9, 12, 14, 16] as const;
 export const H1_LOCAL_TARGETS = ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"] as const;
-export const H1_LOCAL_SOURCES = ["XAUUSD", "AUDUSD", "USDJPY", "GBPUSD", "EURUSD"] as const;
+export const H1_LOCAL_SOURCES = ["XAUUSD", "AUDUSD", "USDCAD", "USDJPY", "GBPUSD", "EURUSD"] as const;
 
 export type H1LocalTarget = typeof H1_LOCAL_TARGETS[number];
 export type H1LocalSource = typeof H1_LOCAL_SOURCES[number];
@@ -69,19 +69,19 @@ function barAt(bars: H1M15Bar[], brokerDate: string, totalMinutes: number): H1M1
 }
 
 export function scannerSourceForTarget(target: H1LocalTarget, slotHour: number): H1LocalSource {
+  void slotHour;
   if (target === "XAUUSD") return "XAUUSD";
   if (target === "GBPUSD") return "GBPUSD";
   if (target === "EURUSD") return "EURUSD";
-  if (target === "GBPAUD") return "AUDUSD";
-  if (target === "GBPJPY") return "USDJPY";
-  return slotHour === 3 || slotHour === 6 ? "AUDUSD" : "USDJPY";
+  if (target === "GBPAUD" || target === "GBPCAD" || target === "GBPJPY") return "GBPUSD";
+  return "GBPUSD";
 }
 
 export function targetEnabledForDate(target: H1LocalTarget, brokerDate: string, slotHour: number): boolean {
   if (!isValidBrokerDateKey(brokerDate) || !(H1_LOCAL_SCAN_HOURS as readonly number[]).includes(slotHour)) return false;
   const weekday = brokerDateWeekdayIndex(brokerDate);
   if (weekday === 0 || weekday === 6) return false;
-  if (weekday === 1) return target === "XAUUSD";
+  if (weekday === 1) return target === "XAUUSD" || target === "GBPAUD" || target === "GBPCAD" || target === "GBPJPY";
   if ((target === "GBPUSD" || target === "EURUSD") && (slotHour === 3 || slotHour === 6)) return false;
   return true;
 }
@@ -89,7 +89,6 @@ export function targetEnabledForDate(target: H1LocalTarget, brokerDate: string, 
 export function weekdayInversionBadge(target: H1LocalTarget, brokerDate: string, slotHour: number): boolean {
   if (!targetEnabledForDate(target, brokerDate, slotHour)) return false;
   const weekday = brokerDateWeekdayIndex(brokerDate);
-  if ((target === "GBPAUD" || target === "GBPCAD") && (slotHour === 3 || slotHour === 6) && weekday >= 2 && weekday <= 5) return true;
   if (target === "GBPUSD" && weekday === 4 && [9, 12, 14, 16].includes(slotHour)) return true;
   return target === "EURUSD" && weekday === 5 && [9, 12, 14, 16].includes(slotHour);
 }

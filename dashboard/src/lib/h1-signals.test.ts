@@ -72,7 +72,7 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 rows and block set match the local ICMarkets v67 contract", () => {
+test("H1 rows and block set match the local ICMarkets v68 contract", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14, 16\]/);
@@ -88,12 +88,13 @@ test("H1 rows and block set match the local ICMarkets v67 contract", () => {
   assert.match(scannerSource, /entryDriverTargetFor/);
   assert.match(scannerSource, /base === "EURUSD"[^\n]*return "GBPUSD"/);
   assert.doesNotMatch(scannerSource, /base === "GBPUSD"[^\n]*return "XAUUSD"/);
-  assert.match(scannerSource, /return slotHour === 3 \|\| slotHour === 6 \? "GBPAUD" : "GBPJPY"/);
-  assert.match(scannerSource, /base === "GBPCAD" \|\| base === "GBPJPY"/);
-  assert.match(scannerSource, /return slotHour === 3 \|\| slotHour === 6 \? "GBPAUD" : "GBPUSD"/);
-  assert.match(scannerSource, /pairReferenceSignal/);
-  assert.match(scannerSource, /slotHour === 9 \|\| slotHour === 12/);
-  assert.doesNotMatch(scannerSource, /base === "GBPJPY"[^\n]*alert\.slotHour === 14[^\n]*alert\.slotHour === 16/);
+  assert.match(localPatternsSource, /target === "GBPAUD" \|\| target === "GBPCAD" \|\| target === "GBPJPY"\) return "GBPUSD"/);
+  assert.match(scannerSource, /base === "GBPAUD" \|\| base === "GBPCAD" \|\| base === "GBPJPY"\) return "GBPAUD"/);
+  assert.match(scannerSource, /if \(base === "GBPAUD"\) return "AUDUSD"/);
+  assert.match(scannerSource, /if \(base === "GBPCAD"\) return "USDCAD"/);
+  assert.match(scannerSource, /if \(base === "GBPJPY"\) return "USDJPY"/);
+  assert.match(scannerSource, /baseSymbol: signalBaseSource/);
+  assert.doesNotMatch(scannerSource, /pairReferenceSignal|gbpaudFinalSignalForSlot|localSignalInvertedForTarget/);
 });
 
 test("web tab softly refreshes server data every 20 seconds", () => {
@@ -120,13 +121,12 @@ test("XAU H5 turns H16 into a manual CLOSE badge without auto-close execution wi
   assert.doesNotMatch(boardSource + androidScreensSource, /order_send|closePosition|dispatchTask|\/approve/);
 });
 
-test("GBPAUD, GBPCAD and GBPJPY are hidden from H1 presentation while backend contracts stay intact", () => {
-  assert.match(boardSource, /H1_TEMP_HIDDEN_ROWS = new Set\(\["GBPAUD", "GBPCAD", "GBPJPY"\]\)/);
+test("GBPAUD, GBPCAD and GBPJPY are visible again across web iOS and Android", () => {
+  assert.match(boardSource, /H1_TEMP_HIDDEN_ROWS = new Set<string>\(\)/);
   assert.match(boardSource, /visibleH1Symbols\(data\.symbols\)/);
   assert.match(boardSource, /visibleH1Symbols\(H1_TARGET_BASES\)/);
-  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD", "GBPUSD", "EURUSD"\)/);
-  assert.match(nativeH1BoardSource, /visibleSymbols = \["XAUUSD", "GBPUSD", "EURUSD"\]/);
-  assert.doesNotMatch(androidScreensSource, /VisibleSymbols = listOf\([^\n]*GBPAUD|VisibleSymbols = listOf\([^\n]*GBPCAD|VisibleSymbols = listOf\([^\n]*GBPJPY/);
+  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\)/);
+  assert.match(nativeH1BoardSource, /visibleSymbols = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
 });
 
@@ -332,7 +332,7 @@ test("native Android mirrors the iOS five-tab hierarchy and removes the legacy D
 });
 
 test("native Android copies the iOS H1 presentation, evidence, reports, themes and account interaction", () => {
-  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD", "GBPUSD", "EURUSD"\)/);
+  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\)/);
   assert.match(androidScreensSource, /entryReference = \(symbol == "XAUUSD" && hour in listOf\(3, 6\)\)/);
   assert.match(androidScreensSource, /OAKPill\("FREE ACCESS", PillTone\.SUCCESS\)/);
   assert.match(androidScreensSource, /BrokerCalendarSheet/);

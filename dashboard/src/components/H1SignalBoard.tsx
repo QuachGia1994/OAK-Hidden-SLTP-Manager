@@ -15,7 +15,7 @@ const H1_SHARE_SYMBOL_WIDTH = 172;
 const H1_SHARE_HOUR_WIDTH = 88;
 const H1_SHARE_ROW_HEIGHT = 82;
 const H1_SHARE_FONT = '"Cascadia Mono", "SFMono-Regular", Consolas, monospace';
-const H1_TEMP_HIDDEN_ROWS = new Set(["GBPAUD", "GBPCAD", "GBPJPY"]);
+const H1_TEMP_HIDDEN_ROWS = new Set<string>();
 
 function visibleH1Symbols(symbols: readonly string[]) {
   return symbols.filter((symbol) => !H1_TEMP_HIDDEN_ROWS.has(symbol));
