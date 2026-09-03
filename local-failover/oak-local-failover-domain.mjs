@@ -39,6 +39,7 @@ export function defaultFailoverState(now = Date.now()) {
     intents: {},
     lastLoopAt: 0,
     lastFenceHeartbeatAt: 0,
+    lastFenceAccountDigest: "",
     operatorAlert: "",
   };
 }
@@ -63,6 +64,7 @@ export function normalizeFailoverState(parsed, now = Date.now()) {
     state.intents = parsed.intents && typeof parsed.intents === "object" ? parsed.intents : {};
     state.lastLoopAt = Number.isFinite(Number(parsed.lastLoopAt)) ? Number(parsed.lastLoopAt) : 0;
     state.lastFenceHeartbeatAt = Number.isFinite(Number(parsed.lastFenceHeartbeatAt)) ? Number(parsed.lastFenceHeartbeatAt) : 0;
+    state.lastFenceAccountDigest = String(parsed.lastFenceAccountDigest || "");
     if (!Object.values(FAILOVER_MODES).includes(state.mode)) state.mode = FAILOVER_MODES.BLOCKED_UNCERTAIN;
     return state;
   }

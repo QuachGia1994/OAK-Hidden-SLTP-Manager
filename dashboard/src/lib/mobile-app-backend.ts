@@ -3,7 +3,7 @@ import "server-only";
 import { getFreshCTraderTokens } from "./ctrader-vault";
 import { getLatestH1Signals, maskFutureH1Signals, type H1SignalAlert, type H1SignalPayload } from "./h1-signals";
 import { isMonthEndBridgeCell } from "./h1-cloud-scanner";
-import { getMt5BridgeHeartbeat } from "./mt5-bridge";
+import { providerAccountsWithRuntimeStatus } from "./provider-account-status";
 import { getDefaultProviderAccountId, listProviderAccounts } from "./provider-accounts";
 
 const FALLBACK_SYMBOLS = ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"];
@@ -85,17 +85,7 @@ async function accountPayload() {
     token = null;
   }
   const accounts = await listProviderAccounts();
-  const accountsWithStatus = await Promise.all(accounts.map(async (account) => {
-    if (account.provider !== "mt5" || !account.bridgeProfile) return { ...account, bridgeOnline: false };
-    const heartbeat = await getMt5BridgeHeartbeat(account.bridgeProfile);
-    return {
-      ...account,
-      bridgeOnline: heartbeat?.login === account.traderLogin,
-      bridgeLastSeenAt: heartbeat?.at || null,
-      bridgeRuntime: heartbeat?.runtime || null,
-      bridgeVersion: heartbeat?.version || null,
-    };
-  }));
+  const accountsWithStatus = await providerAccountsWithRuntimeStatus(accounts);
   return {
     ok: true as const,
     providers: {

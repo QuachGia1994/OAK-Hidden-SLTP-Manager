@@ -36,6 +36,10 @@ const nativeThemeSource = readFileSync(new URL("../../../ios-native/Sources/OAKG
 const nativeAppStateSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/AppState.swift", import.meta.url), "utf8");
 const nativeMoreSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/MoreView.swift", import.meta.url), "utf8");
 const nativeAppSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/OAKGatekeeperApp.swift", import.meta.url), "utf8");
+const providerAccountStatusSource = readFileSync(new URL("./provider-account-status.ts", import.meta.url), "utf8");
+const localPrimaryFenceSource = readFileSync(new URL("./local-primary-fence.ts", import.meta.url), "utf8");
+const localControllerSource = readFileSync(new URL("../../../local-failover/oak-local-telegram-failover.mjs", import.meta.url), "utf8");
+const licenseSource = readFileSync(new URL("../../../LICENSE", import.meta.url), "utf8");
 
 test("H1 Live and web History are reopened as primary trading navigation", () => {
   assert.match(navBarSource, /<span>H1 Live<\/span>/);
@@ -148,7 +152,7 @@ test("light theme gives H1 reference and CLOSE cells a high-contrast treatment",
   assert.match(redesignCss, /border-width: 2px/);
 });
 
-test("native iOS polish keeps H1 matrix clean, SVG clipboard vector-only, sparse report dates, distinct contrast, and live account toggles", () => {
+test("native iOS polish keeps H1 matrix clean, image clipboard, sparse report dates, distinct contrast, and live account toggles", () => {
   const matrixCellStart = nativeH1BoardSource.indexOf("private struct H1MatrixCell");
   const matrixCellEnd = nativeH1BoardSource.indexOf("private struct BrokerCalendarSheet");
   const matrixCellSource = nativeH1BoardSource.slice(matrixCellStart, matrixCellEnd);
@@ -156,10 +160,10 @@ test("native iOS polish keeps H1 matrix clean, SVG clipboard vector-only, sparse
   assert.match(matrixCellSource, /RoundedRectangle\(cornerRadius: 11/);
   assert.doesNotMatch(matrixCellSource, /overlay\(alignment: \.trailing\)|overlay\(alignment: \.bottom\)|Divider\(\)/);
 
-  assert.match(nativeEvidenceSource, /COPY CHART SVG/);
-  assert.match(nativeEvidenceSource, /public\.svg-image/);
-  assert.match(nativeEvidenceSource, /public\.utf8-plain-text/);
-  assert.doesNotMatch(nativeEvidenceSource, /COPY EVIDENCE|evidenceText/);
+  assert.match(nativeEvidenceSource, /COPY CHART/);
+  assert.match(nativeEvidenceSource, /ImageRenderer\(content: view\)/);
+  assert.match(nativeEvidenceSource, /UIPasteboard\.general\.image = image/);
+  assert.doesNotMatch(nativeEvidenceSource, /public\.svg-image|public\.utf8-plain-text|COPY CHART SVG|<svg/);
 
   assert.match(nativeReportsSource, /x: \.value\("Index", point\.index\)/);
   assert.match(nativeReportsSource, /AxisMarks\(values: visibleAxisIndices\(reports\.trend\)\)/);
@@ -175,6 +179,25 @@ test("native iOS polish keeps H1 matrix clean, SVG clipboard vector-only, sparse
   assert.match(nativeAppStateSource, /payload = previous/);
   assert.match(nativeAppStateSource, /Task \{ @MainActor \[weak self\] in/);
   assert.match(nativeMoreSource, /first\(where: \{ \$0\.id == account\.id \}\)\?\.enabled/);
+  assert.match(nativeMoreSource, /© 2026 QuachGia/);
+  assert.match(nativeMoreSource, /MIT License/);
+  assert.match(licenseSource, /MIT License/);
+  assert.match(licenseSource, /Copyright \(c\) 2026 QuachGia/);
+});
+
+test("mobile account status prefers sanitized local-primary MT5 heartbeat evidence over obsolete cloud bridge status", () => {
+  assert.match(localPrimaryFenceSource, /accounts: LocalPrimaryMt5Heartbeat\[\]/);
+  assert.match(localControllerSource, /function localPrimaryFenceAccounts/);
+  assert.match(localControllerSource, /providerAccountId: String\(row\.providerAccountId/);
+  assert.match(localControllerSource, /localReady: row\.localReady !== false/);
+  assert.match(localControllerSource, /eaVersion: String\(row\.eaVersion/);
+  assert.match(providerAccountStatusSource, /readLocalPrimaryFence/);
+  assert.match(providerAccountStatusSource, /bridgeRuntime: "local-primary"/);
+  assert.match(providerAccountStatusSource, /bridgeRuntime: "local-primary-pending"/);
+  assert.match(providerAccountStatusSource, /getMt5BridgeHeartbeat/);
+  assert.match(mobileAppBackendSource, /providerAccountsWithRuntimeStatus\(accounts\)/);
+  assert.match(nativeMoreSource, /Local heartbeat online/);
+  assert.doesNotMatch(nativeMoreSource, /Bridge offline|bridge online/);
 });
 
 test("H1 table sizes itself from the active columns and stretches across desktop viewports", () => {

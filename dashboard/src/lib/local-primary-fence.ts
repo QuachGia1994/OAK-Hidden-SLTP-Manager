@@ -9,21 +9,49 @@ export const LOCAL_ONLY_TRADING = true;
 export const LOCAL_PRIMARY_FENCE_KEY = "oak:telegram:local-primary:active:v1";
 export const LOCAL_PRIMARY_FENCE_TTL_SECONDS = 300;
 
+export type LocalPrimaryMt5Heartbeat = {
+  providerAccountId: string;
+  profile: string;
+  login: number;
+  server: string;
+  at: number;
+  localReady: boolean;
+  eaVersion: string;
+};
+
 export type LocalPrimaryFence = {
   at: number;
   epoch: string;
+  accounts: LocalPrimaryMt5Heartbeat[];
 };
 
 export async function readLocalPrimaryFence(): Promise<LocalPrimaryFence | null> {
-  const raw = await redis.get<string>(LOCAL_PRIMARY_FENCE_KEY);
+  const raw = await redis.get<unknown>(LOCAL_PRIMARY_FENCE_KEY);
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as Partial<LocalPrimaryFence>;
+    const parsed = (typeof raw === "string" ? JSON.parse(raw) : raw) as Partial<LocalPrimaryFence>;
     if (typeof parsed.at !== "number" || !Number.isFinite(parsed.at)) return null;
-    return { at: parsed.at, epoch: String(parsed.epoch || "") };
+    const accounts = Array.isArray(parsed.accounts)
+      ? parsed.accounts.flatMap((row) => {
+          const value = row as Partial<LocalPrimaryMt5Heartbeat>;
+          const login = Number(value.login);
+          const at = Number(value.at);
+          if (!Number.isSafeInteger(login) || login <= 0 || !Number.isFinite(at)) return [];
+          return [{
+            providerAccountId: String(value.providerAccountId || ""),
+            profile: String(value.profile || ""),
+            login,
+            server: String(value.server || ""),
+            at,
+            localReady: value.localReady !== false,
+            eaVersion: String(value.eaVersion || ""),
+          }];
+        })
+      : [];
+    return { at: parsed.at, epoch: String(parsed.epoch || ""), accounts };
   } catch {
     // Unparseable fence evidence still means a controller claimed ownership.
-    return { at: 0, epoch: "" };
+    return { at: 0, epoch: "", accounts: [] };
   }
 }
 

@@ -7,7 +7,7 @@ struct H1EvidenceSheet: View {
     let alert: H1SignalAlert
     let brokerDate: String
     let manualClose: Bool
-    @State private var copiedSVG = false
+    @State private var copiedChart = false
 
     var body: some View {
         NavigationStack {
@@ -91,9 +91,9 @@ struct H1EvidenceSheet: View {
                     }
 
                     Button {
-                        copyChartSVG()
+                        copyChartImage()
                     } label: {
-                        Label(copiedSVG ? "COPIED SVG" : "COPY CHART SVG", systemImage: copiedSVG ? "checkmark.circle.fill" : "doc.richtext")
+                        Label(copiedChart ? "CHART COPIED" : "COPY CHART", systemImage: copiedChart ? "checkmark.circle.fill" : "photo.on.rectangle")
                             .font(.system(size: 12, weight: .black, design: .monospaced))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
@@ -136,82 +136,53 @@ struct H1EvidenceSheet: View {
         }
     }
 
-    private func copyChartSVG() {
-        guard let svg = chartSVG else { return }
-        let data = Data(svg.utf8)
-        UIPasteboard.general.setItems([
-            [
-                "public.svg-image": data,
-                "public.utf8-plain-text": svg,
-            ],
-        ], options: [.localOnly: true])
-        copiedSVG = true
+    private func copyChartImage() {
+        let bars = alert.sampleBars ?? []
+        guard !bars.isEmpty else { return }
+        let view = EvidenceChartClipboardView(
+            title: "OAK H1 · \(alert.symbol) H\(String(format: "%02d", alert.slotHour)) · \(brokerDate)",
+            subtitle: "\(alert.patternGroup ?? "—") · \(familyLabel(alert.patternFamily)) · \(alert.pattern ?? "—")",
+            bars: bars
+        )
+        .frame(width: 900, height: 360)
+        .background(Color(hex: 0xF8FAFD))
+        .preferredColorScheme(.light)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 2
+        guard let image = renderer.uiImage else { return }
+        UIPasteboard.general.image = image
+        copiedChart = true
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(1.4))
-            copiedSVG = false
+            copiedChart = false
         }
     }
+}
 
-    private var chartSVG: String? {
-        let bars = alert.sampleBars ?? []
-        guard !bars.isEmpty else { return nil }
+@MainActor
+private struct EvidenceChartClipboardView: View {
+    let title: String
+    let subtitle: String
+    let bars: [H1SampleBar]
 
-        let width = 900.0
-        let height = 360.0
-        let left = 42.0
-        let right = 24.0
-        let top = 68.0
-        let bottom = 52.0
-        let plotWidth = width - left - right
-        let plotHeight = height - top - bottom
-        let maxPrice = bars.map(\.high).max() ?? 1
-        let minPrice = bars.map(\.low).min() ?? 0
-        let span = max(maxPrice - minPrice, 0.000001)
-        let step = plotWidth / Double(max(bars.count, 1))
-        let bodyWidth = min(step * 0.46, 54.0)
-
-        func y(_ price: Double) -> Double {
-            top + ((maxPrice - price) / span) * plotHeight
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.system(size: 24, weight: .black, design: .monospaced))
+                .foregroundStyle(Color(hex: 0x0A101A))
+            Text(subtitle)
+                .font(.system(size: 16, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color(hex: 0x4F5C70))
+            CandleChartView(bars: bars)
+                .frame(height: 250)
         }
-
-        var shapes: [String] = []
-        for (index, bar) in bars.enumerated() {
-            let x = left + step * (Double(index) + 0.5)
-            let color = bar.direction == "T" ? "#238557" : "#C63A32"
-            let openY = y(bar.open)
-            let closeY = y(bar.close)
-            let bodyTop = min(openY, closeY)
-            let bodyHeight = max(abs(closeY - openY), 4)
-            let bodyX = x - bodyWidth / 2
-            shapes.append("<line x1=\"\(fmt(x))\" y1=\"\(fmt(y(bar.high)))\" x2=\"\(fmt(x))\" y2=\"\(fmt(y(bar.low)))\" stroke=\"\(color)\" stroke-width=\"\(bar.selected ? 4 : 2.5)\" stroke-linecap=\"round\"/>")
-            shapes.append("<rect x=\"\(fmt(bodyX))\" y=\"\(fmt(bodyTop))\" width=\"\(fmt(bodyWidth))\" height=\"\(fmt(bodyHeight))\" rx=\"5\" fill=\"\(color)\" fill-opacity=\"\(bar.selected ? "0.96" : "0.76")\" stroke=\"\(color)\" stroke-width=\"2\"/>")
-            shapes.append("<text x=\"\(fmt(x))\" y=\"\(fmt(height - 22))\" text-anchor=\"middle\" font-family=\"ui-monospace, SFMono-Regular, Menlo, monospace\" font-size=\"19\" font-weight=\"700\" fill=\"#4F5C70\">\(xml(bar.brokerTime))</text>")
+        .padding(24)
+        .background(Color(hex: 0xF8FAFD), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color(hex: 0x9CAABD), lineWidth: 2)
         }
-
-        let subtitle = "\(alert.patternGroup ?? "—") · \(familyLabel(alert.patternFamily)) · \(alert.pattern ?? "—")"
-        return """
-        <svg xmlns="http://www.w3.org/2000/svg" width="900" height="360" viewBox="0 0 900 360">
-          <rect width="900" height="360" rx="24" fill="#F8FAFD"/>
-          <rect x="18" y="18" width="864" height="324" rx="20" fill="none" stroke="#9CAABD" stroke-width="2"/>
-          <text x="42" y="40" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="23" font-weight="800" fill="#0A101A">OAK H1 · \(xml(alert.symbol)) H\(String(format: "%02d", alert.slotHour)) · \(xml(brokerDate))</text>
-          <text x="42" y="61" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" font-weight="700" fill="#4F5C70">\(xml(subtitle))</text>
-          <line x1="42" y1="308" x2="876" y2="308" stroke="#D4DCE6" stroke-width="1.5"/>
-          \(shapes.joined(separator: "\n  "))
-        </svg>
-        """
-    }
-
-    private func fmt(_ value: Double) -> String {
-        String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), value)
-    }
-
-    private func xml(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
-            .replacingOccurrences(of: "'", with: "&apos;")
+        .padding(12)
     }
 }
 

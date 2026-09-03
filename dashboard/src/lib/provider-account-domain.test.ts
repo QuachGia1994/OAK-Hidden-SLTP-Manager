@@ -16,6 +16,7 @@ const panelSource = readFileSync(new URL("../components/ProviderAccountsPanel.ts
 const globalsCss = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const routeSource = readFileSync(new URL("../app/api/accounts/route.ts", import.meta.url), "utf8");
 const storeSource = readFileSync(new URL("./provider-accounts.ts", import.meta.url), "utf8");
+const runtimeStatusSource = readFileSync(new URL("./provider-account-status.ts", import.meta.url), "utf8");
 
 test("provider account ids keep cTrader namespace explicit", () => {
   assert.equal(cTraderProviderAccountId(123456), "ctrader:123456");
@@ -89,7 +90,8 @@ test("multi-provider web control plane is admin-only and does not expose broker 
   assert.match(globalsCss, /\.oak-account-tabs \{/);
   assert.match(globalsCss, /\.oak-account-tabs button\[data-active="true"\]/);
   assert.doesNotMatch(panelSource, /Python worker|PYTHON LEGACY/);
-  assert.match(routeSource, /bridgeRuntime/);
+  assert.match(routeSource, /providerAccountsWithRuntimeStatus/);
+  assert.match(runtimeStatusSource, /bridgeRuntime/);
   assert.doesNotMatch(panelSource, /name="password"|name="accessToken"|name="refreshToken"|clientSecret/);
   assert.doesNotMatch(routeSource, /password\s*:/i);
 });

@@ -20,10 +20,10 @@ struct MoreView: View {
                         VStack(alignment: .leading, spacing: 13) {
                             HStack {
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text("OAK Gatekeeper Native")
+                                    Text("© 2026 QuachGia")
                                         .font(.headline.bold())
                                         .foregroundStyle(OAKColor.text)
-                                    Text("SwiftUI · Xcode 27 · iOS 27 SDK")
+                                    Text("MIT License · SwiftUI · Xcode 27 · iOS 27 SDK")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(OAKColor.muted)
                                 }
@@ -58,7 +58,7 @@ struct MoreView: View {
                             sectionTitle("PROVIDERS", meta: "\(system.accounts.enabled)/\(system.accounts.total) enabled")
                             providerRow(name: "cTrader", detail: "Scope: \(system.providers.ctrader.scope ?? "—")", online: system.providers.ctrader.connected)
                             Divider()
-                            providerRow(name: "MT5", detail: "\(system.providers.mt5.onlineAccounts)/\(system.providers.mt5.totalAccounts) bridge online", online: system.providers.mt5.connected)
+                            providerRow(name: "MT5", detail: "\(system.providers.mt5.onlineAccounts)/\(system.providers.mt5.totalAccounts) local heartbeat online", online: system.providers.mt5.connected)
                         }
                     }
                 }
@@ -179,7 +179,11 @@ struct MoreView: View {
                     .font(.caption)
                     .foregroundStyle(OAKColor.muted)
                 if account.provider == "mt5" {
-                    Text(account.bridgeOnline == true ? "Bridge online" : "Bridge offline")
+                    let local = account.bridgeRuntime?.hasPrefix("local-primary") == true
+                    let status = account.bridgeOnline == true
+                        ? (local ? "Local heartbeat online" : "EA heartbeat online")
+                        : (local ? "Local heartbeat pending" : "Heartbeat unavailable")
+                    Text(status)
                         .font(.caption2.bold())
                         .foregroundStyle(account.bridgeOnline == true ? OAKColor.success : OAKColor.warning)
                 }

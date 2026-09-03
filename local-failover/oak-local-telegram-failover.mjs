@@ -711,12 +711,36 @@ export function createLocalFailoverRuntime(options = {}) {
     await refreshLocalPrimaryFence(config, state);
   }
 
-  async function refreshLocalPrimaryFence(config, state) {
+  function localPrimaryFenceAccounts(statuses) {
+    return freshEaStatuses(statuses)
+      .filter((row) => row.localPrimary === true && row.localReady !== false)
+      .map((row) => ({
+        providerAccountId: String(row.providerAccountId || ""),
+        profile: String(row.profile || ""),
+        login: Number(row.login),
+        server: String(row.server || ""),
+        at: Number(row.at),
+        localReady: row.localReady !== false,
+        eaVersion: String(row.eaVersion || ""),
+      }))
+      .filter((row) => /^mt5:[A-Za-z0-9_-]{8,80}$/.test(row.providerAccountId) && Number.isSafeInteger(row.login) && row.login > 0 && row.server);
+  }
+
+  async function refreshLocalPrimaryFence(config, state, statuses = []) {
     if (!config.upstashUrl || !config.upstashToken) return;
-    if (clock() - Number(state.lastFenceHeartbeatAt || 0) < FENCE_HEARTBEAT_MIN_INTERVAL_MS) return;
+    const accounts = localPrimaryFenceAccounts(statuses);
+    const digestRows = accounts.map(({ at: _at, ...row }) => row);
+    const accountDigest = createHash("sha256").update(JSON.stringify(digestRows), "utf8").digest("hex").slice(0, 24);
+    const changed = accountDigest !== String(state.lastFenceAccountDigest || "");
+    if (!changed && clock() - Number(state.lastFenceHeartbeatAt || 0) < FENCE_HEARTBEAT_MIN_INTERVAL_MS) return;
     state.lastFenceHeartbeatAt = clock();
     try {
-      await upstash.command(config, ["SET", LOCAL_PRIMARY_FENCE_KEY, JSON.stringify({ at: clock(), epoch: String(state.epoch || "") }), "EX", String(LOCAL_PRIMARY_FENCE_TTL_SECONDS)]);
+      await upstash.command(config, ["SET", LOCAL_PRIMARY_FENCE_KEY, JSON.stringify({
+        at: clock(),
+        epoch: String(state.epoch || ""),
+        accounts,
+      }), "EX", String(LOCAL_PRIMARY_FENCE_TTL_SECONDS)]);
+      state.lastFenceAccountDigest = accountDigest;
     } catch (error) {
       await log(`Local-primary fence heartbeat failed; the cloud kill-switch may lapse within ${LOCAL_PRIMARY_FENCE_TTL_SECONDS}s: ${sanitizeOperatorError(error)}`);
     }
@@ -1584,7 +1608,7 @@ export function createLocalFailoverRuntime(options = {}) {
       if (state.mode !== FAILOVER_MODES.LOCAL_ACTIVE) await ensureLocalPrimaryOwnership(config, state);
       if (state.mode !== FAILOVER_MODES.LOCAL_ACTIVE) return;
       if (!await verifyLocalOwnership(config, state)) return;
-      await refreshLocalPrimaryFence(config, state);
+      await refreshLocalPrimaryFence(config, state, statuses);
       const refreshed = await loadEaStatuses();
       await dispatchDueIntents(config, state, refreshed);
       await collectEaTradeEvents(config, state, refreshed);

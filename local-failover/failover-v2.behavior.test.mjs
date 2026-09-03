@@ -1000,10 +1000,15 @@ test("30 optional web H1 signal sync succeeds, defers on failure and drops cance
 });
 
 test("31 local-primary heartbeats the cloud fence with throttling and tolerates missing Upstash", { concurrency: false }, async () => {
+  let fencePayload = null;
   const h = await createHarness("31", {
     controlMode: "local-primary",
     webhook: "",
     statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+    probe: (args) => {
+      if (args[1] === "oak:telegram:local-primary:active:v1") fencePayload = JSON.parse(String(args[2] || "{}"));
+      return "OK";
+    },
   });
   try {
     const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
@@ -1011,6 +1016,12 @@ test("31 local-primary heartbeats the cloud fence with throttling and tolerates 
     const firstStreak = h.calls.filter((call) => call === "redis:SET").length;
     assert.ok(firstStreak >= 1);
     assert.ok(state.lastFenceHeartbeatAt > 0);
+    assert.equal(fencePayload?.accounts?.length, 1);
+    assert.equal(fencePayload.accounts[0].providerAccountId, LOCAL_PRIMARY_PROVIDER_ACCOUNT_ID);
+    assert.equal(fencePayload.accounts[0].login, ACCOUNT_A.login);
+    assert.equal(fencePayload.accounts[0].server, ACCOUNT_A.server);
+    assert.equal(fencePayload.accounts[0].localReady, true);
+    assert.equal("fxSlPoints" in fencePayload.accounts[0], false);
     await h.runtime.runOneIteration(h.config, state);
     assert.equal(h.calls.filter((call) => call === "redis:SET").length, firstStreak);
   } finally { await h.cleanup(); }
