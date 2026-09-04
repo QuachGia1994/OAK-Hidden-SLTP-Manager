@@ -85,7 +85,7 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 rows and block set match the local ICMarkets v74 contract", () => {
+test("H1 rows and block set match the local ICMarkets v75 contract", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14, 16\]/);
@@ -95,16 +95,18 @@ test("H1 rows and block set match the local ICMarkets v74 contract", () => {
   assert.match(scannerSource, /xauH3EntryHour/);
   assert.doesNotMatch(scannerSource, /manualCloseOnly|closeH16FromXauH5/);
   assert.doesNotMatch(scannerSource, /symbolH1Signal = manualCloseOnly \? null : derivedSignal/);
-  assert.doesNotMatch(scannerSource, /weekdaySyncSignalInverted/);
-  assert.match(scannerSource, /const derivedSignal = syncToXau \? xauSignal : baseH1Signal/);
-  assert.match(scannerSource, /if \(slotHour === 16\)/);
+  assert.doesNotMatch(scannerSource, /weekdaySyncSignalInverted|syncToXau|xauFinalSignalForSlot/);
+  assert.match(scannerSource, /syncFinalFromGbpcad/);
+  assert.match(scannerSource, /evaluateLocalH1PatternsForTarget\("GBPCAD", brokerDate, market, \[slotHour\], slotHour\)/);
+  assert.match(scannerSource, /let symbolH1Signal = gbpcadAlert\?\.symbolH1Signal \?\? baseH1Signal/);
+  assert.match(scannerSource, /if \(slotHour === 16 && !syncFromCad\)/);
   assert.match(scannerSource, /evaluateLocalH1PatternsForTarget\(base, brokerDate, market, \[14\], 14\)/);
   assert.match(scannerSource, /h3EntryHour === 4 && h14Signal \? invertSignal\(h14Signal\) : h14Signal/);
   assert.match(scannerSource, /base === "GBPUSD"/);
   assert.match(scannerSource, /base === "EURUSD"/);
   assert.match(scannerSource, /patternDriverTargetFor/);
   assert.match(scannerSource, /entryDriverTargetFor/);
-  assert.match(scannerSource, /base === "GBPUSD" \|\| base === "EURUSD"[^\n]*return "XAUUSD"/);
+  assert.match(scannerSource, /base === "GBPUSD" \|\| base === "EURUSD"[^\n]*return "GBPCAD"/);
   assert.match(localPatternsSource, /target === "GBPAUD" \|\| target === "GBPCAD" \|\| target === "GBPJPY"\) return "GBPUSD"/);
   assert.match(localPatternsSource, /target === "GBPUSD" \|\| target === "EURUSD" \|\| target === "GBPCAD"/);
   assert.match(localPatternsSource, /target === "GBPJPY" && slotHour === 3/);
@@ -530,7 +532,11 @@ test("populated H1 cells open deterministic M15 pattern evidence without clutter
   assert.match(evidencePanelSource, /RULE/);
   assert.match(evidencePanelSource, /FINAL/);
   assert.match(evidencePanelSource, /COPY H14|INVERT H14/);
-  assert.match(evidencePanelSource, /SYNC XAUUSD/);
+  assert.match(evidencePanelSource, /SYNC GBPCAD/);
+  assert.match(evidencePanelSource, /symbols\?\.GBPCAD/);
+  assert.match(nativeModelsSource, /rule = "SYNC GBPCAD"/);
+  assert.match(androidModelsSource, /rule = "SYNC GBPCAD"/);
+  assert.doesNotMatch(evidencePanelSource + nativeModelsSource + androidModelsSource, /SYNC XAUUSD/);
   assert.match(evidencePanelSource, /M15 candlestick pattern evidence/);
   assert.match(evidencePanelSource, /sampleBars/);
   assert.match(evidencePanelSource, /Pattern Evidence · newest → oldest/);

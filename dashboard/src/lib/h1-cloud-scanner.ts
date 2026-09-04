@@ -16,7 +16,7 @@ import {
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 74;
+export const H1_SIGNAL_RULE_VERSION = 75;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
@@ -84,7 +84,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 74;
+  signalRuleVersion: 75;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -208,9 +208,13 @@ function patternDriverTargetFor(base: H1TargetBase, slotHour: number): H1TargetB
 }
 
 function entryDriverTargetFor(base: H1TargetBase, slotHour: number): H1TargetBase {
-  if ((base === "GBPUSD" || base === "EURUSD") && [9, 12, 14, 16].includes(slotHour)) return "XAUUSD";
+  if ((base === "GBPUSD" || base === "EURUSD") && [9, 12, 14, 16].includes(slotHour)) return "GBPCAD";
   if (base === "GBPAUD" || base === "GBPCAD" || base === "GBPJPY") return "GBPAUD";
   return base;
+}
+
+function syncFinalFromGbpcad(base: H1TargetBase, slotHour: number): boolean {
+  return (base === "GBPUSD" || base === "EURUSD") && [9, 12, 14, 16].includes(slotHour);
 }
 
 function signalBaseSourceForTarget(base: H1TargetBase): H1LocalSource {
@@ -241,16 +245,6 @@ export function xauH3EntryHour(brokerDate: string, market: H1LocalMarketSnapshot
 
 export function xauStartsDayAtEntryH5(brokerDate: string, market: H1LocalMarketSnapshot): boolean {
   return xauH3EntryHour(brokerDate, market) === 5;
-}
-
-function xauFinalSignalForSlot(brokerDate: string, slotHour: number, market: H1LocalMarketSnapshot): H1Signal | null {
-  const source = market.XAUUSD;
-  if (!source) return null;
-  const match = evaluateLocalH1Pattern({ target: "XAUUSD", brokerDate, slotHour, bars: source.bars });
-  if (!match) return null;
-  const reference = h1DirectionForEntry(brokerDate, match.entryHour, market.GBPUSD.bars);
-  if (!reference) return null;
-  return signalFromDirection(reference.direction);
 }
 
 function previousAvailableBrokerDate(brokerDate: string, bars: H1M15Bar[]): string | null {
@@ -497,20 +491,22 @@ export function evaluateLocalH1PatternsForTarget(
     const patternDriver = patternDriverTargetFor(base, slotHour);
     const match = localPatternMatchForTarget(patternDriver, brokerDate, slotHour, market);
     if (!match) continue;
+    const syncFromCad = syncFinalFromGbpcad(base, slotHour);
+    const gbpcadAlert = syncFromCad
+      ? evaluateLocalH1PatternsForTarget("GBPCAD", brokerDate, market, [slotHour], slotHour)[0] ?? null
+      : null;
+    if (syncFromCad && !gbpcadAlert) continue;
     const entryDriver = entryDriverTargetFor(base, slotHour);
     const entryMatch = entryDriver === patternDriver
       ? match
       : localPatternMatchForTarget(entryDriver, brokerDate, slotHour, market);
     if (!entryMatch) continue;
-    const entryHour = entryMatch.entryHour;
+    const entryHour = gbpcadAlert?.entryHour ?? entryMatch.entryHour;
     const signalBaseSource = signalBaseSourceForTarget(base);
     const reference = h1DirectionForEntry(brokerDate, entryHour, market[signalBaseSource].bars);
     const baseH1Signal = reference ? signalFromDirection(reference.direction) : null;
-    const syncToXau = (base === "GBPUSD" || base === "EURUSD") && [9, 12, 14, 16].includes(slotHour);
-    const xauSignal = syncToXau ? xauFinalSignalForSlot(brokerDate, slotHour, market) : null;
-    const derivedSignal = syncToXau ? xauSignal : baseH1Signal;
-    let symbolH1Signal = derivedSignal;
-    if (slotHour === 16) {
+    let symbolH1Signal = gbpcadAlert?.symbolH1Signal ?? baseH1Signal;
+    if (slotHour === 16 && !syncFromCad) {
       const h3EntryHour = xauH3EntryHour(brokerDate, market);
       if (h3EntryHour === 4 || h3EntryHour === 5) {
         const h14Signal = evaluateLocalH1PatternsForTarget(base, brokerDate, market, [14], 14)[0]?.symbolH1Signal ?? null;

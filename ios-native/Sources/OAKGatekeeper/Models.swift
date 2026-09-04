@@ -286,15 +286,15 @@ extension H1SignalPayload {
         var signalSource = ""
         var rule = "DIRECT BASE"
 
-        if sourceAlert.slotHour == 16 {
+        if (sourceAlert.symbol == "GBPUSD" || sourceAlert.symbol == "EURUSD") && [9, 12, 14, 16].contains(sourceAlert.slotHour) {
+            let cad = alert(date: date, symbol: "GBPCAD", hour: sourceAlert.slotHour)
+            signalSource = "GBPCAD H\(String(format: "%02d", sourceAlert.slotHour)) · \(cad?.signal?.rawValue ?? "—")"
+            rule = "SYNC GBPCAD"
+        } else if sourceAlert.slotHour == 16 {
             let h14 = alert(date: date, symbol: sourceAlert.symbol, hour: 14)
             let xauH3Entry = alert(date: date, symbol: "XAUUSD", hour: 3)?.entryHour
             signalSource = "\(sourceAlert.symbol) H14 · \(h14?.signal?.rawValue ?? "—")"
             rule = xauH3Entry == 4 ? "INVERT H14" : xauH3Entry == 5 ? "COPY H14" : "H14 OVERRIDE"
-        } else if (sourceAlert.symbol == "GBPUSD" || sourceAlert.symbol == "EURUSD") && [9, 12, 14].contains(sourceAlert.slotHour) {
-            let xau = alert(date: date, symbol: "XAUUSD", hour: sourceAlert.slotHour)
-            signalSource = "XAUUSD H\(String(format: "%02d", sourceAlert.slotHour)) · \(xau?.signal?.rawValue ?? "—")"
-            rule = "SYNC XAUUSD"
         }
 
         return H1EvidenceFacts(

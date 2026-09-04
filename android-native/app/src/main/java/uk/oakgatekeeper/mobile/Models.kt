@@ -82,7 +82,11 @@ data class H1SignalPayload(
         var signalSource = ""
         var rule = "DIRECT BASE"
 
-        if (sourceAlert.slotHour == 16) {
+        if ((sourceAlert.symbol == "GBPUSD" || sourceAlert.symbol == "EURUSD") && sourceAlert.slotHour in listOf(9, 12, 14, 16)) {
+            val cad = alert(date, "GBPCAD", sourceAlert.slotHour)
+            signalSource = "GBPCAD H${sourceAlert.slotHour.toString().padStart(2, '0')} · ${cad?.signal?.name ?: "—"}"
+            rule = "SYNC GBPCAD"
+        } else if (sourceAlert.slotHour == 16) {
             val h14 = alert(date, sourceAlert.symbol, 14)
             val xauH3Entry = alert(date, "XAUUSD", 3)?.entryHour
             signalSource = "${sourceAlert.symbol} H14 · ${h14?.signal?.name ?: "—"}"
@@ -91,10 +95,6 @@ data class H1SignalPayload(
                 xauH3Entry == 5 -> "COPY H14"
                 else -> "H14 OVERRIDE"
             }
-        } else if ((sourceAlert.symbol == "GBPUSD" || sourceAlert.symbol == "EURUSD") && sourceAlert.slotHour in listOf(9, 12, 14)) {
-            val xau = alert(date, "XAUUSD", sourceAlert.slotHour)
-            signalSource = "XAUUSD H${sourceAlert.slotHour.toString().padStart(2, '0')} · ${xau?.signal?.name ?: "—"}"
-            rule = "SYNC XAUUSD"
         }
 
         return H1EvidenceFacts(

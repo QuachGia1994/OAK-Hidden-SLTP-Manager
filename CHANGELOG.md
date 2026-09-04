@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced H1 to v75: GBPUSD and EURUSD H9/H12/H14/H16 now copy the exact GBPCAD entry time and final BUY/SELL for the same block. Their pattern/evidence metadata remains on the existing GBPUSD-driven window, while Evidence now labels GBPCAD as FINAL SOURCE with `SYNC GBPCAD`. GBPUSD/EURUSD H16 copy the already-final GBPCAD H16 result instead of running a second own-symbol H14 override. Monday/block eligibility and the global H16 CLOSE advisory selector remain unchanged.
+
 - Fixed the web H1 Evidence action to match native behavior: the stale `Copy evidence` text-copy button is now `Copy chart` and writes a real `image/png` candlestick chart to the system clipboard. The export rasterizes the current styled M15 SVG with compact title/subtitle metadata and preserves `OLDEST → NEWEST`, so Telegram paste receives the chart image instead of Evidence text.
 
 - Fixed local Telegram scheduled-entry duplication: each MT5 provider account may now have only one active timed ENTRY per symbol. A second same-symbol schedule is rejected before symbol preparation, intent-ID allocation, or optional web-sync creation; cancelling/expiring/executing/failing the first intent releases the symbol slot, while the same symbol remains independently schedulable on another MT5 account.
