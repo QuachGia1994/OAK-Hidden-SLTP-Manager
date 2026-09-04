@@ -32,6 +32,7 @@ const scannerSource = readFileSync(new URL("./h1-cloud-scanner.ts", import.meta.
 const localPatternsSource = readFileSync(new URL("./h1-local-patterns.ts", import.meta.url), "utf8");
 const localMarketRouteSource = readFileSync(new URL("../app/api/h1-scanner/local-market/route.ts", import.meta.url), "utf8");
 const layoutSource = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+const manifestSource = readFileSync(new URL("../app/manifest.ts", import.meta.url), "utf8");
 const tabAutoRefreshSource = readFileSync(new URL("../components/TabAutoRefresh.tsx", import.meta.url), "utf8");
 const nativeH1BoardSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/H1BoardView.swift", import.meta.url), "utf8");
 const nativeImageTransferSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/ImageTransfer.swift", import.meta.url), "utf8");
@@ -54,6 +55,13 @@ test("H1 Live and web History are reopened as primary trading navigation", () =>
   assert.match(navBarSource, /<span>H1 Live<\/span>/);
   assert.match(navBarSource, /href="\/history"/);
   assert.match(navBarSource, /<Link href="\/engine" className="oak-brand"/);
+  assert.match(navBarSource, /src="\/oak-app-icon\.png"/);
+  assert.doesNotMatch(navBarSource, /favicon\.ico/);
+  assert.match(layoutSource, /icon: "\/oak-app-icon\.png"/);
+  assert.match(layoutSource, /apple: "\/oak-app-icon\.png"/);
+  assert.match(layoutSource, /manifest: "\/manifest\.webmanifest"/);
+  assert.match(manifestSource, /src: "\/oak-app-icon-192\.png"/);
+  assert.match(manifestSource, /src: "\/oak-app-icon-512\.png"/);
   assert.match(rootPageSource, /redirect\("\/engine"\)/);
 });
 

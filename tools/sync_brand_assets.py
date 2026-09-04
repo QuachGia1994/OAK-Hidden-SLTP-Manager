@@ -33,3 +33,16 @@ for y in range(image.height):
 foreground.parent.mkdir(parents=True, exist_ok=True)
 image.save(foreground, "PNG", optimize=True)
 print(f"generated transparent adaptive foreground -> {foreground.relative_to(root)}")
+
+# Keep every browser/PWA entry point on the same canonical OAK artwork.
+web_source = Image.open(source).convert("RGBA")
+for size in (192, 512):
+    target = root / "dashboard" / "public" / f"oak-app-icon-{size}.png"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    web_source.resize((size, size), Image.Resampling.LANCZOS).save(target, "PNG", optimize=True)
+    print(f"generated web icon {size}x{size} -> {target.relative_to(root)}")
+
+favicon = root / "dashboard" / "src" / "app" / "favicon.ico"
+favicon.parent.mkdir(parents=True, exist_ok=True)
+web_source.save(favicon, format="ICO", sizes=[(16, 16), (32, 32), (48, 48), (64, 64)])
+print(f"generated favicon -> {favicon.relative_to(root)}")

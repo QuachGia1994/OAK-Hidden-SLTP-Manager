@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Unified web branding with the current OAK app icon. The top-left web header now uses the same `oak-app-icon.png` artwork as the native apps; browser favicon and PWA 192/512 icons are generated from the same canonical iOS AppIcon source, with a web manifest wired for installed-browser surfaces. Removed the extra header tile border/background so the app artwork is shown directly instead of the legacy chart favicon.
+
 - Fixed the Android launcher icon adaptive-mask composition. The launcher now uses a separate navy adaptive background plus a transparent color foreground generated from the iOS OAK artwork, instead of embedding the opaque square iOS icon inside the Android foreground. Monochrome remains supported, the splash resources stay separate, and brand sync now regenerates the transparent launcher foreground deterministically.
 
 - Fixed H1 Evidence chart direction and simplified Key Facts. Web/iOS/Android M15 charts now read left-to-right oldest → newest like MT5, including copied/shared chart PNGs; the scanner Pattern Bars list remains newest → oldest. Evidence now labels the underlying previous-broker-day H1 input as BASE CANDLE and only shows FINAL SOURCE when the final signal actually comes from another source (H16 H14 override or GBPUSD/EURUSD XAU sync), removing the duplicate source row on DIRECT BASE cells.

@@ -14,9 +14,10 @@ import { detectServerLocaleFromCookie } from "@/lib/i18n";
 export const metadata: Metadata = {
   title: "ROBOT SLTP Pro — OAK Gatekeeper",
   description: "OAK Gatekeeper trading command system for Engine 5 market signals, broker-aligned evidence, and private signal access.",
+  manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/favicon.ico?v=oak-gatekeeper-20260822",
-    shortcut: "/favicon.ico?v=oak-gatekeeper-20260822",
+    icon: "/oak-app-icon.png",
+    apple: "/oak-app-icon.png",
   },
 };
 
