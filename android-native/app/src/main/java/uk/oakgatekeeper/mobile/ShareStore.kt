@@ -190,9 +190,13 @@ object ShareStore {
         canvas.drawText("OAK H1 · ${alert.symbol} H${alert.slotHour.toString().padStart(2, '0')} · $brokerDate", 42f, 46f, paint)
         paint.color = Color.rgb(79, 92, 112)
         paint.textSize = 15f
-        canvas.drawText("${alert.patternGroup ?: "—"} · ${alert.patternFamily ?: "—"} · ${alert.pattern ?: "—"}", 42f, 70f, paint)
+        canvas.drawText("${alert.patternGroup ?: "—"} · ${alert.patternFamily ?: "—"} · ${alert.pattern ?: "—"} · OLDEST → NEWEST", 42f, 70f, paint)
 
-        val bars = alert.sampleBars.take(6)
+        val bars = alert.sampleBars.sortedWith(
+            compareBy<H1SampleBar> { it.brokerDate }
+                .thenBy { it.hour }
+                .thenBy { it.minute },
+        ).take(6)
         if (bars.isEmpty()) return bitmap
         val maxPrice = bars.maxOf { it.high }
         val minPrice = bars.minOf { it.low }

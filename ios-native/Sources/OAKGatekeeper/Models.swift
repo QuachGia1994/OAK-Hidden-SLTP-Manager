@@ -283,9 +283,7 @@ extension H1SignalPayload {
         let rawBase = sourceAlert.baseDirection.isEmpty
             ? "—"
             : "\(sourceAlert.baseSymbol.isEmpty ? "—" : sourceAlert.baseSymbol) PREV \(baseHour) · \(sourceAlert.baseDirection) → \(baseSignal)"
-        var signalSource = sourceAlert.baseSymbol.isEmpty
-            ? "—"
-            : "\(sourceAlert.baseSymbol) PREV \(baseHour) · \(baseSignal)"
+        var signalSource = ""
         var rule = "DIRECT BASE"
 
         if sourceAlert.slotHour == 16 {

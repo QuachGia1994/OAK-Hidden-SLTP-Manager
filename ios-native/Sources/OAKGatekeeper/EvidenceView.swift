@@ -19,7 +19,7 @@ struct H1EvidenceSheet: View {
                     OAKPageHeader(
                         eyebrow: "H1 / EVIDENCE",
                         title: "\(alert.symbol) · H\(String(format: "%02d", alert.slotHour))",
-                        subtitle: "M15 candlestick pattern evidence · newest → oldest"
+                        subtitle: "M15 candlestick chart · oldest → newest"
                     )
 
                     HStack(spacing: 8) {
@@ -62,8 +62,8 @@ struct H1EvidenceSheet: View {
                             fact("FAMILY", familyLabel(alert.patternFamily))
                             fact("PATTERN", patternLabel(alert.pattern))
                             fact("PATTERN SRC", facts.patternSource)
-                            fact("RAW BASE", facts.rawBase)
-                            fact("SIGNAL SOURCE", facts.signalSource)
+                            fact("BASE CANDLE", facts.rawBase)
+                            if !facts.signalSource.isEmpty { fact("FINAL SOURCE", facts.signalSource) }
                             fact("RULE", facts.rule)
                             fact("FINAL", facts.finalSignal)
                         }
@@ -72,7 +72,7 @@ struct H1EvidenceSheet: View {
                     if let bars = alert.sampleBars, !bars.isEmpty {
                         OAKCard {
                             VStack(alignment: .leading, spacing: 10) {
-                                Text("PATTERN BARS")
+                                Text("PATTERN BARS · NEWEST → OLDEST")
                                     .font(.system(size: 12, weight: .black, design: .monospaced))
                                     .foregroundStyle(OAKColor.text)
                                 ForEach(Array(bars.enumerated()), id: \.offset) { index, bar in
@@ -202,7 +202,7 @@ struct H1EvidenceSheet: View {
         guard !bars.isEmpty else { return nil }
         let view = EvidenceChartClipboardView(
             title: "OAK H1 · \(alert.symbol) H\(String(format: "%02d", alert.slotHour)) · \(brokerDate)",
-            subtitle: "\(alert.patternGroup ?? "—") · \(familyLabel(alert.patternFamily)) · \(alert.pattern ?? "—")",
+            subtitle: "\(alert.patternGroup ?? "—") · \(familyLabel(alert.patternFamily)) · \(alert.pattern ?? "—") · OLDEST → NEWEST",
             bars: bars
         )
         .frame(width: 900, height: 360)
@@ -244,27 +244,35 @@ private struct EvidenceChartClipboardView: View {
 private struct CandleChartView: View {
     let bars: [H1SampleBar]
 
+    private var chronologicalBars: [H1SampleBar] {
+        bars.sorted { left, right in
+            if left.brokerDate != right.brokerDate { return left.brokerDate < right.brokerDate }
+            return left.hour * 60 + left.minute < right.hour * 60 + right.minute
+        }
+    }
+
     var body: some View {
+        let chronological = chronologicalBars
         GeometryReader { geometry in
-            if bars.isEmpty {
+            if chronological.isEmpty {
                 ContentUnavailableView("No M15 evidence", systemImage: "chart.xyaxis.line")
             } else {
                 Canvas { context, size in
-                    let maxPrice = bars.map(\.high).max() ?? 1
-                    let minPrice = bars.map(\.low).min() ?? 0
+                    let maxPrice = chronological.map(\.high).max() ?? 1
+                    let minPrice = chronological.map(\.low).min() ?? 0
                     let span = max(maxPrice - minPrice, 0.000001)
                     let horizontalPadding: CGFloat = 14
                     let verticalPadding: CGFloat = 12
                     let plotWidth = max(size.width - horizontalPadding * 2, 1)
                     let plotHeight = max(size.height - verticalPadding * 2, 1)
-                    let step = plotWidth / CGFloat(max(bars.count, 1))
+                    let step = plotWidth / CGFloat(max(chronological.count, 1))
                     let bodyWidth = min(step * 0.48, 24)
 
                     func y(_ price: Double) -> CGFloat {
                         verticalPadding + CGFloat((maxPrice - price) / span) * plotHeight
                     }
 
-                    for (index, bar) in bars.enumerated() {
+                    for (index, bar) in chronological.enumerated() {
                         let x = horizontalPadding + step * (CGFloat(index) + 0.5)
                         let color = bar.direction == "T" ? OAKColor.buy : OAKColor.sell
                         var wick = Path()

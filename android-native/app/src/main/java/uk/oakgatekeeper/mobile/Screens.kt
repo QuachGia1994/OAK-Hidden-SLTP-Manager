@@ -792,8 +792,8 @@ private fun EvidenceSheet(h1: H1SignalPayload, alert: H1SignalAlert, brokerDate:
                         Fact("FAMILY", evidenceFamilyLabel(alert.patternFamily))
                         Fact("PATTERN", evidencePatternLabel(alert.pattern))
                         Fact("PATTERN SRC", facts.patternSource)
-                        Fact("RAW BASE", facts.rawBase)
-                        Fact("SIGNAL SOURCE", facts.signalSource)
+                        Fact("BASE CANDLE", facts.rawBase)
+                        if (facts.signalSource.isNotBlank()) Fact("FINAL SOURCE", facts.signalSource)
                         Fact("RULE", facts.rule)
                         Fact("FINAL", facts.finalSignal)
                     }
@@ -802,7 +802,7 @@ private fun EvidenceSheet(h1: H1SignalPayload, alert: H1SignalAlert, brokerDate:
             item {
                 OAKCard {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SectionTitle("PATTERN BARS")
+                        SectionTitle("PATTERN BARS", "NEWEST → OLDEST")
                         alert.sampleBars.forEachIndexed { index, bar ->
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Text("#${index + 1}", modifier = Modifier.width(42.dp), color = p.muted, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
@@ -867,9 +867,14 @@ private fun Fact(label: String, value: String) {
 @Composable
 private fun CandlestickChart(bars: List<H1SampleBar>) {
     val p = LocalOAKPalette.current
-    val safe = bars.take(6)
+    val safe = bars.sortedWith(
+        compareBy<H1SampleBar> { it.brokerDate }
+            .thenBy { it.hour }
+            .thenBy { it.minute },
+    ).take(6)
     OAKCard {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SectionTitle("M15 CHART", "OLDEST → NEWEST")
             if (safe.isEmpty()) {
                 Text("No M15 bars", color = p.muted)
                 return@Column

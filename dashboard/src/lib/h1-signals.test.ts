@@ -134,11 +134,12 @@ test("H16 copies H14 for XAU H3 entry H5 and inverts H14 with CLOSE only for H3 
   assert.doesNotMatch(redesignCss, /tbody td\[data-manual-close="true"\]|data-action="CLOSE"/);
   assert.match(androidScreensSource, /if \(manualClose\) Text\("CLOSE", color = p\.warning/);
   assert.doesNotMatch(androidScreensSource, /manualClose -> OAKPill\("CLOSE", PillTone\.WARNING\)/);
-  assert.match(androidScreensSource, /Fact\("RAW BASE", facts\.rawBase\)/);
-  assert.match(androidScreensSource, /Fact\("SIGNAL SOURCE", facts\.signalSource\)/);
+  assert.match(androidScreensSource, /Fact\("BASE CANDLE", facts\.rawBase\)/);
+  assert.match(androidScreensSource, /if \(facts\.signalSource\.isNotBlank\(\)\) Fact\("FINAL SOURCE", facts\.signalSource\)/);
   assert.match(androidScreensSource, /Fact\("RULE", facts\.rule\)/);
   assert.match(androidScreensSource, /Fact\("FINAL", facts\.finalSignal\)/);
   assert.match(androidModelsSource, /fun evidenceFacts\(date: String, sourceAlert: H1SignalAlert\): H1EvidenceFacts/);
+  assert.match(androidModelsSource, /var signalSource = ""/);
   assert.match(androidModelsSource, /sourceAlert\.slotHour == 16/);
   assert.match(androidModelsSource, /sourceAlert\.symbol, 14/);
   assert.match(androidModelsSource, /xauH3Entry == 4 -> "INVERT H14"/);
@@ -147,11 +148,12 @@ test("H16 copies H14 for XAU H3 entry H5 and inverts H14 with CLOSE only for H3 
   assert.match(androidShareSource, /when \(alert\?\.signal\)/);
   assert.match(nativeH1BoardSource, /OAKPill\(label: "CLOSE", tone: \.warning\)/);
   assert.doesNotMatch(nativeSignalsSource, /let close =|if close|manualClose && alert\.slotHour == 16/);
-  assert.match(nativeEvidenceSource, /fact\("RAW BASE", facts\.rawBase\)/);
-  assert.match(nativeEvidenceSource, /fact\("SIGNAL SOURCE", facts\.signalSource\)/);
+  assert.match(nativeEvidenceSource, /fact\("BASE CANDLE", facts\.rawBase\)/);
+  assert.match(nativeEvidenceSource, /if !facts\.signalSource\.isEmpty \{ fact\("FINAL SOURCE", facts\.signalSource\) \}/);
   assert.match(nativeEvidenceSource, /fact\("RULE", facts\.rule\)/);
   assert.match(nativeEvidenceSource, /fact\("FINAL", facts\.finalSignal\)/);
   assert.match(nativeModelsSource, /func evidenceFacts\(date: String, sourceAlert: H1SignalAlert\) -> H1EvidenceFacts/);
+  assert.match(nativeModelsSource, /var signalSource = ""/);
   assert.match(nativeModelsSource, /sourceAlert\.slotHour == 16/);
   assert.match(nativeModelsSource, /alert\(date: date, symbol: sourceAlert\.symbol, hour: 14\)/);
   assert.match(nativeModelsSource, /xauH3Entry == 4 \? "INVERT H14" : xauH3Entry == 5 \? "COPY H14"/);
@@ -206,6 +208,10 @@ test("native iOS polish keeps H1 matrix clean, image clipboard, sparse report da
 
   assert.match(nativeEvidenceSource, /COPY CHART/);
   assert.match(nativeEvidenceSource, /SHARE CHART/);
+  assert.match(nativeEvidenceSource, /M15 candlestick chart · oldest → newest/);
+  assert.match(nativeEvidenceSource, /private var chronologicalBars:[\s\S]*bars\.sorted/);
+  assert.match(androidScreensSource, /val safe = bars\.sortedWith/);
+  assert.match(androidShareSource, /val bars = alert\.sampleBars\.sortedWith/);
   assert.match(nativeEvidenceSource, /ImageRenderer\(content: view\)/);
   assert.match(nativeEvidenceSource, /OAKImageTransfer\.copyPNG\(image\)/);
   assert.match(nativeImageTransferSource, /UIPasteboard\.general\.setItems/);
@@ -503,8 +509,10 @@ test("populated H1 cells open deterministic M15 pattern evidence without clutter
   assert.match(boardSource, /setEvidenceSelection/);
   assert.match(boardSource, /<H1EvidencePanel selection=\{evidenceSelection\} payload=\{data\}/);
   assert.match(evidencePanelSource, /function evidenceFacts\(/);
-  assert.match(evidencePanelSource, /RAW BASE/);
-  assert.match(evidencePanelSource, /SIGNAL SOURCE/);
+  assert.match(evidencePanelSource, /let signalSource = ""/);
+  assert.match(evidencePanelSource, /BASE CANDLE/);
+  assert.match(evidencePanelSource, /FINAL SOURCE/);
+  assert.match(evidencePanelSource, /facts\.signalSource &&/);
   assert.match(evidencePanelSource, /RULE/);
   assert.match(evidencePanelSource, /FINAL/);
   assert.match(evidencePanelSource, /COPY H14|INVERT H14/);

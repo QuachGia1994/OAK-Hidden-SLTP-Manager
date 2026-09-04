@@ -37,9 +37,7 @@ function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload)
   const rawBase = alert.baseDirection
     ? `${alert.baseSymbol || "—"} PREV ${hourLabel(alert.baseHour)} · ${alert.baseDirection} → ${alert.baseSignal ?? "—"}`
     : "—";
-  let signalSource = alert.baseSymbol
-    ? `${alert.baseSymbol} PREV ${hourLabel(alert.baseHour)} · ${alert.baseSignal ?? "—"}`
-    : "—";
+  let signalSource = "";
   let rule = "DIRECT BASE";
 
   if (alert.slotHour === 16) {
@@ -145,8 +143,8 @@ function evidenceText(selection: H1EvidenceSelection, payload: H1SignalPayload, 
     `Pattern source: ${facts.patternSource}`,
     `Family: ${family}`,
     `Pattern: ${patternLabel(alert.pattern)}`,
-    `RAW BASE: ${facts.rawBase}`,
-    `SIGNAL SOURCE: ${facts.signalSource}`,
+    `BASE CANDLE: ${facts.rawBase}`,
+    ...(facts.signalSource ? [`FINAL SOURCE: ${facts.signalSource}`] : []),
     `RULE: ${facts.rule}`,
     `FINAL: ${facts.finalSignal}`,
     `Broker: ${brokerDate} · H${String(alert.slotHour).padStart(2, "0")}:00`,
@@ -199,14 +197,14 @@ export function H1EvidencePanel({ selection, payload, locale, onClose }: { selec
           <div><small>{copy.family}</small><b>{familyLabel(alert.patternFamily)}</b></div>
           <div><small>{copy.pattern}</small><b>{patternLabel(alert.pattern)}</b></div>
           <div><small>{copy.broker}</small><b>{brokerDate} · {String(alert.slotHour).padStart(2, "0")}:00</b></div>
-          <div><small>RAW BASE</small><b>{facts.rawBase}</b></div>
-          <div><small>SIGNAL SOURCE</small><b>{facts.signalSource}</b></div>
+          <div><small>BASE CANDLE</small><b>{facts.rawBase}</b></div>
+          {facts.signalSource && <div><small>FINAL SOURCE</small><b>{facts.signalSource}</b></div>}
           <div><small>RULE</small><b>{facts.rule}</b></div>
           <div><small>FINAL</small><b>{facts.finalSignal}</b></div>
         </div>
 
         <div className="oak-h1-evidence-chart-card">
-          <div className="oak-h1-evidence-card-head"><div><small>M15 · ICMarkets local</small><b>{alert.scannerSource || base}</b></div><span>{orderedBars.filter((bar) => bar.selected).length}/{orderedBars.length || 0} selected</span></div>
+          <div className="oak-h1-evidence-card-head"><div><small>M15 · ICMarkets local · OLDEST → NEWEST</small><b>{alert.scannerSource || base}</b></div><span>{orderedBars.filter((bar) => bar.selected).length}/{orderedBars.length || 0} selected</span></div>
           <EvidenceChart bars={orderedBars} blockHour={alert.slotHour} entryHour={entryHour} />
         </div>
 

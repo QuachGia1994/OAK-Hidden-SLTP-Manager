@@ -79,7 +79,7 @@ data class H1SignalPayload(
         } else {
             "${sourceAlert.baseSymbol.ifBlank { "—" }} PREV $baseHour · ${sourceAlert.baseDirection} → $baseSignal"
         }
-        var signalSource = if (sourceAlert.baseSymbol.isBlank()) "—" else "${sourceAlert.baseSymbol} PREV $baseHour · $baseSignal"
+        var signalSource = ""
         var rule = "DIRECT BASE"
 
         if (sourceAlert.slotHour == 16) {
