@@ -1528,6 +1528,51 @@ test("unexpected pre-dispatch scheduled entry failure is terminalized and notifi
   } finally { await h.cleanup(); }
 });
 
+test("same-account scheduled entries reject a second active intent for the same symbol and reopen after cancel", { concurrency: false }, async () => {
+  const h = await createHarness("scheduled-same-symbol-dedupe", {
+    controlMode: "local-primary",
+    webhook: "",
+    scheduledEntryExecution: "mt5-ui",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+    webSignal: true,
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, {
+      update_id: 413,
+      message: { chat: { id: 123 }, text: "/sell GBPUSD 0.05 23:59 @acct-a\n/sell GBPUSD 0.05 23:59 @acct-a" },
+    }, statuses);
+
+    const first = Object.values(state.intents)[0];
+    assert.equal(Object.keys(state.intents).length, 1);
+    assert.equal(first.status, "scheduled");
+    assert.equal(first.payload.symbol, "GBPUSD");
+    assert.equal(state.nextIntentSeq, 2);
+    assert.equal(Object.keys(state.pendingWebSync).length, 1);
+    assert.equal(h.eaTasks.filter((task) => task.action === "symbol_prepare").length, 1);
+    assert.match(state.commands["413:0"].outcome, /intent #1 saved/i);
+    assert.match(state.commands["413:1"].outcome, /GBPUSD.*already has active scheduled intent #1/i);
+    assert.match(state.commands["413:1"].outcome, /\/del 1/i);
+
+    await h.runtime.processTelegramUpdate(h.config, state, {
+      update_id: 414,
+      message: { chat: { id: 123 }, text: "/del 1" },
+    }, statuses);
+    assert.equal(first.status, "cancelled");
+
+    await h.runtime.processTelegramUpdate(h.config, state, {
+      update_id: 415,
+      message: { chat: { id: 123 }, text: "/buy GBPUSD 0.04 23:58 @acct-a" },
+    }, statuses);
+    const scheduled = Object.values(state.intents).filter((intent) => intent.status === "scheduled");
+    assert.equal(scheduled.length, 1);
+    assert.equal(scheduled[0].payload.symbol, "GBPUSD");
+    assert.equal(state.nextIntentSeq, 3);
+    assert.match(state.commands["415:0"].outcome, /intent #2 saved/i);
+  } finally { await h.cleanup(); }
+});
+
 test("same-time scheduled entries on two MT5 accounts each send their own execution notice", { concurrency: false }, async () => {
   const providerA = "mt5:localtest01";
   const providerB = "mt5:localtest02";

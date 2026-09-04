@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed local Telegram scheduled-entry duplication: each MT5 provider account may now have only one active timed ENTRY per symbol. A second same-symbol schedule is rejected before symbol preparation, intent-ID allocation, or optional web-sync creation; cancelling/expiring/executing/failing the first intent releases the symbol slot, while the same symbol remains independently schedulable on another MT5 account.
+
 - Unified web branding with the current OAK app icon. The top-left web header now uses the same `oak-app-icon.png` artwork as the native apps; browser favicon and PWA 192/512 icons are generated from the same canonical iOS AppIcon source, with a web manifest wired for installed-browser surfaces. Removed the extra header tile border/background so the app artwork is shown directly instead of the legacy chart favicon.
 
 - Fixed the Android launcher icon adaptive-mask composition. The launcher now uses a separate navy adaptive background plus a transparent color foreground generated from the iOS OAK artwork, instead of embedding the opaque square iOS icon inside the Android foreground. Monochrome remains supported, the splash resources stay separate, and brand sync now regenerates the transparent launcher foreground deterministically.

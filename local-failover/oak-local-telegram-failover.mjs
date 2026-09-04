@@ -1477,13 +1477,46 @@ export function createLocalFailoverRuntime(options = {}) {
     return resolvedSymbol;
   }
 
+  function normalizedScheduledSymbol(value) {
+    return String(value || "").trim().toUpperCase();
+  }
+
+  function activeScheduledEntryConflict(state, account, parsed, resolvedSymbol = "") {
+    if (parsed.kind !== "entry" || !Number.isFinite(Number(parsed.dueAt)) || Number(parsed.dueAt) <= 0) return null;
+    const desired = new Set([
+      normalizedScheduledSymbol(parsed.payload?.symbol),
+      normalizedScheduledSymbol(resolvedSymbol),
+    ].filter(Boolean));
+    if (!desired.size) return null;
+    return Object.values(state.intents || {}).find((intent) => {
+      if (intent.kind !== "entry" || !ACTIVE_INTENT_STATUSES.has(intent.status)) return false;
+      if (!Number.isFinite(Number(intent.dueAt)) || Number(intent.dueAt) <= 0) return false;
+      if (String(intent.providerAccountId || "") !== String(account.providerAccountId || "")) return false;
+      const existing = [
+        normalizedScheduledSymbol(intent.payload?.symbol),
+        normalizedScheduledSymbol(intent.resolvedSymbol),
+      ].filter(Boolean);
+      return existing.some((symbol) => desired.has(symbol));
+    }) || null;
+  }
+
+  function assertNoActiveScheduledEntryConflict(state, account, parsed, resolvedSymbol = "") {
+    const conflict = activeScheduledEntryConflict(state, account, parsed, resolvedSymbol);
+    if (!conflict) return;
+    const symbol = normalizedScheduledSymbol(resolvedSymbol || parsed.payload?.symbol || conflict.resolvedSymbol || conflict.payload?.symbol);
+    const display = shortIntentId(conflict);
+    throw new Error(`@${account.label}: ${symbol} already has active scheduled intent #${display} (${conflict.status}); cancel /del ${display} or wait for it to finish`);
+  }
+
   async function createIntent(config, state, parsed, statuses, updateId, commandIndex) {
     const accounts = selectIntentAccounts(config, statuses, parsed);
     if (!state.epoch) state.epoch = newFailoverEpoch(clock());
     const outcomes = [];
 
     for (const account of accounts) {
+      assertNoActiveScheduledEntryConflict(state, account, parsed);
       const resolvedSymbol = await prepareScheduledUiEntrySymbol(config, account, parsed);
+      assertNoActiveScheduledEntryConflict(state, account, parsed, resolvedSymbol);
       const shortId = state.nextIntentSeq++;
       const id = localIntentId(state.epoch, shortId);
       const originKey = telegramMt5OriginKey(updateId, commandIndex, account.providerAccountId);
