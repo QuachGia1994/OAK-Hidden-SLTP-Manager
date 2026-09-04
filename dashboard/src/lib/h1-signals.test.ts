@@ -449,6 +449,16 @@ test("H1 board exports interoperable PNG clipboard data and native share fallbac
   assert.doesNotMatch(boardSource, /navigator\.share\(|navigator\.canShare|anchor\.download|downloadPng/);
   assert.match(nativeH1BoardSource, /copySchedulePNG/);
   assert.match(nativeH1BoardSource, /shareSchedulePNG/);
+  assert.match(nativeH1BoardSource, /private struct ScheduleExportMatrix/);
+  assert.match(nativeH1BoardSource, /ScheduleExportMatrix\(h1: h1, date: date, symbols: symbols\)/);
+  assert.match(nativeH1BoardSource, /ForEach\(h1\.hours, id: \\.self\)/);
+  assert.match(nativeH1BoardSource, /h1\.alert\(date: date, symbol: symbol, hour: hour\)/);
+  const nativeExportStart = nativeH1BoardSource.indexOf("private struct ScheduleExportView");
+  const nativeExportSource = nativeH1BoardSource.slice(nativeExportStart);
+  assert.doesNotMatch(nativeExportSource, /H1MatrixView\(/);
+  assert.doesNotMatch(nativeExportSource, /ScrollView\(\.horizontal/);
+  assert.match(androidShareSource, /val hours = h1\.hours/);
+  assert.match(androidShareSource, /val alert = h1\.alert\(brokerDate, symbol, hour\)/);
   assert.match(nativeH1BoardSource, /OAKImageTransfer\.copyPNG\(image\)/);
   assert.match(nativeH1BoardSource, /OAKImageTransfer\.exportPNG/);
   assert.match(nativeH1BoardSource, /SHARE PNG/);

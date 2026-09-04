@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed native schedule COPY/SHARE PNG parity with H1 Live. iOS no longer renders the interactive horizontal `H1MatrixView` inside `ImageRenderer` (which produced a PNG with only the fixed SYMBOL column); it now uses a dedicated non-scroll export matrix that renders every `h1.hours` column and the exact `h1.alert(date:symbol:hour:)` entry/signal/CLOSE data. Android schedule export remains direct-model Canvas rendering and is locked to the same hours/alert contract.
+
 - Hardened native image export on Android/iOS after COPY PNG / COPY CHART could appear successful but paste blank into Telegram. Android now keeps fresh FileProvider PNGs alive across `TRIM_MEMORY_UI_HIDDEN`, uses unique retained cache files, and adds `ACTION_SEND` share fallbacks with read grants. iOS now writes explicit `public.png` bytes to the system pasteboard, retains exported PNG files in cache, and exposes native share sheets. COPY/SHARE feedback is now separate so the UI no longer implies a share completed when only clipboard preparation succeeded.
 
 - Advanced H1 to v74. H16 entry time/pattern evidence is unchanged, but its final BUY/SELL is now derived from the same symbol's H14 signal using XAUUSD H3 entry as the selector: XAU H3 entry H5 => H16 copies H14 and no CLOSE badge; XAU H3 entry H4 => H16 inverts H14 and shows the CLOSE advisory badge. The rule applies to XAUUSD plus all FX rows across Web, copied PNG, native iOS and native Android; CLOSE remains presentation-only with no broker-close action.

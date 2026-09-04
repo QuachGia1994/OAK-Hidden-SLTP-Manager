@@ -507,6 +507,124 @@ private struct BrokerCalendarSheet: View {
 }
 
 @MainActor
+private struct ScheduleExportMatrix: View {
+    let h1: H1SignalPayload
+    let date: String
+    let symbols: [String]
+
+    private let symbolWidth: CGFloat = 124
+    private let cellWidth: CGFloat = 118
+    private let rowHeight: CGFloat = 74
+    private var manualClose: Bool { h1.manualCloseH16(date: date) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("BLOCK MATRIX")
+                    .font(.system(size: 13, weight: .black, design: .monospaced))
+                    .tracking(1.1)
+                    .foregroundStyle(OAKColor.text)
+                Spacer()
+                Text("ALL BLOCKS")
+                    .font(.system(size: 11, weight: .black, design: .monospaced))
+                    .foregroundStyle(OAKColor.muted)
+            }
+
+            HStack(alignment: .top, spacing: 6) {
+                VStack(spacing: 6) {
+                    exportLabel("SYMBOL", width: symbolWidth, height: 54)
+                    ForEach(symbols, id: \.self) { symbol in
+                        exportLabel(symbol, width: symbolWidth, height: rowHeight)
+                    }
+                }
+
+                VStack(spacing: 6) {
+                    HStack(spacing: 6) {
+                        ForEach(h1.hours, id: \.self) { hour in
+                            exportHourHeader(hour)
+                        }
+                    }
+                    ForEach(symbols, id: \.self) { symbol in
+                        HStack(spacing: 6) {
+                            ForEach(h1.hours, id: \.self) { hour in
+                                exportCell(alert: h1.alert(date: date, symbol: symbol, hour: hour))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .background(OAKColor.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(OAKColor.border, lineWidth: 1)
+        }
+    }
+
+    @ViewBuilder
+    private func exportHourHeader(_ hour: Int) -> some View {
+        VStack(spacing: 3) {
+            Text("H\(String(format: "%02d", hour))")
+                .font(.system(size: 13, weight: .black, design: .monospaced))
+            if manualClose && hour == 16 {
+                Text("CLOSE")
+                    .font(.system(size: 9, weight: .black, design: .monospaced))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .foregroundStyle(OAKColor.warning)
+                    .overlay {
+                        Capsule().stroke(OAKColor.warning, lineWidth: 1.2)
+                    }
+            }
+        }
+        .foregroundStyle(manualClose && hour == 16 ? OAKColor.warning : OAKColor.muted)
+        .frame(width: cellWidth, height: 54)
+        .background(
+            manualClose && hour == 16 ? OAKColor.warning.opacity(0.14) : OAKColor.raised,
+            in: RoundedRectangle(cornerRadius: 11, style: .continuous)
+        )
+    }
+
+    @ViewBuilder
+    private func exportCell(alert: H1SignalAlert?) -> some View {
+        VStack(spacing: 7) {
+            if let alert, let entry = alert.entryHour {
+                Text("H\(String(format: "%02d", entry))")
+                    .font(.system(size: 16, weight: .black, design: .monospaced))
+                    .foregroundStyle(OAKColor.text)
+                if let signal = alert.signal {
+                    OAKPill(label: signal.rawValue, tone: signal == .buy ? .buy : .sell)
+                } else {
+                    Text("—")
+                        .font(.system(size: 15, weight: .black, design: .monospaced))
+                        .foregroundStyle(OAKColor.muted)
+                }
+            } else {
+                Text("—")
+                    .font(.system(size: 15, weight: .black, design: .monospaced))
+                    .foregroundStyle(OAKColor.muted.opacity(0.55))
+            }
+        }
+        .frame(width: cellWidth, height: rowHeight)
+        .background(OAKColor.surface, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .stroke(OAKColor.border.opacity(0.6), lineWidth: 0.8)
+        }
+    }
+
+    private func exportLabel(_ value: String, width: CGFloat, height: CGFloat) -> some View {
+        Text(value)
+            .font(.system(size: value == "SYMBOL" ? 12 : 14, weight: .black, design: .monospaced))
+            .foregroundStyle(OAKColor.text)
+            .frame(width: width, height: height, alignment: .leading)
+            .padding(.leading, 10)
+            .background(OAKColor.raised, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+    }
+}
+
+@MainActor
 private struct ScheduleExportView: View {
     let h1: H1SignalPayload
     let date: String
@@ -521,7 +639,7 @@ private struct ScheduleExportView: View {
             Text("Broker day: \(date) · MT5 ICMarkets Local · rule v\(h1.signalRuleVersion ?? 0)")
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
                 .foregroundStyle(OAKColor.muted)
-            H1MatrixView(h1: h1, date: date, symbols: symbols, onSelect: { _ in })
+            ScheduleExportMatrix(h1: h1, date: date, symbols: symbols)
         }
     }
 }

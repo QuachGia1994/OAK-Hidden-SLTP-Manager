@@ -18,6 +18,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Fixed native H1 schedule PNG export parity with Live: iOS uses a dedicated non-scroll export matrix sourced from the same `h1.hours` and `h1.alert(date:symbol:hour:)` data as the on-screen matrix, preventing ImageRenderer from dropping the scrollable block columns. Android's direct Canvas exporter is contract-tested against the same data source.
 - Fixed native mobile PNG/chart handoff to other apps. Android no longer deletes fresh FileProvider exports when OAK goes `UI_HIDDEN`, keeps PNG cache URIs valid long enough for Telegram paste, and provides explicit `SHARE PNG` / `SHARE CHART` ACTION_SEND fallbacks. iOS now copies explicit PNG UTType bytes instead of UIImage-only pasteboard state and provides UIActivityViewController share fallbacks backed by retained cache files.
 - Advanced local H1 to v74. H16 keeps its existing entry hour/pattern evidence but derives final BUY/SELL from that symbol's H14 signal: XAUUSD H3 entry H5 copies H14 with no CLOSE badge; XAUUSD H3 entry H4 inverts H14 and enables the CLOSE advisory badge. Web/PNG/native iOS/native Android use the same H4-only CLOSE predicate.
 - Fixed missing selectable dates in H1 History: valid ICMarkets broker days are retained even with zero pattern matches, and local historical publishing retries transient singleton-lock `already-running` responses instead of silently skipping that date during overlap with the minute live scanner.
