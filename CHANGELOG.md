@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed the Android launcher icon adaptive-mask composition. The launcher now uses a separate navy adaptive background plus a transparent color foreground generated from the iOS OAK artwork, instead of embedding the opaque square iOS icon inside the Android foreground. Monochrome remains supported, the splash resources stay separate, and brand sync now regenerates the transparent launcher foreground deterministically.
+
 - Fixed H1 Evidence chart direction and simplified Key Facts. Web/iOS/Android M15 charts now read left-to-right oldest → newest like MT5, including copied/shared chart PNGs; the scanner Pattern Bars list remains newest → oldest. Evidence now labels the underlying previous-broker-day H1 input as BASE CANDLE and only shows FINAL SOURCE when the final signal actually comes from another source (H16 H14 override or GBPUSD/EURUSD XAU sync), removing the duplicate source row on DIRECT BASE cells.
 
 - Corrected H1 Evidence semantics across Web/iOS/Android for rule v74. Evidence now separates PATTERN SOURCE from RAW BASE and actual SIGNAL SOURCE, shows the applied RULE, and keeps FINAL explicit. H16 points to the same-symbol H14 signal with COPY H14 for XAU H3 entry H5 or INVERT H14 for H4; GBPUSD/EURUSD H9/H12/H14 show SYNC XAUUSD; direct blocks identify their previous-broker-day raw base. iOS no longer hardcodes GBPUSD in BASE, patterns render spaced for readability, and CLOSE no longer hides the BUY/SELL chip.

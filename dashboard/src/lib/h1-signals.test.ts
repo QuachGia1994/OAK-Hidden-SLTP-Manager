@@ -25,6 +25,7 @@ const androidShareSource = readFileSync(new URL("../../../android-native/app/src
 const androidBuildSource = readFileSync(new URL("../../../android-native/app/build.gradle.kts", import.meta.url), "utf8");
 const androidManifestSource = readFileSync(new URL("../../../android-native/app/src/main/AndroidManifest.xml", import.meta.url), "utf8");
 const androidStylesSource = readFileSync(new URL("../../../android-native/app/src/main/res/values/styles.xml", import.meta.url), "utf8");
+const androidLauncherColorsSource = readFileSync(new URL("../../../android-native/app/src/main/res/values/colors.xml", import.meta.url), "utf8");
 const webLoadingSource = readFileSync(new URL("../components/OAKLoadingSplash.tsx", import.meta.url), "utf8");
 const brandSyncSource = readFileSync(new URL("../../../tools/sync_brand_assets.py", import.meta.url), "utf8");
 const scannerSource = readFileSync(new URL("./h1-cloud-scanner.ts", import.meta.url), "utf8");
@@ -256,8 +257,11 @@ test("mobile account status prefers sanitized local-primary MT5 heartbeat eviden
   assert.match(androidScreensSource, /Local heartbeat pending/);
   assert.match(androidManifestSource, /android:icon="@mipmap\/ic_launcher"/);
   const androidAdaptiveIconSource = readFileSync(new URL("../../../android-native/app/src/main/res/mipmap-anydpi/ic_launcher.xml", import.meta.url), "utf8");
-  assert.match(androidAdaptiveIconSource, /@drawable\/oak_launcher_foreground_inset/);
+  assert.match(androidAdaptiveIconSource, /@color\/oak_launcher_mask_bg/);
+  assert.match(androidAdaptiveIconSource, /@drawable\/oak_launcher_foreground/);
+  assert.doesNotMatch(androidAdaptiveIconSource, /oak_launcher_foreground_inset/);
   assert.match(androidAdaptiveIconSource, /@drawable\/oak_launcher_monochrome/);
+  assert.match(androidLauncherColorsSource, /<color name="oak_launcher_mask_bg">#08111F<\/color>/);
   const nativeProjectSource = readFileSync(new URL("../../../ios-native/project.yml", import.meta.url), "utf8");
   const nativeAppIconCatalogSource = readFileSync(new URL("../../../ios-native/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json", import.meta.url), "utf8");
   assert.match(nativeProjectSource, /ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon/);
@@ -449,6 +453,8 @@ test("native Android is hardened for Google Play February 2027 memory and DEX re
   assert.match(webLoadingSource, /oak-loading-spinner/);
   assert.match(brandSyncSource, /AppIcon\.appiconset/);
   assert.match(brandSyncSource, /oak_app_icon_exact\.png/);
+  assert.match(brandSyncSource, /oak_launcher_foreground\.png/);
+  assert.match(brandSyncSource, /generated transparent adaptive foreground/);
   assert.match(brandSyncSource, /oak-app-icon\.png/);
   assert.doesNotMatch(androidManifestSource, /android:screenOrientation="portrait"/);
 });
