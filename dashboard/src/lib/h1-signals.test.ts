@@ -33,6 +33,7 @@ const localMarketRouteSource = readFileSync(new URL("../app/api/h1-scanner/local
 const layoutSource = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const tabAutoRefreshSource = readFileSync(new URL("../components/TabAutoRefresh.tsx", import.meta.url), "utf8");
 const nativeH1BoardSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/H1BoardView.swift", import.meta.url), "utf8");
+const nativeImageTransferSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/ImageTransfer.swift", import.meta.url), "utf8");
 const nativeModelsSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/Models.swift", import.meta.url), "utf8");
 const nativeSignalsSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/SignalsView.swift", import.meta.url), "utf8");
 const nativeEvidenceSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/EvidenceView.swift", import.meta.url), "utf8");
@@ -188,8 +189,11 @@ test("native iOS polish keeps H1 matrix clean, image clipboard, sparse report da
   assert.doesNotMatch(matrixCellSource, /overlay\(alignment: \.trailing\)|overlay\(alignment: \.bottom\)|Divider\(\)/);
 
   assert.match(nativeEvidenceSource, /COPY CHART/);
+  assert.match(nativeEvidenceSource, /SHARE CHART/);
   assert.match(nativeEvidenceSource, /ImageRenderer\(content: view\)/);
-  assert.match(nativeEvidenceSource, /UIPasteboard\.general\.image = image/);
+  assert.match(nativeEvidenceSource, /OAKImageTransfer\.copyPNG\(image\)/);
+  assert.match(nativeImageTransferSource, /UIPasteboard\.general\.setItems/);
+  assert.match(nativeImageTransferSource, /UTType\.png\.identifier/);
   assert.doesNotMatch(nativeEvidenceSource, /public\.svg-image|public\.utf8-plain-text|COPY CHART SVG|<svg/);
 
   assert.match(nativeReportsSource, /x: \.value\("Index", point\.index\)/);
@@ -358,9 +362,14 @@ test("native Android copies the iOS H1 presentation, evidence, reports, themes a
   assert.match(androidScreensSource, /monthAnchor\.plusMonths\(1\)/);
   assert.match(androidScreensSource, /Icons\.Default\.DateRange/);
   assert.match(androidScreensSource, /COPY PNG/);
+  assert.match(androidScreensSource, /SHARE PNG/);
   assert.match(androidScreensSource, /COPY CHART/);
+  assert.match(androidScreensSource, /SHARE CHART/);
   assert.match(androidShareSource, /copyScheduleToClipboard/);
-  assert.doesNotMatch(androidShareSource, /Intent\.ACTION_SEND|createChooser/);
+  assert.match(androidShareSource, /Intent\.ACTION_SEND/);
+  assert.match(androidShareSource, /Intent\.EXTRA_STREAM/);
+  assert.match(androidShareSource, /Intent\.FLAG_GRANT_READ_URI_PERMISSION/);
+  assert.match(androidShareSource, /Intent\.createChooser/);
   assert.match(androidShareSource, /ClipData\.newUri/);
   assert.match(androidShareSource, /createBitmap\(Width, Height/);
   assert.match(androidShareSource, /bitmap\.recycle\(\)/);
@@ -398,6 +407,10 @@ test("native Android is hardened for Google Play February 2027 memory and DEX re
   assert.match(androidMainSource, /TRIM_MEMORY_UI_HIDDEN/);
   assert.match(androidMainSource, /onLowMemory/);
   assert.match(androidShareSource, /trimTransient/);
+  assert.match(androidShareSource, /ExportRetentionMs/);
+  assert.match(androidShareSource, /ClipboardSafetyWindowMs/);
+  assert.match(androidShareSource, /pruneExports\(context\)/);
+  assert.doesNotMatch(androidShareSource, /listFiles\(\)\?\.forEach \{ it\.delete\(\) \}/);
   assert.doesNotMatch(androidScreensSource + androidStateSource, /Coil|Glide|BitmapFactory|staticBitmap|imageCache/i);
   assert.match(androidManifestSource, /android:allowBackup="false"/);
   assert.match(androidManifestSource, /android:fullBackupContent="false"/);
@@ -426,7 +439,7 @@ test("engine web surface is local-H1-only with the compact command header", () =
   assert.doesNotMatch(engineBoardSource, /UNLOCK SIGNALS/);
 });
 
-test("H1 board copies the selected scanner day as a PNG image to clipboard across web and native apps", () => {
+test("H1 board exports interoperable PNG clipboard data and native share fallbacks", () => {
   assert.match(boardSource, /oak-h1-share-png/);
   assert.match(boardSource, /document\.createElement\("canvas"\)/);
   assert.match(boardSource, /canvas\.toBlob/);
@@ -435,11 +448,23 @@ test("H1 board copies the selected scanner day as a PNG image to clipboard acros
   assert.match(boardSource, /new ClipboardItem\(\{ "image\/png": shareArtifact\.blob \}\)/);
   assert.doesNotMatch(boardSource, /navigator\.share\(|navigator\.canShare|anchor\.download|downloadPng/);
   assert.match(nativeH1BoardSource, /copySchedulePNG/);
-  assert.match(nativeH1BoardSource, /UIPasteboard\.general\.image = image/);
-  assert.doesNotMatch(nativeH1BoardSource, /UIActivityViewController|ActivityView|shareItem/);
+  assert.match(nativeH1BoardSource, /shareSchedulePNG/);
+  assert.match(nativeH1BoardSource, /OAKImageTransfer\.copyPNG\(image\)/);
+  assert.match(nativeH1BoardSource, /OAKImageTransfer\.exportPNG/);
+  assert.match(nativeH1BoardSource, /SHARE PNG/);
+  assert.match(nativeImageTransferSource, /UTType\.png\.identifier/);
+  assert.match(nativeImageTransferSource, /UIPasteboard\.general\.setItems/);
+  assert.match(nativeImageTransferSource, /\.localOnly: false/);
+  assert.match(nativeImageTransferSource, /UIActivityViewController/);
+  assert.match(nativeImageTransferSource, /retentionSeconds/);
+  assert.match(nativeEvidenceSource, /SHARE CHART/);
+  assert.match(nativeEvidenceSource, /OAKImageTransfer\.copyPNG\(image\)/);
   assert.match(androidShareSource, /copyScheduleToClipboard/);
-  assert.match(androidShareSource, /clipboard\.setPrimaryClip\(ClipData\.newUri/);
-  assert.match(androidScreensSource, /Đã lưu ảnh H1 vào clipboard/);
+  assert.match(androidShareSource, /shareSchedule/);
+  assert.match(androidShareSource, /shareChart/);
+  assert.match(androidShareSource, /clipboard\.setPrimaryClip\(clip\)/);
+  assert.match(androidShareSource, /type = "image\/png"/);
+  assert.match(androidScreensSource, /Đã copy PNG · có thể dán sang Telegram/);
   assert.match(boardSource, /activeH1ScanHoursForBrokerDate\(date, data\.hours\)/);
   assert.match(boardSource, /hours\.forEach/);
   assert.match(boardSource, /visibleSymbols\.forEach/);

@@ -60,6 +60,7 @@ import androidx.core.net.toUri
 import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
+import kotlinx.coroutines.delay
 import kotlin.math.max
 
 private val VisibleSymbols = listOf("XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY")
@@ -137,6 +138,12 @@ fun H1BoardScreen(state: OAKAppState, history: Boolean) {
     var selectedAlert by remember { mutableStateOf<H1SignalAlert?>(null) }
     var calendarOpen by remember { mutableStateOf(false) }
     var copiedSchedule by remember(h1?.latestDate, history, selectedDate) { mutableStateOf(false) }
+    LaunchedEffect(copiedSchedule) {
+        if (copiedSchedule) {
+            delay(1_400)
+            copiedSchedule = false
+        }
+    }
     if (!history && h1 != null && selectedDate != h1.latestDate) selectedDate = h1.latestDate
     if (history && h1 != null && (selectedDate.isBlank() || h1.days[selectedDate] == null)) selectedDate = h1.latestDate
 
@@ -165,14 +172,30 @@ fun H1BoardScreen(state: OAKAppState, history: Boolean) {
                                 Text(state.text("Lịch block H1", "H1 Block Schedule"), color = p.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.weight(1f))
-                            TextButton(
-                                onClick = {
-                                    val copied = ShareStore.copyScheduleToClipboard(context, h1, date, VisibleSymbols)
-                                    copiedSchedule = copied
-                                    Toast.makeText(context, if (copied) state.text("Đã lưu ảnh H1 vào clipboard", "H1 image copied to clipboard") else state.text("Không thể copy ảnh H1", "Unable to copy H1 image"), Toast.LENGTH_SHORT).show()
-                                },
-                            ) {
-                                Text(if (copiedSchedule) "✓ COPIED" else "COPY PNG", color = p.accent, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                            Column(horizontalAlignment = Alignment.End) {
+                                TextButton(
+                                    onClick = {
+                                        val copied = ShareStore.copyScheduleToClipboard(context, h1, date, VisibleSymbols)
+                                        copiedSchedule = copied
+                                        Toast.makeText(
+                                            context,
+                                            if (copied) state.text("Đã copy PNG · có thể dán sang Telegram", "PNG copied · ready to paste in Telegram")
+                                            else state.text("Không thể copy PNG", "Unable to copy PNG"),
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                    },
+                                ) {
+                                    Text(if (copiedSchedule) "✓ COPIED" else "COPY PNG", color = p.accent, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                                }
+                                TextButton(
+                                    onClick = {
+                                        if (!ShareStore.shareSchedule(context, h1, date, VisibleSymbols)) {
+                                            Toast.makeText(context, state.text("Không thể mở chia sẻ PNG", "Unable to open PNG sharing"), Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                ) {
+                                    Text("SHARE PNG", color = p.accent, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                                }
                             }
                         }
                         Row(Modifier.fillMaxWidth()) {
@@ -729,6 +752,13 @@ private fun SegmentedRow(choices: List<String>, selected: String, onSelect: (Str
 private fun EvidenceSheet(alert: H1SignalAlert, brokerDate: String, onDismiss: () -> Unit) {
     val p = LocalOAKPalette.current
     val context = LocalContext.current
+    var copiedChart by remember(alert.id, brokerDate) { mutableStateOf(false) }
+    LaunchedEffect(copiedChart) {
+        if (copiedChart) {
+            delay(1_400)
+            copiedChart = false
+        }
+    }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = p.canvas) {
         LazyColumn(
             modifier = Modifier.fillMaxWidth(),
@@ -780,13 +810,29 @@ private fun EvidenceSheet(alert: H1SignalAlert, brokerDate: String, onDismiss: (
                 }
             }
             item {
-                Button(
-                    onClick = {
-                        val copied = ShareStore.copyChartToClipboard(context, alert, brokerDate)
-                        Toast.makeText(context, if (copied) "Chart image copied" else "Unable to copy chart", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("COPY CHART", fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace) }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(
+                        onClick = {
+                            val copied = ShareStore.copyChartToClipboard(context, alert, brokerDate)
+                            copiedChart = copied
+                            Toast.makeText(
+                                context,
+                                if (copied) "Chart PNG copied · ready to paste in Telegram" else "Unable to copy chart PNG",
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) { Text(if (copiedChart) "✓ COPIED" else "COPY CHART", fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace) }
+                    Button(
+                        onClick = {
+                            if (!ShareStore.shareChart(context, alert, brokerDate)) {
+                                Toast.makeText(context, "Unable to open chart sharing", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = p.raised, contentColor = p.accent),
+                    ) { Text("SHARE CHART", fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace) }
+                }
             }
         }
     }

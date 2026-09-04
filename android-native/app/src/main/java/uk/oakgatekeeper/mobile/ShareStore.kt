@@ -3,6 +3,7 @@ package uk.oakgatekeeper.mobile
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -18,35 +19,76 @@ object ShareStore {
     private const val Authority = "uk.oakgatekeeper.mobile.files"
     private const val Width = 900
     private const val Height = 360
+    private const val ExportRetentionMs = 24L * 60L * 60L * 1000L
+    private const val ClipboardSafetyWindowMs = 10L * 60L * 1000L
+    private const val MaxExportFiles = 32
 
-    fun copyChartToClipboard(context: Context, alert: H1SignalAlert, brokerDate: String): Boolean = runCatching {
-        val bitmap = renderChart(alert, brokerDate)
-        val directory = File(context.cacheDir, "shared-charts").apply { mkdirs() }
-        directory.listFiles()?.forEach { if (it.name != "keep") it.delete() }
-        val file = File(directory, "oak-${alert.symbol}-h${alert.slotHour}-$brokerDate.png")
-        FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-        bitmap.recycle()
-        val uri = FileProvider.getUriForFile(context, Authority, file)
-        val clipboard = context.getSystemService(ClipboardManager::class.java)
-        clipboard.setPrimaryClip(ClipData.newUri(context.contentResolver, "OAK H1 chart", uri))
-        true
-    }.getOrDefault(false)
+    fun copyChartToClipboard(context: Context, alert: H1SignalAlert, brokerDate: String): Boolean =
+        exportChart(context, alert, brokerDate)?.let { copyUriToClipboard(context, "OAK H1 chart", it) } == true
 
-    fun copyScheduleToClipboard(context: Context, h1: H1SignalPayload, brokerDate: String, symbols: List<String>): Boolean = runCatching {
-        val bitmap = renderSchedule(h1, brokerDate, symbols)
-        val directory = File(context.cacheDir, "shared-charts").apply { mkdirs() }
-        directory.listFiles()?.forEach { if (it.name.startsWith("oak-h1-scanner-")) it.delete() }
-        val file = File(directory, "oak-h1-scanner-$brokerDate.png")
-        FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-        bitmap.recycle()
-        val uri = FileProvider.getUriForFile(context, Authority, file)
-        val clipboard = context.getSystemService(ClipboardManager::class.java)
-        clipboard.setPrimaryClip(ClipData.newUri(context.contentResolver, "OAK H1 schedule", uri))
-        true
-    }.getOrDefault(false)
+    fun copyScheduleToClipboard(context: Context, h1: H1SignalPayload, brokerDate: String, symbols: List<String>): Boolean =
+        exportSchedule(context, h1, brokerDate, symbols)?.let { copyUriToClipboard(context, "OAK H1 schedule", it) } == true
+
+    fun shareChart(context: Context, alert: H1SignalAlert, brokerDate: String): Boolean =
+        exportChart(context, alert, brokerDate)?.let { shareUri(context, "OAK H1 chart", it) } == true
+
+    fun shareSchedule(context: Context, h1: H1SignalPayload, brokerDate: String, symbols: List<String>): Boolean =
+        exportSchedule(context, h1, brokerDate, symbols)?.let { shareUri(context, "OAK H1 schedule", it) } == true
 
     fun trimTransient(context: Context) {
-        File(context.cacheDir, "shared-charts").listFiles()?.forEach { it.delete() }
+        // Do not delete fresh exports when the app goes UI_HIDDEN: that exact
+        // transition happens while the user switches to Telegram to paste.
+        pruneExports(context)
+    }
+
+    private fun exportChart(context: Context, alert: H1SignalAlert, brokerDate: String) =
+        exportBitmap(context, renderChart(alert, brokerDate), "oak-${alert.symbol}-h${alert.slotHour}-$brokerDate")
+
+    private fun exportSchedule(context: Context, h1: H1SignalPayload, brokerDate: String, symbols: List<String>) =
+        exportBitmap(context, renderSchedule(h1, brokerDate, symbols), "oak-h1-scanner-$brokerDate")
+
+    private fun exportBitmap(context: Context, bitmap: Bitmap, stem: String) = runCatching {
+        val directory = exportDirectory(context)
+        pruneExports(context)
+        val file = File(directory, "$stem-${System.currentTimeMillis()}.png")
+        FileOutputStream(file).use { output ->
+            check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) { "PNG compression failed" }
+            output.flush()
+        }
+        bitmap.recycle()
+        FileProvider.getUriForFile(context, Authority, file)
+    }.onFailure {
+        if (!bitmap.isRecycled) bitmap.recycle()
+    }.getOrNull()
+
+    private fun copyUriToClipboard(context: Context, label: String, uri: android.net.Uri): Boolean = runCatching {
+        val clipboard = context.getSystemService(ClipboardManager::class.java)
+        val clip = ClipData.newUri(context.contentResolver, label, uri)
+        clipboard.setPrimaryClip(clip)
+        clipboard.primaryClip?.getItemAt(0)?.uri == uri
+    }.getOrDefault(false)
+
+    private fun shareUri(context: Context, label: String, uri: android.net.Uri): Boolean = runCatching {
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "image/png"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            clipData = ClipData.newUri(context.contentResolver, label, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val chooser = Intent.createChooser(send, label).apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(chooser)
+        true
+    }.getOrDefault(false)
+
+    private fun exportDirectory(context: Context) = File(context.cacheDir, "shared-charts").apply { mkdirs() }
+
+    private fun pruneExports(context: Context, now: Long = System.currentTimeMillis()) {
+        val files = exportDirectory(context).listFiles()?.filter { it.isFile }?.sortedByDescending { it.lastModified() }.orEmpty()
+        files.filter { now - it.lastModified() > ExportRetentionMs }.forEach { it.delete() }
+        val remaining = exportDirectory(context).listFiles()?.filter { it.isFile }?.sortedByDescending { it.lastModified() }.orEmpty()
+        remaining.drop(MaxExportFiles).filter { now - it.lastModified() > ClipboardSafetyWindowMs }.forEach { it.delete() }
     }
 
     private fun renderSchedule(h1: H1SignalPayload, brokerDate: String, symbols: List<String>): Bitmap {

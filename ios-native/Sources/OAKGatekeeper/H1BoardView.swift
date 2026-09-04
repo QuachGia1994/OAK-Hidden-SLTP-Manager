@@ -15,6 +15,8 @@ struct H1BoardScreen: View {
     @State private var calendarOpen = false
     @State private var selectedAlert: H1SignalAlert?
     @State private var copiedSchedule = false
+    @State private var scheduleShare: OAKShareItem?
+    @State private var imageTransferFailed = false
 
     private let visibleSymbols = ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"]
 
@@ -100,6 +102,12 @@ struct H1BoardScreen: View {
                 H1EvidenceSheet(alert: alert, brokerDate: date, manualClose: alert.slotHour == 16 && h1.manualCloseH16(date: date))
             }
         }
+        .sheet(item: $scheduleShare) { item in
+            OAKActivityView(items: [item.url])
+        }
+        .alert(state.text(vn: "Không thể xuất ảnh PNG", en: "Unable to export PNG"), isPresented: $imageTransferFailed) {
+            Button("OK", role: .cancel) {}
+        }
         .onAppear { syncSelectedDate() }
         .onChange(of: state.payload?.h1?.publishedAt) { _, _ in syncSelectedDate() }
     }
@@ -128,13 +136,22 @@ struct H1BoardScreen: View {
                             .foregroundStyle(OAKColor.text)
                     }
                     Spacer()
-                    Button {
-                        copySchedulePNG(h1: h1, date: date)
-                    } label: {
-                        Label(copiedSchedule ? "COPIED" : "COPY PNG", systemImage: copiedSchedule ? "checkmark.circle.fill" : "doc.on.clipboard")
-                            .font(.system(size: 12, weight: .black, design: .monospaced))
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Button {
+                            copySchedulePNG(h1: h1, date: date)
+                        } label: {
+                            Label(copiedSchedule ? "COPIED" : "COPY PNG", systemImage: copiedSchedule ? "checkmark.circle.fill" : "doc.on.clipboard")
+                                .font(.system(size: 12, weight: .black, design: .monospaced))
+                        }
+                        .buttonStyle(.glass)
+                        Button {
+                            shareSchedulePNG(h1: h1, date: date)
+                        } label: {
+                            Label("SHARE PNG", systemImage: "square.and.arrow.up")
+                                .font(.system(size: 12, weight: .black, design: .monospaced))
+                        }
+                        .buttonStyle(.glass)
                     }
-                    .buttonStyle(.glass)
                 }
 
                 HStack(spacing: 0) {
@@ -188,6 +205,33 @@ struct H1BoardScreen: View {
     }
 
     private func copySchedulePNG(h1: H1SignalPayload, date: String) {
+        guard let image = renderSchedulePNG(h1: h1, date: date) else {
+            imageTransferFailed = true
+            return
+        }
+        copiedSchedule = OAKImageTransfer.copyPNG(image)
+        if !copiedSchedule {
+            imageTransferFailed = true
+            return
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.4))
+            copiedSchedule = false
+        }
+    }
+
+    private func shareSchedulePNG(h1: H1SignalPayload, date: String) {
+        guard
+            let image = renderSchedulePNG(h1: h1, date: date),
+            let url = OAKImageTransfer.exportPNG(image, filename: "oak-h1-scanner-\(date)-\(UUID().uuidString)")
+        else {
+            imageTransferFailed = true
+            return
+        }
+        scheduleShare = OAKShareItem(url: url)
+    }
+
+    private func renderSchedulePNG(h1: H1SignalPayload, date: String) -> UIImage? {
         let view = ScheduleExportView(h1: h1, date: date, symbols: visibleSymbols)
             .frame(width: 980)
             .padding(28)
@@ -195,13 +239,7 @@ struct H1BoardScreen: View {
             .preferredColorScheme(state.themeMode.colorScheme)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 2
-        guard let image = renderer.uiImage else { return }
-        UIPasteboard.general.image = image
-        copiedSchedule = true
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1.4))
-            copiedSchedule = false
-        }
+        return renderer.uiImage
     }
 
     private func shortPublished(_ value: String) -> String {

@@ -8,6 +8,8 @@ struct H1EvidenceSheet: View {
     let brokerDate: String
     let manualClose: Bool
     @State private var copiedChart = false
+    @State private var chartShare: OAKShareItem?
+    @State private var imageTransferFailed = false
 
     var body: some View {
         NavigationStack {
@@ -90,16 +92,28 @@ struct H1EvidenceSheet: View {
                         }
                     }
 
-                    Button {
-                        copyChartImage()
-                    } label: {
-                        Label(copiedChart ? "CHART COPIED" : "COPY CHART", systemImage: copiedChart ? "checkmark.circle.fill" : "photo.on.rectangle")
-                            .font(.system(size: 12, weight: .black, design: .monospaced))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
+                    HStack(spacing: 10) {
+                        Button {
+                            copyChartImage()
+                        } label: {
+                            Label(copiedChart ? "CHART COPIED" : "COPY CHART", systemImage: copiedChart ? "checkmark.circle.fill" : "doc.on.clipboard")
+                                .font(.system(size: 12, weight: .black, design: .monospaced))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.glassProminent)
+                        .tint(OAKColor.accent)
+
+                        Button {
+                            shareChartImage()
+                        } label: {
+                            Label("SHARE CHART", systemImage: "square.and.arrow.up")
+                                .font(.system(size: 12, weight: .black, design: .monospaced))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.glass)
                     }
-                    .buttonStyle(.glassProminent)
-                    .tint(OAKColor.accent)
                     .disabled((alert.sampleBars ?? []).isEmpty)
                 }
                 .padding(16)
@@ -113,6 +127,12 @@ struct H1EvidenceSheet: View {
             }
         }
         .presentationDetents([.large])
+        .sheet(item: $chartShare) { item in
+            OAKActivityView(items: [item.url])
+        }
+        .alert("Unable to export PNG", isPresented: $imageTransferFailed) {
+            Button("OK", role: .cancel) {}
+        }
     }
 
     private func fact(_ label: String, _ value: String) -> some View {
@@ -137,8 +157,38 @@ struct H1EvidenceSheet: View {
     }
 
     private func copyChartImage() {
+        guard let image = renderChartPNG() else {
+            imageTransferFailed = true
+            return
+        }
+        copiedChart = OAKImageTransfer.copyPNG(image)
+        if !copiedChart {
+            imageTransferFailed = true
+            return
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.4))
+            copiedChart = false
+        }
+    }
+
+    private func shareChartImage() {
+        guard
+            let image = renderChartPNG(),
+            let url = OAKImageTransfer.exportPNG(
+                image,
+                filename: "oak-\(alert.symbol)-h\(alert.slotHour)-\(brokerDate)-\(UUID().uuidString)"
+            )
+        else {
+            imageTransferFailed = true
+            return
+        }
+        chartShare = OAKShareItem(url: url)
+    }
+
+    private func renderChartPNG() -> UIImage? {
         let bars = alert.sampleBars ?? []
-        guard !bars.isEmpty else { return }
+        guard !bars.isEmpty else { return nil }
         let view = EvidenceChartClipboardView(
             title: "OAK H1 · \(alert.symbol) H\(String(format: "%02d", alert.slotHour)) · \(brokerDate)",
             subtitle: "\(alert.patternGroup ?? "—") · \(familyLabel(alert.patternFamily)) · \(alert.pattern ?? "—")",
@@ -149,13 +199,7 @@ struct H1EvidenceSheet: View {
         .preferredColorScheme(.light)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 2
-        guard let image = renderer.uiImage else { return }
-        UIPasteboard.general.image = image
-        copiedChart = true
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1.4))
-            copiedChart = false
-        }
+        return renderer.uiImage
     }
 }
 

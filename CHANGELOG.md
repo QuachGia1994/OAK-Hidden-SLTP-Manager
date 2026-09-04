@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Hardened native image export on Android/iOS after COPY PNG / COPY CHART could appear successful but paste blank into Telegram. Android now keeps fresh FileProvider PNGs alive across `TRIM_MEMORY_UI_HIDDEN`, uses unique retained cache files, and adds `ACTION_SEND` share fallbacks with read grants. iOS now writes explicit `public.png` bytes to the system pasteboard, retains exported PNG files in cache, and exposes native share sheets. COPY/SHARE feedback is now separate so the UI no longer implies a share completed when only clipboard preparation succeeded.
+
 - Advanced H1 to v74. H16 entry time/pattern evidence is unchanged, but its final BUY/SELL is now derived from the same symbol's H14 signal using XAUUSD H3 entry as the selector: XAU H3 entry H5 => H16 copies H14 and no CLOSE badge; XAU H3 entry H4 => H16 inverts H14 and shows the CLOSE advisory badge. The rule applies to XAUUSD plus all FX rows across Web, copied PNG, native iOS and native Android; CLOSE remains presentation-only with no broker-close action.
 
 - Fixed sparse disabled dates in H1 History backfill. Valid ICMarkets broker days are now persisted even if no H1 pattern matches occur, and historical publishing retries singleton-lock `already-running` responses instead of silently dropping the date when the minute live scanner overlaps. Verified 2026-08-21 has 29 v73 matches and 2026-08-31 has 6 XAUUSD-only matches with complete M15 source coverage.
