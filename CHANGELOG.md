@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed the web H1 Evidence action to match native behavior: the stale `Copy evidence` text-copy button is now `Copy chart` and writes a real `image/png` candlestick chart to the system clipboard. The export rasterizes the current styled M15 SVG with compact title/subtitle metadata and preserves `OLDEST → NEWEST`, so Telegram paste receives the chart image instead of Evidence text.
+
 - Fixed local Telegram scheduled-entry duplication: each MT5 provider account may now have only one active timed ENTRY per symbol. A second same-symbol schedule is rejected before symbol preparation, intent-ID allocation, or optional web-sync creation; cancelling/expiring/executing/failing the first intent releases the symbol slot, while the same symbol remains independently schedulable on another MT5 account.
 
 - Unified web branding with the current OAK app icon. The top-left web header now uses the same `oak-app-icon.png` artwork as the native apps; browser favicon and PWA 192/512 icons are generated from the same canonical iOS AppIcon source, with a web manifest wired for installed-browser surfaces. Removed the extra header tile border/background so the app artwork is shown directly instead of the legacy chart favicon.

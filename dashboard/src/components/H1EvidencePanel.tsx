@@ -70,6 +70,104 @@ function minutes(bar: H1SignalSampleBar): number {
   return bar.hour * 60 + bar.minute;
 }
 
+const CHART_COPY_SCALE = 2;
+const CHART_SVG_STYLE_PROPERTIES = [
+  "fill",
+  "stroke",
+  "stroke-width",
+  "stroke-dasharray",
+  "opacity",
+  "font-family",
+  "font-size",
+  "font-weight",
+  "font-style",
+  "letter-spacing",
+  "text-anchor",
+  "dominant-baseline",
+] as const;
+
+function inlineSvgComputedStyles(svg: SVGSVGElement): SVGSVGElement {
+  const clone = svg.cloneNode(true) as SVGSVGElement;
+  const sourceNodes = [svg, ...Array.from(svg.querySelectorAll("*"))];
+  const cloneNodes = [clone, ...Array.from(clone.querySelectorAll("*"))];
+  sourceNodes.forEach((source, index) => {
+    const target = cloneNodes[index] as SVGElement | undefined;
+    if (!target) return;
+    const computed = window.getComputedStyle(source);
+    for (const property of CHART_SVG_STYLE_PROPERTIES) {
+      const value = computed.getPropertyValue(property);
+      if (value) target.style.setProperty(property, value);
+    }
+  });
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  clone.setAttribute("width", "760");
+  clone.setAttribute("height", "286");
+  return clone;
+}
+
+function loadSvgImage(svg: SVGSVGElement): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml;charset=utf-8" }));
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Chart SVG rasterization failed"));
+    };
+    image.src = url;
+  });
+}
+
+function canvasPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Chart PNG export failed")), "image/png", 1);
+  });
+}
+
+async function renderEvidenceChartPng(svg: SVGSVGElement, selection: H1EvidenceSelection): Promise<Blob> {
+  const logicalWidth = 900;
+  const logicalHeight = 360;
+  const chartX = 55;
+  const chartY = 56;
+  const chartWidth = 790;
+  const chartHeight = 297;
+  const canvas = document.createElement("canvas");
+  canvas.width = logicalWidth * CHART_COPY_SCALE;
+  canvas.height = logicalHeight * CHART_COPY_SCALE;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas unavailable");
+  ctx.scale(CHART_COPY_SCALE, CHART_COPY_SCALE);
+
+  const card = svg.closest(".oak-h1-evidence-chart-card") as HTMLElement | null;
+  const cardStyle = window.getComputedStyle(card ?? document.body);
+  const svgStyle = window.getComputedStyle(svg);
+  const mutedNode = svg.querySelector(".oak-h1-chart-time");
+  const mutedStyle = mutedNode ? window.getComputedStyle(mutedNode) : svgStyle;
+  const background = cardStyle.backgroundColor && cardStyle.backgroundColor !== "rgba(0, 0, 0, 0)"
+    ? cardStyle.backgroundColor
+    : window.getComputedStyle(document.body).backgroundColor || "#f8fafd";
+  const textColor = cardStyle.color || svgStyle.color || "#07111f";
+  const mutedColor = mutedStyle.fill || mutedStyle.color || "#56647a";
+
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, logicalWidth, logicalHeight);
+  ctx.fillStyle = textColor;
+  ctx.font = '900 19px "Cascadia Mono", Consolas, monospace';
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText(`OAK H1 · ${selection.base} H${String(selection.alert.slotHour).padStart(2, "0")} · ${selection.brokerDate}`, chartX, 25);
+  ctx.fillStyle = mutedColor;
+  ctx.font = '800 11px "Cascadia Mono", Consolas, monospace';
+  ctx.fillText(`${selection.alert.patternGroup ?? "—"} · ${familyLabel(selection.alert.patternFamily)} · ${patternLabel(selection.alert.pattern)} · OLDEST → NEWEST`, chartX, 44);
+
+  const image = await loadSvgImage(inlineSvgComputedStyles(svg));
+  ctx.drawImage(image, chartX, chartY, chartWidth, chartHeight);
+  return canvasPngBlob(canvas);
+}
+
 function EvidenceChart({ bars, blockHour, entryHour }: { bars: H1SignalSampleBar[]; blockHour: number; entryHour: number }) {
   const chronological = [...bars].sort((a, b) => minutes(a) - minutes(b));
   if (!chronological.length) return <div className="oak-h1-evidence-chart-empty">No retained OHLC evidence for this historical cell.</div>;
@@ -129,47 +227,25 @@ function EvidenceChart({ bars, blockHour, entryHour }: { bars: H1SignalSampleBar
   );
 }
 
-function evidenceText(selection: H1EvidenceSelection, payload: H1SignalPayload, locale: Locale): string {
-  const { base, brokerDate, alert } = selection;
-  const family = familyLabel(alert.patternFamily);
-  const facts = evidenceFacts(selection, payload);
-  const rows = (alert.sampleBars ?? []).map((bar) => `${bar.brokerDate} ${bar.brokerTime} · ${bar.direction}${bar.selected ? "" : " · EXCLUDED"} · O ${price(bar.open)} H ${price(bar.high)} L ${price(bar.low)} C ${price(bar.close)}`);
-  return [
-    `OAK H1 Pattern Evidence`,
-    `${locale === "EN" ? "Symbol" : "Symbol"}: ${base}`,
-    `Block: H${String(alert.slotHour).padStart(2, "0")}`,
-    `Entry: H${String(alert.entryHour ?? 0).padStart(2, "0")}`,
-    `Group: ${alert.patternGroup ?? "—"}`,
-    `Pattern source: ${facts.patternSource}`,
-    `Family: ${family}`,
-    `Pattern: ${patternLabel(alert.pattern)}`,
-    `BASE CANDLE: ${facts.rawBase}`,
-    ...(facts.signalSource ? [`FINAL SOURCE: ${facts.signalSource}`] : []),
-    `RULE: ${facts.rule}`,
-    `FINAL: ${facts.finalSignal}`,
-    `Broker: ${brokerDate} · H${String(alert.slotHour).padStart(2, "0")}:00`,
-    "",
-    "Pattern Evidence (newest → oldest)",
-    ...(rows.length ? rows : ["No retained OHLC bars"]),
-  ].join("\n");
-}
-
 export function H1EvidencePanel({ selection, payload, locale, onClose }: { selection: H1EvidenceSelection | null; payload: H1SignalPayload; locale: Locale; onClose: () => void }) {
   const open = Boolean(selection);
   const dialogRef = useDialogFocusTrap<HTMLElement>(open, onClose);
   const [copied, setCopied] = useState(false);
   const copy = locale === "EN"
-    ? { eyebrow: "PATTERN EVIDENCE", title: "H1 Cell Evidence", source: "Source symbol", family: "Original family", broker: "Broker date / time", pattern: "Pattern match", bars: "Pattern Evidence · newest → oldest", copy: "Copy evidence", copied: "Copied" }
-    : { eyebrow: "PATTERN EVIDENCE", title: "Evidence ô H1", source: "Source symbol", family: "Family gốc", broker: "Ngày / giờ broker", pattern: "Pattern match", bars: "Pattern Evidence · mới → cũ", copy: "Copy evidence", copied: "Đã copy" };
+    ? { eyebrow: "PATTERN EVIDENCE", title: "H1 Cell Evidence", source: "Source symbol", family: "Original family", broker: "Broker date / time", pattern: "Pattern match", bars: "Pattern Evidence · newest → oldest", copy: "Copy chart", copied: "Chart copied" }
+    : { eyebrow: "PATTERN EVIDENCE", title: "Evidence ô H1", source: "Source symbol", family: "Family gốc", broker: "Ngày / giờ broker", pattern: "Pattern match", bars: "Pattern Evidence · mới → cũ", copy: "Copy chart", copied: "Đã copy chart" };
   const orderedBars = useMemo(() => [...(selection?.alert.sampleBars ?? [])], [selection]);
   if (!selection) return null;
   const { base, brokerDate, alert } = selection;
   const entryHour = Number.isInteger(alert.entryHour) ? Number(alert.entryHour) : alert.slotHour;
   const facts = evidenceFacts(selection, payload);
 
-  const copyEvidence = async () => {
+  const copyChart = async () => {
     try {
-      await navigator.clipboard.writeText(evidenceText(selection, payload, locale));
+      const svg = dialogRef.current?.querySelector("svg.oak-h1-evidence-chart") as SVGSVGElement | null;
+      if (!svg || !orderedBars.length || typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) throw new Error("Image clipboard unavailable");
+      const png = renderEvidenceChartPng(svg, selection);
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);
     } catch {
@@ -182,7 +258,7 @@ export function H1EvidencePanel({ selection, payload, locale, onClose }: { selec
       <section ref={dialogRef} className="oak-h1-evidence-panel" role="dialog" aria-modal="true" aria-label={`${copy.title} ${base} H${alert.slotHour}`} tabIndex={-1}>
         <header className="oak-h1-evidence-head">
           <div><span className="oak-eyebrow">{copy.eyebrow}</span><h2>{base} · H{String(alert.slotHour).padStart(2, "0")}</h2><p>{copy.title}</p></div>
-          <div className="oak-h1-evidence-actions"><button type="button" className="oak-h1-evidence-copy" onClick={() => void copyEvidence()}>{copied ? copy.copied : copy.copy}</button><button type="button" className="oak-h1-evidence-close" onClick={onClose} aria-label={locale === "EN" ? "Close evidence" : "Đóng evidence"}>×</button></div>
+          <div className="oak-h1-evidence-actions"><button type="button" className="oak-h1-evidence-copy" onClick={() => void copyChart()} disabled={!orderedBars.length} aria-label={locale === "EN" ? "Copy M15 chart as PNG" : "Copy chart M15 dạng PNG"}>{copied ? copy.copied : copy.copy}</button><button type="button" className="oak-h1-evidence-close" onClick={onClose} aria-label={locale === "EN" ? "Close evidence" : "Đóng evidence"}>×</button></div>
         </header>
 
         <div className="oak-h1-evidence-chips">

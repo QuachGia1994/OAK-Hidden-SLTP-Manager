@@ -534,7 +534,12 @@ test("populated H1 cells open deterministic M15 pattern evidence without clutter
   assert.match(evidencePanelSource, /M15 candlestick pattern evidence/);
   assert.match(evidencePanelSource, /sampleBars/);
   assert.match(evidencePanelSource, /Pattern Evidence · newest → oldest/);
-  assert.match(evidencePanelSource, /navigator\.clipboard\.writeText/);
+  assert.match(evidencePanelSource, /copy: "Copy chart"/);
+  assert.match(evidencePanelSource, /renderEvidenceChartPng/);
+  assert.match(evidencePanelSource, /navigator\.clipboard\.write/);
+  assert.match(evidencePanelSource, /new ClipboardItem\(\{ "image\/png": png \}\)/);
+  assert.match(evidencePanelSource, /canvas\.toBlob/);
+  assert.doesNotMatch(evidencePanelSource, /Copy evidence|navigator\.clipboard\.writeText|evidenceText\(/);
   assert.match(evidencePanelSource, /BLOCK H/);
   assert.match(evidencePanelSource, /ENTRY H/);
   assert.match(evidencePanelSource, /familyLabel/);
