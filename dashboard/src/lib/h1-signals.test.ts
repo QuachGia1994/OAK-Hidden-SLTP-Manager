@@ -134,12 +134,28 @@ test("H16 copies H14 for XAU H3 entry H5 and inverts H14 with CLOSE only for H3 
   assert.doesNotMatch(redesignCss, /tbody td\[data-manual-close="true"\]|data-action="CLOSE"/);
   assert.match(androidScreensSource, /if \(manualClose\) Text\("CLOSE", color = p\.warning/);
   assert.doesNotMatch(androidScreensSource, /manualClose -> OAKPill\("CLOSE", PillTone\.WARNING\)/);
-  assert.match(androidScreensSource, /Fact\("FINAL", alert\.signal\?\.name \?: "—"\)/);
+  assert.match(androidScreensSource, /Fact\("RAW BASE", facts\.rawBase\)/);
+  assert.match(androidScreensSource, /Fact\("SIGNAL SOURCE", facts\.signalSource\)/);
+  assert.match(androidScreensSource, /Fact\("RULE", facts\.rule\)/);
+  assert.match(androidScreensSource, /Fact\("FINAL", facts\.finalSignal\)/);
+  assert.match(androidModelsSource, /fun evidenceFacts\(date: String, sourceAlert: H1SignalAlert\): H1EvidenceFacts/);
+  assert.match(androidModelsSource, /sourceAlert\.slotHour == 16/);
+  assert.match(androidModelsSource, /sourceAlert\.symbol, 14/);
+  assert.match(androidModelsSource, /xauH3Entry == 4 -> "INVERT H14"/);
+  assert.match(androidModelsSource, /xauH3Entry == 5 -> "COPY H14"/);
   assert.match(androidShareSource, /val closeBadge = manualClose && hour == 16/);
   assert.match(androidShareSource, /when \(alert\?\.signal\)/);
   assert.match(nativeH1BoardSource, /OAKPill\(label: "CLOSE", tone: \.warning\)/);
   assert.doesNotMatch(nativeSignalsSource, /let close =|if close|manualClose && alert\.slotHour == 16/);
-  assert.match(nativeEvidenceSource, /fact\("FINAL", alert\.signal\?\.rawValue \?\? "—"\)/);
+  assert.match(nativeEvidenceSource, /fact\("RAW BASE", facts\.rawBase\)/);
+  assert.match(nativeEvidenceSource, /fact\("SIGNAL SOURCE", facts\.signalSource\)/);
+  assert.match(nativeEvidenceSource, /fact\("RULE", facts\.rule\)/);
+  assert.match(nativeEvidenceSource, /fact\("FINAL", facts\.finalSignal\)/);
+  assert.match(nativeModelsSource, /func evidenceFacts\(date: String, sourceAlert: H1SignalAlert\) -> H1EvidenceFacts/);
+  assert.match(nativeModelsSource, /sourceAlert\.slotHour == 16/);
+  assert.match(nativeModelsSource, /alert\(date: date, symbol: sourceAlert\.symbol, hour: 14\)/);
+  assert.match(nativeModelsSource, /xauH3Entry == 4 \? "INVERT H14" : xauH3Entry == 5 \? "COPY H14"/);
+  assert.doesNotMatch(nativeEvidenceSource, /"GBPUSD H\\\(alert\.baseHour/);
   assert.doesNotMatch(boardSource + androidScreensSource, /order_send|closePosition|dispatchTask|\/approve/);
 });
 
@@ -485,7 +501,14 @@ test("H1 board exports interoperable PNG clipboard data and native share fallbac
 test("populated H1 cells open deterministic M15 pattern evidence without cluttering the cell", () => {
   assert.match(boardSource, /oak-h1-cell-entry oak-h1-cell-evidence/);
   assert.match(boardSource, /setEvidenceSelection/);
-  assert.match(boardSource, /<H1EvidencePanel/);
+  assert.match(boardSource, /<H1EvidencePanel selection=\{evidenceSelection\} payload=\{data\}/);
+  assert.match(evidencePanelSource, /function evidenceFacts\(/);
+  assert.match(evidencePanelSource, /RAW BASE/);
+  assert.match(evidencePanelSource, /SIGNAL SOURCE/);
+  assert.match(evidencePanelSource, /RULE/);
+  assert.match(evidencePanelSource, /FINAL/);
+  assert.match(evidencePanelSource, /COPY H14|INVERT H14/);
+  assert.match(evidencePanelSource, /SYNC XAUUSD/);
   assert.match(evidencePanelSource, /M15 candlestick pattern evidence/);
   assert.match(evidencePanelSource, /sampleBars/);
   assert.match(evidencePanelSource, /Pattern Evidence · newest → oldest/);

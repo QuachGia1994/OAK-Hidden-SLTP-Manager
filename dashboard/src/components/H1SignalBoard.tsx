@@ -513,7 +513,7 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
           <div><b>H16 CLOSE</b><p>{locale === "EN" ? "XAUUSD H3 entry is H4. H16 uses the inverse of H14; CLOSE is advisory only and never closes positions automatically." : "XAUUSD block H3 có entry H4. H16 lấy tín hiệu đảo ngược H14; CLOSE chỉ là badge khuyến nghị và không tự đóng lệnh."}</p></div>
         </aside>}</>}
       </section>
-      <H1EvidencePanel selection={evidenceSelection} locale={locale} onClose={() => setEvidenceSelection(null)} />
+      <H1EvidencePanel selection={evidenceSelection} payload={data} locale={locale} onClose={() => setEvidenceSelection(null)} />
     </>
   );
 }

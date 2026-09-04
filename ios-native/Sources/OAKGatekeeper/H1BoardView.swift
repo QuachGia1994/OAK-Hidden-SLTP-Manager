@@ -99,7 +99,7 @@ struct H1BoardScreen: View {
         }
         .sheet(item: $selectedAlert) { alert in
             if let h1 = state.payload?.h1, let date = effectiveDate(h1) {
-                H1EvidenceSheet(alert: alert, brokerDate: date, manualClose: alert.slotHour == 16 && h1.manualCloseH16(date: date))
+                H1EvidenceSheet(h1: h1, alert: alert, brokerDate: date, manualClose: alert.slotHour == 16 && h1.manualCloseH16(date: date))
             }
         }
         .sheet(item: $scheduleShare) { item in

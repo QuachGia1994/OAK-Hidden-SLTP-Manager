@@ -87,7 +87,7 @@ struct SignalsView: View {
         .refreshable { await state.refresh() }
         .sheet(item: $selectedAlert) { alert in
             if let h1 = state.payload?.h1 {
-                H1EvidenceSheet(alert: alert, brokerDate: h1.latestDate, manualClose: h1.manualCloseH16(date: h1.latestDate) && alert.slotHour == 16)
+                H1EvidenceSheet(h1: h1, alert: alert, brokerDate: h1.latestDate, manualClose: h1.manualCloseH16(date: h1.latestDate) && alert.slotHour == 16)
             }
         }
     }

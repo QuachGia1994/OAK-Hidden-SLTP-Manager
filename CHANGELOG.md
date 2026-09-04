@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Corrected H1 Evidence semantics across Web/iOS/Android for rule v74. Evidence now separates PATTERN SOURCE from RAW BASE and actual SIGNAL SOURCE, shows the applied RULE, and keeps FINAL explicit. H16 points to the same-symbol H14 signal with COPY H14 for XAU H3 entry H5 or INVERT H14 for H4; GBPUSD/EURUSD H9/H12/H14 show SYNC XAUUSD; direct blocks identify their previous-broker-day raw base. iOS no longer hardcodes GBPUSD in BASE, patterns render spaced for readability, and CLOSE no longer hides the BUY/SELL chip.
+
 - Fixed native schedule COPY/SHARE PNG parity with H1 Live. iOS no longer renders the interactive horizontal `H1MatrixView` inside `ImageRenderer` (which produced a PNG with only the fixed SYMBOL column); it now uses a dedicated non-scroll export matrix that renders every `h1.hours` column and the exact `h1.alert(date:symbol:hour:)` entry/signal/CLOSE data. Android schedule export remains direct-model Canvas rendering and is locked to the same hours/alert contract.
 
 - Hardened native image export on Android/iOS after COPY PNG / COPY CHART could appear successful but paste blank into Telegram. Android now keeps fresh FileProvider PNGs alive across `TRIM_MEMORY_UI_HIDDEN`, uses unique retained cache files, and adds `ACTION_SEND` share fallbacks with read grants. iOS now writes explicit `public.png` bytes to the system pasteboard, retains exported PNG files in cache, and exposes native share sheets. COPY/SHARE feedback is now separate so the UI no longer implies a share completed when only clipboard preparation succeeded.

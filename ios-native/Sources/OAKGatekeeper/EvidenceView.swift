@@ -4,6 +4,7 @@ import UIKit
 @MainActor
 struct H1EvidenceSheet: View {
     @Environment(\.dismiss) private var dismiss
+    let h1: H1SignalPayload
     let alert: H1SignalAlert
     let brokerDate: String
     let manualClose: Bool
@@ -26,7 +27,8 @@ struct H1EvidenceSheet: View {
                         if let entry = alert.entryHour { OAKPill(label: "ENTRY H\(entry)", tone: .muted) }
                         if manualClose {
                             OAKPill(label: "CLOSE", tone: .warning)
-                        } else if let signal = alert.signal {
+                        }
+                        if let signal = alert.signal {
                             OAKPill(label: signal.rawValue, tone: signal == .buy ? .buy : .sell)
                         }
                     }
@@ -55,11 +57,15 @@ struct H1EvidenceSheet: View {
                             fact("BROKER DAY", brokerDate)
                             fact("BLOCK", "H\(alert.slotHour)")
                             fact("ENTRY", alert.entryHour.map { "H\($0)" } ?? "—")
+                            let facts = h1.evidenceFacts(date: brokerDate, sourceAlert: alert)
                             fact("GROUP", alert.patternGroup ?? "—")
                             fact("FAMILY", familyLabel(alert.patternFamily))
-                            fact("PATTERN", alert.pattern ?? "—")
-                            fact("BASE", alert.baseDirection.isEmpty ? "—" : "GBPUSD H\(alert.baseHour ?? 0) · \(alert.baseDirection)")
-                            fact("FINAL", alert.signal?.rawValue ?? "—")
+                            fact("PATTERN", patternLabel(alert.pattern))
+                            fact("PATTERN SRC", facts.patternSource)
+                            fact("RAW BASE", facts.rawBase)
+                            fact("SIGNAL SOURCE", facts.signalSource)
+                            fact("RULE", facts.rule)
+                            fact("FINAL", facts.finalSignal)
                         }
                     }
 
@@ -154,6 +160,11 @@ struct H1EvidenceSheet: View {
         case "SAME": "TT/GG"
         default: value ?? "—"
         }
+    }
+
+    private func patternLabel(_ value: String?) -> String {
+        guard let value, !value.isEmpty else { return "—" }
+        return value.map(String.init).joined(separator: " ")
     }
 
     private func copyChartImage() {

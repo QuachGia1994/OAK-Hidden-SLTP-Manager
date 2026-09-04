@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useDialogFocusTrap } from "@/hooks/useDialogFocusTrap";
-import type { H1SignalAlert, H1SignalSampleBar } from "@/lib/h1-signals";
+import type { H1SignalAlert, H1SignalPayload, H1SignalSampleBar } from "@/lib/h1-signals";
 
 type Locale = "EN" | "VN";
 
@@ -18,6 +18,48 @@ function familyLabel(value: H1SignalAlert["patternFamily"]): string {
 
 function patternLabel(value: string | undefined): string {
   return value ? [...value].join(" ") : "—";
+}
+
+type H1EvidenceFacts = {
+  patternSource: string;
+  rawBase: string;
+  signalSource: string;
+  rule: string;
+  finalSignal: string;
+};
+
+function hourLabel(value: number | null | undefined): string {
+  return Number.isInteger(value) ? `H${String(value).padStart(2, "0")}` : "—";
+}
+
+function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload): H1EvidenceFacts {
+  const { base, brokerDate, alert } = selection;
+  const rawBase = alert.baseDirection
+    ? `${alert.baseSymbol || "—"} PREV ${hourLabel(alert.baseHour)} · ${alert.baseDirection} → ${alert.baseSignal ?? "—"}`
+    : "—";
+  let signalSource = alert.baseSymbol
+    ? `${alert.baseSymbol} PREV ${hourLabel(alert.baseHour)} · ${alert.baseSignal ?? "—"}`
+    : "—";
+  let rule = "DIRECT BASE";
+
+  if (alert.slotHour === 16) {
+    const h14 = payload.days[brokerDate]?.symbols?.[base]?.alerts?.find((row) => row.slotHour === 14);
+    const xauH3Entry = payload.days[brokerDate]?.symbols?.XAUUSD?.alerts?.find((row) => row.slotHour === 3)?.entryHour ?? null;
+    signalSource = `${base} H14 · ${h14?.signal ?? "—"}`;
+    rule = xauH3Entry === 4 ? "INVERT H14" : xauH3Entry === 5 ? "COPY H14" : "H14 OVERRIDE";
+  } else if ((base === "GBPUSD" || base === "EURUSD") && [9, 12, 14].includes(alert.slotHour)) {
+    const xau = payload.days[brokerDate]?.symbols?.XAUUSD?.alerts?.find((row) => row.slotHour === alert.slotHour);
+    signalSource = `XAUUSD H${String(alert.slotHour).padStart(2, "0")} · ${xau?.signal ?? "—"}`;
+    rule = "SYNC XAUUSD";
+  }
+
+  return {
+    patternSource: alert.scannerSource || base,
+    rawBase,
+    signalSource,
+    rule,
+    finalSignal: alert.signal ?? "—",
+  };
 }
 
 function price(value: number): string {
@@ -89,9 +131,10 @@ function EvidenceChart({ bars, blockHour, entryHour }: { bars: H1SignalSampleBar
   );
 }
 
-function evidenceText(selection: H1EvidenceSelection, locale: Locale): string {
+function evidenceText(selection: H1EvidenceSelection, payload: H1SignalPayload, locale: Locale): string {
   const { base, brokerDate, alert } = selection;
   const family = familyLabel(alert.patternFamily);
+  const facts = evidenceFacts(selection, payload);
   const rows = (alert.sampleBars ?? []).map((bar) => `${bar.brokerDate} ${bar.brokerTime} · ${bar.direction}${bar.selected ? "" : " · EXCLUDED"} · O ${price(bar.open)} H ${price(bar.high)} L ${price(bar.low)} C ${price(bar.close)}`);
   return [
     `OAK H1 Pattern Evidence`,
@@ -99,11 +142,13 @@ function evidenceText(selection: H1EvidenceSelection, locale: Locale): string {
     `Block: H${String(alert.slotHour).padStart(2, "0")}`,
     `Entry: H${String(alert.entryHour ?? 0).padStart(2, "0")}`,
     `Group: ${alert.patternGroup ?? "—"}`,
-    `Source: ${alert.scannerSource || base}`,
+    `Pattern source: ${facts.patternSource}`,
     `Family: ${family}`,
     `Pattern: ${patternLabel(alert.pattern)}`,
-    `Signal: ${alert.signal ?? "—"}`,
-    `Base: ${alert.baseSymbol || "GBPUSD"} H${String(alert.baseHour ?? 0).padStart(2, "0")} · ${alert.baseDirection || "—"}`,
+    `RAW BASE: ${facts.rawBase}`,
+    `SIGNAL SOURCE: ${facts.signalSource}`,
+    `RULE: ${facts.rule}`,
+    `FINAL: ${facts.finalSignal}`,
     `Broker: ${brokerDate} · H${String(alert.slotHour).padStart(2, "0")}:00`,
     "",
     "Pattern Evidence (newest → oldest)",
@@ -111,7 +156,7 @@ function evidenceText(selection: H1EvidenceSelection, locale: Locale): string {
   ].join("\n");
 }
 
-export function H1EvidencePanel({ selection, locale, onClose }: { selection: H1EvidenceSelection | null; locale: Locale; onClose: () => void }) {
+export function H1EvidencePanel({ selection, payload, locale, onClose }: { selection: H1EvidenceSelection | null; payload: H1SignalPayload; locale: Locale; onClose: () => void }) {
   const open = Boolean(selection);
   const dialogRef = useDialogFocusTrap<HTMLElement>(open, onClose);
   const [copied, setCopied] = useState(false);
@@ -122,10 +167,11 @@ export function H1EvidencePanel({ selection, locale, onClose }: { selection: H1E
   if (!selection) return null;
   const { base, brokerDate, alert } = selection;
   const entryHour = Number.isInteger(alert.entryHour) ? Number(alert.entryHour) : alert.slotHour;
+  const facts = evidenceFacts(selection, payload);
 
   const copyEvidence = async () => {
     try {
-      await navigator.clipboard.writeText(evidenceText(selection, locale));
+      await navigator.clipboard.writeText(evidenceText(selection, payload, locale));
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);
     } catch {
@@ -149,10 +195,14 @@ export function H1EvidencePanel({ selection, locale, onClose }: { selection: H1E
         </div>
 
         <div className="oak-h1-evidence-meta">
-          <div><small>{copy.source}</small><b>{alert.scannerSource || base}</b></div>
+          <div><small>PATTERN SOURCE</small><b>{facts.patternSource}</b></div>
           <div><small>{copy.family}</small><b>{familyLabel(alert.patternFamily)}</b></div>
           <div><small>{copy.pattern}</small><b>{patternLabel(alert.pattern)}</b></div>
           <div><small>{copy.broker}</small><b>{brokerDate} · {String(alert.slotHour).padStart(2, "0")}:00</b></div>
+          <div><small>RAW BASE</small><b>{facts.rawBase}</b></div>
+          <div><small>SIGNAL SOURCE</small><b>{facts.signalSource}</b></div>
+          <div><small>RULE</small><b>{facts.rule}</b></div>
+          <div><small>FINAL</small><b>{facts.finalSignal}</b></div>
         </div>
 
         <div className="oak-h1-evidence-chart-card">

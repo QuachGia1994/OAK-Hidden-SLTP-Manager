@@ -269,7 +269,9 @@ fun H1BoardScreen(state: OAKAppState, history: Boolean) {
     }
 
     selectedAlert?.let { alert ->
-        EvidenceSheet(alert = alert, brokerDate = date, onDismiss = { selectedAlert = null })
+        h1?.let { payload ->
+            EvidenceSheet(h1 = payload, alert = alert, brokerDate = date, onDismiss = { selectedAlert = null })
+        }
     }
 }
 
@@ -510,7 +512,9 @@ fun SignalsScreen(state: OAKAppState) {
         if (rows.isEmpty()) item { OAKCard { Text("No matching alerts", color = p.muted) } }
     }
 
-    selectedAlert?.let { alert -> EvidenceSheet(alert, date) { selectedAlert = null } }
+    if (h1 != null) {
+        selectedAlert?.let { alert -> EvidenceSheet(h1, alert, date) { selectedAlert = null } }
+    }
 }
 
 @Composable
@@ -749,9 +753,10 @@ private fun SegmentedRow(choices: List<String>, selected: String, onSelect: (Str
 }
 
 @Composable
-private fun EvidenceSheet(alert: H1SignalAlert, brokerDate: String, onDismiss: () -> Unit) {
+private fun EvidenceSheet(h1: H1SignalPayload, alert: H1SignalAlert, brokerDate: String, onDismiss: () -> Unit) {
     val p = LocalOAKPalette.current
     val context = LocalContext.current
+    val facts = h1.evidenceFacts(brokerDate, alert)
     var copiedChart by remember(alert.id, brokerDate) { mutableStateOf(false) }
     LaunchedEffect(copiedChart) {
         if (copiedChart) {
@@ -784,10 +789,13 @@ private fun EvidenceSheet(alert: H1SignalAlert, brokerDate: String, onDismiss: (
                         Fact("BLOCK", "H${alert.slotHour}")
                         Fact("ENTRY", alert.entryHour?.let { "H$it" } ?: "—")
                         Fact("GROUP", alert.patternGroup ?: "—")
-                        Fact("FAMILY", alert.patternFamily ?: "—")
-                        Fact("PATTERN", alert.pattern ?: "—")
-                        Fact("BASE", "${alert.baseSymbol} H${alert.baseHour ?: 0} · ${alert.baseDirection}")
-                        Fact("FINAL", alert.signal?.name ?: "—")
+                        Fact("FAMILY", evidenceFamilyLabel(alert.patternFamily))
+                        Fact("PATTERN", evidencePatternLabel(alert.pattern))
+                        Fact("PATTERN SRC", facts.patternSource)
+                        Fact("RAW BASE", facts.rawBase)
+                        Fact("SIGNAL SOURCE", facts.signalSource)
+                        Fact("RULE", facts.rule)
+                        Fact("FINAL", facts.finalSignal)
                     }
                 }
             }
@@ -837,6 +845,15 @@ private fun EvidenceSheet(alert: H1SignalAlert, brokerDate: String, onDismiss: (
         }
     }
 }
+
+private fun evidenceFamilyLabel(value: String?): String = when (value) {
+    "ALT" -> "GT/TG"
+    "SAME" -> "TT/GG"
+    else -> value ?: "—"
+}
+
+private fun evidencePatternLabel(value: String?): String =
+    value?.takeIf { it.isNotBlank() }?.toCharArray()?.joinToString(" ") ?: "—"
 
 @Composable
 private fun Fact(label: String, value: String) {
