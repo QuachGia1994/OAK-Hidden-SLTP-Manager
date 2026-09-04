@@ -79,12 +79,12 @@ test("GBP cross early-block gates apply Tuesday-Friday while Monday remains XAUU
     assert.equal(targetEnabledForDate(fx, tuesday, 6), false);
     for (const hour of [9, 12, 14, 16]) assert.equal(targetEnabledForDate(fx, tuesday, hour), true);
   }
-  assert.equal(targetEnabledForDate("GBPJPY", tuesday, 3), false);
-  for (const hour of [6, 9, 12, 14, 16]) assert.equal(targetEnabledForDate("GBPJPY", tuesday, hour), true);
+  for (const hour of [3, 12, 14]) assert.equal(targetEnabledForDate("GBPJPY", tuesday, hour), false);
+  for (const hour of [6, 9, 16]) assert.equal(targetEnabledForDate("GBPJPY", tuesday, hour), true);
   for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(targetEnabledForDate("GBPAUD", tuesday, hour), true);
 });
 
-test("rule v75 has no weekday inversion badges", () => {
+test("rule v76 has no weekday inversion badges", () => {
   const tue = "2026-09-08";
   const thu = "2026-09-03";
   const fri = "2026-09-04";

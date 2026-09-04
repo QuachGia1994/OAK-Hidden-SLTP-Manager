@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced H1 to v76: reverted the temporary v75 GBPCAD dependency. GBPUSD and EURUSD H9/H12/H14/H16 again copy XAUUSD's exact entry time and already-final BUY/SELL for the same block; Evidence identifies `XAUUSD Hxx` as FINAL SOURCE with `SYNC XAUUSD`. GBPJPY no longer exposes H12 or H14, leaving H6/H9/H16 Tuesday-Friday (H3 remains disabled). GBPJPY H16 retains its prior CLOSE/copy-invert behavior through a private H16 reference without publishing an H14 row.
+
 - Advanced H1 to v75: GBPUSD and EURUSD H9/H12/H14/H16 now copy the exact GBPCAD entry time and final BUY/SELL for the same block. Their pattern/evidence metadata remains on the existing GBPUSD-driven window, while Evidence now labels GBPCAD as FINAL SOURCE with `SYNC GBPCAD`. GBPUSD/EURUSD H16 copy the already-final GBPCAD H16 result instead of running a second own-symbol H14 override. Monday/block eligibility and the global H16 CLOSE advisory selector remain unchanged.
 
 - Fixed the web H1 Evidence action to match native behavior: the stale `Copy evidence` text-copy button is now `Copy chart` and writes a real `image/png` candlestick chart to the system clipboard. The export rasterizes the current styled M15 SVG with compact title/subtitle metadata and preserves `OLDEST → NEWEST`, so Telegram paste receives the chart image instead of Evidence text.

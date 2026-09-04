@@ -287,9 +287,9 @@ extension H1SignalPayload {
         var rule = "DIRECT BASE"
 
         if (sourceAlert.symbol == "GBPUSD" || sourceAlert.symbol == "EURUSD") && [9, 12, 14, 16].contains(sourceAlert.slotHour) {
-            let cad = alert(date: date, symbol: "GBPCAD", hour: sourceAlert.slotHour)
-            signalSource = "GBPCAD H\(String(format: "%02d", sourceAlert.slotHour)) · \(cad?.signal?.rawValue ?? "—")"
-            rule = "SYNC GBPCAD"
+            let xau = alert(date: date, symbol: "XAUUSD", hour: sourceAlert.slotHour)
+            signalSource = "XAUUSD H\(String(format: "%02d", sourceAlert.slotHour)) · \(xau?.signal?.rawValue ?? "—")"
+            rule = "SYNC XAUUSD"
         } else if sourceAlert.slotHour == 16 {
             let h14 = alert(date: date, symbol: sourceAlert.symbol, hour: 14)
             let xauH3Entry = alert(date: date, symbol: "XAUUSD", hour: 3)?.entryHour

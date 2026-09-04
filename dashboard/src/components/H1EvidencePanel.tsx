@@ -41,9 +41,9 @@ function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload)
   let rule = "DIRECT BASE";
 
   if ((base === "GBPUSD" || base === "EURUSD") && [9, 12, 14, 16].includes(alert.slotHour)) {
-    const cad = payload.days[brokerDate]?.symbols?.GBPCAD?.alerts?.find((row) => row.slotHour === alert.slotHour);
-    signalSource = `GBPCAD H${String(alert.slotHour).padStart(2, "0")} · ${cad?.signal ?? "—"}`;
-    rule = "SYNC GBPCAD";
+    const xau = payload.days[brokerDate]?.symbols?.XAUUSD?.alerts?.find((row) => row.slotHour === alert.slotHour);
+    signalSource = `XAUUSD H${String(alert.slotHour).padStart(2, "0")} · ${xau?.signal ?? "—"}`;
+    rule = "SYNC XAUUSD";
   } else if (alert.slotHour === 16) {
     const h14 = payload.days[brokerDate]?.symbols?.[base]?.alerts?.find((row) => row.slotHour === 14);
     const xauH3Entry = payload.days[brokerDate]?.symbols?.XAUUSD?.alerts?.find((row) => row.slotHour === 3)?.entryHour ?? null;
