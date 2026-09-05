@@ -126,18 +126,12 @@ object ShareStore {
         cellRect(left, top, symbolWidth - 6f, 46f, Color.rgb(238, 243, 248), Color.rgb(212, 220, 230))
         paint.color = Color.rgb(10, 16, 26); paint.textSize = 15f
         canvas.drawText("SYMBOL", left + 14f, top + 29f, paint)
-        val manualClose = h1.manualCloseH16(brokerDate)
         hours.forEachIndexed { index, hour ->
             val x = left + symbolWidth + index * cellWidth
-            val closeBadge = manualClose && hour == 16
-            cellRect(x, top, cellWidth - 6f, 46f, if (closeBadge) Color.rgb(255, 244, 224) else Color.rgb(238, 243, 248), if (closeBadge) Color.rgb(155, 91, 0) else Color.rgb(212, 220, 230))
-            paint.color = if (closeBadge) Color.rgb(155, 91, 0) else Color.rgb(79, 92, 112); paint.textSize = if (closeBadge) 12f else 15f; paint.textAlign = Paint.Align.CENTER
+            cellRect(x, top, cellWidth - 6f, 46f, Color.rgb(238, 243, 248), Color.rgb(212, 220, 230))
+            paint.color = Color.rgb(79, 92, 112); paint.textSize = 15f; paint.textAlign = Paint.Align.CENTER
             val centerX = x + (cellWidth - 6f) / 2f
-            canvas.drawText("H${hour.toString().padStart(2, '0')}", centerX, top + if (closeBadge) 19f else 29f, paint)
-            if (closeBadge) {
-                paint.textSize = 10f
-                canvas.drawText("CLOSE", centerX, top + 37f, paint)
-            }
+            canvas.drawText("H${hour.toString().padStart(2, '0')}", centerX, top + 29f, paint)
             paint.textAlign = Paint.Align.LEFT
         }
         symbols.forEachIndexed { rowIndex, symbol ->

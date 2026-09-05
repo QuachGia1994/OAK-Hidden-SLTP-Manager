@@ -16,7 +16,7 @@ import {
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 76;
+export const H1_SIGNAL_RULE_VERSION = 77;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
@@ -32,8 +32,8 @@ export const H1_CLOUD_PROFILE = "MT5 ICMarkets Local";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
 export const H1_FIRST_SCAN_HOUR = 3;
 export const H1_SCAN_START_HOUR = 3;
-export const H1_SCAN_END_HOUR = 16;
-export const H1_SIGNAL_END_HOUR = 18;
+export const H1_SCAN_END_HOUR = 14;
+export const H1_SIGNAL_END_HOUR = 16;
 export const H1_SCAN_HOURS = H1_LOCAL_SCAN_HOURS;
 
 export const H1_TARGET_BASES = H1_LOCAL_TARGETS;
@@ -84,7 +84,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 76;
+  signalRuleVersion: 77;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -157,7 +157,6 @@ export const H1_TELEGRAM_VIETNAM_SLOT_ANCHORS = [
   { slotHour: 9, appointmentHour: 15, appointmentMinute: 5 },
   { slotHour: 12, appointmentHour: 18, appointmentMinute: 5 },
   { slotHour: 14, appointmentHour: 20, appointmentMinute: 5 },
-  { slotHour: 16, appointmentHour: 22, appointmentMinute: 5 },
 ] as const;
 
 export function scheduledSignalSlotForVietnamWall(
@@ -172,6 +171,7 @@ export function scheduledSignalSlotForVietnamWall(
     || !Number.isInteger(vietnamMinute) || vietnamMinute < 0 || vietnamMinute > 59
   ) return null;
   const appointmentMinute = vietnamHour * 60 + vietnamMinute;
+  if (appointmentMinute >= 22 * 60 + 5) return null;
   const eligible = H1_TELEGRAM_VIETNAM_SLOT_ANCHORS
     .filter(({ slotHour, appointmentHour, appointmentMinute: anchorMinute }) => (
       appointmentHour * 60 + anchorMinute <= appointmentMinute
@@ -203,19 +203,19 @@ function invertSignal(signal: H1Signal): H1Signal {
 }
 
 function patternDriverTargetFor(base: H1TargetBase, slotHour: number): H1TargetBase {
-  if (base === "EURUSD" && [9, 12, 14, 16].includes(slotHour)) return "GBPUSD";
+  if (base === "EURUSD" && [9, 12, 14].includes(slotHour)) return "GBPUSD";
   if (base === "GBPAUD" || base === "GBPCAD" || base === "GBPJPY") return "GBPAUD";
   return base;
 }
 
 function entryDriverTargetFor(base: H1TargetBase, slotHour: number): H1TargetBase {
-  if ((base === "GBPUSD" || base === "EURUSD") && [9, 12, 14, 16].includes(slotHour)) return "XAUUSD";
+  if ((base === "GBPUSD" || base === "EURUSD") && [9, 12, 14].includes(slotHour)) return "XAUUSD";
   if (base === "GBPAUD" || base === "GBPCAD" || base === "GBPJPY") return "GBPAUD";
   return base;
 }
 
 function syncFinalFromXau(base: H1TargetBase, slotHour: number): boolean {
-  return (base === "GBPUSD" || base === "EURUSD") && [9, 12, 14, 16].includes(slotHour);
+  return (base === "GBPUSD" || base === "EURUSD") && [9, 12, 14].includes(slotHour);
 }
 
 function signalBaseSourceForTarget(base: H1TargetBase): H1LocalSource {
@@ -242,10 +242,6 @@ export function xauH3EntryHour(brokerDate: string, market: H1LocalMarketSnapshot
   if (!source || !targetEnabledForDate("XAUUSD", brokerDate, 3)) return null;
   const entryHour = evaluateLocalH1Pattern({ target: "XAUUSD", brokerDate, slotHour: 3, bars: source.bars })?.entryHour;
   return Number.isInteger(entryHour) ? Number(entryHour) : null;
-}
-
-export function xauStartsDayAtEntryH5(brokerDate: string, market: H1LocalMarketSnapshot): boolean {
-  return xauH3EntryHour(brokerDate, market) === 5;
 }
 
 function previousAvailableBrokerDate(brokerDate: string, bars: H1M15Bar[]): string | null {
@@ -275,12 +271,12 @@ export function signalledH1Candle(
 }
 
 // ---------------------------------------------------------------------------
-// All-symbol six-block post-signal phase.
+// All-symbol five-block post-signal phase.
 //
 // The first Thursday of each calendar month anchors whether that month is a
 // cycle month. The weekday map is shared by FX and XAUUSD and is intentionally
-// independent of symbol. Six blocks, each with its own decision (N = invert,
-// C = keep): [H3/H4], [H6], [H9], [H12], [H14], [H16]. A non-cycle (regular)
+// independent of symbol. Five blocks, each with its own decision (N = invert,
+// C = keep): [H3/H4], [H6], [H9], [H12], [H14]. A non-cycle (regular)
 // month uses the exact inverse of the weekday row.
 // ---------------------------------------------------------------------------
 const SPECIAL_FIRST_FRIDAY_DAYS = new Set([3, 4, 7]);
@@ -337,7 +333,7 @@ export function isCycleMonth(brokerDate: string): boolean {
   return isSpecialThursdayBrokerDate(firstThursdayBrokerDate(brokerDate));
 }
 
-type H1PostSignalBlock = 0 | 1 | 2 | 3 | 4 | 5;
+type H1PostSignalBlock = 0 | 1 | 2 | 3 | 4;
 
 function postSignalBlockForSlot(slotHour: number): H1PostSignalBlock | null {
   if (slotHour === 3 || slotHour === 4) return 0;
@@ -345,13 +341,12 @@ function postSignalBlockForSlot(slotHour: number): H1PostSignalBlock | null {
   if (slotHour === 9) return 2;
   if (slotHour === 12) return 3;
   if (slotHour === 14) return 4;
-  if (slotHour === 16) return 5;
   return null;
 }
 
 type H1Weekday = 1 | 2 | 3 | 4 | 5;
 type H1PhaseCell = "N" | "C";
-type H1PhaseRow = readonly [H1PhaseCell, H1PhaseCell, H1PhaseCell, H1PhaseCell, H1PhaseCell, H1PhaseCell];
+type H1PhaseRow = readonly [H1PhaseCell, H1PhaseCell, H1PhaseCell, H1PhaseCell, H1PhaseCell];
 
 type H1SlotPolicy = {
   removed: boolean;
@@ -359,13 +354,13 @@ type H1SlotPolicy = {
 };
 
 // Exact special-Thursday month table, ordered as:
-// [H3/H4, H6, H9, H12, H14, H16]. Every weekday keeps all six blocks.
+// [H3/H4, H6, H9, H12, H14]. H16 is retired in rule v77.
 const SPECIAL_MONTH_WEEK_TABLE: Record<H1Weekday, H1PhaseRow> = {
-  1: ["C", "N", "N", "C", "C", "C"], // Mon
-  2: ["N", "C", "N", "C", "N", "C"], // Tue
-  3: ["N", "C", "C", "C", "N", "C"], // Wed
-  4: ["N", "C", "C", "N", "C", "N"], // Thu
-  5: ["N", "C", "C", "N", "C", "C"], // Fri
+  1: ["C", "N", "N", "C", "C"], // Mon
+  2: ["N", "C", "N", "C", "N"], // Tue
+  3: ["N", "C", "C", "C", "N"], // Wed
+  4: ["N", "C", "C", "N", "C"], // Thu
+  5: ["N", "C", "C", "N", "C"], // Fri
 };
 
 function invertPhaseCell(cell: H1PhaseCell): H1PhaseCell {
@@ -408,14 +403,14 @@ export function activeH1ScanHoursForBrokerDate(
 
 export function configuredMonthEndBridgeCell(brokerDate: string, slotHour: number): boolean {
   if (!(H1_SCAN_HOURS as readonly number[]).includes(slotHour)) return false;
-  if (isLastFridayBrokerDate(brokerDate)) return slotHour === 16;
+  if (isLastFridayBrokerDate(brokerDate)) return false;
 
   const weekday = brokerDateWeekdayIndex(brokerDate);
   if (!monthEndBridgeAnchorFriday(brokerDate)) return false;
   if (weekday === 1) return isH1SlotActiveForBrokerDate(brokerDate, slotHour);
-  if (weekday === 2) return (slotHour === 3 || slotHour === 4 || slotHour === 16)
+  if (weekday === 2) return (slotHour === 3 || slotHour === 4)
     && isH1SlotActiveForBrokerDate(brokerDate, slotHour);
-  return weekday === 3 && slotHour === 16 && isH1SlotActiveForBrokerDate(brokerDate, slotHour);
+  return false;
 }
 
 export function isMonthEndBridgeCell(brokerDate: string, slotHour: number): boolean {
@@ -479,19 +474,6 @@ export function buildStoredAlert(args: {
 
 export type H1LocalMarketSnapshot = Record<H1LocalSource, { displayName: string; bars: H1M15Bar[] }>;
 
-function h14SignalForH16(base: H1TargetBase, brokerDate: string, market: H1LocalMarketSnapshot): H1Signal | null {
-  if (base !== "GBPJPY") {
-    return evaluateLocalH1PatternsForTarget(base, brokerDate, market, [14], 14)[0]?.symbolH1Signal ?? null;
-  }
-  // GBPJPY no longer exposes an H14 block in v76. Preserve the existing H16
-  // selector with a private H16 reference at the old H14 timing, using the
-  // same GBPUSD-driven timing plus the dedicated USDJPY previous-day base.
-  const timing = localPatternMatchForTarget("GBPAUD", brokerDate, 14, market);
-  if (!timing) return null;
-  const reference = h1DirectionForEntry(brokerDate, timing.entryHour, market.USDJPY.bars);
-  return reference ? signalFromDirection(reference.direction) : null;
-}
-
 export function evaluateLocalH1PatternsForTarget(
   base: H1TargetBase,
   brokerDate: string,
@@ -519,14 +501,7 @@ export function evaluateLocalH1PatternsForTarget(
     const signalBaseSource = signalBaseSourceForTarget(base);
     const reference = h1DirectionForEntry(brokerDate, entryHour, market[signalBaseSource].bars);
     const baseH1Signal = reference ? signalFromDirection(reference.direction) : null;
-    let symbolH1Signal = xauAlert?.symbolH1Signal ?? baseH1Signal;
-    if (slotHour === 16 && !syncFromXau) {
-      const h3EntryHour = xauH3EntryHour(brokerDate, market);
-      if (h3EntryHour === 4 || h3EntryHour === 5) {
-        const h14Signal = h14SignalForH16(base, brokerDate, market);
-        symbolH1Signal = h3EntryHour === 4 && h14Signal ? invertSignal(h14Signal) : h14Signal;
-      }
-    }
+    const symbolH1Signal = xauAlert?.symbolH1Signal ?? baseH1Signal;
     alerts.push({
       slotHour,
       symbol: base,
@@ -711,22 +686,6 @@ export function parseCloudState(raw: unknown): H1CloudState {
     };
   }
   return migrated;
-}
-
-export function repairLegacyH16AdvisorySignals(state: H1CloudState): H1CloudState {
-  for (const day of Object.values(state.days)) {
-    const xauH3EntryHour = day.symbols.XAUUSD?.alerts.find((alert) => alert.slotHour === 3)?.entryHour ?? null;
-    if (xauH3EntryHour !== 4 && xauH3EntryHour !== 5) continue;
-
-    for (const base of H1_TARGET_BASES) {
-      const alerts = day.symbols[base]?.alerts ?? [];
-      const h14Signal = alerts.find((row) => row.slotHour === 14)?.symbolH1Signal ?? null;
-      const h16 = alerts.find((row) => row.slotHour === 16);
-      if (!h16 || !Number.isInteger(h16.entryHour) || !h16.patternGroup || !h14Signal) continue;
-      h16.symbolH1Signal = xauH3EntryHour === 4 ? invertSignal(h14Signal) : h14Signal;
-    }
-  }
-  return state;
 }
 
 export function mergeH1CloudStateHistory(history: H1CloudState, current: H1CloudState): H1CloudState {

@@ -148,7 +148,6 @@ fun H1BoardScreen(state: OAKAppState, history: Boolean) {
     if (history && h1 != null && (selectedDate.isBlank() || h1.days[selectedDate] == null)) selectedDate = h1.latestDate
 
     val date = if (history) selectedDate else h1?.latestDate.orEmpty()
-    val manualClose = h1?.manualCloseH16(date) == true
 
     OAKScreen(
         state = state,
@@ -235,20 +234,7 @@ fun H1BoardScreen(state: OAKAppState, history: Boolean) {
                     }
                 }
             }
-            item { H1Matrix(h1, date, manualClose, onSelect = { selectedAlert = it }) }
-            if (manualClose) {
-                item {
-                    OAKCard(tint = p.warning) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                            Text("✋", color = p.warning, fontSize = 24.sp, lineHeight = 28.sp)
-                            Column(verticalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.weight(1f)) {
-                                Text("H16 CLOSE", color = p.warning, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
-                                Text(state.text("XAUUSD block H3 có entry H4. H16 lấy tín hiệu đảo ngược H14; CLOSE chỉ là badge khuyến nghị và không tự đóng lệnh.", "XAUUSD H3 entry is H4. H16 uses the inverse of H14; CLOSE is advisory only and never closes positions automatically."), color = p.muted, fontSize = 13.sp, lineHeight = 19.sp)
-                            }
-                        }
-                    }
-                }
-            }
+            item { H1Matrix(h1, date, onSelect = { selectedAlert = it }) }
         } else {
             item {
                 OAKCard(tint = p.warning) {
@@ -376,7 +362,7 @@ private fun BrokerCalendarSheet(
 }
 
 @Composable
-private fun H1Matrix(h1: H1SignalPayload, date: String, manualClose: Boolean, onSelect: (H1SignalAlert) -> Unit) {
+private fun H1Matrix(h1: H1SignalPayload, date: String, onSelect: (H1SignalAlert) -> Unit) {
     val p = LocalOAKPalette.current
     val horizontal = rememberScrollState()
     OAKCard {
@@ -389,7 +375,7 @@ private fun H1Matrix(h1: H1SignalPayload, date: String, manualClose: Boolean, on
                 }
                 Column(Modifier.horizontalScroll(horizontal), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        h1.hours.forEach { hour -> MatrixHour(hour, manualClose && hour == 16) }
+                        h1.hours.forEach { hour -> MatrixHour(hour) }
                     }
                     VisibleSymbols.forEach { symbol ->
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -420,15 +406,14 @@ private fun MatrixLabel(value: String, width: Int, height: Int = 52) {
 }
 
 @Composable
-private fun MatrixHour(hour: Int, manualClose: Boolean) {
+private fun MatrixHour(hour: Int) {
     val p = LocalOAKPalette.current
     Column(
-        modifier = Modifier.width(82.dp).height(52.dp).background(if (manualClose) p.warning.copy(alpha = .14f) else p.raised, RoundedCornerShape(11.dp)),
+        modifier = Modifier.width(82.dp).height(52.dp).background(p.raised, RoundedCornerShape(11.dp)),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("H${hour.toString().padStart(2, '0')}", color = if (manualClose) p.warning else p.muted, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
-        if (manualClose) Text("CLOSE", color = p.warning, fontSize = 9.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+        Text("H${hour.toString().padStart(2, '0')}", color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
     }
 }
 
@@ -477,7 +462,7 @@ fun SignalsScreen(state: OAKAppState) {
             }
         }
 
-    OAKScreen(state, "TRADING / SIGNALS", state.text("Tín hiệu", "Signals"), state.text("Radar BUY/SELL/CLOSE theo H1 và drill-down evidence M15.", "BUY/SELL/CLOSE H1 radar with M15 evidence drill-down.")) {
+    OAKScreen(state, "TRADING / SIGNALS", state.text("Tín hiệu", "Signals"), state.text("Radar BUY/SELL theo H1 và drill-down evidence M15.", "BUY/SELL H1 radar with M15 evidence drill-down.")) {
         item {
             SegmentedRow(
                 choices = listOf("ALL", "BUY", "SELL"),

@@ -18,7 +18,6 @@ import {
   mergeH1CloudStateHistory,
   parseCloudState,
   parsePublicFeedCloudState,
-  repairLegacyH16AdvisorySignals,
   scheduledSignalSlotForBrokerHour,
   scheduledSignalSlotForVietnamWall,
   seedCloudStateFromPublic,
@@ -111,7 +110,6 @@ async function loadLegacyHistoryState(): Promise<H1CloudState | null> {
   let merged: H1CloudState | null = null;
   for (const candidate of [...candidates].reverse()) {
     if (!candidate) continue;
-    repairLegacyH16AdvisorySignals(candidate.state);
     merged = merged ? mergeH1CloudStateHistory(merged, candidate.state) : candidate.state;
   }
   return merged;
@@ -131,7 +129,6 @@ async function loadFreshestH1Candidate(): Promise<H1StateCandidate | null> {
 
   let state = legacy ?? emptyCloudState();
   if (currentFeed) state = mergeH1CloudStateHistory(state, currentFeed.state);
-  repairLegacyH16AdvisorySignals(state);
   return { state, source: "public-seed" };
 }
 

@@ -7,7 +7,6 @@ struct H1EvidenceSheet: View {
     let h1: H1SignalPayload
     let alert: H1SignalAlert
     let brokerDate: String
-    let manualClose: Bool
     @State private var copiedChart = false
     @State private var chartShare: OAKShareItem?
     @State private var imageTransferFailed = false
@@ -25,9 +24,6 @@ struct H1EvidenceSheet: View {
                     HStack(spacing: 8) {
                         if let group = alert.patternGroup { OAKPill(label: group, tone: .accent) }
                         if let entry = alert.entryHour { OAKPill(label: "ENTRY H\(entry)", tone: .muted) }
-                        if manualClose {
-                            OAKPill(label: "CLOSE", tone: .warning)
-                        }
                         if let signal = alert.signal {
                             OAKPill(label: signal.rawValue, tone: signal == .buy ? .buy : .sell)
                         }

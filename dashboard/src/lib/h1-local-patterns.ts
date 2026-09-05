@@ -1,6 +1,6 @@
 import { brokerDateWeekdayIndex, isValidBrokerDateKey } from "./h1-broker-date.ts";
 
-export const H1_LOCAL_SCAN_HOURS = [3, 6, 9, 12, 14, 16] as const;
+export const H1_LOCAL_SCAN_HOURS = [3, 6, 9, 12, 14] as const;
 export const H1_LOCAL_TARGETS = ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"] as const;
 export const H1_LOCAL_SOURCES = ["XAUUSD", "AUDUSD", "USDCAD", "USDJPY", "GBPUSD", "EURUSD"] as const;
 

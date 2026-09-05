@@ -29,9 +29,9 @@ H1 public feed key:
 
 `robot-sltp:public:h1-signals:latest`
 
-Current public schema: v17. Cloud state is v55 and signal-rule version is v58.
+Current public schema: v18. Cloud state is schema-stable v56 and signal-rule version is v77.
 
-The H1 engine routes `H3` to the four FX targets (`GBPUSD/GBPAUD/GBPCAD/GBPJPY`), `H4` to `XAUUSD` only, and `H6/H9/H12/H14/H16` to all five targets. All Monday-Friday rows retain the complete six-block schedule; no weekday block is removed. Signals are derived from the block's own closed H1 candle (hour === slotHour); there is no M15 pattern window and no engine-computed entry time — entry/close appointments are set by the user through Telegram commands. Rule v58 temporarily disables post-signal inversion, so the active H1 signal stays equal to its base candle BUY/SELL direction, and temporarily hides all month-end CẦU/BRIDGE presentation. The configured cycle/regular N/C matrix and bridge calendar helpers remain in code for later re-enable without reauthoring the rules.
+H1 rule v77 is a five-block local ICMarkets M15 scanner: `H3/H6/H9/H12/H14`. H16 is retired and is neither calculated nor published. Monday remains XAUUSD-only; Tuesday-Friday GBPAUD is eligible on H3/H6/H9/H12/H14, GBPCAD on H9/H12/H14, and GBPJPY on H6/H9 only. GBPUSD/EURUSD H9/H12/H14 copy the exact XAUUSD entry hour and final BUY/SELL for the same block while retaining the GBPUSD-driven evidence window. History uses the schema-stable state key and strips legacy H16 rows during parse/backfill. Telegram broker-order execution remains independent from the H1 display-slot map.
 
 Cloudflare is the primary H1 timekeeper and GitHub remains a fallback. The H1 scanner is web-only: it persists the closed-candle/matrix state and does not send `BLOCK ĐÃ ĐẾN` or H1 signal Telegram notifications. Timed Telegram entry commands are the operator-owned signal input. When a future `BUY`/`SELL` command is accepted, its Vietnam appointment is converted to the IC Markets broker wall clock and the side is written immediately to the latest eligible H1 cell for that symbol/date; for example `buy XAUUSD 0.01 13h00 @fxce` on 2026-08-31 maps to broker H09 and publishes `BUY` in the XAUUSD H09 cell. Scanner/backfill refreshes preserve that `scheduledSignal`. Broker execution remains governed by the Telegram scheduled-intent path.
 

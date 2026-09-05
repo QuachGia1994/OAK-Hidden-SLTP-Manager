@@ -68,9 +68,6 @@ data class H1SignalPayload(
     fun alert(date: String, symbol: String, hour: Int): H1SignalAlert? =
         days[date]?.symbols?.get(symbol)?.alerts?.firstOrNull { it.slotHour == hour }
 
-    fun manualCloseH16(date: String): Boolean =
-        days[date]?.symbols?.get("XAUUSD")?.alerts?.any { it.slotHour == 3 && it.entryHour == 4 } == true
-
     fun evidenceFacts(date: String, sourceAlert: H1SignalAlert): H1EvidenceFacts {
         val baseHour = sourceAlert.baseHour?.let { "H${it.toString().padStart(2, '0')}" } ?: "—"
         val baseSignal = sourceAlert.baseSignal?.name ?: "—"
@@ -82,19 +79,10 @@ data class H1SignalPayload(
         var signalSource = ""
         var rule = "DIRECT BASE"
 
-        if ((sourceAlert.symbol == "GBPUSD" || sourceAlert.symbol == "EURUSD") && sourceAlert.slotHour in listOf(9, 12, 14, 16)) {
+        if ((sourceAlert.symbol == "GBPUSD" || sourceAlert.symbol == "EURUSD") && sourceAlert.slotHour in listOf(9, 12, 14)) {
             val xau = alert(date, "XAUUSD", sourceAlert.slotHour)
             signalSource = "XAUUSD H${sourceAlert.slotHour.toString().padStart(2, '0')} · ${xau?.signal?.name ?: "—"}"
             rule = "SYNC XAUUSD"
-        } else if (sourceAlert.slotHour == 16) {
-            val h14 = alert(date, sourceAlert.symbol, 14)
-            val xauH3Entry = alert(date, "XAUUSD", 3)?.entryHour
-            signalSource = "${sourceAlert.symbol} H14 · ${h14?.signal?.name ?: "—"}"
-            rule = when {
-                xauH3Entry == 4 -> "INVERT H14"
-                xauH3Entry == 5 -> "COPY H14"
-                else -> "H14 OVERRIDE"
-            }
         }
 
         return H1EvidenceFacts(

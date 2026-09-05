@@ -1,10 +1,10 @@
 # OAK workspaces
-updated 2026-09-05 unreleased
+> updated 2026-09-05 · v4.1.0
 
 The six-screen concept defines visual hierarchy; live prices, dates, cards and AI results always come from the existing product.
 
 ## Routes and contracts
-- /engine: latest retained broker-day matrix, single compact board header, FREE ACCESS and 20s refresh. Click a cell to open inline evidence with original base, final source, chronological OHLC chart and expandable bar details. Conditional H16 CLOSE is advisory.
+- /engine: latest retained broker-day matrix for H3/H6/H9/H12/H14, single compact board header, FREE ACCESS and 20s refresh. Click a cell to open inline evidence with original base, final source, chronological OHLC chart and expandable bar details. H16 is retired in rule v77.
 - /history: the same matrix with an embedded Sunday-first bordered calendar, showing only weeks that contain the selected month. Only retained dates are enabled. Date changes hide evidence from the previous day.
 - /tools: three horizontal illustrated banners, backed by the shared OAK_TOOLS catalog.
 - /factcheck: text/link and image drafts survive mode switches. OCR returns editable text; image analysis preserves origin, generation, manipulation and completeness. Public sharing and backend handlers are unchanged.

@@ -5,7 +5,7 @@ import { H1EvidencePanel, type H1EvidenceSelection } from "@/components/H1Eviden
 import { historyDatesForWeekday, selectHistoryDate } from "@/lib/h1-history-navigation";
 import { activeH1ScanHoursForBrokerDate, H1_SCAN_HOURS, H1_TARGET_BASES } from "@/lib/h1-cloud-scanner";
 import { deliverPngBlob, type PngDeliveryResult } from "@/lib/png-delivery";
-import type { H1SignalAlert, H1SignalDay, H1SignalPayload } from "@/lib/h1-signals";
+import type { H1SignalAlert, H1SignalPayload } from "@/lib/h1-signals";
 
 type Locale = "EN" | "VN";
 type H1BoardMode = "live" | "history";
@@ -22,11 +22,6 @@ function visibleH1Symbols(symbols: readonly string[]) {
   return symbols.filter((symbol) => !H1_TEMP_HIDDEN_ROWS.has(symbol));
 }
 
-function isManualCloseH16Day(day: H1SignalDay | undefined): boolean {
-  return Boolean(day?.symbols?.XAUUSD?.alerts?.some((alert) => alert.slotHour === 3 && alert.entryHour === 4));
-}
-
-
 function canvasPngBlob(canvas: HTMLCanvasElement) {
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("PNG export failed")), "image/png", 1);
@@ -39,7 +34,6 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
 
   const hours = activeH1ScanHoursForBrokerDate(date, data.hours);
   const visibleSymbols = visibleH1Symbols(data.symbols);
-  const manualCloseH16 = isManualCloseH16Day(day);
   const padding = 40;
   const titleHeight = 128;
   const headerHeight = 54;
@@ -100,12 +94,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   drawCentered("SYMBOL", tableX, tableY, H1_SHARE_SYMBOL_WIDTH, headerHeight, colors.muted, `850 14px ${H1_SHARE_FONT}`);
   hours.forEach((hour, index) => {
     const x = tableX + H1_SHARE_SYMBOL_WIDTH + index * H1_SHARE_HOUR_WIDTH;
-    if (hour === 16 && manualCloseH16) {
-      drawCentered("H16", x, tableY + 2, H1_SHARE_HOUR_WIDTH, headerHeight / 2, colors.muted, `850 14px ${H1_SHARE_FONT}`);
-      drawCentered("CLOSE", x, tableY + headerHeight / 2 - 2, H1_SHARE_HOUR_WIDTH, headerHeight / 2, colors.sell, `950 12px ${H1_SHARE_FONT}`);
-    } else {
-      drawCentered(`H${String(hour).padStart(2, "0")}`, x, tableY, H1_SHARE_HOUR_WIDTH, headerHeight, colors.muted, `850 14px ${H1_SHARE_FONT}`);
-    }
+    drawCentered(`H${String(hour).padStart(2, "0")}`, x, tableY, H1_SHARE_HOUR_WIDTH, headerHeight, colors.muted, `850 14px ${H1_SHARE_FONT}`);
   });
 
   for (let col = 0; col <= hours.length; col += 1) {
@@ -334,7 +323,6 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
   const latestDate = allDates[0] || "";
   const date = data ? (historyMode ? selectHistoryDate(data.days, "all", selectedDate) : latestDate) : selectedDate;
   const day = date && data ? data.days[date] : undefined;
-  const manualCloseH16 = isManualCloseH16Day(day);
   const copy = locale === "EN"
     ? {
         title: historyMode ? "H1 History" : "H1 Live",
@@ -503,7 +491,7 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
         </div>}
         {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : <><p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe if the table extends beyond the screen" : "Vuốt ngang nếu bảng rộng hơn màn hình"}</p><div ref={tableScrollRef} className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
-            <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{activeHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour} data-manual-close={hour === 16 && manualCloseH16 ? "true" : undefined}><span>H{String(hour).padStart(2, "0")}</span>{hour === 16 && manualCloseH16 ? <small className="oak-h1-close-badge">CLOSE</small> : null}</th>)}</tr></thead>
+            <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{activeHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour}><span>H{String(hour).padStart(2, "0")}</span></th>)}</tr></thead>
             <tbody>{visibleH1Symbols(data.symbols).map((base) => {
               const symbolState = day?.symbols?.[base];
               const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
@@ -514,10 +502,7 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
               })}</tr>;
             })}</tbody>
           </table>
-        </div>{manualCloseH16 && <aside className="oak-h1-close-advisory" role="note" aria-label="H16 CLOSE advisory">
-          <span className="oak-h1-close-advisory-icon" aria-hidden="true">✋</span>
-          <div><b>H16 CLOSE</b><p>{locale === "EN" ? "XAUUSD H3 entry is H4. H16 uses the inverse of H14; CLOSE is advisory only and never closes positions automatically." : "XAUUSD block H3 có entry H4. H16 lấy tín hiệu đảo ngược H14; CLOSE chỉ là badge khuyến nghị và không tự đóng lệnh."}</p></div>
-        </aside>}</>}
+        </div></>}
       </section>
       {evidenceSelection?.brokerDate === date ? <H1EvidencePanel variant="inline" selection={evidenceSelection} payload={data} locale={locale} onClose={() => setEvidenceSelection(null)} /> : <p className="oak-evidence-hint">▧ {locale === "EN" ? "Select a cell to inspect its pattern and chart" : "Chọn ô để xem pattern & chart"}</p>}
     </>

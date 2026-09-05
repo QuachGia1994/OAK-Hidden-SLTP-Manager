@@ -191,10 +191,6 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-h1-share-png:disabled { opacity: .38; cursor: wait; }
 .oak-h1-share-png[data-copied="true"] { color: var(--oak-status-success); border-color: color-mix(in srgb, var(--oak-status-success) 70%, var(--oak-border-subtle)); background: color-mix(in srgb, var(--oak-status-success) 10%, var(--oak-bg-raised)); }
 .oak-h1-share-png[data-failed="true"] { color: var(--oak-status-danger); border-color: color-mix(in srgb, var(--oak-status-danger) 70%, var(--oak-border-subtle)); background: color-mix(in srgb, var(--oak-status-danger) 10%, var(--oak-bg-raised)); }
-.oak-h1-close-advisory { display: flex; align-items: flex-start; gap: .7rem; margin: .7rem; padding: .72rem .8rem; border: 1px solid color-mix(in srgb, var(--oak-status-warning) 66%, var(--oak-border-subtle)); border-radius: var(--oak-radius-md); color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 6%, var(--oak-bg-surface)); }
-.oak-h1-close-advisory-icon { flex: 0 0 auto; font-size: 1rem; line-height: 1.3; }
-.oak-h1-close-advisory b { font: 900 .62rem "Cascadia Mono", Consolas, monospace; letter-spacing: .05em; }
-.oak-h1-close-advisory p { margin-top: .24rem; color: var(--oak-fg-muted); font-size: .65rem; line-height: 1.55; }
 .oak-h1-locked { padding: .48rem .75rem; border-bottom: 1px solid var(--oak-border-subtle); color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 6%, var(--oak-bg-surface)); font: 800 .58rem "Cascadia Mono", Consolas, monospace; }
 .oak-h1-locked-preview { display: flex; align-items: center; gap: .7rem; min-height: 5rem; padding: .8rem; border: 1px dashed var(--oak-border-subtle); border-radius: var(--oak-radius-sm); color: var(--oak-fg-muted); background: var(--oak-bg-raised); }
 .oak-h1-locked-preview-icon { color: var(--oak-accent-command); font: 900 1.15rem "Cascadia Mono", Consolas, monospace; }
@@ -239,11 +235,6 @@ min-height: 2rem; padding: .35rem .6rem;
   .oak-h1-symbol-sticky { width: clamp(8rem, 10vw, 11rem) !important; min-width: clamp(8rem, 10vw, 11rem); }
 }
 .oak-h1-table tbody .oak-h1-symbol-sticky b { color: var(--oak-fg-primary); font: 900 .67rem "Cascadia Mono", Consolas, monospace; }
-.oak-h1-table thead th[data-manual-close="true"] {
-  background: color-mix(in srgb, var(--oak-status-warning) 10%, var(--oak-bg-surface));
-  box-shadow: inset 0 -2px 0 var(--oak-status-warning);
-}
-.oak-h1-close-badge { display: block; width: max-content; margin: .14rem auto 0; padding: .08rem .24rem; border: 1px solid var(--oak-status-warning); border-radius: 999px; color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 8%, var(--oak-bg-raised)); font: 900 .4rem/1 "Cascadia Mono", Consolas, monospace; letter-spacing: .05em; }
 .oak-h1-table thead th[data-post-signal-inverted="true"],
 .oak-h1-table tbody td[data-post-signal-inverted="true"] { background: color-mix(in srgb, var(--oak-status-warning) 12%, var(--oak-bg-surface)); }
 .oak-h1-table thead th[data-post-signal-inverted="true"] { color: var(--oak-status-warning); box-shadow: inset 0 -3px 0 var(--oak-status-warning); }
@@ -291,18 +282,7 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-h1-cell-entry small[data-signal="BUY"] { border-color: var(--oak-signal-buy); color: var(--oak-signal-buy); background: color-mix(in srgb, var(--oak-signal-buy) 10%, var(--oak-bg-surface)); }
 .oak-h1-cell-entry small[data-signal="SELL"] { border-color: var(--oak-signal-sell); color: var(--oak-signal-sell); background: color-mix(in srgb, var(--oak-signal-sell) 10%, var(--oak-bg-surface)); }
 
-/* Light theme keeps the H16 CLOSE badge and signal pills high-contrast. */
-html.light .oak-h1-table thead th[data-manual-close="true"] {
-  color: color-mix(in srgb, var(--oak-status-warning) 82%, #3b2a00);
-  box-shadow:
-    inset 0 0 0 2px color-mix(in srgb, var(--oak-status-warning) 58%, #fff),
-    inset 0 -3px 0 color-mix(in srgb, var(--oak-status-warning) 84%, #3b2a00);
-}
-html.light .oak-h1-close-badge {
-  border-width: 2px;
-  color: color-mix(in srgb, var(--oak-status-warning) 82%, #3b2a00);
-  background: color-mix(in srgb, var(--oak-status-warning) 18%, #fff);
-}
+/* Light theme keeps normal BUY/SELL signal pills high-contrast. */
 html.light .oak-h1-cell-entry small[data-signal="BUY"],
 html.light .oak-h1-cell-entry small[data-signal="SELL"] {
   border-width: 2px;

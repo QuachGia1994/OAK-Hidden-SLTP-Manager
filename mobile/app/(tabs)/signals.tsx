@@ -18,7 +18,6 @@ export default function SignalsScreen() {
   const { h1, app, refreshing, refresh } = useOakData();
   const [filter, setFilter] = useState<Filter>("all");
   const date = app?.signals?.brokerDate || latestH1Date(h1);
-  const manualCloseH16 = Boolean(date && h1?.days?.[date]?.symbols?.XAUUSD?.alerts?.some((alert) => alert.slotHour === 3 && alert.entryHour === 5));
   const rows = useMemo(() => {
     const backendRows = app?.signals?.today?.length ? app.signals.today : null;
     const source: MobileSignalRow[] = backendRows || recentAlerts(h1).map(({ symbol, alert }) => ({
@@ -59,8 +58,7 @@ export default function SignalsScreen() {
       <SectionTitle title="H1 activity" meta={date || "—"} />
       <View style={styles.list}>
         {rows.map((row) => {
-          const manualCloseRow = row.slotHour === 16 && manualCloseH16;
-          const tone = manualCloseRow ? "warning" : row.signal === "SELL" ? "sell" : "buy";
+          const tone = row.signal === "SELL" ? "sell" : "buy";
           return (
             <Pressable key={`${row.symbol}:${row.slotHour}`} onPress={() => { Haptics.selectionAsync(); router.push({ pathname: "/signal/[symbol]/[hour]", params: { symbol: row.symbol, hour: String(row.slotHour) } } as never); }}>
               <GlassCard glow={tone}>
@@ -69,7 +67,7 @@ export default function SignalsScreen() {
                     <Text style={[styles.symbol, { color: theme.text }]}>{row.symbol}</Text>
                     <Text style={[styles.hour, { color: theme.muted }]}>H{String(row.slotHour).padStart(2, "0")}</Text>
                   </View>
-                  <Text style={[styles.signal, { color: manualCloseRow ? theme.warning : row.signal === "SELL" ? theme.sell : theme.buy }]}>{manualCloseRow ? "CLOSE" : (row.signal || "—")}</Text>
+                  <Text style={[styles.signal, { color: row.signal === "SELL" ? theme.sell : theme.buy }]}>{row.signal || "—"}</Text>
                 </View>
                 <View style={styles.badges}>
                   <Pill label={`BASE ${row.baseDirection || "—"}`} />

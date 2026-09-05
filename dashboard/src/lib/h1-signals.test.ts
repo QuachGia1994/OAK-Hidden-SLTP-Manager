@@ -86,38 +86,30 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 rows and block set match the local ICMarkets v76 contract", () => {
+test("H1 rows and block set match the local ICMarkets v77 five-block contract", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
-  assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14, 16\]/);
+  assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14\]/);
+  assert.doesNotMatch(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[[^\]]*16/);
+  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 77/);
   assert.match(scannerSource, /if \(hour === 3\) return \["XAUUSD", "GBPAUD"\]/);
   assert.match(scannerSource, /if \(hour === 6\) return \["XAUUSD", "GBPAUD", "GBPJPY"\]/);
   assert.match(localMarketRouteSource, /evaluateLocalH1PatternsForTarget/);
-  assert.match(scannerSource, /xauH3EntryHour/);
-  assert.doesNotMatch(scannerSource, /manualCloseOnly|closeH16FromXauH5/);
-  assert.doesNotMatch(scannerSource, /symbolH1Signal = manualCloseOnly \? null : derivedSignal/);
-  assert.doesNotMatch(scannerSource, /weekdaySyncSignalInverted|syncFinalFromGbpcad|gbpcadAlert/);
+  assert.doesNotMatch(scannerSource, /h14SignalForH16|repairLegacyH16AdvisorySignals|slotHour === 16/);
+  assert.doesNotMatch(scannerSource, /appointmentHour: 22, appointmentMinute: 5/);
+  assert.match(scannerSource, /appointmentMinute >= 22 \* 60 \+ 5/);
   assert.match(scannerSource, /syncFinalFromXau/);
   assert.match(scannerSource, /evaluateLocalH1PatternsForTarget\("XAUUSD", brokerDate, market, \[slotHour\], slotHour\)/);
-  assert.match(scannerSource, /let symbolH1Signal = xauAlert\?\.symbolH1Signal \?\? baseH1Signal/);
-  assert.match(scannerSource, /if \(slotHour === 16 && !syncFromXau\)/);
-  assert.match(scannerSource, /h14SignalForH16/);
-  assert.match(scannerSource, /h3EntryHour === 4 && h14Signal \? invertSignal\(h14Signal\) : h14Signal/);
-  assert.match(scannerSource, /base === "GBPUSD"/);
-  assert.match(scannerSource, /base === "EURUSD"/);
+  assert.match(scannerSource, /const symbolH1Signal = xauAlert\?\.symbolH1Signal \?\? baseH1Signal/);
   assert.match(scannerSource, /patternDriverTargetFor/);
   assert.match(scannerSource, /entryDriverTargetFor/);
   assert.match(scannerSource, /base === "GBPUSD" \|\| base === "EURUSD"[^\n]*return "XAUUSD"/);
-  assert.match(localPatternsSource, /target === "GBPAUD" \|\| target === "GBPCAD" \|\| target === "GBPJPY"\) return "GBPUSD"/);
-  assert.match(localPatternsSource, /target === "GBPUSD" \|\| target === "EURUSD" \|\| target === "GBPCAD"/);
   assert.match(localPatternsSource, /target === "GBPJPY" && \(slotHour === 3 \|\| slotHour === 12 \|\| slotHour === 14\)/);
   assert.match(scannerSource, /hour === 12 \|\| hour === 14[^\n]*base !== "GBPJPY"/);
-  assert.match(scannerSource, /base === "GBPAUD" \|\| base === "GBPCAD" \|\| base === "GBPJPY"\) return "GBPAUD"/);
   assert.match(scannerSource, /if \(base === "GBPAUD"\) return "AUDUSD"/);
   assert.match(scannerSource, /if \(base === "GBPCAD"\) return "USDCAD"/);
   assert.match(scannerSource, /if \(base === "GBPJPY"\) return "USDJPY"/);
   assert.match(scannerSource, /baseSymbol: signalBaseSource/);
-  assert.doesNotMatch(scannerSource, /pairReferenceSignal|gbpaudFinalSignalForSlot|localSignalInvertedForTarget/);
 });
 
 test("web tab softly refreshes server data every 20 seconds", () => {
@@ -129,48 +121,23 @@ test("web tab softly refreshes server data every 20 seconds", () => {
   assert.doesNotMatch(tabAutoRefreshSource, /location\.reload/);
 });
 
-test("H16 copies H14 for XAU H3 entry H5 and inverts H14 with CLOSE only for H3 entry H4", () => {
-  assert.match(boardSource, /function isManualCloseH16Day/);
-  assert.match(boardSource, /slotHour === 3 && alert\.entryHour === 4/);
-  assert.doesNotMatch(boardSource, /slotHour === 3 && alert\.entryHour === 5/);
-  assert.match(nativeModelsSource, /\$0\.slotHour == 3 && \$0\.entryHour == 4/);
-  assert.doesNotMatch(nativeModelsSource, /\$0\.slotHour == 3 && \$0\.entryHour == 5/);
-  assert.match(androidModelsSource, /it\.slotHour == 3 && it\.entryHour == 4/);
-  assert.doesNotMatch(androidModelsSource, /it\.slotHour == 3 && it\.entryHour == 5/);
-  assert.match(boardSource, /oak-h1-close-badge/);
-  assert.match(boardSource, /data-manual-close=\{hour === 16 && manualCloseH16/);
+test("H16 is retired across web, native clients, PNG and evidence surfaces", () => {
+  assert.doesNotMatch(boardSource, /isManualCloseH16Day|H16 CLOSE|oak-h1-close-badge|data-manual-close/);
+  assert.doesNotMatch(redesignCss, /oak-h1-close-badge|oak-h1-close-advisory|data-manual-close/);
+  assert.doesNotMatch(evidencePanelSource, /slotHour === 16|COPY H14|INVERT H14|H14 OVERRIDE/);
+  assert.doesNotMatch(androidModelsSource, /manualCloseH16|slotHour == 16|COPY H14|INVERT H14|H14 OVERRIDE/);
+  assert.doesNotMatch(androidScreensSource, /H16 CLOSE|manualClose|BUY\/SELL\/CLOSE/);
+  assert.doesNotMatch(androidShareSource, /closeBadge|manualCloseH16|hour == 16/);
+  assert.doesNotMatch(nativeModelsSource, /manualCloseH16|slotHour == 16|COPY H14|INVERT H14|H14 OVERRIDE/);
+  assert.doesNotMatch(nativeH1BoardSource, /H16 CLOSE|manualCloseH16|hour == 16|label: "CLOSE"/);
+  assert.doesNotMatch(nativeSignalsSource, /BUY\/SELL\/CLOSE|manualCloseH16|slotHour == 16/);
+  assert.doesNotMatch(nativeEvidenceSource, /manualClose|label: "CLOSE"/);
   assert.match(boardSource, /drawCentered\(alert\?\.signal \|\| "—"/);
   assert.match(boardSource, /<small data-signal=\{alert\?\.signal \|\| undefined\}>\{alert\?\.signal \|\| "—"\}<\/small>/);
-  assert.doesNotMatch(boardSource, /manualCloseCell|data-action=/);
-  assert.match(boardSource, /oak-h1-close-advisory/);
-  assert.match(redesignCss, /\.oak-h1-close-badge/);
-  assert.doesNotMatch(redesignCss, /tbody td\[data-manual-close="true"\]|data-action="CLOSE"/);
-  assert.match(androidScreensSource, /if \(manualClose\) Text\("CLOSE", color = p\.warning/);
-  assert.doesNotMatch(androidScreensSource, /manualClose -> OAKPill\("CLOSE", PillTone\.WARNING\)/);
   assert.match(androidScreensSource, /Fact\("BASE CANDLE", facts\.rawBase\)/);
-  assert.match(androidScreensSource, /if \(facts\.signalSource\.isNotBlank\(\)\) Fact\("FINAL SOURCE", facts\.signalSource\)/);
-  assert.match(androidScreensSource, /Fact\("RULE", facts\.rule\)/);
   assert.match(androidScreensSource, /Fact\("FINAL", facts\.finalSignal\)/);
-  assert.match(androidModelsSource, /fun evidenceFacts\(date: String, sourceAlert: H1SignalAlert\): H1EvidenceFacts/);
-  assert.match(androidModelsSource, /var signalSource = ""/);
-  assert.match(androidModelsSource, /sourceAlert\.slotHour == 16/);
-  assert.match(androidModelsSource, /sourceAlert\.symbol, 14/);
-  assert.match(androidModelsSource, /xauH3Entry == 4 -> "INVERT H14"/);
-  assert.match(androidModelsSource, /xauH3Entry == 5 -> "COPY H14"/);
-  assert.match(androidShareSource, /val closeBadge = manualClose && hour == 16/);
-  assert.match(androidShareSource, /when \(alert\?\.signal\)/);
-  assert.match(nativeH1BoardSource, /OAKPill\(label: "CLOSE", tone: \.warning\)/);
-  assert.doesNotMatch(nativeSignalsSource, /let close =|if close|manualClose && alert\.slotHour == 16/);
   assert.match(nativeEvidenceSource, /fact\("BASE CANDLE", facts\.rawBase\)/);
-  assert.match(nativeEvidenceSource, /if !facts\.signalSource\.isEmpty \{ fact\("FINAL SOURCE", facts\.signalSource\) \}/);
-  assert.match(nativeEvidenceSource, /fact\("RULE", facts\.rule\)/);
   assert.match(nativeEvidenceSource, /fact\("FINAL", facts\.finalSignal\)/);
-  assert.match(nativeModelsSource, /func evidenceFacts\(date: String, sourceAlert: H1SignalAlert\) -> H1EvidenceFacts/);
-  assert.match(nativeModelsSource, /var signalSource = ""/);
-  assert.match(nativeModelsSource, /sourceAlert\.slotHour == 16/);
-  assert.match(nativeModelsSource, /alert\(date: date, symbol: sourceAlert\.symbol, hour: 14\)/);
-  assert.match(nativeModelsSource, /xauH3Entry == 4 \? "INVERT H14" : xauH3Entry == 5 \? "COPY H14"/);
-  assert.doesNotMatch(nativeEvidenceSource, /"GBPUSD H\\\(alert\.baseHour/);
   assert.doesNotMatch(boardSource + androidScreensSource, /order_send|closePosition|dispatchTask|\/approve/);
 });
 
@@ -201,11 +168,8 @@ test("H1 cells render entry hour plus final rule-derived BUY/SELL", () => {
   assert.doesNotMatch(androidShareSource, /val reference = \(symbol == "XAUUSD"/);
 });
 
-test("light theme keeps the H16 CLOSE badge and normal signal pills high-contrast", () => {
-  assert.doesNotMatch(redesignCss, /data-entry-reference/);
-  assert.match(redesignCss, /html\.light \.oak-h1-table thead th\[data-manual-close="true"\]/);
-  assert.match(redesignCss, /html\.light \.oak-h1-close-badge/);
-  assert.doesNotMatch(redesignCss, /tbody td\[data-manual-close="true"\]|data-action="CLOSE"/);
+test("light theme keeps normal BUY/SELL signal pills high-contrast after H16 retirement", () => {
+  assert.doesNotMatch(redesignCss, /data-entry-reference|data-manual-close|oak-h1-close-badge/);
   assert.match(redesignCss, /html\.light \.oak-h1-cell-entry small\[data-signal="BUY"\]/);
   assert.match(redesignCss, /html\.light \.oak-h1-cell-entry small\[data-signal="SELL"\]/);
   assert.match(redesignCss, /border-width: 2px/);
@@ -539,7 +503,7 @@ test("populated H1 cells open deterministic M15 pattern evidence without clutter
   assert.match(evidencePanelSource, /facts\.signalSource &&/);
   assert.match(evidencePanelSource, /RULE/);
   assert.match(evidencePanelSource, /FINAL/);
-  assert.match(evidencePanelSource, /COPY H14|INVERT H14/);
+  assert.doesNotMatch(evidencePanelSource, /COPY H14|INVERT H14|H14 OVERRIDE/);
   assert.match(evidencePanelSource, /SYNC XAUUSD/);
   assert.match(evidencePanelSource, /symbols\?\.XAUUSD/);
   assert.match(nativeModelsSource, /rule = "SYNC XAUUSD"/);

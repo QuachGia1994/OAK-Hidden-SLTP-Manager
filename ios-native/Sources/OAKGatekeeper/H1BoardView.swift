@@ -45,25 +45,6 @@ struct H1BoardScreen: View {
                         onSelect: { selectedAlert = $0 }
                     )
 
-                    if h1.manualCloseH16(date: date) {
-                        OAKCard(tint: OAKColor.warning) {
-                            HStack(alignment: .top, spacing: 11) {
-                                Image(systemName: "hand.raised.fill")
-                                    .foregroundStyle(OAKColor.warning)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("H16 CLOSE")
-                                        .font(.system(size: 13, weight: .black, design: .monospaced))
-                                        .foregroundStyle(OAKColor.warning)
-                                    Text(state.text(
-                                        vn: "XAUUSD block H3 có entry H4. H16 lấy tín hiệu đảo ngược H14; CLOSE chỉ là badge khuyến nghị và không tự đóng lệnh.",
-                                        en: "XAUUSD H3 entry is H4. H16 uses the inverse of H14; CLOSE is advisory only and never closes positions automatically."
-                                    ))
-                                    .font(.footnote.weight(.medium))
-                                    .foregroundStyle(OAKColor.muted)
-                                }
-                            }
-                        }
-                    }
                 } else if state.isLoading {
                     OAKCard { ProgressView(state.text(vn: "Đang tải H1…", en: "Loading H1…")) }
                 } else {
@@ -99,7 +80,7 @@ struct H1BoardScreen: View {
         }
         .sheet(item: $selectedAlert) { alert in
             if let h1 = state.payload?.h1, let date = effectiveDate(h1) {
-                H1EvidenceSheet(h1: h1, alert: alert, brokerDate: date, manualClose: alert.slotHour == 16 && h1.manualCloseH16(date: date))
+                H1EvidenceSheet(h1: h1, alert: alert, brokerDate: date)
             }
         }
         .sheet(item: $scheduleShare) { item in
@@ -273,8 +254,6 @@ private struct H1MatrixView: View {
     private let cellWidth: CGFloat = 82
     private let rowHeight: CGFloat = 78
 
-    private var manualClose: Bool { h1.manualCloseH16(date: date) }
-
     var body: some View {
         OAKCard {
             VStack(alignment: .leading, spacing: 10) {
@@ -332,20 +311,11 @@ private struct H1MatrixView: View {
 
     @ViewBuilder
     private func matrixHourHeader(_ hour: Int) -> some View {
-        VStack(spacing: 2) {
-            Text("H\(String(format: "%02d", hour))")
-                .font(.system(size: 13, weight: .black, design: .monospaced))
-            if manualClose && hour == 16 {
-                OAKPill(label: "CLOSE", tone: .warning)
-                    .scaleEffect(0.78)
-            }
-        }
-        .foregroundStyle(manualClose && hour == 16 ? OAKColor.warning : OAKColor.muted)
-        .frame(width: cellWidth, height: 52)
-        .background(
-            manualClose && hour == 16 ? OAKColor.warning.opacity(0.14) : OAKColor.raised,
-            in: RoundedRectangle(cornerRadius: 11, style: .continuous)
-        )
+        Text("H\(String(format: "%02d", hour))")
+            .font(.system(size: 13, weight: .black, design: .monospaced))
+            .foregroundStyle(OAKColor.muted)
+            .frame(width: cellWidth, height: 52)
+            .background(OAKColor.raised, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
     }
 
     @ViewBuilder
@@ -515,7 +485,6 @@ private struct ScheduleExportMatrix: View {
     private let symbolWidth: CGFloat = 124
     private let cellWidth: CGFloat = 118
     private let rowHeight: CGFloat = 74
-    private var manualClose: Bool { h1.manualCloseH16(date: date) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -564,26 +533,11 @@ private struct ScheduleExportMatrix: View {
 
     @ViewBuilder
     private func exportHourHeader(_ hour: Int) -> some View {
-        VStack(spacing: 3) {
-            Text("H\(String(format: "%02d", hour))")
-                .font(.system(size: 13, weight: .black, design: .monospaced))
-            if manualClose && hour == 16 {
-                Text("CLOSE")
-                    .font(.system(size: 9, weight: .black, design: .monospaced))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .foregroundStyle(OAKColor.warning)
-                    .overlay {
-                        Capsule().stroke(OAKColor.warning, lineWidth: 1.2)
-                    }
-            }
-        }
-        .foregroundStyle(manualClose && hour == 16 ? OAKColor.warning : OAKColor.muted)
-        .frame(width: cellWidth, height: 54)
-        .background(
-            manualClose && hour == 16 ? OAKColor.warning.opacity(0.14) : OAKColor.raised,
-            in: RoundedRectangle(cornerRadius: 11, style: .continuous)
-        )
+        Text("H\(String(format: "%02d", hour))")
+            .font(.system(size: 13, weight: .black, design: .monospaced))
+            .foregroundStyle(OAKColor.muted)
+            .frame(width: cellWidth, height: 54)
+            .background(OAKColor.raised, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
     }
 
     @ViewBuilder

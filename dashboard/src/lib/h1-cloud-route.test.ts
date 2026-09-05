@@ -116,7 +116,7 @@ test("H1 state publication still uses dual Redis evidence and owned singleton lo
   assert.match(cloudStore, /H1_LEGACY_CLOUD_STATE_KEYS/);
   assert.match(cloudStore, /loadLegacyHistoryState/);
   assert.match(cloudStore, /mergeH1CloudStateHistory/);
-  assert.match(cloudStore, /repairLegacyH16AdvisorySignals/);
+  assert.doesNotMatch(cloudStore, /repairLegacyH16AdvisorySignals/);
   assert.match(cloudStore, /parsePublicFeedCloudState/);
   assert.match(cloudStore, /stateProgress/);
   assert.match(cloudStore, /H1_CLOUD_LOCK_KEY/);

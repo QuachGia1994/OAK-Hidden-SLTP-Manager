@@ -273,10 +273,6 @@ extension H1SignalPayload {
         days[date]?.symbols[symbol]?.alerts.first(where: { $0.slotHour == hour })
     }
 
-    func manualCloseH16(date: String) -> Bool {
-        days[date]?.symbols["XAUUSD"]?.alerts.contains(where: { $0.slotHour == 3 && $0.entryHour == 4 }) == true
-    }
-
     func evidenceFacts(date: String, sourceAlert: H1SignalAlert) -> H1EvidenceFacts {
         let baseHour = sourceAlert.baseHour.map { "H\(String(format: "%02d", $0))" } ?? "—"
         let baseSignal = sourceAlert.baseSignal?.rawValue ?? "—"
@@ -286,15 +282,10 @@ extension H1SignalPayload {
         var signalSource = ""
         var rule = "DIRECT BASE"
 
-        if (sourceAlert.symbol == "GBPUSD" || sourceAlert.symbol == "EURUSD") && [9, 12, 14, 16].contains(sourceAlert.slotHour) {
+        if (sourceAlert.symbol == "GBPUSD" || sourceAlert.symbol == "EURUSD") && [9, 12, 14].contains(sourceAlert.slotHour) {
             let xau = alert(date: date, symbol: "XAUUSD", hour: sourceAlert.slotHour)
             signalSource = "XAUUSD H\(String(format: "%02d", sourceAlert.slotHour)) · \(xau?.signal?.rawValue ?? "—")"
             rule = "SYNC XAUUSD"
-        } else if sourceAlert.slotHour == 16 {
-            let h14 = alert(date: date, symbol: sourceAlert.symbol, hour: 14)
-            let xauH3Entry = alert(date: date, symbol: "XAUUSD", hour: 3)?.entryHour
-            signalSource = "\(sourceAlert.symbol) H14 · \(h14?.signal?.rawValue ?? "—")"
-            rule = xauH3Entry == 4 ? "INVERT H14" : xauH3Entry == 5 ? "COPY H14" : "H14 OVERRIDE"
         }
 
         return H1EvidenceFacts(

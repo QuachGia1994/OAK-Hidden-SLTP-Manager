@@ -21,7 +21,7 @@ struct SignalsView: View {
                 OAKPageHeader(
                     eyebrow: "TRADING / SIGNALS",
                     title: state.text(vn: "Tín hiệu", en: "Signals"),
-                    subtitle: state.text(vn: "Radar BUY/SELL/CLOSE theo H1 và drill-down evidence M15.", en: "BUY/SELL/CLOSE H1 radar with M15 evidence drill-down.")
+                    subtitle: state.text(vn: "Radar BUY/SELL theo H1 và drill-down evidence M15.", en: "BUY/SELL H1 radar with M15 evidence drill-down.")
                 )
 
                 Picker("Filter", selection: $filter) {
@@ -87,7 +87,7 @@ struct SignalsView: View {
         .refreshable { await state.refresh() }
         .sheet(item: $selectedAlert) { alert in
             if let h1 = state.payload?.h1 {
-                H1EvidenceSheet(h1: h1, alert: alert, brokerDate: h1.latestDate, manualClose: h1.manualCloseH16(date: h1.latestDate) && alert.slotHour == 16)
+                H1EvidenceSheet(h1: h1, alert: alert, brokerDate: h1.latestDate)
             }
         }
     }
