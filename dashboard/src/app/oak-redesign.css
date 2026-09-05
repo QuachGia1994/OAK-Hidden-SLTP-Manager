@@ -638,7 +638,6 @@ max-width: 36rem; font-size: clamp(1.8rem,4vw,2.7rem); line-height: 1; letter-sp
 
 /* Discover playground */
 .discover-card:nth-child(2) { animation-delay: .05s; }.discover-card:nth-child(3) { animation-delay: .1s; }.discover-card:nth-child(4) { animation-delay: .15s; }.discover-card:nth-child(5) { animation-delay: .2s; }
-.discover-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 2px; background: var(--terminal-accent); opacity: .75; }
 .discover-daily-result article { padding: .72rem .8rem; border: 1px solid var(--panel-border); border-radius: .75rem; background: var(--surface-raised); }
 .discover-daily-result small,.discover-result-strip small,.compat-lists small { display: block; color: var(--terminal-accent); font: 850 .5rem "Cascadia Mono", Consolas, monospace; letter-spacing: .09em; text-transform: uppercase; }
 .discover-daily-result b { display: block; margin-top: .2rem; font-size: 1rem; }.discover-daily-result p { margin-top: .2rem; color: var(--muted); font-size: .72rem; line-height: 1.55; }
@@ -856,8 +855,8 @@ min-height: 7rem;
   .oak-h1-scroll-hint { display: block; }
   .oak-h1-calendar-picker { width: 100%; }
   .oak-h1-calendar-picker small { display: none; }
-  .oak-h1-table th, .oak-h1-table td { width: 4.05rem; min-width: 4.05rem; }
-  .oak-h1-symbol-sticky { width: 5.55rem !important; min-width: 5.55rem; padding-inline: .45rem; }
+  .oak-h1-table th, .oak-h1-table td { width: 2.75rem; min-width: 2.75rem; }
+  .oak-h1-symbol-sticky { width: 4.5rem !important; min-width: 4.5rem; padding-inline: .3rem; }
   .oak-h1-cell-empty, .oak-h1-cell-locked, .oak-h1-cell-signal { min-height: 2.75rem; }
   .oak-fact-hero-main h1 { font-size: 1.8rem; }
 }
@@ -953,7 +952,7 @@ body.oak-body {
 .oak-main, .oak-footer { position: relative; z-index: 1; }
 :root:not(.dark):not(.contrast) .oak-spatial-grain { opacity: .012; }
 
-:where(.oak-command-strip, .oak-access-panel, .oak-h1-board, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-fact-input-panel, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .tarot-hero, .tarot-result, .discover-hero, .discover-card) {
+:where(.oak-command-strip, .oak-access-panel, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .discover-hero) {
   position: relative;
   overflow: hidden;
   border-color: var(--hud-glass-border) !important;
@@ -965,7 +964,7 @@ body.oak-body {
     0 20px 70px rgba(0,0,0,.18),
     0 0 0 1px rgba(255,255,255,.025) !important;
 }
-:where(.oak-command-strip, .oak-access-panel, .oak-h1-board, .oak-account-card, .discover-card)::before {
+:where(.oak-command-strip, .oak-access-panel, .oak-account-card)::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -973,8 +972,8 @@ body.oak-body {
   pointer-events: none;
   background: radial-gradient(600px circle at var(--hud-pointer-x) var(--hud-pointer-y), rgba(255,255,255,.065), transparent 40%);
 }
-:where(.oak-command-strip, .oak-access-panel, .oak-h1-board, .oak-account-card, .discover-card) > * { position: relative; z-index: 1; }
-.oak-command-strip::after, .oak-h1-board::after, .oak-account-head::after {
+:where(.oak-command-strip, .oak-access-panel, .oak-account-card) > * { position: relative; z-index: 1; }
+.oak-command-strip::after, .oak-account-head::after {
   content: "";
   position: absolute;
   inset: .42rem;
@@ -989,7 +988,7 @@ body.oak-body {
   transition: transform 220ms var(--oak-ease), border-color 180ms ease, box-shadow 180ms ease;
 }
 @media (hover: hover) and (pointer: fine) {
-  .oak-access-panel:hover, .oak-command-strip:hover, .oak-account-card:hover, .oak-h1-board:hover {
+  .oak-access-panel:hover, .oak-command-strip:hover, .oak-account-card:hover {
     transform: perspective(1100px) rotateX(calc((var(--hud-pointer-ny) - .5) * -1.2deg)) rotateY(calc((var(--hud-pointer-nx) - .5) * 1.5deg)) translate3d(0,-1px,0);
   }
 }
@@ -1011,13 +1010,13 @@ body.oak-body {
 
 .oak-android .oak-spatial-canvas { opacity: .22; }
 .oak-android .oak-spatial-grid { opacity: .18; transform: none; }
-.oak-android :where(.oak-command-strip, .oak-access-panel, .oak-h1-board, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-fact-input-panel, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .tarot-hero, .tarot-result, .discover-hero, .discover-card) { backdrop-filter: none; -webkit-backdrop-filter: none; }
+.oak-android :where(.oak-command-strip, .oak-access-panel, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .discover-hero) { backdrop-filter: none; -webkit-backdrop-filter: none; }
 
 @media (pointer: coarse), (prefers-reduced-motion: reduce) {
   .oak-spatial-canvas { opacity: .22; }
   .oak-spatial-grid { opacity: .18; transform: none; }
-  :where(.oak-command-strip, .oak-access-panel, .oak-h1-board, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-fact-input-panel, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .tarot-hero, .tarot-result, .discover-hero, .discover-card) { backdrop-filter: none; -webkit-backdrop-filter: none; }
-  .oak-access-panel:hover, .oak-command-strip:hover, .oak-account-card:hover, .oak-h1-board:hover { transform: none !important; }
+  :where(.oak-command-strip, .oak-access-panel, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .discover-hero) { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .oak-access-panel:hover, .oak-command-strip:hover, .oak-account-card:hover { transform: none !important; }
 }
 
 /* Mobile/tablet performance profile: no WebGL/compositor-heavy glass. Desktop keeps the full spatial HUD. */
@@ -1025,17 +1024,16 @@ body.oak-body {
   body.oak-body { background: var(--oak-bg-canvas) !important; }
   .oak-spatial-stage { display: none !important; }
   .oak-footer,
-  :where(.oak-command-strip, .oak-access-panel, .oak-h1-board, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-fact-input-panel, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .tarot-hero, .tarot-result, .tarot-placeholder, .discover-hero, .discover-card) {
+  :where(.oak-command-strip, .oak-access-panel, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .discover-hero) {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     box-shadow: var(--oak-shadow-1) !important;
   }
-  :where(.oak-command-strip, .oak-access-panel, .oak-h1-board, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-fact-input-panel, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .tarot-hero, .tarot-result, .tarot-placeholder, .discover-hero, .discover-card) {
+  :where(.oak-command-strip, .oak-access-panel, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .discover-hero) {
     background: var(--oak-bg-surface) !important;
   }
-  :where(.oak-command-strip, .oak-access-panel, .oak-h1-board, .oak-account-card, .discover-card)::before,
+  :where(.oak-command-strip, .oak-access-panel, .oak-account-card)::before,
   .oak-command-strip::after,
-  .oak-h1-board::after,
   .oak-account-head::after { display: none !important; }
   .oak-access-panel,
   .oak-command-strip,
@@ -1317,8 +1315,8 @@ body.oak-body {
     -webkit-overflow-scrolling: touch;
   }
   .oak-h1-table-scroll .oak-h1-table {
-    width: max-content;
-    min-width: max-content;
+    width: 100%;
+    min-width: 21rem;
   }
 
   .oak-h1-calendar-popover {
@@ -1635,7 +1633,7 @@ body.oak-body {
 .oak-tools { position: relative; }
 .oak-tools-trigger i { font-style: normal; }
 .oak-tools-mobile-link { display: none; }
-.oak-tools-menu { position: absolute; top: 100%; right: 0; z-index: 80; width: 20rem; max-width: calc(100vw - 2rem); border: 1px solid var(--oak-border-strong); border-radius: var(--oak-radius-md); background: var(--oak-bg-surface); box-shadow: var(--oak-shadow-2); overflow: hidden; }
+.oak-tools-menu { position: absolute; top: 100%; right: 0; z-index: 80; width: 20rem; max-width: calc(100vw - 2rem); border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-strong)); border-radius: var(--oak-radius-md); background: var(--oak-bg-surface); box-shadow: var(--oak-shadow-2); overflow: hidden; }
 .oak-tools-menu header { display: flex; align-items: center; justify-content: space-between; padding: .5rem .75rem; border-bottom: 1px solid var(--oak-border-subtle); }
 .oak-tools-close { width: var(--oak-touch-min); height: var(--oak-touch-min); font-size: 1.25rem; }
 .oak-tools-menu > a { min-width: 0; min-height: var(--oak-touch-min); padding: .75rem; border-bottom: 1px solid var(--oak-border-subtle); color: var(--oak-fg-primary); }
@@ -1682,12 +1680,12 @@ body.oak-body:has(.oak-workspace-heading) { background: radial-gradient(ellipse 
 /* Five compact discovery modules; result sections grow only after use. */
 .discover-screen { display: grid; gap: .5rem; }
 .discover-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); align-items: start; gap: .75rem; }
-.discover-card { position: relative; min-width: 0; overflow: hidden; padding: .75rem; border: 1px solid var(--oak-border-strong); border-radius: var(--oak-radius-md); background: linear-gradient(135deg, color-mix(in srgb, var(--oak-accent-command) 7%, var(--oak-bg-surface)), var(--oak-bg-canvas)); scroll-margin-top: 7rem; }
+.discover-card { position: relative; min-width: 0; overflow: hidden; padding: .75rem; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-strong)); border-radius: var(--oak-radius-md); background: linear-gradient(135deg, color-mix(in srgb, var(--oak-accent-command) 7%, var(--oak-bg-surface)), var(--oak-bg-canvas)); scroll-margin-top: 7rem; }
 .discover-card-head { position: relative; display: grid; grid-template-columns: 5.5rem minmax(0,1fr); align-items: center; gap: .5rem; margin-bottom: .5rem; }
 .discover-card-head > div { min-width: 0; }
 .discover-card-head h2 { display: inline; font: 800 1.1rem var(--font-sans); letter-spacing: -.025em; }
 .discover-card-head p { margin-top: .25rem; color: var(--oak-fg-muted); font-size: var(--oak-text-meta); line-height: 1.4; }
-.discover-card-head[data-art="none"] { grid-template-columns: minmax(0,1fr); min-height: 3rem; }
+.discover-card-head[data-art="none"] { grid-template-columns: minmax(0,1fr); min-height: 2rem; }
 .discover-ai-badge { display: inline-block; margin-left: .5rem; padding: 0 .2rem; border: 1px solid var(--oak-reverse-border); border-radius: .2rem; color: var(--oak-reverse-text); background: var(--oak-reverse-bg); font-size: var(--oak-text-meta); vertical-align: middle; }
 .discover-daily { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: .25rem 1rem; }
 .discover-daily .discover-card-head { grid-row: 1 / 3; grid-template-columns: 7rem minmax(0,1fr); margin: 0; }
@@ -1696,7 +1694,7 @@ body.oak-body:has(.oak-workspace-heading) { background: radial-gradient(ellipse 
 .discover-reveal i { font-style: normal; }
 .discover-daily-result { grid-column: 1 / -1; }
 .discover-form { display: grid; gap: .5rem; }
-.discover-form :is(input,textarea), .mood-note input { box-sizing: border-box; width: 100%; min-width: 0; min-height: var(--oak-touch-min); padding: .5rem .65rem; border: 1px solid var(--oak-border-strong); border-radius: var(--oak-radius-sm); background: var(--oak-bg-raised); color: var(--oak-fg-primary); font-size: 1rem; line-height: 1.4; }
+.discover-form :is(input,textarea), .mood-note input { box-sizing: border-box; width: 100%; min-width: 0; min-height: var(--oak-touch-min); padding: .5rem .65rem; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-strong)); border-radius: var(--oak-radius-sm); background: var(--oak-bg-raised); color: var(--oak-fg-primary); font-size: 1rem; line-height: 1.4; }
 .discover-form textarea { resize: vertical; }
 .discover-form :is(input,textarea):focus, .mood-note input:focus { outline: 2px solid var(--oak-accent-command); outline-offset: 1px; }
 .discover-form-foot { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
@@ -1728,21 +1726,21 @@ body.oak-body:has(.oak-workspace-heading) { background: radial-gradient(ellipse 
 
 /* Tarot: question controls above full-size cards instead of a promotional hero. */
 .tarot-screen { display: grid; gap: .5rem; }
-.tarot-hero { display: grid; grid-template-columns: minmax(0,1fr); gap: .75rem; padding: 1rem; border: 1px solid var(--oak-border-strong); border-radius: var(--oak-radius-md); background: var(--oak-bg-surface); }
+.tarot-hero { display: grid; grid-template-columns: minmax(0,1fr); gap: .75rem; padding: 1rem; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-strong)); border-radius: var(--oak-radius-md); background: var(--oak-bg-surface); }
 .tarot-hero > h2 { font-size: 1.1rem; font-weight: 800; }
 .tarot-form { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: .5rem; align-items: center; }
-.tarot-form textarea { width: 100%; min-width: 0; min-height: var(--oak-touch-min); padding: .65rem .75rem; border: 1px solid var(--oak-border-strong); border-radius: var(--oak-radius-sm); color: var(--oak-fg-primary); background: var(--oak-bg-raised); font-size: 1rem; line-height: 1.4; resize: vertical; grid-column: 1; grid-row: 1; }
+.tarot-form textarea { width: 100%; min-width: 0; min-height: var(--oak-touch-min); padding: .65rem .75rem; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-strong)); border-radius: var(--oak-radius-sm); color: var(--oak-fg-primary); background: var(--oak-bg-raised); font-size: 1rem; line-height: 1.4; resize: vertical; grid-column: 1; grid-row: 1; }
 .tarot-question-meta { grid-column: 1; grid-row: 2; margin: 0; font-size: var(--oak-text-meta); }
 .tarot-form fieldset { grid-column: 2; grid-row: 1; min-width: 0; }
 .tarot-spread-options { display: flex; gap: .35rem; }
-.tarot-spread-options button { min-height: var(--oak-touch-min); padding: .5rem .75rem; border: 1px solid var(--oak-border-strong); border-radius: var(--oak-radius-sm); background: var(--oak-bg-raised); color: var(--oak-fg-primary); font-size: var(--oak-text-secondary); }
+.tarot-spread-options button { min-height: var(--oak-touch-min); padding: .5rem .75rem; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-strong)); border-radius: var(--oak-radius-sm); background: var(--oak-bg-raised); color: var(--oak-fg-primary); font-size: var(--oak-text-secondary); }
 .tarot-spread-options button[aria-pressed="true"] { border-color: var(--oak-accent-command); background: color-mix(in srgb, var(--oak-accent-command) 20%, var(--oak-bg-raised)); }
 .tarot-draw-button { grid-column: 3; grid-row: 1; min-height: var(--oak-touch-min); margin: 0; padding: .5rem 1rem; border: 1px solid var(--oak-reverse-border); border-radius: var(--oak-radius-sm); color: var(--oak-fg-primary); background: linear-gradient(var(--oak-reverse-bg), color-mix(in srgb, var(--oak-reverse-border) 35%, var(--oak-bg-surface))); font: 800 var(--oak-text-secondary) var(--font-sans); }
 .tarot-status:empty { display: none; }
-.tarot-placeholder { display: grid; grid-template-columns: repeat(3,minmax(0,13rem)); justify-content: center; gap: 1rem; padding: 1rem; border: 1px solid var(--oak-border-strong); border-radius: var(--oak-radius-md); background: radial-gradient(ellipse at top, var(--oak-reverse-bg), var(--oak-bg-surface)); }
+.tarot-placeholder { display: grid; grid-template-columns: repeat(3,minmax(0,13rem)); justify-content: center; gap: 1rem; padding: 1rem; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-strong)); border-radius: var(--oak-radius-md); background: radial-gradient(ellipse at top, var(--oak-reverse-bg), var(--oak-bg-surface)); }
 .tarot-placeholder > p { grid-column: 1 / -1; color: var(--oak-fg-muted); font-size: var(--oak-text-secondary); text-align: center; }
-.tarot-card-back { display: grid; aspect-ratio: 2 / 3; place-items: center; overflow: hidden; border: 1px solid var(--oak-access-vip); border-radius: var(--oak-radius-sm); background: var(--oak-bg-canvas); }
-.tarot-card-back > .oak-tool-art { width: 150%; max-width: none; }
+.tarot-card-back { position: relative; aspect-ratio: 2 / 3; overflow: hidden; border-radius: var(--oak-radius-sm); }
+.tarot-card-back > .oak-tool-art { position: absolute; left: 50%; top: 60%; width: 180%; max-width: none; transform: translate(-50%,-50%); }
 .tarot-card { display: grid; gap: .5rem; min-width: 0; padding: .5rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-sm); background: var(--oak-bg-raised); }
 .tarot-draw-button:disabled { opacity: .5; cursor: not-allowed; }
 .tarot-card-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .75rem; }
@@ -1753,11 +1751,11 @@ body.oak-body:has(.oak-workspace-heading) { background: radial-gradient(ellipse 
 
 /* Evidence lab: workbench first, image and actions next to each other. */
 .oak-fact-workbench { display: grid; grid-template-columns: minmax(0,1fr); gap: .75rem; }
-.oak-fact-input-panel { padding: 1rem; border: 1px solid var(--oak-border-strong); border-radius: var(--oak-radius-md); background: var(--oak-bg-surface); }
+.oak-fact-input-panel { padding: 1rem; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-strong)); border-radius: var(--oak-radius-md); background: var(--oak-bg-surface); }
 .oak-fact-input-header { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .75rem; }
 .oak-fact-input-header h2 { font-size: 1.1rem; font-weight: 800; }
 .oak-input-modes { display: flex; gap: .35rem; margin-bottom: .75rem; max-width: 24rem; }
-.oak-input-modes button { flex: 1; min-height: var(--oak-touch-min); padding: .5rem .75rem; border: 1px solid var(--oak-border-strong); border-radius: var(--oak-radius-sm); background: var(--oak-bg-raised); font-size: var(--oak-text-base); }
+.oak-input-modes button { flex: 1; min-height: var(--oak-touch-min); padding: .5rem .75rem; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-strong)); border-radius: var(--oak-radius-sm); background: var(--oak-bg-raised); font-size: var(--oak-text-base); }
 .oak-input-modes button[aria-pressed="true"] { color: var(--oak-accent-command); border-color: var(--oak-accent-command); background: color-mix(in srgb, var(--oak-accent-command) 15%, var(--oak-bg-surface)); }
 .oak-image-dropzone { display: flex; width: 100%; align-items: center; flex-wrap: wrap; gap: .75rem; min-height: 10rem; padding: 1rem; border: 1px dashed var(--oak-accent-command); border-radius: var(--oak-radius-sm); background: var(--oak-bg-raised); text-align: left; }
 .oak-image-dropzone > .oak-tool-art { width: 7rem; }
@@ -1787,7 +1785,7 @@ body.oak-body:has(.oak-workspace-heading) { background: radial-gradient(ellipse 
 /* Trading density and true calendar cells. */
 .oak-access-pill { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; min-width: 0; padding: .4rem .65rem; border: 1px solid var(--oak-accent-command); border-radius: var(--oak-radius-sm); color: var(--oak-accent-command); background: color-mix(in srgb, var(--oak-accent-command) 10%, var(--oak-bg-surface)); font: 800 var(--oak-text-meta) var(--font-sans); }
 .oak-h1-meta > .oak-access-pill { display: inline-flex; min-width: 0; order: 1; }
-.oak-h1-board { position: relative; border: 1px solid var(--oak-border-strong); border-radius: var(--oak-radius-md); background: var(--oak-bg-surface); box-shadow: none; }
+.oak-h1-board { position: relative; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-strong)); border-radius: var(--oak-radius-md); background: var(--oak-bg-surface); box-shadow: none; }
 .oak-h1-board-head { display: flex; align-items: center; justify-content: space-between; padding: .75rem; gap: .5rem; border-bottom: 1px solid var(--oak-border-subtle); background: linear-gradient(120deg, color-mix(in srgb, var(--oak-accent-command) 10%, var(--oak-bg-surface)), var(--oak-bg-surface)); border-radius: var(--oak-radius-md) var(--oak-radius-md) 0 0; }
 .oak-h1-board-head h2 { margin: 0; font-size: 1.1rem; font-weight: 800; }
 .oak-h1-board-head p { margin-top: .25rem; max-width: 25rem; color: var(--oak-fg-muted); font-size: var(--oak-text-meta); line-height: 1.4; }
@@ -1811,7 +1809,7 @@ body.oak-body:has(.oak-workspace-heading) { background: radial-gradient(ellipse 
 .oak-h1-history-row:has([data-embedded="true"]) { grid-template-columns: minmax(0,1fr); }
 .oak-h1-history-row:has([data-embedded="true"]) > .oak-h1-history-label { display: none; }
 .oak-h1-history:has([data-embedded="true"]) { padding: .75rem; }
-.oak-h1-evidence-inline .oak-h1-evidence-panel { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); width: 100%; max-height: none; overflow: visible; border: 1px solid var(--oak-border-strong); background: var(--oak-bg-surface); box-shadow: none; }
+.oak-h1-evidence-inline .oak-h1-evidence-panel { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); width: 100%; max-height: none; overflow: visible; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-strong)); background: var(--oak-bg-surface); box-shadow: none; }
 .oak-h1-evidence-inline .oak-h1-evidence-head { grid-column: 1 / -1; position: static; padding: .6rem .75rem; background: transparent; }
 .oak-h1-evidence-inline .oak-h1-evidence-head :is(.oak-eyebrow,p) { display: none; }
 .oak-h1-evidence-inline .oak-h1-evidence-head h2 { font-size: 1rem; }
@@ -1844,9 +1842,9 @@ body.oak-body:has(.oak-workspace-heading) { background: radial-gradient(ellipse 
   .oak-tool-open { font-size: 2rem; }
   .discover-grid { gap: .5rem; }
   .discover-card { padding: .6rem; }
-  .discover-card-head { grid-template-columns: minmax(0,1fr); gap: .2rem; }
-  .discover-card-head > .oak-tool-art { width: 4rem; }
-  .discover-card-head h2 { font-size: 1rem; }
+  .discover-card-head { grid-template-columns: 2rem minmax(0,1fr); gap: .35rem; }
+  .discover-card-head > .oak-tool-art { width: 2rem; }
+  .discover-card-head h2 { font-size: .875rem; }
   .discover-card-head p { font-size: var(--oak-text-meta); }
   .discover-daily .discover-card-head { grid-template-columns: 4.5rem minmax(0,1fr); }
   .discover-daily .discover-card-head > .oak-tool-art { width: 4.5rem; }
@@ -1855,7 +1853,6 @@ body.oak-body:has(.oak-workspace-heading) { background: radial-gradient(ellipse 
   .discover-reveal > span, .discover-reveal > i { display: none; }
   .discover-form-foot { flex-wrap: wrap; }
   .discover-form-foot button { width: 100%; }
-  .compat-names { grid-template-columns: minmax(0,1fr); }
   .mood-note { grid-template-columns: minmax(0,1fr); }
   .mood-picker { gap: 0; }
   .mood-picker svg { width: 1.5rem; height: 1.5rem; }

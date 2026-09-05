@@ -182,7 +182,9 @@ function monthCells(monthKey: string): Array<{ date: string; currentMonth: boole
   const [year, month] = monthKey.split("-").map(Number);
   const first = new Date(Date.UTC(year, month - 1, 1));
   const sundayOffset = first.getUTCDay();
-  return Array.from({ length: 42 }, (_, index) => {
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const visibleCells = Math.ceil((sundayOffset + daysInMonth) / 7) * 7;
+  return Array.from({ length: visibleCells }, (_, index) => {
     const value = new Date(Date.UTC(year, month - 1, 1 - sundayOffset + index));
     return {
       date: `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}-${String(value.getUTCDate()).padStart(2, "0")}`,

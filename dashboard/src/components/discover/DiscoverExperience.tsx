@@ -94,7 +94,7 @@ function dailyMessage(locale: "EN" | "VN", key: string): DailyMessage {
 
 function FeatureHeader({ index, title, subtitle }: { index: string; title: string; subtitle: string; glyph: string }) {
   const artwork: Record<string, ToolArtworkKind> = { "01": "daily", "02": "dream", "03": "oracle", "04": "mood", "05": "compatibility" };
-  return <header className="discover-card-head" data-art={index === "04" ? "none" : undefined}>{index !== "04" && <ToolArtwork kind={artwork[index]} />}<div><h2>{title}</h2>{(index === "02" || index === "05") && <small className="discover-ai-badge">AI</small>}<p>{subtitle}</p></div></header>;
+  return <header className="discover-card-head" data-art={index === "04" ? "none" : undefined}>{index !== "04" && <ToolArtwork kind={artwork[index]} />}<div><h2>{title}</h2>{(index === "02" || index === "05") && <small className="discover-ai-badge">AI</small>}<p className={index === "01" ? undefined : "sr-only"}>{subtitle}</p></div></header>;
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
@@ -210,31 +210,31 @@ export function DiscoverExperience() {
         <section id="dream" className="discover-card discover-dream">
           <FeatureHeader index="02" title={copy.dream.title} subtitle={copy.dream.subtitle} glyph="GEMINI REFLECTION" />
           <form className="discover-form" onSubmit={submitDream}>
-            <textarea value={dream} onChange={(event) => setDream(event.target.value)} placeholder={copy.dream.placeholder} maxLength={3000} rows={2} disabled={dreamLoading} />
-            <div className="discover-form-foot"><small>{[...dream].length}/3000</small><button type="submit" disabled={dreamLoading || dream.trim().length < 10}>{dreamLoading ? copy.dream.loading : copy.dream.action}</button></div>
+            <textarea aria-label={copy.dream.title} value={dream} onChange={(event) => setDream(event.target.value)} placeholder={copy.dream.placeholder} maxLength={3000} rows={2} disabled={dreamLoading} />
+            <div className="discover-form-foot"><button type="submit" disabled={dreamLoading || dream.trim().length < 10}>{dreamLoading ? copy.dream.loading : copy.dream.action}</button></div>
           </form>
           {dreamReading && <div className="discover-ai-result"><p className="discover-summary">{dreamReading.summary}</p><div className="discover-symbols">{dreamReading.symbols.map((item) => <article key={item.symbol}><b>{item.symbol}</b><p>{item.interpretation}</p></article>)}</div><article className="discover-result-strip"><small>{copy.dream.theme}</small><p>{dreamReading.emotional_theme}</p></article><article className="discover-result-strip"><small>{copy.dream.reflection}</small><p>{dreamReading.reflection}</p></article><article className="discover-result-strip accent"><small>{copy.dream.next}</small><p>{dreamReading.next_step}</p></article></div>}
         </section>
 
         <section id="oracle" className="discover-card discover-oracle">
           <FeatureHeader index="03" title={copy.oracle.title} subtitle={copy.oracle.subtitle} glyph="QUICK ORACLE" />
-          <form className="discover-form discover-oracle-form" onSubmit={askOracle}><input value={oracleQuestion} onChange={(event) => setOracleQuestion(event.target.value)} placeholder={copy.oracle.placeholder} maxLength={220} /><button type="submit">{copy.oracle.action}</button></form>
+          <form className="discover-form discover-oracle-form" onSubmit={askOracle}><input aria-label={copy.oracle.placeholder} value={oracleQuestion} onChange={(event) => setOracleQuestion(event.target.value)} placeholder={copy.oracle.placeholder} maxLength={220} /><button type="submit">{copy.oracle.action}</button></form>
           {oracleResult && <div className="oracle-result"><span className="oracle-ring"><i /><b>{oracleResult.answer}</b></span><p>{oracleResult.detail}</p><small>“{oracleResult.question}”</small></div>}
         </section>
 
         <section id="mood" className="discover-card">
           <FeatureHeader index="04" title={copy.mood.title} subtitle={copy.mood.subtitle} glyph="LOCAL CHECK-IN" />
           <div className="mood-picker">{copy.mood.labels.map((label, index) => <button type="button" key={label} aria-label={label} aria-pressed={moodScore === index + 1} data-active={moodScore === index + 1 ? "true" : undefined} onClick={() => setMoodScore(index + 1)}><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" /><circle cx="11" cy="12" r="1" /><circle cx="21" cy="12" r="1" /><path d={["M9 23Q16 12 23 23", "M10 22Q16 16 22 22", "M10 21H22", "M10 19Q16 26 22 19", "M9 18Q16 29 23 18"][index]} /></svg><span>{label}</span></button>)}</div>
-          <div className="mood-note"><input value={moodNote} onChange={(event) => setMoodNote(event.target.value)} placeholder={copy.mood.note} maxLength={240} /><button type="button" onClick={saveMood}>{copy.mood.save}</button></div>
+          <div className="mood-note"><input aria-label={copy.mood.note} value={moodNote} onChange={(event) => setMoodNote(event.target.value)} placeholder={copy.mood.note} maxLength={240} /><button type="button" onClick={saveMood}>{copy.mood.save}</button></div>
           <div className="mood-history"><small>{copy.mood.history}</small><div>{moods.length ? moods.map((entry) => <article key={entry.date} title={entry.note || entry.label}><i style={{ height: `${18 + entry.score * 14}%` }} /><b>{entry.score}</b><span>{entry.date.slice(5).replace("-", "/")}</span></article>) : <p>—</p>}</div></div>
         </section>
 
         <section id="compatibility" className="discover-card discover-compatibility">
           <FeatureHeader index="05" title={copy.compatibility.title} subtitle={copy.compatibility.subtitle} glyph="GEMINI PLAY" />
           <form className="discover-form" onSubmit={submitCompatibility}>
-            <div className="compat-names"><input value={compatA} onChange={(event) => setCompatA(event.target.value)} placeholder={copy.compatibility.a} maxLength={80} /><span>×</span><input value={compatB} onChange={(event) => setCompatB(event.target.value)} placeholder={copy.compatibility.b} maxLength={80} /></div>
-            <details className="discover-extra"><summary>{copy.compatibility.context}</summary><textarea value={compatContext} onChange={(event) => setCompatContext(event.target.value)} placeholder={copy.compatibility.context} maxLength={1200} rows={2} /></details>
-            <div className="discover-form-foot"><small>{[...compatContext].length}/1200</small><button type="submit" disabled={compatLoading || !compatA.trim() || !compatB.trim()}>{compatLoading ? copy.compatibility.loading : copy.compatibility.action}</button></div>
+            <div className="compat-names"><input aria-label={copy.compatibility.a} value={compatA} onChange={(event) => setCompatA(event.target.value)} placeholder={copy.compatibility.a} maxLength={80} /><span>×</span><input aria-label={copy.compatibility.b} value={compatB} onChange={(event) => setCompatB(event.target.value)} placeholder={copy.compatibility.b} maxLength={80} /></div>
+            <details className="discover-extra"><summary>{copy.compatibility.context}</summary><textarea aria-label={copy.compatibility.context} value={compatContext} onChange={(event) => setCompatContext(event.target.value)} placeholder={copy.compatibility.context} maxLength={1200} rows={2} /></details>
+            <div className="discover-form-foot"><button type="submit" disabled={compatLoading || !compatA.trim() || !compatB.trim()}>{compatLoading ? copy.compatibility.loading : copy.compatibility.action}</button></div>
           </form>
           {compatReading && <div className="discover-ai-result"><p className="discover-summary">{compatReading.summary}</p><div className="compat-metrics"><Metric label={copy.compatibility.metrics[0]} value={compatReading.communication} /><Metric label={copy.compatibility.metrics[1]} value={compatReading.trust} /><Metric label={copy.compatibility.metrics[2]} value={compatReading.chemistry} /><Metric label={copy.compatibility.metrics[3]} value={compatReading.long_term} /></div><div className="compat-lists"><article><small>{copy.compatibility.strengths}</small><ul>{compatReading.strengths.map((item) => <li key={item}>{item}</li>)}</ul></article><article><small>{copy.compatibility.watchouts}</small><ul>{compatReading.watchouts.map((item) => <li key={item}>{item}</li>)}</ul></article></div><article className="discover-result-strip accent"><small>{copy.compatibility.starter}</small><p>{compatReading.conversation_starter}</p></article></div>}
         </section>

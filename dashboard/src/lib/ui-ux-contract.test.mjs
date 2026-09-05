@@ -160,7 +160,7 @@ test("mobile controls and calendar expose 44px-class touch targets", () => {
 test("iPhone H1 surface stays inside the visual viewport and keeps native horizontal pan", () => {
   assert.match(oakCss, /iPhone\/Safari containment/);
   assert.match(oakCss, /\.oak-h1-table-scroll \{[\s\S]*overflow-x: scroll !important;[\s\S]*touch-action: pan-x pan-y;[\s\S]*-webkit-overflow-scrolling: touch/);
-  assert.match(oakCss, /\.oak-h1-table-scroll \.oak-h1-table \{[\s\S]*width: max-content;[\s\S]*min-width: max-content/);
+  assert.match(oakCss, /\.oak-h1-table-scroll \.oak-h1-table \{[\s\S]*width: 100%;[\s\S]*min-width: 21rem/);
   assert.match(oakCss, /\.oak-h1-calendar-popover \{[\s\S]*position: fixed;[\s\S]*right: max\(\.55rem, env\(safe-area-inset-right\)\);[\s\S]*left: max\(\.55rem, env\(safe-area-inset-left\)\);[\s\S]*transform: none/);
   assert.match(oakCss, /\.oak-h1-calendar-grid \{[\s\S]*grid-template-columns: repeat\(7, minmax\(0, 1fr\)\)/);
   assert.match(oakCss, /\.oak-engine-screen,[\s\S]*\.oak-h1-table-scroll \{[\s\S]*min-width: 0;[\s\S]*max-width: 100%/);
