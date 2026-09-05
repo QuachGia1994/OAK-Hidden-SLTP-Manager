@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OAK_SHARE_IMAGE, SITE_URL } from "@/lib/site-brand";
 import "./globals.css";
 import "./oak-redesign.css";
 import "./factcheck-share.css";
@@ -14,10 +15,25 @@ import { detectServerLocaleFromCookie } from "@/lib/i18n";
 export const metadata: Metadata = {
   title: "ROBOT SLTP Pro — OAK Gatekeeper",
   description: "OAK Gatekeeper trading command system for Engine 5 market signals, broker-aligned evidence, and private signal access.",
+  metadataBase: new URL(SITE_URL),
+  openGraph: {
+    type: "website",
+    siteName: "OAK Gatekeeper",
+    title: "ROBOT SLTP Pro — OAK Gatekeeper",
+    description: "Trading signals, transparent evidence and NeoTech account analytics.",
+    images: [OAK_SHARE_IMAGE],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "ROBOT SLTP Pro — OAK Gatekeeper",
+    description: "Trading signals, transparent evidence and NeoTech account analytics.",
+    images: [OAK_SHARE_IMAGE],
+  },
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/oak-app-icon.png",
-    apple: "/oak-app-icon.png",
+    icon: "/oak-app-icon.png?v=brand-20260905",
+    shortcut: "/oak-app-icon.png?v=brand-20260905",
+    apple: "/oak-app-icon.png?v=brand-20260905",
   },
 };
 

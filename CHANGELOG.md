@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Refined the NeoTech concept presentation with a compressed cinematic mountain/metallic-N hero, reusable vector wordmark, larger criterion icons, compact 5/7/2 cards, readiness badge beside the criteria, colored session bars, balanced sample dashboard and compact feature/CTA footer. Connection tools remain available in an expandable section; official rule thresholds, session hours and pairing safeguards are preserved.
+- Added a 1200×630 OAK social card generated from the canonical iOS app logo, shared Open Graph/Twitter metadata for the website and NeoTech route, absolute metadata base and versioned browser icon references. Existing links may retain platform-side preview caches until recrawled.
+
 - Closed the remaining NeoTech Rule Ver 2 visual-parity gaps: all 14 criteria now use consistent inline SVG line icons and the concept grouping (E1-E5 row, C1-C7 row, C8/C9 + session map); C3/FDD is visually risk-highlighted; the C5 session panel uses three distinct Asia/Europe/US color bars while deliberately preserving the official 2024-10-03 NeoTech server-time windows rather than the inaccurate mockup times. Added a clearly labeled sample-data DEMO PREVIEW with CLEAR account card, 12-window return chart, FDD sparkline, 14/14 checked donut and preview tabs, plus the 4-feature bottom strip, JOIN NOW CTA, branded footer and deeper layered hero mountains. Live pairing/profile analytics remain separate from the demo and unchanged.
 
 - Redesigned the public `/neotech` surface as NeoTech Rule Ver 2: concept-matched dark hero/brand treatment, ruleset badge, always-visible 14-criterion map with live per-rule status, official C5 Asia/Europe/US session windows and overlap-priority note, plus a donut-style live rules overview. Pairing, connector downloads, share/revoke/purge controls and server-side analytics remain unchanged; stale 12-rule / 4+8 presentation copy is removed in favor of the restored 14-rule / 5+9 model.
