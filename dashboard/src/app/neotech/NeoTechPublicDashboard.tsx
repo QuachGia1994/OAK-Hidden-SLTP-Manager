@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { createPortal } from "react-dom";
 import { useLocale } from "@/components/LocaleProvider";
 import { useDialogFocusTrap } from "@/hooks/useDialogFocusTrap";
-import type { NeoTechPublicProfile, NeoTechPublicRule, NeoTechPublicStatus } from "@/lib/neotech-public-domain";
+import type { NeoTechPublicProfile, NeoTechPublicRule, NeoTechPublicRuleCode, NeoTechPublicStatus } from "@/lib/neotech-public-domain";
 import styles from "./neotech.module.css";
 
 type PublicAccount = {
@@ -37,6 +37,39 @@ const OVERALL_LABEL: Record<Locale, Record<NeoTechPublicProfile["overall"], stri
   EN: { CLEAR: "Clear", TRACKING: "Tracking", INSUFFICIENT_DATA: "Insufficient data", VIOLATION: "Violation" },
   VN: { CLEAR: "Đang đạt", TRACKING: "Đang theo dõi", INSUFFICIENT_DATA: "Thiếu dữ liệu", VIOLATION: "Có vi phạm" },
 };
+
+type RuleConcept = {
+  code: NeoTechPublicRuleCode;
+  icon: string;
+  en: string;
+  vi: string;
+  thresholdEn: string;
+  thresholdVi: string;
+  verification: "AUTO" | "EXTERNAL";
+};
+
+const RULE_CONCEPTS: RuleConcept[] = [
+  { code: "E1", icon: "M", en: "Manual only", vi: "Chỉ mở lệnh thủ công", thresholdEn: "No Expert-opened positions", thresholdVi: "0 lệnh mở bởi Expert", verification: "AUTO" },
+  { code: "E2", icon: "A", en: "NeoTech account", vi: "Loại tài khoản NeoTech", thresholdEn: "REAL / DEMO", thresholdVi: "REAL / DEMO", verification: "AUTO" },
+  { code: "E3", icon: "$", en: "Any starting capital", vi: "Vốn ban đầu bất kỳ", thresholdEn: "No minimum capital", thresholdVi: "Không giới hạn vốn", verification: "AUTO" },
+  { code: "E4", icon: "ID", en: "Enrollment conditions", vi: "Điều kiện tham gia", thresholdEn: "KYC · Public · new account · non-Direct", thresholdVi: "KYC · Public · tài khoản mới · không Direct", verification: "EXTERNAL" },
+  { code: "E5", icon: "FX", en: "Forex + Gold", vi: "Forex + Vàng", thresholdEn: "Forex / XAUUSD only", thresholdVi: "Chỉ Forex / XAUUSD", verification: "AUTO" },
+  { code: "C1", icon: "365", en: "Tracking horizon", vi: "Thời gian theo dõi", thresholdEn: "≥365d and ≥12 × 30d", thresholdVi: "≥365 ngày và ≥12 × 30 ngày", verification: "AUTO" },
+  { code: "C2", icon: "+1", en: "Monthly return", vi: "Hiệu suất 30 ngày", thresholdEn: "≥1% in every 30-day window", thresholdVi: "≥1% mỗi cửa sổ 30 ngày", verification: "AUTO" },
+  { code: "C3", icon: "DD", en: "Floating drawdown", vi: "Floating Drawdown", thresholdEn: "FDD < 2%", thresholdVi: "FDD < 2%", verification: "AUTO" },
+  { code: "C4", icon: "3×", en: "Signal frequency", vi: "Tần suất tín hiệu", thresholdEn: "≥3 signals / completed week", thresholdVi: "≥3 tín hiệu / tuần hoàn tất", verification: "AUTO" },
+  { code: "C5", icon: "1×", en: "One per product/session", vi: "Một tín hiệu / sản phẩm / phiên", thresholdEn: "≤1 signal per symbol per session", thresholdVi: "≤1 tín hiệu / symbol / phiên", verification: "AUTO" },
+  { code: "C6", icon: "15", en: "Hold or SL/TP", vi: "Giữ lệnh hoặc SL/TP", thresholdEn: "≥15m or SL/TP >30 pips", thresholdVi: "≥15 phút hoặc SL/TP >30 pip", verification: "AUTO" },
+  { code: "C7", icon: "↔", en: "No Hedge / DCA", vi: "Không Hedge / DCA", thresholdEn: "0 confirmed Hedge / DCA", thresholdVi: "0 Hedge / DCA xác nhận", verification: "AUTO" },
+  { code: "C8", icon: "CP", en: "No copy signals", vi: "Không copy tín hiệu", thresholdEn: "External-source verification", thresholdVi: "Xác minh nguồn bên ngoài", verification: "EXTERNAL" },
+  { code: "C9", icon: "CF", en: "No deposits / withdrawals", vi: "Không nạp / rút trong kỳ", thresholdEn: "0 cash flow after program start", thresholdVi: "0 nạp/rút sau program start", verification: "AUTO" },
+];
+
+const SESSION_CONCEPTS = [
+  { code: "ASIA", summer: "02:00–11:00", winter: "02:00–11:00" },
+  { code: "EUROPE", summer: "09:00–18:00", winter: "10:00–19:00" },
+  { code: "US", summer: "14:00–23:00", winter: "15:00–24:00" },
+] as const;
 
 async function readJson(response: Response): Promise<Record<string, unknown>> {
   return response.json().catch(() => ({})) as Promise<Record<string, unknown>>;
@@ -73,38 +106,23 @@ function StatusPill({ status, overall, locale }: { status?: NeoTechPublicStatus;
 }
 
 function RuleRadar({ rules, locale }: { rules: NeoTechPublicRule[]; locale: Locale }) {
-  const size = 340;
-  const center = size / 2;
-  const radius = 118;
-  const count = Math.max(1, rules.length);
-  const point = (index: number, scale: number) => {
-    const angle = -Math.PI / 2 + index * Math.PI * 2 / count;
-    return [center + Math.cos(angle) * radius * scale, center + Math.sin(angle) * radius * scale] as const;
-  };
-  const polygon = (scale: number) => rules.map((_, index) => point(index, scale).join(",")).join(" ");
-  const scorePolygon = rules.map((row, index) => point(index, row.score / 100).join(",")).join(" ");
-  const average = rules.length ? Math.round(rules.reduce((sum, row) => sum + row.score, 0) / rules.length) : 0;
+  const pass = rules.filter((row) => row.status === "PASS").length;
+  const fail = rules.filter((row) => row.status === "FAIL").length;
+  const pending = Math.max(0, rules.length - pass - fail);
+  const passAngle = rules.length ? pass / rules.length * 360 : 0;
+  const failAngle = rules.length ? fail / rules.length * 360 : 0;
+  const ringStyle = { background: `conic-gradient(var(--oak-status-online) 0deg ${passAngle}deg, var(--oak-status-danger) ${passAngle}deg ${passAngle + failAngle}deg, var(--oak-fg-muted) ${passAngle + failAngle}deg 360deg)` } as CSSProperties;
 
   return (
     <div className={styles.radarWrap}>
-      <svg className={styles.radar} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={locale === "EN" ? `NeoTech rule profile score ${average} out of 100` : `Điểm hồ sơ rule NeoTech ${average} trên 100`}>
-        {[.25, .5, .75, 1].map((scale) => <polygon key={scale} points={polygon(scale)} className={styles.radarGrid} />)}
-        {rules.map((row, index) => {
-          const [x, y] = point(index, 1);
-          return <line key={`axis-${row.code}`} x1={center} y1={center} x2={x} y2={y} className={styles.radarAxis} />;
-        })}
-        <polygon points={scorePolygon} className={styles.radarShape} />
-        {rules.map((row, index) => {
-          const [x, y] = point(index, row.score / 100);
-          return <circle key={`point-${row.code}`} cx={x} cy={y} r="4" className={styles.radarPoint} data-status={row.status} />;
-        })}
-        {rules.map((row, index) => {
-          const [x, y] = point(index, 1.14);
-          const anchor = x < center - 8 ? "end" : x > center + 8 ? "start" : "middle";
-          return <text key={row.code} x={x} y={y} textAnchor={anchor} dominantBaseline="middle" className={styles.radarLabel}>{row.code}</text>;
-        })}
-      </svg>
-      <div className={styles.radarCenter}><strong>{average}</strong><small>PROFILE / 100</small></div>
+      <div className={styles.ruleDonut} style={ringStyle} role="img" aria-label={locale === "EN" ? `${pass} passed, ${fail} failed, ${pending} pending out of ${rules.length}` : `${pass} đạt, ${fail} vi phạm, ${pending} đang chờ trên ${rules.length} rule`}>
+        <span><strong>{pass}/{rules.length}</strong><small>{locale === "EN" ? "RULES PASS" : "RULE ĐẠT"}</small></span>
+      </div>
+      <div className={styles.ruleDonutLegend}>
+        <span data-kind="pass"><i />{pass} PASS</span>
+        <span data-kind="fail"><i />{fail} FAIL</span>
+        <span data-kind="pending"><i />{pending} {locale === "EN" ? "TRACKING / EVIDENCE" : "THEO DÕI / EVIDENCE"}</span>
+      </div>
     </div>
   );
 }
@@ -265,6 +283,9 @@ export function NeoTechPublicDashboard() {
 
   const selected = useMemo(() => accounts.find((row) => row.account.id === selectedId) || accounts[0] || null, [accounts, selectedId]);
   const profile = selected?.profile || null;
+  const ruleByCode = useMemo(() => new Map((profile?.rules || []).map((row) => [row.code, row])), [profile]);
+  const eligibilityRules = profile?.rules.filter((row) => row.group === "ELIGIBILITY") || [];
+  const consistencyRules = profile?.rules.filter((row) => row.group === "CONSISTENCY") || [];
 
   const createPairing = async (accessMode: "READ_ONLY" | "TRADING_CAPABLE_ACCEPTED" = "READ_ONLY") => {
     setBusy(true); setError("");
@@ -400,30 +421,79 @@ export function NeoTechPublicDashboard() {
 
   return (
     <div className={styles.page}>
-      <section className={styles.hero}>
-        <div className={styles.heroCopy}>
-          <span className={styles.eyebrow}>◉ NeoTech · Read-only intelligence</span>
-          <h1>{tr("Visual profile for", "Visual profile cho")} <span>{tr("account discipline.", "kỷ luật tài khoản.")}</span></h1>
-          <p>{tr("Investor Password is recommended. Master Password is also supported after an explicit risk warning; OAK never receives or stores either MT5 password.", "Investor Password là lựa chọn khuyến nghị. Master Password cũng được hỗ trợ sau cảnh báo rủi ro rõ ràng; OAK không bao giờ nhận hoặc lưu password MT5.")}</p>
-          <div className={styles.heroActions}>
-            {accounts.length > 0 && <button className={styles.primaryButton} onClick={() => void createPairing("READ_ONLY")} disabled={busy}>{tr("+ Connect account", "+ Kết nối tài khoản")}</button>}
-            {accounts.length > 0 && <button className={styles.secondaryButton} onClick={() => void createMasterPairing()} disabled={busy}>{tr("Use Master Password", "Dùng Master Password")}</button>}
-            <a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_ReadOnly_Connector.ex5" download>{tr("Download connector", "Tải connector")}</a>
-            <a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_ReadOnly_Connector.mq5" download>{tr("Source for audit", "Source để audit")}</a>
+      <section className={styles.heroV2}>
+        <div className={styles.brandRail}>
+          <div className={styles.neoBrand} aria-label="NeoTech Rule Ver 2">
+            <span className={styles.neoMark}>N</span>
+            <span><b>NeoTech</b><small>TRADERS EMPOWER TRADERS</small></span>
           </div>
+          <span className={styles.heroMotto}>DISCIPLINE · TRANSPARENCY · LONG-TERM GROWTH</span>
+          <span className={styles.rulesetBadge}><b>RULESET v2</b><small>2024-10-03</small></span>
         </div>
-        <div className={styles.heroPanel}>
-          <div className={styles.trustRow}><span className={styles.trustIcon}>R/O</span><span><b>{tr("Read-only recommended", "Khuyến nghị read-only")}</b><small>{tr("Investor Password blocks trading at broker level. Master access requires explicit user acceptance.", "Investor Password khóa quyền trade ở cấp broker. Master chỉ được bật sau khi user chấp nhận cảnh báo.")}</small></span></div>
-          <div className={styles.trustRow}><span className={styles.trustIcon}>0×</span><span><b>{tr("No password stored", "Không lưu password")}</b><small>{tr("The MT5 password stays inside the user's terminal in both modes.", "Password MT5 chỉ nằm trong terminal của khách ở cả hai chế độ.")}</small></span></div>
-          <div className={styles.trustRow}><span className={styles.trustIcon}>↯</span><span><b>{tr("Instant revoke", "Revoke tức thì")}</b><small>{tr("Each connector has its own token; only the hash is stored on the server.", "Mỗi connector có token riêng, chỉ lưu hash ở server.")}</small></span></div>
+        <div className={styles.heroV2Grid}>
+          <div className={styles.heroCopyV2}>
+            <span className={styles.heroKicker}>{tr("Same rules. Stronger clarity.", "Cùng bộ rule. Minh bạch hơn.")}</span>
+            <h1>NeoTech <span>Rule Ver 2</span></h1>
+            <h2>{tr("Standardized · Transparent · Observable", "Chuẩn hóa · Minh bạch · Dễ theo dõi")}</h2>
+            <p>{tr("The official NeoTech signal-provider rules are reconstructed from MT5 facts by OAK Gatekeeper, with automatic checks, explicit evidence gaps and a visual profile that never guesses PASS.", "Bộ quy tắc chính thức dành cho Nhà cung cấp tín hiệu NeoTech được OAK Gatekeeper tái dựng từ dữ liệu MT5, kiểm tra tự động, nêu rõ khoảng trống evidence và tuyệt đối không suy đoán PASS.")}</p>
+            <div className={styles.heroFeatureRow}>
+              <span><i>⚡</i>{tr("Automatic checks", "Tự động kiểm tra")}</span>
+              <span><i>▥</i>{tr("Official thresholds", "Bám sát rule chính thức")}</span>
+              <span><i>◇</i>{tr("Evidence first", "Evidence minh bạch")}</span>
+              <span><i>↗</i>{tr("Web · MT5 · Telegram", "Web · MT5 · Telegram")}</span>
+            </div>
+            <div className={styles.heroActions}>
+              <button className={styles.primaryButton} onClick={() => void createPairing("READ_ONLY")} disabled={busy}>{accounts.length > 0 ? tr("+ Connect another account", "+ Kết nối tài khoản khác") : tr("Connect NeoTech account", "Kết nối tài khoản NeoTech")}</button>
+              <a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_ReadOnly_Connector.ex5" download>{tr("Download connector", "Tải connector")}</a>
+              <a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_ReadOnly_Connector.mq5" download>{tr("Audit source", "Source để audit")}</a>
+            </div>
+          </div>
+          <div className={styles.heroVisualV2} aria-hidden="true">
+            <div className={styles.heroChartGrid} />
+            <div className={`${styles.heroCandle} ${styles.heroCandleA}`} />
+            <div className={`${styles.heroCandle} ${styles.heroCandleB}`} />
+            <div className={`${styles.heroCandle} ${styles.heroCandleC}`} />
+            <div className={styles.neoMonogram}>N</div>
+            <div className={styles.heroQuote}>TRADE<br />DISCIPLINE<br />BUILD<br />OPPORTUNITY</div>
+            <div className={styles.liveReady}><span>✓</span><div><b>LIVE READY</b><small>EA v1.03 · Connector v1.0.5 · Web v2</small></div></div>
+          </div>
         </div>
       </section>
 
-      <section className={styles.securityStrip} aria-label="Security guarantees">
-        <div className={styles.securityItem} data-good="true"><small>{tr("MT5 credential", "Credential MT5")}</small><b>{tr("Stays in terminal", "Không rời terminal")}</b></div>
-        <div className={styles.securityItem} data-good="true"><small>{tr("Trading capability", "Khả năng giao dịch")}</small><b>{tr("Read-only by default", "Read-only mặc định")}</b></div>
-        <div className={styles.securityItem}><small>{tr("Private workspace", "Workspace riêng")}</small><b>{workspaceRef ? `#${workspaceRef}` : bootRetryIn > 0 ? tr("Unavailable", "Không khả dụng") : tr("Creating…", "Đang tạo…")}</b></div>
-        <div className={styles.securityItem}><small>{tr("Rule authority", "Thẩm quyền rule")}</small><b>{tr("Server-side only", "Chỉ ở phía server")}</b></div>
+      <section className={styles.securityStripV2} aria-label="NeoTech Rule Ver 2 capabilities">
+        <div className={styles.securityItemV2} data-good="true"><small>{tr("MT5 credential", "Credential MT5")}</small><b>{tr("Stays inside terminal", "Không rời terminal")}</b></div>
+        <div className={styles.securityItemV2} data-good="true"><small>{tr("Access model", "Mô hình truy cập")}</small><b>{tr("Read-only recommended", "Khuyến nghị read-only")}</b></div>
+        <div className={styles.securityItemV2}><small>{tr("Private workspace", "Workspace riêng")}</small><b>{workspaceRef ? `#${workspaceRef}` : bootRetryIn > 0 ? tr("Unavailable", "Không khả dụng") : tr("Creating…", "Đang tạo…")}</b></div>
+        <div className={styles.securityItemV2}><small>{tr("Rule authority", "Nguồn rule")}</small><b>NeoTech · 2024-10-03</b></div>
+      </section>
+
+      <section className={styles.rulesetV2}>
+        <div className={styles.rulesetV2Header}>
+          <div><span className={styles.sectionEyebrow}>RULE ENGINE</span><h2>{tr("14 evaluation criteria", "14 tiêu chí đánh giá")}</h2><p>{tr("E1–E5 eligibility + C1–C9 consistency. Live status appears as soon as an account profile is available.", "E1–E5 điều kiện tham gia + C1–C9 tính nhất quán. Khi có profile, trạng thái live được đổ trực tiếp lên từng rule.")}</p></div>
+          <div className={styles.rulesLiveBadge} data-live={profile ? "true" : undefined}><span>{profile ? "✓" : "○"}</span><div><b>{profile ? tr("LIVE PROFILE", "PROFILE LIVE") : tr("RULE PREVIEW", "PREVIEW RULE")}</b><small>{profile ? `${profile.counts.pass} PASS · ${profile.counts.fail} FAIL` : "14 / 14 MAPPED"}</small></div></div>
+        </div>
+        <div className={styles.ruleConceptGrid}>
+          {RULE_CONCEPTS.map((item) => {
+            const liveRule = ruleByCode.get(item.code);
+            return (
+              <article key={item.code} className={styles.ruleConceptCard} data-status={liveRule?.status} data-manual={item.verification === "EXTERNAL" ? "true" : undefined}>
+                <div className={styles.ruleConceptTop}><span className={styles.ruleConceptCode}>{item.code}</span><span className={styles.ruleConceptIcon}>{item.icon}</span></div>
+                <h3>{locale === "EN" ? item.en : item.vi}</h3>
+                <p>{locale === "EN" ? item.thresholdEn : item.thresholdVi}</p>
+                <div className={styles.ruleConceptFooter}>
+                  {liveRule ? <StatusPill status={liveRule.status} locale={locale} /> : <span className={styles.autoBadge} data-external={item.verification === "EXTERNAL" ? "true" : undefined}>{item.verification === "AUTO" ? "AUTO CHECK" : "EXTERNAL CHECK"}</span>}
+                  {liveRule && <small title={liveRule.measured}>{liveRule.measured}</small>}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+        <div className={styles.sessionPanelV2}>
+          <div className={styles.sessionCopy}><span className={styles.sectionEyebrow}>C5 SESSION MAP</span><h3>{tr("NeoTech trading sessions", "Quy ước phiên giao dịch NeoTech")}</h3><p>{tr("Server-local session windows. Summer = Apr–Oct; Winter = Nov–Mar. If a signal falls inside an overlap, it belongs to the previous session.", "Cửa sổ tính theo giờ server. Mùa Hè = Tháng 4–10; Mùa Đông = Tháng 11–3. Nếu tín hiệu nằm trong vùng giao hai phiên, tín hiệu được tính vào phiên trước.")}</p></div>
+          <div className={styles.sessionTracks}>
+            {SESSION_CONCEPTS.map((session) => <div key={session.code} className={styles.sessionTrack} data-session={session.code}><b>{session.code}</b><span>{tr("Summer", "Hè")} {session.summer}</span><span>{tr("Winter", "Đông")} {session.winter}</span></div>)}
+          </div>
+        </div>
       </section>
 
       {error && <div className={styles.error} role="alert">{error}{bootRetryIn > 0 && ` · ${tr("retrying in", "thử lại sau")} ${bootRetryIn}s`}</div>}
@@ -471,6 +541,7 @@ export function NeoTechPublicDashboard() {
               <section className={styles.emptyState}><strong>{tr("Connector paired — waiting for the first snapshot.", "Connector đã pair — đang chờ snapshot đầu tiên.")}</strong><p>{tr("Keep MT5 online. The visual profile appears as soon as the connector sends its first history/equity snapshot.", "Giữ MT5 online. Visual profile sẽ xuất hiện ngay khi connector gửi history/equity lần đầu.")}</p><span className={styles.waiting}><span className={styles.spinner} /> {tr("Waiting for read-only telemetry…", "Đang chờ telemetry read-only…")}</span></section>
             ) : (
               <>
+                <div className={styles.dashboardSectionTitle}><div><span className={styles.sectionEyebrow}>LIVE DASHBOARD</span><h2>{tr("Account discipline preview", "Bảng điều khiển kỷ luật tài khoản")}</h2></div><small>{profile.ruleset}</small></div>
                 <section className={styles.metricGrid}>
                   <div className={styles.metric}><small>{tr("Rules passed", "Rule đạt")}</small><strong>{profile.counts.pass}/{profile.rules.length}</strong><span>{profile.counts.fail} {tr("violations", "vi phạm")} · {profile.counts.insufficient + profile.counts.notVerifiable} {tr("without enough evidence", "chưa đủ evidence")}</span></div>
                   <div className={styles.metric}><small>History coverage</small><strong>{profile.coverage.percent.toFixed(1)}%</strong><span>{profile.coverage.historyDays.toFixed(0)} {tr("observed days", "ngày quan sát")}</span></div>
@@ -480,16 +551,16 @@ export function NeoTechPublicDashboard() {
 
                 <section className={styles.visualGrid}>
                   <div className={styles.panel}>
-                    <div className={styles.panelHeader}><div><h3>Rule orbit</h3><p>{tr("12 technical rules tracked by the engine.", "12 rule kỹ thuật đang được engine theo dõi.")}</p></div><StatusPill overall={profile.overall} locale={locale} /></div>
+                    <div className={styles.panelHeader}><div><h3>{tr("Rules overview", "Tổng quan rule")}</h3><p>{tr("All 14 NeoTech criteria, including external-verification rules.", "Đủ 14 tiêu chí NeoTech, bao gồm các rule cần xác minh ngoài MT5.")}</p></div><StatusPill overall={profile.overall} locale={locale} /></div>
                     <RuleRadar rules={profile.rules} locale={locale} />
                   </div>
                   <div className={styles.panel}>
                     <div className={styles.panelHeader}><div><h3>Profile snapshot</h3><p>{tr("Rules are recalculated on the server from raw MT5 facts.", "Rule được tính lại trên server từ raw MT5 facts.")}</p></div><span className={styles.statusPill}>UTC {fmtDate(profile.generatedAtUtc, locale)}</span></div>
                     <div className={styles.ruleSummary}>
-                      <div className={styles.ruleGroupTitle}><span>Eligibility</span><span>{profile.rules.filter((row) => row.group === "ELIGIBILITY" && row.status === "PASS").length}/4 {tr("passed", "đạt")}</span></div>
-                      <div className={styles.ruleMiniGrid}>{profile.rules.filter((row) => row.group === "ELIGIBILITY").map((row) => <RuleMini key={row.code} rule={row} locale={locale} />)}</div>
-                      <div className={styles.ruleGroupTitle}><span>Consistency</span><span>{profile.rules.filter((row) => row.group === "CONSISTENCY" && row.status === "PASS").length}/8 {tr("passed", "đạt")}</span></div>
-                      <div className={styles.ruleMiniGrid}>{profile.rules.filter((row) => row.group === "CONSISTENCY").map((row) => <RuleMini key={row.code} rule={row} locale={locale} />)}</div>
+                      <div className={styles.ruleGroupTitle}><span>Eligibility</span><span>{eligibilityRules.filter((row) => row.status === "PASS").length}/{eligibilityRules.length} {tr("passed", "đạt")}</span></div>
+                      <div className={styles.ruleMiniGrid}>{eligibilityRules.map((row) => <RuleMini key={row.code} rule={row} locale={locale} />)}</div>
+                      <div className={styles.ruleGroupTitle}><span>Consistency</span><span>{consistencyRules.filter((row) => row.status === "PASS").length}/{consistencyRules.length} {tr("passed", "đạt")}</span></div>
+                      <div className={styles.ruleMiniGrid}>{consistencyRules.map((row) => <RuleMini key={row.code} rule={row} locale={locale} />)}</div>
                     </div>
                   </div>
                 </section>
