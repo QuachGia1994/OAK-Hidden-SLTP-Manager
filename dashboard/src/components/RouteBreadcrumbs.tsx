@@ -1,5 +1,6 @@
 "use client";
 
+import { OAK_TOOLS } from "@/lib/oak-tools";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLocale } from "./LocaleProvider";
@@ -9,9 +10,12 @@ export function RouteBreadcrumbs() {
   const { locale } = useLocale();
   const isFactResult = pathname.startsWith("/factcheck/") && pathname !== "/factcheck";
   const isNeoTechNested = pathname.startsWith("/neotech/") && pathname !== "/neotech";
-  if (!isFactResult && !isNeoTechNested) return null;
+  const tool = OAK_TOOLS.find(item => pathname === item.href);
+  if (!tool && !isFactResult && !isNeoTechNested) return null;
 
-  const items = isFactResult
+  const items = tool
+    ? [{ href: "/tools", label: locale === "EN" ? "Tools" : "Công cụ" }, { href: "", label: tool.name[locale] }]
+    : isFactResult
     ? [
         { href: "/factcheck", label: locale === "EN" ? "Fact Check" : "Xác thực" },
         { href: "", label: locale === "EN" ? "Result" : "Kết quả" },

@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useLocale } from "@/components/LocaleProvider";
+import { ToolArtwork } from "@/components/ToolArtwork";
 import { TarotCard } from "@/components/tarot/TarotCard";
 import { TAROT_COPY } from "@/lib/tarot/locale-copy";
 import type { TarotApiResponse, TarotCardDraw, TarotInterpretation, TarotSpread } from "@/lib/tarot/types";
@@ -66,6 +67,7 @@ export function TarotExperience() {
     <div className="page-shell terminal-page tarot-screen">
       <section className="tarot-hero">
         <div className="tarot-hero-copy">
+          <ToolArtwork kind="tarot" />
           <p className="terminal-kicker">{copy.kicker}</p>
           <h1>{copy.title}</h1>
           <p>{copy.intro}</p>
@@ -131,7 +133,7 @@ export function TarotExperience() {
       {loading ? (
         <section className="tarot-placeholder" aria-label={copy.drawing}>
           {[0, 1, 2].slice(0, spread === "one" ? 1 : 3).map((item) => (
-            <div className="tarot-card-back tarot-card-loading" key={item} aria-hidden="true"><span>✦</span></div>
+            <div className="tarot-card-back tarot-card-loading" key={item} aria-hidden="true"><ToolArtwork kind="card" /></div>
           ))}
         </section>
       ) : result ? (
@@ -188,7 +190,7 @@ export function TarotExperience() {
       ) : (
         <section className="tarot-placeholder" aria-label={copy.idle}>
           {[0, 1, 2].map((item) => (
-            <div className="tarot-card-back" key={item} aria-hidden="true"><span>✦</span></div>
+            <div className="tarot-card-back" key={item} aria-hidden="true"><ToolArtwork kind="card" /></div>
           ))}
           <p>{copy.idle}</p>
         </section>

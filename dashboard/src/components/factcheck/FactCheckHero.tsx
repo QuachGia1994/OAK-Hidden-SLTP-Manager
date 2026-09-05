@@ -1,5 +1,6 @@
 "use client";
 
+import { ToolArtwork } from "@/components/ToolArtwork";
 import { TEXT } from "@/lib/factcheck/locale-copy";
 
 export function FactCheckHero({ locale }: { locale: "VN" | "EN" }) {
@@ -13,7 +14,8 @@ export function FactCheckHero({ locale }: { locale: "VN" | "EN" }) {
   return (
     <section className="oak-fact-hero">
       <div className="oak-fact-hero-main">
-        <span className="oak-eyebrow">EVIDENCE INTELLIGENCE / GEMINI</span>
+        <ToolArtwork kind="factcheck" />
+        <span className="oak-eyebrow">OAK / EVIDENCE LAB</span>
         <h1>{t.title}</h1>
         <p>{t.subtitle}</p>
         <div className="oak-fact-live"><i /><span>{t.studio}</span></div>

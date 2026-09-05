@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ToolArtwork, type ToolArtworkKind } from "@/components/ToolArtwork";
 import { useLocale } from "@/components/LocaleProvider";
 import type { CompatibilityReading, DreamReading } from "@/lib/discover/gemini";
 
@@ -90,8 +91,9 @@ function dailyMessage(locale: "EN" | "VN", key: string): DailyMessage {
   return { energy: row[0], do: row[1], avoid: row[2], reminder: row[3] };
 }
 
-function FeatureHeader({ index, title, subtitle, glyph }: { index: string; title: string; subtitle: string; glyph: string }) {
-  return <header className="discover-card-head"><span className="discover-index">{index}</span><div><small>{glyph}</small><h2>{title}</h2><p>{subtitle}</p></div></header>;
+function FeatureHeader({ index, title, subtitle }: { index: string; title: string; subtitle: string; glyph: string }) {
+  const artwork: Record<string, ToolArtworkKind> = { "01": "daily", "02": "dream", "03": "oracle", "04": "mood", "05": "compatibility" };
+  return <header className="discover-card-head"><ToolArtwork kind={artwork[index]} /><div><small>{index === "02" || index === "05" ? "AI" : index}</small><h2>{title}</h2><p>{subtitle}</p></div></header>;
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
@@ -227,7 +229,7 @@ export function DiscoverExperience() {
 
         <section id="mood" className="discover-card">
           <FeatureHeader index="04" title={copy.mood.title} subtitle={copy.mood.subtitle} glyph="LOCAL CHECK-IN" />
-          <div className="mood-picker">{copy.mood.labels.map((label, index) => <button type="button" key={label} data-active={moodScore === index + 1 ? "true" : undefined} onClick={() => setMoodScore(index + 1)}><b>{index + 1}</b><span>{label}</span></button>)}</div>
+          <div className="mood-picker">{copy.mood.labels.map((label, index) => <button type="button" key={label} aria-pressed={moodScore === index + 1} data-active={moodScore === index + 1 ? "true" : undefined} onClick={() => setMoodScore(index + 1)}><b aria-hidden="true">{["☹", "◔", "◑", "☺", "☻"][index]}</b><span>{label}</span></button>)}</div>
           <div className="mood-note"><input value={moodNote} onChange={(event) => setMoodNote(event.target.value)} placeholder={copy.mood.note} maxLength={240} /><button type="button" onClick={saveMood}>{copy.mood.save}</button></div>
           <div className="mood-history"><small>{copy.mood.history}</small><div>{moods.length ? moods.map((entry) => <article key={entry.date} title={entry.note || entry.label}><i style={{ height: `${18 + entry.score * 14}%` }} /><b>{entry.score}</b><span>{entry.date.slice(5).replace("-", "/")}</span></article>) : <p>—</p>}</div></div>
         </section>

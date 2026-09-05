@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { OAK_TOOLS } from "@/lib/oak-tools";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTheme } from "./ThemeProvider";
@@ -39,12 +40,9 @@ export function NavBar() {
   const toolsButtonRef = useRef<HTMLButtonElement>(null);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
 
-  const tools = [
-    { href: "/factcheck", label: locale === "EN" ? "Fact Check" : "Xác thực", detail: locale === "EN" ? "Evidence lab" : "Phòng lab bằng chứng", icon: <CheckIcon /> },
-    { href: "/tarot", label: "Tarot", detail: locale === "EN" ? "Reflection" : "Chiêm nghiệm", icon: <TarotIcon /> },
-    { href: "/discover", label: locale === "EN" ? "Discover" : "Khám phá", detail: locale === "EN" ? "Playground" : "Giải trí", icon: <DiscoverIcon /> },
-  ];
-  const toolsActive = tools.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
+  const toolIcons = { factcheck: <CheckIcon />, tarot: <TarotIcon />, discover: <DiscoverIcon /> };
+  const tools = OAK_TOOLS.map(item => ({ ...item, label: item.name[locale], detail: item.detail[locale], icon: toolIcons[item.id] }));
+  const toolsActive = pathname === "/tools" || tools.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
 
   useEffect(() => {
     setToolsOpen(false);
@@ -165,6 +163,7 @@ export function NavBar() {
             {toolsOpen && (
               <div id="oak-tools-menu" ref={toolsMenuRef} className="oak-tools-menu" role="menu" onKeyDown={handleToolsMenuKeyDown}>
                 <header><span><small>OAK LABS</small><b>{locale === "EN" ? "Secondary tools" : "Công cụ phụ trợ"}</b></span><button type="button" className="oak-tools-close" onClick={() => { setToolsOpen(false); toolsButtonRef.current?.focus(); }} aria-label={locale === "EN" ? "Close tools menu" : "Đóng menu công cụ"}>×</button></header>
+                <Link href="/tools" className="oak-tools-directory-link" role="menuitem">{locale === "EN" ? "All tools" : "Tất cả công cụ"} <span aria-hidden="true">→</span></Link>
                 {tools.map((item) => (
                   <Link key={item.href} href={item.href} role="menuitem" data-active={pathname === item.href ? "true" : undefined}>
                     <span className="oak-nav-icon">{item.icon}</span>

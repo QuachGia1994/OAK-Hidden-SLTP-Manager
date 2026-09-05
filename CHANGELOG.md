@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Implemented the audited OAK workspace concept: navy theme surfaces, shared decorative vector artwork, a tools directory backed by the same navigation catalog, readable H1 entry/evidence panels and embedded History calendar. Fact Check now separates text/link and image input modes while preserving OCR and independent image-authenticity results; Tarot and all five Discover experiences retain their existing backend and local-storage behavior.
+
 - Refined the NeoTech concept presentation with a compressed cinematic mountain/metallic-N hero, reusable vector wordmark, larger criterion icons, compact 5/7/2 cards, readiness badge beside the criteria, colored session bars, balanced sample dashboard and compact feature/CTA footer. Connection tools remain available in an expandable section; official rule thresholds, session hours and pairing safeguards are preserved.
 - Added a 1200×630 OAK social card generated from the canonical iOS app logo, shared Open Graph/Twitter metadata for the website and NeoTech route, absolute metadata base and versioned browser icon references. Existing links may retain platform-side preview caches until recrawled.
 

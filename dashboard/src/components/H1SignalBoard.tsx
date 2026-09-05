@@ -202,6 +202,7 @@ function SundayCalendarPicker({
   max,
   allowedDates,
   disabled = false,
+  embedded = false,
   locale,
   label,
   meta,
@@ -212,6 +213,7 @@ function SundayCalendarPicker({
   max: string;
   allowedDates?: string[];
   disabled?: boolean;
+  embedded?: boolean;
   locale: Locale;
   label: string;
   meta: string;
@@ -254,10 +256,11 @@ function SundayCalendarPicker({
   };
 
   return (
-    <div className="oak-h1-calendar-picker" data-open={open ? "true" : undefined}>
+    <div className="oak-h1-calendar-picker" data-embedded={embedded ? "true" : undefined} data-open={open ? "true" : undefined}>
       <button
         type="button"
         className="oak-h1-calendar-trigger"
+        hidden={embedded}
         onClick={() => setOpen((current) => disabled ? false : !current)}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -269,8 +272,8 @@ function SundayCalendarPicker({
         <span className="oak-h1-calendar-chevron" aria-hidden="true">⌄</span>
       </button>
       <small>{meta}</small>
-      {open && (
-        <div className="oak-h1-calendar-popover" role="dialog" aria-label={label} onKeyDown={(event) => {
+      {(embedded || open) && (
+        <div className="oak-h1-calendar-popover" role={embedded ? "region" : "dialog"} aria-label={label} onKeyDown={(event) => {
           if (event.key === "Escape") setOpen(false);
         }}>
           <header>
@@ -307,7 +310,7 @@ function SundayCalendarPicker({
               );
             })}
           </div>
-          <footer><button type="button" onClick={() => setOpen(false)}>{locale === "EN" ? "Close" : "Đóng"}</button></footer>
+          <footer hidden={embedded}><button type="button" onClick={() => setOpen(false)}>{locale === "EN" ? "Close" : "Đóng"}</button></footer>
         </div>
       )}
     </div>
@@ -430,6 +433,7 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
           <div className="oak-h1-history-row">
             <span className="oak-h1-history-label">{copy.dateGroup}</span>
             <SundayCalendarPicker
+              embedded
               value={fallbackDate}
               min={fallbackMinDate}
               max={today}
@@ -482,6 +486,7 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
           <div className="oak-h1-history-row">
             <span className="oak-h1-history-label">{copy.dateGroup}</span>
             <SundayCalendarPicker
+              embedded
               value={date}
               min={earliestDate}
               max={latestDate}

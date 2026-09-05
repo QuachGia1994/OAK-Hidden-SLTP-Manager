@@ -19,11 +19,7 @@ function formatPublished(value: string | undefined, locale: Locale) {
 }
 
 function FreeAccessPanel({ locale }: { locale: Locale }) {
-  return <section className="oak-access-panel" data-mode="free">
-    <div className="oak-access-symbol"><span>◇</span></div>
-    <div className="oak-access-copy"><small>ACCESS</small><b>FREE ACCESS</b><p>{locale === "EN" ? "All H1 entry-time cells unlocked" : "Tất cả ô entry-time H1 đã được mở"}</p></div>
-    <div className="oak-access-state"><span>ALL</span><i /></div>
-  </section>;
+  return <span className="oak-access-pill" title={locale === "EN" ? "All H1 entry-time cells unlocked" : "Tất cả ô entry-time H1 đã được mở"}>FREE ACCESS</span>;
 }
 
 export function H1EngineBoard({ h1Data, degraded, locale }: { h1Data: H1SignalPayload | null; degraded?: boolean; locale: Locale }) {
@@ -39,10 +35,11 @@ export function H1EngineBoard({ h1Data, degraded, locale }: { h1Data: H1SignalPa
       <div className="oak-command-meta">
         <span><small>{copy.day.toUpperCase()}</small><b>{brokerDay}</b></span>
         <span><small>{copy.updated.toUpperCase()}</small><b>{formatPublished(h1Data?.publishedAt, locale)}</b></span>
+        <span><small>{locale === "EN" ? "REFRESH" : "LÀM MỚI"}</small><b>↻ 20s</b></span>
+        <FreeAccessPanel locale={locale} />
       </div>
     </header>
 
-    <FreeAccessPanel locale={locale} />
     <H1SignalBoard data={h1Data} degraded={degraded} locale={locale} mode="live" />
   </div>;
 }

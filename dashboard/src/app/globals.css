@@ -62,9 +62,9 @@
 }
 
 .dark {
-  --oak-bg-canvas: #080c12;
-  --oak-bg-surface: #0e141d;
-  --oak-bg-raised: #131b26;
+  --oak-bg-canvas: #05101c;
+  --oak-bg-surface: #091b2c;
+  --oak-bg-raised: #10283e;
   --oak-fg-primary: #f2f4f7;
   --oak-fg-muted: #98a2b3;
   --oak-accent-command: #4d9fff;
@@ -78,8 +78,8 @@
   --oak-reverse-bg: rgba(127, 86, 217, .16);
   --oak-reverse-border: #9e77ed;
   --oak-reverse-text: #d6bbfb;
-  --oak-border-subtle: #263241;
-  --oak-border-strong: #475467;
+  --oak-border-subtle: #29465e;
+  --oak-border-strong: #49718e;
   --oak-shadow-1: 0 1px 2px rgba(0, 0, 0, .3);
   --oak-shadow-2: 0 12px 32px rgba(0, 0, 0, .28);
   --hud-glass-bg: color-mix(in srgb, #0f172a 68%, transparent);
@@ -251,7 +251,7 @@ body {
 .tarot-error { padding: .8rem .9rem; border: 1px solid color-mix(in srgb, var(--terminal-danger) 42%, var(--panel-border)); border-radius: .7rem; color: var(--terminal-danger); background: color-mix(in srgb, var(--terminal-danger) 7%, var(--surface)); font-size: .78rem; line-height: 1.5; }
 .tarot-placeholder { display: grid; grid-template-columns: repeat(3, minmax(0, 6.5rem)); justify-content: center; gap: .55rem; padding: 1.25rem .75rem; border: 1px dashed var(--panel-border); border-radius: .9rem; background: var(--surface); }
 .tarot-placeholder > p { grid-column: 1 / -1; margin-top: .2rem; color: var(--muted); text-align: center; font-size: .78rem; }
-.tarot-card-back { display: grid; aspect-ratio: 2 / 3; place-items: center; overflow: hidden; border: 1px solid color-mix(in srgb, var(--terminal-accent) 48%, var(--panel-border)); border-radius: .65rem; color: var(--terminal-accent); background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--terminal-accent) 9%, var(--surface)) 0 .45rem, var(--surface-raised) .45rem .9rem); box-shadow: inset 0 0 0 .3rem var(--surface), inset 0 0 0 calc(.3rem + 1px) color-mix(in srgb, var(--terminal-accent) 30%, var(--panel-border)); }
+.tarot-card-back { display: grid; aspect-ratio: 2 / 3; place-items: center; overflow: hidden; border: 1px solid color-mix(in srgb, var(--terminal-accent) 48%, var(--panel-border)); border-radius: .65rem; color: var(--terminal-accent); background: radial-gradient(ellipse at top, var(--oak-reverse-bg), var(--surface)); box-shadow: inset 0 0 0 .3rem var(--surface), inset 0 0 0 calc(.3rem + 1px) color-mix(in srgb, var(--terminal-accent) 30%, var(--panel-border)); }
 .tarot-card-back span { display: grid; width: 2.25rem; height: 2.25rem; place-items: center; border: 1px solid currentColor; border-radius: 999px; background: var(--surface); }
 .tarot-card-loading { animation: tarot-pulse 1.2s ease-in-out infinite alternate; }
 .tarot-result { display: grid; gap: 1rem; padding: 1rem; }

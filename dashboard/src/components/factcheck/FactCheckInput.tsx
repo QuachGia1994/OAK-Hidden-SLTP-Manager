@@ -26,6 +26,7 @@ export function FactCheckInput({
   const t = TEXT[locale];
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { processImage, ocrLoading, ocrError } = useImageOcr();
+  const [inputMode, setInputMode] = useState<"text" | "image">("text");
   const [dragging, setDragging] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -59,6 +60,7 @@ export function FactCheckInput({
 
     const status = mediaClientStatus(file);
     setSelectedImage(file);
+    setInputMode("image");
     setImageError(status === "too_large"
       ? t.imageTooLargeClient
       : status === "unsupported"
@@ -76,7 +78,7 @@ export function FactCheckInput({
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+  const handleDrop = (e: DragEvent<HTMLElement>) => {
     e.preventDefault();
     setDragging(false);
     selectFile(e.dataTransfer.files?.[0]);
@@ -85,7 +87,7 @@ export function FactCheckInput({
   const runImageOcr = async () => {
     if (!selectedImage || busy) return;
     const detected = await processImage(selectedImage);
-    if (detected) setText(detected);
+    if (detected) { setText(detected); setInputMode("text"); }
   };
 
   const loadingLabel = loading
@@ -102,6 +104,11 @@ export function FactCheckInput({
         <span className="oak-char-meter">{text.length.toLocaleString()}/12,000</span>
       </header>
 
+      <div className="oak-input-modes" role="group" aria-label={locale === "EN" ? "Input type" : "Loại nội dung"}>
+        <button type="button" aria-pressed={inputMode === "text"} onClick={() => setInputMode("text")} disabled={busy}>{locale === "EN" ? "News / Link" : "Tin / Link"}</button>
+        <button type="button" aria-pressed={inputMode === "image"} onClick={() => setInputMode("image")} disabled={busy}>{locale === "EN" ? "Image" : "Ảnh"}</button>
+      </div>
+      <div hidden={inputMode !== "text"}>
       <div
         className="oak-claim-editor"
         data-dragging={dragging ? "true" : undefined}
@@ -112,6 +119,7 @@ export function FactCheckInput({
       >
         <div className="oak-editor-rail" aria-hidden="true"><span>01</span><span>02</span><span>03</span><span>04</span><span>05</span></div>
         <textarea
+          aria-label={t.textOrImage}
           rows={7}
           value={text}
           onChange={(event) => setText(event.target.value)}
@@ -134,6 +142,11 @@ export function FactCheckInput({
         </div>
       )}
 
+      </div>
+      <div hidden={inputMode !== "image"}>
+      {!selectedImage && <button type="button" className="oak-image-dropzone" disabled={busy} onClick={() => fileInputRef.current?.click()} onDragOver={event => event.preventDefault()} onDrop={handleDrop}>
+        <span aria-hidden="true">▧</span><b>{t.uploadImage}</b><small>{locale === "EN" ? "Analyze image evidence or extract text to fact-check" : "Phân tích bằng chứng ảnh hoặc trích chữ để kiểm tra tin"}</small>
+      </button>}
       {selectedImage && (
         <div className="oak-image-intent" role="group" aria-label={t.imageSelected} aria-busy={mediaLoading}>
           <div className="oak-image-intent-summary">
@@ -165,6 +178,7 @@ export function FactCheckInput({
         </div>
       )}
 
+      </div>
       {(ocrError || imageError) && <p className="oak-form-error">{ocrError || imageError}</p>}
 
       <div className="oak-fact-actions">
@@ -184,6 +198,7 @@ export function FactCheckInput({
         <button
           type="button"
           className="oak-primary-action oak-fact-submit"
+          hidden={inputMode !== "text"}
           onClick={onSubmit}
           disabled={busy || !text.trim()}
         >
