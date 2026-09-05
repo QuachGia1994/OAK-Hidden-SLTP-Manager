@@ -62,6 +62,22 @@ test("public MT5 connector remains structurally non-trading even when Master acc
   assert.match(source, /WebRequest\(/);
 });
 
+test("NeoTech compliance schema and MT5 cash-flow classification stay aligned with the 14-rule v3 contract", () => {
+  const complianceDomain = readFileSync(path.join(dashboardRoot, "src", "lib", "neotech-compliance-domain.ts"), "utf8");
+  const complianceCore = readFileSync(path.join(repoRoot, "mt5", "neotech", "NeoTechComplianceCore.mqh"), "utf8");
+  const complianceEa = readFileSync(path.join(repoRoot, "mt5", "OAK_NeoTech_Compliance_EA.mq5"), "utf8");
+  const connector = readFileSync(path.join(repoRoot, "mt5", "OAK_NeoTech_ReadOnly_Connector.mq5"), "utf8");
+  assert.match(complianceDomain, /NEOTECH_SCHEMA_VERSION = "oak-neotech-compliance-report-v3"/);
+  assert.match(complianceCore, /NT_SCHEMA_VERSION\s+"oak-neotech-compliance-report-v3"/);
+  assert.match(complianceEa, /ArrayResize\(criteria,14\)/);
+  assert.match(complianceEa, /"E4"/);
+  assert.match(complianceEa, /"C3"/);
+  assert.doesNotMatch(connector, /kind=amount>=0\.0 \? "DEPOSIT" : "WITHDRAWAL"/);
+  assert.match(connector, /deposit|fund|topup|top up/i);
+  assert.match(connector, /withdraw|payout/i);
+  assert.match(connector, /kind="OTHER"/);
+});
+
 test("NeoTech profile sharing uses fragment capability links, bearer resolution, redaction, and owner revoke controls", () => {
   const sharesRoute = readFileSync(path.join(dashboardRoot, "src", "app", "api", "neotech", "public", "shares", "route.ts"), "utf8");
   const sharedRoute = readFileSync(path.join(dashboardRoot, "src", "app", "api", "neotech", "public", "shared-profile", "route.ts"), "utf8");

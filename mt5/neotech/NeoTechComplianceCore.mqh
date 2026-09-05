@@ -650,11 +650,6 @@ int NTCountC6ConfirmedViolations(const NTSignalEpisode &episodes[],const int mon
    return count;
   }
 
-bool NTC5EpisodeActiveAt(const NTSignalEpisode &episode,const long time_msc)
-  {
-   return episode.first_entry_msc<=time_msc && (episode.open || episode.final_close_msc>time_msc);
-  }
-
 void NTAppendC5Occurrence(NTC5Occurrence &occurrences[],const NTSignalEpisode &episode,const long time_msc,const ulong order_ticket,const ulong deal_ticket,const int occurrence_number)
   {
    const int n=ArraySize(occurrences);
@@ -677,20 +672,19 @@ int NTBuildC5Occurrences(const NTSignalEpisode &episodes[],const int month_index
    for(int i=0;i<ArraySize(episodes);i++)
      {
       if(month_index>=0 && episodes[i].trading_month_index!=month_index) continue;
-      int active_before=0;
+      if(episodes[i].session==NT_OUTSIDE_SESSION) continue;
+      const long day=NTDayStart(NTSeconds(episodes[i].first_entry_msc));
+      int earlier=0;
       for(int j=0;j<ArraySize(episodes);j++)
         {
          if(i==j || episodes[j].canonical_symbol!=episodes[i].canonical_symbol) continue;
-         const bool earlier=episodes[j].first_entry_msc<episodes[i].first_entry_msc
+         if(month_index>=0 && episodes[j].trading_month_index!=month_index) continue;
+         if(episodes[j].session!=episodes[i].session || NTDayStart(NTSeconds(episodes[j].first_entry_msc))!=day) continue;
+         const bool is_earlier=episodes[j].first_entry_msc<episodes[i].first_entry_msc
             || (episodes[j].first_entry_msc==episodes[i].first_entry_msc && episodes[j].opening_deal_ticket<episodes[i].opening_deal_ticket);
-         if(earlier && NTC5EpisodeActiveAt(episodes[j],episodes[i].first_entry_msc)) active_before++;
+         if(is_earlier) earlier++;
         }
-      if(active_before>0) NTAppendC5Occurrence(occurrences,episodes[i],episodes[i].first_entry_msc,episodes[i].opening_order_ticket,episodes[i].opening_deal_ticket,active_before+1);
-      for(int a=0;a<ArraySize(episodes[i].additional_entries);a++)
-        {
-         const NTAdditionalEntryEvidence added=episodes[i].additional_entries[a];
-         NTAppendC5Occurrence(occurrences,episodes[i],added.time_msc,added.order_ticket,added.deal_ticket,2+a);
-        }
+      if(earlier>0) NTAppendC5Occurrence(occurrences,episodes[i],episodes[i].first_entry_msc,episodes[i].opening_order_ticket,episodes[i].opening_deal_ticket,earlier+1);
      }
    return ArraySize(occurrences);
   }
@@ -705,6 +699,7 @@ NTStatus NTEvaluateC5(const NTSignalEpisode &episodes[],const bool history_cover
   {
    NTC5Occurrence occurrences[];
    if(NTBuildC5Occurrences(episodes,-1,occurrences)>0) return NT_FAIL;
+   for(int i=0;i<ArraySize(episodes);i++) if(episodes[i].session==NT_OUTSIDE_SESSION) return NT_NOT_VERIFIABLE;
    if(ArraySize(episodes)==0) return NT_IN_PROGRESS;
    if(!history_coverage_complete) return NT_DATA_GAP;
    return qualification_horizon_complete ? NT_PASS : NT_IN_PROGRESS;
@@ -750,6 +745,22 @@ bool NTHasConfirmedHedging(const NTSignalEpisode &episodes[],const long now_msc)
    return NTBuildHedgingEvidence(episodes,now_msc,evidence)>0;
   }
 
+bool NTHasDcaCandidate(const NTSignalEpisode &episodes[])
+  {
+   for(int i=0;i<ArraySize(episodes);i++) if(episodes[i].dca_candidate) return true;
+   for(int i=0;i<ArraySize(episodes);i++)
+      for(int j=i+1;j<ArraySize(episodes);j++)
+        {
+         if(episodes[i].canonical_symbol!=episodes[j].canonical_symbol || episodes[i].direction!=episodes[j].direction || episodes[i].position_id==episodes[j].position_id) continue;
+         const int earlier=(episodes[i].first_entry_msc<=episodes[j].first_entry_msc ? i : j);
+         const int later=(earlier==i ? j : i);
+         if(episodes[earlier].first_entry_msc>episodes[later].first_entry_msc || (episodes[earlier].final_close_msc>0 && episodes[earlier].final_close_msc<=episodes[later].first_entry_msc)) continue;
+         const bool adverse=(episodes[earlier].direction>0 ? episodes[later].entry_price<episodes[earlier].entry_price : episodes[later].entry_price>episodes[earlier].entry_price);
+         if(adverse) return true;
+        }
+   return false;
+  }
+
 NTStatus NTEvaluateC6(const NTSignalEpisode &episodes[],const bool sltp_coverage_complete,const bool qualification_horizon_complete)
   {
    bool unknown=false;
@@ -770,7 +781,7 @@ NTStatus NTEvaluateC6(const NTSignalEpisode &episodes[],const bool sltp_coverage
 
 NTStatus NTEvaluateC7(const NTSignalEpisode &episodes[],const long now_msc,const bool history_coverage_complete,const bool qualification_horizon_complete)
   {
-   if(NTHasConfirmedHedging(episodes,now_msc)) return NT_FAIL;
+   if(NTHasConfirmedHedging(episodes,now_msc) || NTHasDcaCandidate(episodes)) return NT_FAIL;
    if(ArraySize(episodes)==0) return NT_IN_PROGRESS;
    if(!history_coverage_complete) return NT_DATA_GAP;
    return qualification_horizon_complete ? NT_PASS : NT_IN_PROGRESS;
@@ -896,16 +907,20 @@ NTStatus NTEvaluateC2(const NTMonthResult &months[],const bool full_history)
    return completed>=12 ? NT_PASS : NT_IN_PROGRESS;
   }
 
-int NTCountDepositsWithdrawals(const NTCashFlow &cashflows[])
+int NTCountDepositsWithdrawals(const NTCashFlow &cashflows[],const long program_start_seconds)
   {
    int count=0;
-   for(int i=0;i<ArraySize(cashflows);i++) if(cashflows[i].kind==1 || cashflows[i].kind==-1) count++;
+   for(int i=0;i<ArraySize(cashflows);i++)
+     {
+      if(program_start_seconds>0 && NTSeconds(cashflows[i].time_msc)<program_start_seconds) continue;
+      if(cashflows[i].kind==1 || cashflows[i].kind==-1) count++;
+     }
    return count;
   }
 
-NTStatus NTEvaluateC9(const NTCashFlow &cashflows[],const bool history_coverage_complete,const bool qualification_horizon_complete)
+NTStatus NTEvaluateC9(const NTCashFlow &cashflows[],const long program_start_seconds,const bool history_coverage_complete,const bool qualification_horizon_complete)
   {
-   if(NTCountDepositsWithdrawals(cashflows)>0) return NT_FAIL;
+   if(NTCountDepositsWithdrawals(cashflows,program_start_seconds)>0) return NT_FAIL;
    if(!history_coverage_complete) return NT_DATA_GAP;
    return qualification_horizon_complete ? NT_PASS : NT_IN_PROGRESS;
   }
@@ -927,6 +942,17 @@ double NTPeakToTroughPct(const double peak_equity,const double equity)
   {
    if(peak_equity<=0.0) return 0.0;
    return MathMax(0.0,(peak_equity-equity)/peak_equity*100.0);
+  }
+
+NTStatus NTEvaluateC3(const double max_floating_loss_pct,const long exact_attached_server_time,const long program_start_seconds,const NTStatus reconstruction_status,const bool qualification_horizon_complete)
+  {
+   if(max_floating_loss_pct>=2.0) return NT_FAIL;
+   if(program_start_seconds<=0) return NT_IN_PROGRESS;
+   if(reconstruction_status==NT_DATA_GAP) return NT_DATA_GAP;
+   if(reconstruction_status==NT_IN_PROGRESS) return NT_IN_PROGRESS;
+   const bool exact_full_window=(exact_attached_server_time>0 && exact_attached_server_time<=program_start_seconds);
+   if(exact_full_window) return qualification_horizon_complete ? NT_PASS : NT_IN_PROGRESS;
+   return NT_RECONSTRUCTED;
   }
 
 int NTDisqualificationRisk(const int c5_count,const int c6_count,const bool counters_complete)

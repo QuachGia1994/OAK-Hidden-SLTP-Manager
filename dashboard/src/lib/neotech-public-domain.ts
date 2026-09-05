@@ -12,7 +12,7 @@ export const NEOTECH_PUBLIC_SHARE_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 export type NeoTechPublicStatus = "PASS" | "FAIL" | "IN_PROGRESS" | "INSUFFICIENT_DATA" | "NOT_VERIFIABLE";
 export type NeoTechPublicOverall = "CLEAR" | "TRACKING" | "INSUFFICIENT_DATA" | "VIOLATION";
-export type NeoTechPublicRuleCode = "E1" | "E2" | "E3" | "E5" | "C1" | "C2" | "C4" | "C5" | "C6" | "C7" | "C8" | "C9";
+export type NeoTechPublicRuleCode = "E1" | "E2" | "E3" | "E4" | "E5" | "C1" | "C2" | "C3" | "C4" | "C5" | "C6" | "C7" | "C8" | "C9";
 
 export type NeoTechAccountMode = "REAL" | "DEMO" | "CONTEST" | "UNKNOWN";
 export type NeoTechConnectorAccessMode = "READ_ONLY" | "TRADING_CAPABLE_ACCEPTED";

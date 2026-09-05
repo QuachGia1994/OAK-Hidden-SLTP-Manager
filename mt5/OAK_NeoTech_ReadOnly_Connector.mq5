@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.04"
+#property version   "1.05"
 #property description "OAK NeoTech telemetry connector. Investor Password recommended; Master requires explicit web risk acceptance."
 
 input string InpPairingCode = "";
@@ -8,7 +8,7 @@ input int    InpHistoryDays = 370;
 input int    InpSyncSeconds = 300;
 input int    InpHttpTimeoutMs = 20000;
 
-#define OAK_CONNECTOR_VERSION "1.0.4"
+#define OAK_CONNECTOR_VERSION "1.0.5"
 #define OAK_PAIR_SCHEMA "oak-neotech-readonly-pair-v1"
 #define OAK_INGEST_SCHEMA "oak-neotech-readonly-ingest-v1"
 #define OAK_MAX_TRADING_DEALS 6000
@@ -392,11 +392,17 @@ string OakTradingDealJson(const ulong ticket,bool &reason_complete,bool &product
       +",\"sltpTimelineComplete\":false}";
   }
 
-bool OakCashFlowKind(const long type,const double amount,string &kind)
+bool OakCashFlowKind(const long type,const double amount,const string comment,string &kind)
   {
    if(type==DEAL_TYPE_BALANCE)
      {
-      kind=amount>=0.0 ? "DEPOSIT" : "WITHDRAWAL";
+      string lower=comment;
+      StringToLower(lower);
+      const bool deposit=(StringFind(lower,"deposit")>=0 || StringFind(lower,"fund")>=0 || StringFind(lower,"topup")>=0 || StringFind(lower,"top up")>=0 || StringFind(lower,"nạp")>=0);
+      const bool withdraw=(StringFind(lower,"withdraw")>=0 || StringFind(lower,"payout")>=0 || StringFind(lower,"rút")>=0);
+      if(deposit && amount>0.0) kind="DEPOSIT";
+      else if(withdraw && amount<0.0) kind="WITHDRAWAL";
+      else kind="OTHER";
       return true;
      }
    if(type==DEAL_TYPE_CREDIT) { kind="CREDIT"; return true; }
@@ -463,7 +469,8 @@ bool OakBuildIngest(string &body)
         }
       string kind="";
       double amount=HistoryDealGetDouble(ticket,DEAL_PROFIT);
-      if(cash_count<OAK_MAX_CASHFLOWS && OakCashFlowKind(type,amount,kind))
+      string cash_comment=HistoryDealGetString(ticket,DEAL_COMMENT);
+      if(cash_count<OAK_MAX_CASHFLOWS && OakCashFlowKind(type,amount,cash_comment,kind))
         {
          if(!first_cash) cash_json+=",";
          cash_json+=OakCashFlowJson(ticket,kind);

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restored NeoTech ruleset parity across MT5 and the public analytics engine. Reports are back to all 14 criteria with E4/C3 restored; C3 hard-fails floating drawdown at `>=2%`, C5 enforces one canonical-symbol signal per NeoTech session, C7 hard-fails both hedging and adverse-price DCA (including a second same-direction position while the first is active), and C9 only counts confidently classified deposit/withdrawal cash flows after program start. Compliance schema is now `oak-neotech-compliance-report-v3`; the customer connector is v1.0.5 with conservative balance-flow classification and regenerated audited `.mq5/.ex5` download artifacts.
+
 - Advanced H1 to v76: reverted the temporary v75 GBPCAD dependency. GBPUSD and EURUSD H9/H12/H14/H16 again copy XAUUSD's exact entry time and already-final BUY/SELL for the same block; Evidence identifies `XAUUSD Hxx` as FINAL SOURCE with `SYNC XAUUSD`. GBPJPY no longer exposes H12 or H14, leaving H6/H9/H16 Tuesday-Friday (H3 remains disabled). GBPJPY H16 retains its prior CLOSE/copy-invert behavior through a private H16 reference without publishing an H14 row.
 
 - Advanced H1 to v75: GBPUSD and EURUSD H9/H12/H14/H16 now copy the exact GBPCAD entry time and final BUY/SELL for the same block. Their pattern/evidence metadata remains on the existing GBPUSD-driven window, while Evidence now labels GBPCAD as FINAL SOURCE with `SYNC GBPCAD`. GBPUSD/EURUSD H16 copy the already-final GBPCAD H16 result instead of running a second own-symbol H14 override. Monday/block eligibility and the global H16 CLOSE advisory selector remain unchanged.

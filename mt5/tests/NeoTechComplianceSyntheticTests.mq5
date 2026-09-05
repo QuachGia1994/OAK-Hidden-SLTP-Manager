@@ -195,9 +195,9 @@ void Fixture08_UnknownReasonNotVerifiable()
 void Fixture09_C5Duplicate()
   {
    NTSignalEpisode e[]; ArrayResize(e,2);
-   e[0]=E(1,T("2026-11-02 10:10:00"),T("2026-11-02 11:00:00"));
-   e[1]=E(2,T("2026-11-02 10:40:00"),T("2026-11-02 11:20:00"));
-   NTCheck("09 second concurrent order on one symbol triggers C5",NTCountC5ConfirmedViolations(e,-1)==1);
+   e[0]=E(1,T("2026-11-02 10:10:00"),T("2026-11-02 10:20:00"));
+   e[1]=E(2,T("2026-11-02 10:40:00"),T("2026-11-02 10:50:00"));
+   NTCheck("09 second non-overlapping signal in the same product session triggers C5",NTCountC5ConfirmedViolations(e,-1)==1);
   }
 
 void Fixture10_OverlapPreviousSession()
@@ -256,14 +256,19 @@ void Fixture18_DcaVsPartialFill()
 
 void Fixture19_DepositWithdrawal()
   {
-   NTCashFlow f[]; ArrayResize(f,2); f[0].kind=1; f[1].kind=-1;
-   NTCheck("19 deposit and withdrawal detection",NTCountDepositsWithdrawals(f)==2 && NTEvaluateC9(f,true,true)==NT_FAIL);
+   const long start=T("2026-08-03 10:00:00");
+   NTCashFlow f[]; ArrayResize(f,3);
+   f[0].kind=1; f[0].time_msc=(start-60)*1000L;
+   f[1].kind=1; f[1].time_msc=(start+60)*1000L;
+   f[2].kind=-1; f[2].time_msc=(start+120)*1000L;
+   NTCheck("19 only post-start deposit and withdrawal count for C9",NTCountDepositsWithdrawals(f,start)==2 && NTEvaluateC9(f,start,true,true)==NT_FAIL);
   }
 
 void Fixture20_BonusCorrectionNotDeposit()
   {
-   NTCashFlow f[]; ArrayResize(f,2); f[0].kind=3; f[1].kind=4;
-   NTCheck("20 bonus/correction not automatically deposit",NTCountDepositsWithdrawals(f)==0 && NTEvaluateC9(f,true,true)==NT_PASS);
+   const long start=T("2026-08-03 10:00:00");
+   NTCashFlow f[]; ArrayResize(f,2); f[0].kind=3; f[0].time_msc=(start+60)*1000L; f[1].kind=4; f[1].time_msc=(start+120)*1000L;
+   NTCheck("20 bonus/correction not automatically deposit",NTCountDepositsWithdrawals(f,start)==0 && NTEvaluateC9(f,start,true,true)==NT_PASS);
   }
 
 void Fixture21_FirstWednesdayNextMonday()
@@ -505,15 +510,18 @@ void Fixture56_EligibleProducts()
    NTCheck("56 E5 accepts only Forex and XAUUSD",forex && xauusd && rejects);
   }
 
-void Fixture57_C5ClosedThenReopenAllowed()
+void Fixture57_C5SessionBoundary()
   {
-   NTSignalEpisode episodes[]; ArrayResize(episodes,2);
-   episodes[0]=E(1,T("2026-11-02 10:10:00"),T("2026-11-02 10:30:00"));
-   episodes[1]=E(2,T("2026-11-02 10:40:00"),T("2026-11-02 11:20:00"));
-   NTCheck("57 C5 allows reopening a symbol after the first order closes",NTCountC5ConfirmedViolations(episodes,-1)==0);
+   NTSignalEpisode same_session[]; ArrayResize(same_session,2);
+   same_session[0]=E(1,T("2026-11-02 10:10:00"),T("2026-11-02 10:30:00"));
+   same_session[1]=E(2,T("2026-11-02 10:40:00"),T("2026-11-02 10:50:00"));
+   NTSignalEpisode different_session[]; ArrayResize(different_session,2);
+   different_session[0]=E(3,T("2026-11-02 10:10:00"),T("2026-11-02 10:30:00"));
+   different_session[1]=E(4,T("2026-11-02 12:00:00"),T("2026-11-02 12:20:00"));
+   NTCheck("57 C5 ignores position overlap and keys on product session",NTCountC5ConfirmedViolations(same_session,-1)==1 && NTCountC5ConfirmedViolations(different_session,-1)==0);
   }
 
-void Fixture58_C5OwnsAddEntryC7OnlyHedging()
+void Fixture58_DcaBelongsToC7NotC5()
   {
    NTDealRecord deals[]; ArrayResize(deals,3);
    deals[0]=D(1,10,100,"GBPUSD",T("2026-08-03 10:00:00"),DEAL_ENTRY_IN,DEAL_TYPE_BUY,0.5,1.1000);
@@ -521,14 +529,32 @@ void Fixture58_C5OwnsAddEntryC7OnlyHedging()
    deals[2]=D(3,12,100,"GBPUSD",T("2026-08-03 10:30:00"),DEAL_ENTRY_OUT,DEAL_TYPE_SELL,1.0,1.1010);
    NTSignalEpisode episodes[]; NTNormalizeDeals(deals,episodes);
    const long now=T("2026-08-03 11:00:00")*1000L;
-   NTCheck("58 add-entry violates C5 while C7 checks only hedging",NTCountC5ConfirmedViolations(episodes,-1)==1 && NTEvaluateC7(episodes,now,true,true)==NT_PASS);
+   NTCheck("58 adverse distinct-order add-entry is DCA under C7 and not a second C5 signal",NTCountC5ConfirmedViolations(episodes,-1)==0 && NTEvaluateC7(episodes,now,true,true)==NT_FAIL);
   }
 
-void Fixture59_VietnameseLabelsAndRemovedCriteria()
+void Fixture59_RestoredCriteriaAndVietnameseLabels()
   {
-   const bool removed=!NTTelegramCriterionToken("E4") && !NTTelegramCriterionToken("C3") && NTTelegramCriterionToken("E5") && NTTelegramCriterionToken("C5");
+   const bool restored=NTTelegramCriterionToken("E4") && NTTelegramCriterionToken("C3") && NTTelegramCriterionToken("E5") && NTTelegramCriterionToken("C5");
    const bool labels=NTTelegramStatusVi("FAIL")=="VI PHẠM" && NTTelegramStatusVi("DATA_GAP")=="THIẾU DỮ LIỆU" && NTTelegramRiskVi("YES")=="CÓ" && NTTelegramRiskVi("UNKNOWN")=="CHƯA RÕ" && NTTelegramFddMethodVi("M1")=="Phục dựng từ nến M1";
-   NTCheck("59 removed criteria and Vietnamese Telegram labels",removed && labels);
+   NTCheck("59 restored E4/C3 and Vietnamese Telegram labels",restored && labels);
+  }
+
+void Fixture60_C3FloatingThreshold()
+  {
+   const long start=T("2025-08-01 00:00:00");
+   const long now=start+366L*NT_DAY_SECONDS;
+   const bool breach=NTEvaluateC3(2.0,start,start,NT_RECONSTRUCTED,true)==NT_FAIL;
+   const bool exact_clear=NTEvaluateC3(1.99,start,start,NT_RECONSTRUCTED,true)==NT_PASS;
+   const bool historical_only=NTEvaluateC3(1.99,start+NT_DAY_SECONDS,start,NT_RECONSTRUCTED,true)==NT_RECONSTRUCTED;
+   NTCheck("60 C3 requires floating drawdown strictly below 2 percent",breach && exact_clear && historical_only && now>start);
+  }
+
+void Fixture61_CrossPositionDca()
+  {
+   NTSignalEpisode episodes[]; ArrayResize(episodes,2);
+   episodes[0]=E(1,T("2026-08-03 08:00:00"),0); episodes[0].entry_price=1.1000; episodes[0].weighted_price=1.1000;
+   episodes[1]=E(2,T("2026-08-03 12:00:00"),0); episodes[1].entry_price=1.0990; episodes[1].weighted_price=1.0990;
+   NTCheck("61 cross-session adverse same-direction second position is C7 DCA but not C5 duplicate",NTCountC5ConfirmedViolations(episodes,-1)==0 && NTHasDcaCandidate(episodes) && NTEvaluateC7(episodes,T("2026-08-03 13:00:00")*1000L,true,true)==NT_FAIL);
   }
 
 void OnStart()
@@ -582,9 +608,11 @@ void OnStart()
    Fixture54_TelegramWebhookConflict();
    Fixture55_TelegramRedaction();
    Fixture56_EligibleProducts();
-   Fixture57_C5ClosedThenReopenAllowed();
-   Fixture58_C5OwnsAddEntryC7OnlyHedging();
-   Fixture59_VietnameseLabelsAndRemovedCriteria();
+   Fixture57_C5SessionBoundary();
+   Fixture58_DcaBelongsToC7NotC5();
+   Fixture59_RestoredCriteriaAndVietnameseLabels();
+   Fixture60_C3FloatingThreshold();
+   Fixture61_CrossPositionDca();
    for(int i=0;i<ArraySize(g_failed_names);i++) PrintFormat("[NEOTECH SYNTHETIC] FAILURE fixture=%s expected=%s actual=%s",g_failed_names[i],g_failed_expected[i],g_failed_actual[i]);
    PrintFormat("[NEOTECH SYNTHETIC] TOTAL=%d PASS=%d FAIL=%d RESULT=%s",g_total,g_pass,g_fail,g_fail==0?"PASS":"FAIL");
   }

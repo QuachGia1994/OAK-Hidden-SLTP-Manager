@@ -18,7 +18,8 @@ const DAY = 86_400;
 const MONTH = 30 * DAY;
 const WEEK = 7 * DAY;
 
-type ExtraEntry = { timeMsc: number; orderTicket: string; dealTicket: string };
+type ExtraEntry = { timeMsc: number; orderTicket: string; dealTicket: string; price: number; previousWeightedPrice: number; newWeightedPrice: number; adverse: boolean };
+type NeoTechSession = "ASIA" | "EUROPE" | "US" | "OUTSIDE_SESSION";
 
 type Episode = {
   positionId: string;
@@ -34,6 +35,7 @@ type Episode = {
   additionalEntries: ExtraEntry[];
   initialVolume: number;
   currentVolume: number;
+  openingPrice: number;
   weightedPrice: number;
   netProfit: number;
   expertOpenViolation: boolean;
@@ -94,6 +96,7 @@ function createEpisode(deal: NeoTechConnectorDeal): Episode {
     additionalEntries: [],
     initialVolume: deal.volume,
     currentVolume: deal.volume,
+    openingPrice: deal.price,
     weightedPrice: deal.price,
     netProfit: finite(deal.profit + deal.commission + deal.swap + deal.fee),
     expertOpenViolation: expertReason(deal),
@@ -111,10 +114,13 @@ function createEpisode(deal: NeoTechConnectorDeal): Episode {
 function addEntry(episode: Episode, deal: NeoTechConnectorDeal): void {
   const meta = canonicalSymbol(deal);
   const oldVolume = episode.currentVolume;
+  const previousWeightedPrice = episode.weightedPrice;
   const newVolume = oldVolume + deal.volume;
+  const newWeightedPrice = newVolume > 0 ? (previousWeightedPrice * oldVolume + deal.price * deal.volume) / newVolume : previousWeightedPrice;
   const sameOrder = Boolean(deal.orderTicket) && deal.orderTicket === episode.openingOrderTicket;
-  if (!sameOrder) episode.additionalEntries.push({ timeMsc: deal.timeMsc, orderTicket: deal.orderTicket, dealTicket: deal.ticket });
-  if (newVolume > 0) episode.weightedPrice = (episode.weightedPrice * oldVolume + deal.price * deal.volume) / newVolume;
+  const adverse = episode.direction > 0 ? deal.price < previousWeightedPrice : deal.price > previousWeightedPrice;
+  if (!sameOrder) episode.additionalEntries.push({ timeMsc: deal.timeMsc, orderTicket: deal.orderTicket, dealTicket: deal.ticket, price: deal.price, previousWeightedPrice, newWeightedPrice, adverse });
+  episode.weightedPrice = newWeightedPrice;
   episode.currentVolume = newVolume;
   episode.netProfit += finite(deal.profit + deal.commission + deal.swap + deal.fee);
   episode.sltpEvidenceComplete = episode.sltpEvidenceComplete && deal.sltpTimelineComplete;
@@ -190,6 +196,25 @@ function serverDayStart(utcSeconds: number, offsetMinutes: number): number {
   const shifted = new Date((utcSeconds + offsetMinutes * 60) * 1000);
   const localMidnightAsUtc = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) / 1000;
   return localMidnightAsUtc - offsetMinutes * 60;
+}
+
+function neoTechSession(timeMsc: number, offsetMinutes: number): { session: NeoTechSession; dayKey: string } {
+  const shifted = new Date(timeMsc + offsetMinutes * 60_000);
+  const minute = shifted.getUTCHours() * 60 + shifted.getUTCMinutes();
+  const month = shifted.getUTCMonth() + 1;
+  const summer = month >= 4 && month <= 10;
+  const session: NeoTechSession = minute >= 2 * 60 && minute < 11 * 60
+    ? "ASIA"
+    : summer && minute >= 9 * 60 && minute < 18 * 60
+      ? "EUROPE"
+      : !summer && minute >= 10 * 60 && minute < 19 * 60
+        ? "EUROPE"
+        : summer && minute >= 14 * 60 && minute < 23 * 60
+          ? "US"
+          : !summer && minute >= 15 * 60 && minute < 24 * 60
+            ? "US"
+            : "OUTSIDE_SESSION";
+  return { session, dayKey: `${shifted.getUTCFullYear()}-${shifted.getUTCMonth() + 1}-${shifted.getUTCDate()}` };
 }
 
 function weeklyCountingStart(firstEpisode: Episode): number {
@@ -292,17 +317,41 @@ function c5Occurrences(episodes: Episode[], monthIndex = -1): number {
   for (let i = 0; i < episodes.length; i += 1) {
     const episode = episodes[i];
     if (monthIndex >= 0 && episode.tradingMonthIndex !== monthIndex) continue;
-    let activeBefore = 0;
-    for (let j = 0; j < episodes.length; j += 1) {
-      if (i === j || episodes[j].canonicalSymbol !== episode.canonicalSymbol) continue;
-      const earlier = episodes[j].firstEntryMsc < episode.firstEntryMsc || (episodes[j].firstEntryMsc === episode.firstEntryMsc && episodes[j].openingDealTicket.localeCompare(episode.openingDealTicket) < 0);
-      const activeAt = episodes[j].firstEntryMsc <= episode.firstEntryMsc && (episodes[j].open || episodes[j].finalCloseMsc > episode.firstEntryMsc);
-      if (earlier && activeAt) activeBefore += 1;
-    }
-    if (activeBefore > 0) count += 1;
-    count += episode.additionalEntries.length;
+    const occurrence = neoTechSession(episode.firstEntryMsc, episode.serverUtcOffsetMinutes);
+    if (occurrence.session === "OUTSIDE_SESSION") continue;
+    const earlierInSession = episodes.some((other, index) => {
+      if (index === i || other.canonicalSymbol !== episode.canonicalSymbol) return false;
+      if (monthIndex >= 0 && other.tradingMonthIndex !== monthIndex) return false;
+      const earlier = other.firstEntryMsc < episode.firstEntryMsc || (other.firstEntryMsc === episode.firstEntryMsc && other.openingDealTicket.localeCompare(episode.openingDealTicket) < 0);
+      if (!earlier) return false;
+      const otherOccurrence = neoTechSession(other.firstEntryMsc, other.serverUtcOffsetMinutes);
+      return otherOccurrence.session === occurrence.session && otherOccurrence.dayKey === occurrence.dayKey;
+    });
+    if (earlierInSession) count += 1;
   }
   return count;
+}
+
+function episodeActiveAt(episode: Episode, timeMsc: number): boolean {
+  return episode.firstEntryMsc <= timeMsc && (episode.open || episode.finalCloseMsc > timeMsc);
+}
+
+function dcaEvidence(episodes: Episode[]): string[] {
+  const evidence = episodes.flatMap((episode) => episode.additionalEntries
+    .filter((entry) => entry.adverse)
+    .map((entry) => `${episode.canonicalSymbol}: DCA order ${entry.orderTicket} at ${entry.price}`));
+  for (let i = 0; i < episodes.length; i += 1) {
+    for (let j = i + 1; j < episodes.length; j += 1) {
+      const a = episodes[i];
+      const b = episodes[j];
+      if (a.canonicalSymbol !== b.canonicalSymbol || a.direction !== b.direction || a.positionId === b.positionId) continue;
+      const [earlier, later] = a.firstEntryMsc <= b.firstEntryMsc ? [a, b] : [b, a];
+      if (!episodeActiveAt(earlier, later.firstEntryMsc)) continue;
+      const adverse = earlier.direction > 0 ? later.openingPrice < earlier.openingPrice : later.openingPrice > earlier.openingPrice;
+      if (adverse) evidence.push(`${later.canonicalSymbol}: DCA position ${later.positionId} while ${earlier.positionId} active`);
+    }
+  }
+  return evidence.slice(0, 8);
 }
 
 function hedgingEvidence(episodes: Episode[], nowMsc: number): string[] {
@@ -344,18 +393,20 @@ function fdd(payload: NeoTechPublicIngestPayload): NeoTechPublicProfile["fdd"] {
     peakEquity = Math.max(peakEquity, point.equity);
     const floating = point.balance > 0 ? Math.max(0, (point.balance - point.equity) / point.balance * 100) : 0;
     const drawdown = peakEquity > 0 ? Math.max(0, (peakEquity - point.equity) / peakEquity * 100) : 0;
-    if (Math.max(floating, drawdown) >= Math.max(maxFloating, maxDrawdown)) observedAt = point.atUtc;
+    if (floating >= maxFloating) observedAt = point.atUtc;
     maxFloating = Math.max(maxFloating, floating);
     maxDrawdown = Math.max(maxDrawdown, drawdown);
   }
-  return { maxFloatingLossPct: maxFloating, maxPeakToTroughPct: maxDrawdown, observedAtUtc: observedAt, status: points.length >= 2 ? "PASS" : "INSUFFICIENT_DATA", pointCount: points.length };
+  const observedSpan = points.length >= 2 ? points.at(-1)!.atUtc - points[0].atUtc : 0;
+  const status: NeoTechPublicStatus = maxFloating >= 2 ? "FAIL" : points.length < 2 ? "INSUFFICIENT_DATA" : observedSpan >= 365 * DAY ? "PASS" : "IN_PROGRESS";
+  return { maxFloatingLossPct: maxFloating, maxPeakToTroughPct: maxDrawdown, observedAtUtc: observedAt, status, pointCount: points.length };
 }
 
 function rule(code: NeoTechPublicRuleCode, group: NeoTechPublicRule["group"], title: string, summary: string, status: NeoTechPublicStatus, measured: string, threshold: string, evidence: string[] = []): NeoTechPublicRule {
   return { code, group, title, summary, status, score: ruleScore(status), measured, threshold, evidence: evidence.slice(0, 12) };
 }
 
-function buildRules(payload: NeoTechPublicIngestPayload, episodes: Episode[], months: NeoTechPublicMonth[], weeks: NeoTechPublicWeek[], programStart: number, now: number): NeoTechPublicRule[] {
+function buildRules(payload: NeoTechPublicIngestPayload, episodes: Episode[], months: NeoTechPublicMonth[], weeks: NeoTechPublicWeek[], programStart: number, now: number, fddState: NeoTechPublicProfile["fdd"]): NeoTechPublicRule[] {
   const horizon = qualificationComplete(programStart, now);
   const historyComplete = payload.history.complete;
   const nowMsc = now * 1000;
@@ -378,13 +429,15 @@ function buildRules(payload: NeoTechPublicIngestPayload, episodes: Episode[], mo
   const c4: NeoTechPublicStatus = completedWeeks.some((week) => week.status === "FAIL") ? "FAIL" : !historyComplete ? "INSUFFICIENT_DATA" : !horizon ? "IN_PROGRESS" : "PASS";
 
   const c5Count = c5Occurrences(episodes);
-  const c5: NeoTechPublicStatus = c5Count > 0 ? "FAIL" : !episodes.length ? "IN_PROGRESS" : !historyComplete ? "INSUFFICIENT_DATA" : horizon ? "PASS" : "IN_PROGRESS";
+  const c5OutsideSession = episodes.some((episode) => neoTechSession(episode.firstEntryMsc, episode.serverUtcOffsetMinutes).session === "OUTSIDE_SESSION");
+  const c5: NeoTechPublicStatus = c5Count > 0 ? "FAIL" : !episodes.length ? "IN_PROGRESS" : c5OutsideSession ? "NOT_VERIFIABLE" : !historyComplete ? "INSUFFICIENT_DATA" : horizon ? "PASS" : "IN_PROGRESS";
 
   const c6States = episodes.map((episode) => c6EpisodeStatus(episode, nowMsc));
   const c6: NeoTechPublicStatus = c6States.includes("FAIL") ? "FAIL" : !episodes.length ? "IN_PROGRESS" : c6States.includes("NOT_VERIFIABLE") ? "NOT_VERIFIABLE" : c6States.includes("IN_PROGRESS") || !horizon ? "IN_PROGRESS" : "PASS";
 
   const hedge = hedgingEvidence(episodes, nowMsc);
-  const c7: NeoTechPublicStatus = hedge.length ? "FAIL" : !episodes.length ? "IN_PROGRESS" : !historyComplete ? "INSUFFICIENT_DATA" : horizon ? "PASS" : "IN_PROGRESS";
+  const dca = dcaEvidence(episodes);
+  const c7: NeoTechPublicStatus = hedge.length || dca.length ? "FAIL" : !episodes.length ? "IN_PROGRESS" : !historyComplete ? "INSUFFICIENT_DATA" : horizon ? "PASS" : "IN_PROGRESS";
 
   const deposits = programStart > 0 ? payload.cashFlows.filter((flow) => {
     const at = Math.floor(flow.timeMsc / 1000);
@@ -396,13 +449,15 @@ function buildRules(payload: NeoTechPublicIngestPayload, episodes: Episode[], mo
     rule("E1", "ELIGIBILITY", "Mở lệnh thủ công", "EA chỉ được quản lý sau khi lệnh đã được mở thủ công.", e1, expert.length ? `${expert.length} lệnh expert` : reasonUnknown.length ? `${reasonUnknown.length} lệnh chưa rõ nguồn` : `${episodes.length} episode`, "0 lệnh mở bởi EA", expert.slice(0, 6).map((item) => `${item.canonicalSymbol} · deal ${item.openingDealTicket}`)),
     rule("E2", "ELIGIBILITY", "Loại tài khoản", "Tài khoản phải ở chế độ Real hoặc Demo.", e2, payload.account.mode, "REAL hoặc DEMO"),
     rule("E3", "ELIGIBILITY", "Vốn ban đầu", "NeoTech không giới hạn vốn ban đầu.", "PASS", payload.account.balance.toFixed(2), "Không giới hạn"),
+    rule("E4", "ELIGIBILITY", "Điều kiện tham gia", "KYC/Public/tài khoản mới/một tài khoản mỗi người và Direct/Demo Direct không thể chứng minh chỉ bằng telemetry MT5.", "NOT_VERIFIABLE", "Không có dữ liệu enrollment NeoTech", "Xác minh từ NeoTech"),
     rule("E5", "ELIGIBILITY", "Sản phẩm giao dịch", "Chỉ Forex và XAUUSD được xem là hợp lệ.", e5, unsupported.length ? `${unsupported.length} symbol không hợp lệ` : `${episodes.length} episode`, "Forex / XAUUSD", unsupported.slice(0, 8).map((item) => item.brokerSymbol)),
     rule("C1", "CONSISTENCY", "Thời gian theo dõi", "Cần đủ 365 ngày và ít nhất 12 cửa sổ 30 ngày.", c1, programStart > 0 ? `${Math.max(0, Math.floor((now - programStart) / DAY))} ngày · ${completedMonthCount(programStart, now)} tháng` : "Chưa có giao dịch", "≥365 ngày và ≥12 tháng"),
     rule("C2", "CONSISTENCY", "Return mỗi tháng", "Mỗi cửa sổ 30 ngày hoàn tất phải đạt tối thiểu 1% trading return.", c2, `${completedMonths.filter((month) => month.status === "PASS").length}/${completedMonths.length || 0} tháng đạt`, "≥1% / 30 ngày", completedMonths.filter((month) => month.status === "FAIL").slice(-6).map((month) => `Tháng ${month.index + 1}: ${month.adjustedReturnPct.toFixed(2)}%`)),
+    rule("C3", "CONSISTENCY", "Floating drawdown", "Floating drawdown phải luôn dưới 2%; peak-to-trough chỉ là chỉ số chẩn đoán bổ sung.", fddState.status, fddState.maxFloatingLossPct === null ? "Chưa có mẫu equity" : `${fddState.maxFloatingLossPct.toFixed(3)}% floating · ${fddState.pointCount} mẫu`, "<2%", fddState.status === "FAIL" && fddState.observedAtUtc ? [`FDD ≥2% tại ${new Date(fddState.observedAtUtc * 1000).toISOString()}`] : []),
     rule("C4", "CONSISTENCY", "Tần suất tín hiệu", "Mỗi tuần hoàn tất cần tối thiểu 3 tín hiệu.", c4, `${completedWeeks.filter((week) => week.status === "PASS").length}/${completedWeeks.length || 0} tuần đạt`, "≥3 tín hiệu / tuần", completedWeeks.filter((week) => week.status === "FAIL").slice(-6).map((week) => `Tuần ${week.index + 1}: ${week.signals}/3`)),
-    rule("C5", "CONSISTENCY", "Một lệnh mỗi symbol", "Mở thêm lệnh cùng symbol khi vị thế trước còn hoạt động là vi phạm.", c5, `${c5Count} occurrence`, "0 occurrence"),
+    rule("C5", "CONSISTENCY", "Một tín hiệu mỗi sản phẩm/phiên", "Mỗi canonical symbol chỉ được một tín hiệu trong cùng phiên NeoTech; không cần hai vị thế phải overlap mới tính vi phạm.", c5, `${c5Count} occurrence`, "≤1 tín hiệu / sản phẩm / phiên"),
     rule("C6", "CONSISTENCY", "Giữ lệnh hoặc SL/TP", "Lệnh đóng dưới 15 phút phải từng có SL hoặc TP cách entry hơn 30 pip.", c6, `${c6States.filter((status) => status === "FAIL").length} vi phạm`, "≥15 phút hoặc >30 pip"),
-    rule("C7", "CONSISTENCY", "Không hedging", "Không được BUY và SELL đồng thời trên cùng symbol.", c7, hedge.length ? `${hedge.length} overlap` : "0 overlap", "0 overlap", hedge),
+    rule("C7", "CONSISTENCY", "Không Hedge/DCA", "Không được hedge cùng symbol hoặc thêm vị thế cùng chiều ở mức giá bất lợi bằng một order mới.", c7, `${hedge.length} hedge · ${dca.length} DCA`, "0 Hedge / 0 DCA", [...hedge, ...dca].slice(0, 8)),
     rule("C8", "CONSISTENCY", "Không copy tín hiệu", "Nguồn tín hiệu bên ngoài không thể chứng minh chỉ bằng dữ liệu MT5.", "NOT_VERIFIABLE", "Không có telemetry nguồn tín hiệu", "Xác minh ngoài MT5"),
     rule("C9", "CONSISTENCY", "Không nạp/rút", "Chỉ nạp/rút phát sinh từ lúc bắt đầu giai đoạn đánh giá mới là vi phạm; số dư khởi tạo trước giao dịch đầu tiên không tính.", c9, `${deposits.length} cash-flow trong kỳ`, "0 deposit/withdrawal sau giao dịch đầu tiên", deposits.slice(0, 8).map((flow) => `${flow.kind} · ${flow.amount.toFixed(2)}`)),
   ];
@@ -416,7 +471,8 @@ export function buildNeoTechPublicProfile(args: { accountId: string; lastSeenAt:
   for (const episode of episodes) episode.tradingMonthIndex = programStart > 0 ? Math.floor((Math.floor(episode.firstEntryMsc / 1000) - programStart) / MONTH) : -1;
   const months = buildMonths(payload, episodes, programStart, now);
   const weeks = buildWeeks(episodes, now);
-  const rules = buildRules(payload, episodes, months, weeks, programStart, now);
+  const fddState = fdd(payload);
+  const rules = buildRules(payload, episodes, months, weeks, programStart, now, fddState);
   const cov = coverage(payload, now);
   const counts = {
     pass: rules.filter((row) => row.status === "PASS").length,
@@ -425,7 +481,7 @@ export function buildNeoTechPublicProfile(args: { accountId: string; lastSeenAt:
     insufficient: rules.filter((row) => row.status === "INSUFFICIENT_DATA").length,
     notVerifiable: rules.filter((row) => row.status === "NOT_VERIFIABLE").length,
   };
-  const decisionRules = rules.filter((row) => row.code !== "C8");
+  const decisionRules = rules.filter((row) => row.code !== "E4" && row.code !== "C8");
   const overall = decisionRules.some((row) => row.status === "FAIL")
     ? "VIOLATION"
     : decisionRules.some((row) => row.status === "INSUFFICIENT_DATA" || row.status === "NOT_VERIFIABLE")
@@ -459,7 +515,7 @@ export function buildNeoTechPublicProfile(args: { accountId: string; lastSeenAt:
     coverage: { percent: cov.percent, historyDays: cov.days, fullYear: cov.fullYear, missingReasons: cov.missing },
     counts,
     risk: { c5CurrentMonth, c6CurrentMonth, combinedCurrentMonth: c5CurrentMonth + c6CurrentMonth, disqualificationRisk },
-    fdd: fdd(payload),
+    fdd: fddState,
     months,
     weeks,
     rules,

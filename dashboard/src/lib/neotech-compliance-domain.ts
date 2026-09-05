@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
-export const NEOTECH_SCHEMA_VERSION = "oak-neotech-compliance-report-v2";
+export const NEOTECH_SCHEMA_VERSION = "oak-neotech-compliance-report-v3";
 export const NEOTECH_RULESET_ID = "neotech-signal-provider-2024-10-03-v1";
 export const NEOTECH_SOURCE_URL = "https://blog.neotechltd.com/vi/post/chuong-trinh-dac-biet-danh-cho-nha-cung-cap-tin-hieu_66fe1311ffc2ca0001f68ab0";
 export const NEOTECH_ARTICLE_DATE = "2024-10-03";

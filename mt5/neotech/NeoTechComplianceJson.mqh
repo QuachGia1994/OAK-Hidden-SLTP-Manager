@@ -300,7 +300,6 @@ bool NTIsSignedIntegerText(const string value)
 bool NTTelegramCriterionToken(const string value)
   {
    const string upper=NTStringUpper(value);
-   if(upper=="E4" || upper=="C3") return false;
    if(StringLen(upper)!=2) return false;
    const ushort family=StringGetCharacter(upper,0);
    const ushort number=StringGetCharacter(upper,1);

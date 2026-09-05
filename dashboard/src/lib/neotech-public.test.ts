@@ -13,6 +13,7 @@ import {
   type NeoTechPublicShareRecord,
   type NeoTechPublicWorkspace,
 } from "./neotech-public-domain.ts";
+import { buildNeoTechPublicProfile } from "./neotech-public-engine.ts";
 import {
   createPairing,
   createPrivateWorkspaceSession,
@@ -85,7 +86,7 @@ const account = {
   tradeExpert: false,
 };
 
-function deal(args: { ticket: string; positionId: string; at: number; entry: "IN" | "OUT"; side?: "BUY" | "SELL"; orderTicket?: string }) {
+function deal(args: { ticket: string; positionId: string; at: number; entry: "IN" | "OUT"; side?: "BUY" | "SELL"; orderTicket?: string; volume?: number; price?: number; serverUtcOffsetMinutes?: 120 | 180 }) {
   return {
     ticket: args.ticket,
     orderTicket: args.orderTicket || `o-${args.ticket}`,
@@ -95,7 +96,7 @@ function deal(args: { ticket: string; positionId: string; at: number; entry: "IN
     profitCurrency: "USD",
     forexCalc: true,
     timeMsc: args.at * 1000,
-    serverUtcOffsetMinutes: 180 as const,
+    serverUtcOffsetMinutes: args.serverUtcOffsetMinutes ?? 180,
     entry: args.entry,
     side: args.side || "BUY" as const,
     dealReason: "CLIENT" as const,
@@ -103,8 +104,8 @@ function deal(args: { ticket: string; positionId: string; at: number; entry: "IN
     reasonReliable: true,
     magic: 0,
     comment: "manual",
-    volume: 0.1,
-    price: 1.1,
+    volume: args.volume ?? 0.1,
+    price: args.price ?? 1.1,
     profit: args.entry === "OUT" ? 25 : 0,
     commission: 0,
     swap: 0,
@@ -116,6 +117,10 @@ function deal(args: { ticket: string; positionId: string; at: number; entry: "IN
     sltpSnapshotReliable: true,
     sltpTimelineComplete: true,
   };
+}
+
+function serverEpoch(year: number, month: number, day: number, hour: number, minute: number, offsetMinutes: 120 | 180 = 180): number {
+  return Math.floor(Date.UTC(year, month - 1, day, hour, minute) / 1000) - offsetMinutes * 60;
 }
 
 function payload(extra: Partial<NeoTechPublicIngestPayload> = {}): NeoTechPublicIngestPayload {
@@ -205,6 +210,86 @@ test("connector secret is returned once while only SHA-256 is retained", async (
   assert.notEqual(stored?.tokenSha256, pair.connectorToken);
   assert.equal(stored?.tokenSha256, sha256Hex(pair.connectorToken));
   assert.equal(store.accounts.get(pair.account.id)?.fingerprint, accountFingerprint(account));
+});
+
+test("public profile restores E4 and C3, and observed floating drawdown at 2% or more is a hard C3 failure", () => {
+  const start = NOW - 366 * 86_400;
+  const profile = buildNeoTechPublicProfile({
+    accountId: "fixture-account",
+    lastSeenAt: NOW * 1000,
+    payload: payload({ equityPoints: [{ atUtc: start, balance: 10_000, equity: 10_000 }, { atUtc: NOW, balance: 10_000, equity: 9_800 }] }),
+  });
+  assert.equal(profile.rules.length, 14);
+  assert.equal(profile.rules.find((row) => row.code === "E4")?.status, "NOT_VERIFIABLE");
+  assert.equal(profile.rules.find((row) => row.code === "C3")?.status, "FAIL");
+  assert.equal(profile.fdd.status, "FAIL");
+  assert.equal(profile.fdd.maxFloatingLossPct, 2);
+});
+
+test("C5 counts non-overlapping signals only inside the same NeoTech product session", () => {
+  const asiaOne = serverEpoch(2026, 8, 20, 3, 0);
+  const asiaTwo = serverEpoch(2026, 8, 20, 8, 0);
+  const europe = serverEpoch(2026, 8, 20, 12, 0);
+  const sameSession = buildNeoTechPublicProfile({
+    accountId: "fixture-account",
+    lastSeenAt: NOW * 1000,
+    payload: payload({ deals: [
+      deal({ ticket: "a1", positionId: "pa", at: asiaOne, entry: "IN" }),
+      deal({ ticket: "a2", positionId: "pa", at: asiaOne + 20 * 60, entry: "OUT" }),
+      deal({ ticket: "a3", positionId: "pb", at: asiaTwo, entry: "IN" }),
+      deal({ ticket: "a4", positionId: "pb", at: asiaTwo + 20 * 60, entry: "OUT" }),
+    ] }),
+  });
+  assert.equal(sameSession.rules.find((row) => row.code === "C5")?.status, "FAIL");
+
+  const differentSessions = buildNeoTechPublicProfile({
+    accountId: "fixture-account",
+    lastSeenAt: NOW * 1000,
+    payload: payload({ deals: [
+      deal({ ticket: "b1", positionId: "pc", at: asiaOne, entry: "IN" }),
+      deal({ ticket: "b2", positionId: "pc", at: asiaOne + 20 * 60, entry: "OUT" }),
+      deal({ ticket: "b3", positionId: "pd", at: europe, entry: "IN" }),
+      deal({ ticket: "b4", positionId: "pd", at: europe + 20 * 60, entry: "OUT" }),
+    ] }),
+  });
+  assert.notEqual(differentSessions.rules.find((row) => row.code === "C5")?.status, "FAIL");
+});
+
+test("C7 hard-fails adverse distinct-order DCA but ignores same-order partial fills", () => {
+  const first = serverEpoch(2026, 8, 20, 3, 0);
+  const dca = buildNeoTechPublicProfile({
+    accountId: "fixture-account",
+    lastSeenAt: NOW * 1000,
+    payload: payload({ deals: [
+      deal({ ticket: "d1", positionId: "p-dca", orderTicket: "order-1", at: first, entry: "IN", price: 1.1 }),
+      deal({ ticket: "d2", positionId: "p-dca", orderTicket: "order-2", at: first + 5 * 60, entry: "IN", price: 1.099 }),
+    ] }),
+  });
+  assert.equal(dca.rules.find((row) => row.code === "C7")?.status, "FAIL");
+  assert.match(dca.rules.find((row) => row.code === "C7")?.evidence.join("\n") || "", /DCA/i);
+
+  const sameOrder = buildNeoTechPublicProfile({
+    accountId: "fixture-account",
+    lastSeenAt: NOW * 1000,
+    payload: payload({ deals: [
+      deal({ ticket: "p1", positionId: "p-partial", orderTicket: "order-shared", at: first, entry: "IN", price: 1.1 }),
+      deal({ ticket: "p2", positionId: "p-partial", orderTicket: "order-shared", at: first + 5 * 60, entry: "IN", price: 1.099 }),
+    ] }),
+  });
+  assert.notEqual(sameOrder.rules.find((row) => row.code === "C7")?.status, "FAIL");
+
+  const asia = serverEpoch(2026, 8, 20, 8, 0);
+  const europe = serverEpoch(2026, 8, 20, 12, 0);
+  const separatePositions = buildNeoTechPublicProfile({
+    accountId: "fixture-account",
+    lastSeenAt: NOW * 1000,
+    payload: payload({ deals: [
+      deal({ ticket: "x1", positionId: "p-first", orderTicket: "order-first", at: asia, entry: "IN", price: 1.1 }),
+      deal({ ticket: "x2", positionId: "p-second", orderTicket: "order-second", at: europe, entry: "IN", price: 1.099 }),
+    ] }),
+  });
+  assert.notEqual(separatePositions.rules.find((row) => row.code === "C5")?.status, "FAIL");
+  assert.equal(separatePositions.rules.find((row) => row.code === "C7")?.status, "FAIL");
 });
 
 test("server computes rule statuses and ignores forged client PASS fields", async () => {
