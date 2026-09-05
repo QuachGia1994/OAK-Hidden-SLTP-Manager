@@ -68,7 +68,7 @@ const RULE_CONCEPTS: RuleConcept[] = [
 const SESSION_CONCEPTS = [
   { code: "ASIA", summer: "02:00–11:00", winter: "02:00–11:00" },
   { code: "EUROPE", summer: "09:00–18:00", winter: "10:00–19:00" },
-  { code: "US", summer: "14:00–23:00", winter: "15:00–24:00" },
+  { code: "US", summer: "14:00–23:00", winter: "15:00–00:00" },
 ] as const;
 
 async function readJson(response: Response): Promise<Record<string, unknown>> {
@@ -103,6 +103,48 @@ function relativeTime(epochMs: number, nowMs: number, locale: Locale): string {
 function StatusPill({ status, overall, locale }: { status?: NeoTechPublicStatus; overall?: NeoTechPublicProfile["overall"]; locale: Locale }) {
   const label = status ? STATUS_LABEL[locale][status] : overall ? OVERALL_LABEL[locale][overall] : "—";
   return <span className={styles.statusPill} data-status={status} data-overall={overall}>{label}</span>;
+}
+
+function RuleIcon({ code }: { code: NeoTechPublicRuleCode }) {
+  const common = { width: 26, height: 26, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
+  switch (code) {
+    case "E1": return <svg {...common}><circle cx="12" cy="7" r="3" /><path d="M5.5 20c.6-4.1 2.8-6.2 6.5-6.2s5.9 2.1 6.5 6.2" /></svg>;
+    case "E2": return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="2.5" /><path d="M3 9h18M7 14h4" /></svg>;
+    case "E3": return <svg {...common}><ellipse cx="12" cy="6" rx="6" ry="3" /><path d="M6 6v4c0 1.7 2.7 3 6 3s6-1.3 6-3V6M6 10v4c0 1.7 2.7 3 6 3s6-1.3 6-3v-4M6 14v4c0 1.7 2.7 3 6 3s6-1.3 6-3v-4" /></svg>;
+    case "E4": return <svg {...common}><path d="M7 3h7l4 4v14H7z" /><path d="M14 3v5h5M10 12h5M10 16h5" /></svg>;
+    case "E5": return <svg {...common}><path d="M5 20V9M10 20V4M15 20v-7M20 20V6" /><path d="M3 20h19" /></svg>;
+    case "C1": return <svg {...common}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 3v4M17 3v4M3 10h18M8 14h3M13 14h3M8 18h3" /></svg>;
+    case "C2": return <svg {...common}><path d="M4 18l5-5 4 3 7-8" /><path d="M16 8h4v4" /></svg>;
+    case "C3": return <svg {...common}><path d="M12 3l7 3v5c0 4.4-2.8 8-7 10-4.2-2-7-5.6-7-10V6z" /><path d="M8.5 12h7M10 9.5l-1.5 2.5L10 14.5M14 9.5l1.5 2.5-1.5 2.5" /></svg>;
+    case "C4": return <svg {...common}><path d="M5 20v-4M10 20v-8M15 20V8M20 20V4" /><path d="M3 20h19" /></svg>;
+    case "C5": return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>;
+    case "C6": return <svg {...common}><path d="M8 3h8M8 21h8M9 3c0 4 1.5 5.5 3 7 1.5-1.5 3-3 3-7M9 21c0-4 1.5-5.5 3-7 1.5 1.5 3 3 3 7" /></svg>;
+    case "C7": return <svg {...common}><path d="M4 8h13M14 5l3 3-3 3M20 16H7M10 13l-3 3 3 3" /></svg>;
+    case "C8": return <svg {...common}><rect x="8" y="8" width="11" height="12" rx="2" /><path d="M5 16H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>;
+    case "C9": return <svg {...common}><rect x="3" y="6" width="18" height="12" rx="2" /><path d="M7 12h10M12 9v6" /></svg>;
+  }
+}
+
+function RuleConceptCard({ item, liveRule, locale }: { item: RuleConcept; liveRule?: NeoTechPublicRule; locale: Locale }) {
+  return (
+    <article className={styles.ruleConceptCard} data-status={liveRule?.status} data-manual={item.verification === "EXTERNAL" ? "true" : undefined} data-risk={item.code === "C3" ? "fdd" : undefined}>
+      <div className={styles.ruleConceptTop}><span className={styles.ruleConceptCode}>{item.code}</span><span className={styles.ruleConceptIcon}><RuleIcon code={item.code} /></span></div>
+      <h3>{locale === "EN" ? item.en : item.vi}</h3>
+      <p>{locale === "EN" ? item.thresholdEn : item.thresholdVi}</p>
+      <div className={styles.ruleConceptFooter}>
+        {liveRule ? <StatusPill status={liveRule.status} locale={locale} /> : <span className={styles.autoBadge} data-external={item.verification === "EXTERNAL" ? "true" : undefined}>{item.verification === "AUTO" ? "AUTO CHECK" : "EXTERNAL CHECK"}</span>}
+        {liveRule && <small title={liveRule.measured}>{liveRule.measured}</small>}
+      </div>
+    </article>
+  );
+}
+
+function FeatureIcon({ kind }: { kind: "discipline" | "audit" | "platform" | "community" }) {
+  const common = { width: 24, height: 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
+  if (kind === "discipline") return <svg {...common}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="4" /><path d="M12 3v4M21 12h-4M12 21v-4M3 12h4" /></svg>;
+  if (kind === "audit") return <svg {...common}><path d="M12 3l7 3v5c0 4.4-2.8 8-7 10-4.2-2-7-5.6-7-10V6z" /><path d="M8.5 12l2.2 2.2L15.8 9" /></svg>;
+  if (kind === "platform") return <svg {...common}><path d="M4 18V9M10 18V5M16 18v-7M22 18V7" /><path d="M2 18h20" /></svg>;
+  return <svg {...common}><circle cx="9" cy="8" r="3" /><circle cx="17" cy="10" r="2.5" /><path d="M3.5 20c.4-4.1 2.4-6.2 5.5-6.2s5.1 2.1 5.5 6.2M14 15.2c3.2-.5 5.2 1.1 5.8 4.8" /></svg>;
 }
 
 function RuleRadar({ rules, locale }: { rules: NeoTechPublicRule[]; locale: Locale }) {
@@ -157,6 +199,56 @@ function RuleDetails({ rules, locale }: { rules: NeoTechPublicRule[]; locale: Lo
         </details>
       ))}
     </div>
+  );
+}
+
+const DEMO_RETURNS = [1.18, 1.36, 1.09, 1.27, 1.64, 1.14, 1.31, 1.16, 1.52, 1.76, 1.91, 1.33];
+
+function DemoPreview({ locale, onJoin }: { locale: Locale; onJoin: () => void }) {
+  const tr = (en: string, vi: string) => locale === "EN" ? en : vi;
+  return (
+    <section className={styles.demoPreview} aria-label={tr("NeoTech Rule Ver 2 demo preview", "Demo Preview NeoTech Rule Ver 2")}>
+      <div className={styles.demoHeader}>
+        <div><span className={styles.sectionEyebrow}>DEMO PREVIEW · SAMPLE DATA</span><h2>{tr("See the compliance profile before you connect", "Xem trước compliance profile trước khi kết nối")}</h2><p>{tr("Illustrative data only — this block never represents a real account or a NeoTech approval.", "Dữ liệu minh họa — khối này không đại diện tài khoản thật hay xác nhận chính thức từ NeoTech.")}</p></div>
+        <div className={styles.demoTabs} aria-label={tr("Demo sections", "Các phần demo")}><span data-active="true">Dashboard</span><span>Evidence</span><span>Trades</span><span>Equity</span><span>Reports</span></div>
+      </div>
+      <div className={styles.demoGrid}>
+        <article className={`${styles.demoCard} ${styles.demoAccountCard}`}>
+          <small>ACCOUNT STATUS</small>
+          <div className={styles.demoClear}><span>✓</span><div><strong>CLEAR</strong><p>{tr("Eligible under Rule Ver 2 decision rules", "Đủ điều kiện theo decision rules Ver 2")}</p></div></div>
+          <dl className={styles.demoFacts}>
+            <div><dt>{tr("Account", "Tài khoản")}</dt><dd>#12345678 · REAL</dd></div>
+            <div><dt>Broker</dt><dd>NeoTech</dd></div>
+            <div><dt>{tr("Start date", "Ngày bắt đầu")}</dt><dd>2025-08-01</dd></div>
+            <div><dt>{tr("Active days", "Ngày hoạt động")}</dt><dd>402 / 365</dd></div>
+            <div><dt>{tr("Total trades", "Tổng lệnh")}</dt><dd>1,248</dd></div>
+            <div><dt>{tr("Products", "Sản phẩm")}</dt><dd>XAUUSD · EURUSD · GBPUSD</dd></div>
+          </dl>
+        </article>
+
+        <div className={styles.demoMiddle}>
+          <article className={styles.demoCard}>
+            <div className={styles.demoCardTitle}><div><small>MONTHLY PERFORMANCE</small><b>{tr("Every 30-day window ≥ 1%", "Mỗi cửa sổ 30 ngày ≥ 1%")}</b></div><span className={styles.demoPass}>✓ PASS</span></div>
+            <div className={styles.demoBars}>
+              <span className={styles.demoThreshold}>+1%</span>
+              {DEMO_RETURNS.map((value, index) => <div key={index} className={styles.demoBarWrap}><i style={{ height: `${Math.round(26 + value * 31)}px` }} /><small>{["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][index]}</small></div>)}
+            </div>
+          </article>
+          <article className={styles.demoCard}>
+            <div className={styles.demoCardTitle}><div><small>FLOATING DRAWDOWN · C3</small><b>Max FDD 1.42%</b></div><span className={styles.demoPass}>&lt; 2% · ✓ PASS</span></div>
+            <svg className={styles.demoSpark} viewBox="0 0 520 96" role="img" aria-label="Demo floating drawdown sparkline"><defs><linearGradient id="demoFddFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="currentColor" stopOpacity=".24" /><stop offset="1" stopColor="currentColor" stopOpacity="0" /></linearGradient></defs><path d="M8 65 L42 58 L78 62 L112 43 L148 50 L184 39 L220 45 L256 25 L292 36 L328 31 L364 49 L400 42 L438 56 L474 47 L512 61 L512 88 L8 88 Z" fill="url(#demoFddFill)" /><path d="M8 65 L42 58 L78 62 L112 43 L148 50 L184 39 L220 45 L256 25 L292 36 L328 31 L364 49 L400 42 L438 56 L474 47 L512 61" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </article>
+        </div>
+
+        <article className={`${styles.demoCard} ${styles.demoOverviewCard}`}>
+          <small>RULES OVERVIEW</small>
+          <div className={styles.demoDonut}><span><strong>14/14</strong><small>{tr("CHECKED", "ĐÃ CHECK")}</small></span></div>
+          <div className={styles.demoLegend}><span data-kind="pass"><i />12 PASS</span><span data-kind="fail"><i />0 FAIL</span><span data-kind="external"><i />2 NOT VERIFIABLE</span></div>
+          <blockquote>{tr("Discipline today creates opportunity tomorrow.", "Tuân thủ quy tắc hôm nay là cơ hội ngày mai.")}<cite>— NeoTech</cite></blockquote>
+        </article>
+      </div>
+      <div className={styles.demoJoinBar}><div><b>{tr("Ready to replace sample data with your MT5 evidence?", "Sẵn sàng thay dữ liệu mẫu bằng evidence MT5 của bạn?")}</b><span>{tr("Pair read-only and the demo gives way to your live profile.", "Pair read-only và profile live của bạn sẽ thay cho dữ liệu mẫu.")}</span></div><button className={styles.primaryButton} onClick={onJoin}>{tr("Connect account →", "Kết nối tài khoản →")}</button></div>
+    </section>
   );
 }
 
@@ -437,10 +529,10 @@ export function NeoTechPublicDashboard() {
             <h2>{tr("Standardized · Transparent · Observable", "Chuẩn hóa · Minh bạch · Dễ theo dõi")}</h2>
             <p>{tr("The official NeoTech signal-provider rules are reconstructed from MT5 facts by OAK Gatekeeper, with automatic checks, explicit evidence gaps and a visual profile that never guesses PASS.", "Bộ quy tắc chính thức dành cho Nhà cung cấp tín hiệu NeoTech được OAK Gatekeeper tái dựng từ dữ liệu MT5, kiểm tra tự động, nêu rõ khoảng trống evidence và tuyệt đối không suy đoán PASS.")}</p>
             <div className={styles.heroFeatureRow}>
-              <span><i>⚡</i>{tr("Automatic checks", "Tự động kiểm tra")}</span>
-              <span><i>▥</i>{tr("Official thresholds", "Bám sát rule chính thức")}</span>
-              <span><i>◇</i>{tr("Evidence first", "Evidence minh bạch")}</span>
-              <span><i>↗</i>{tr("Web · MT5 · Telegram", "Web · MT5 · Telegram")}</span>
+              <span><i><FeatureIcon kind="discipline" /></i>{tr("Automatic checks", "Tự động kiểm tra")}</span>
+              <span><i><FeatureIcon kind="audit" /></i>{tr("Official thresholds", "Bám sát rule chính thức")}</span>
+              <span><i><FeatureIcon kind="community" /></i>{tr("Evidence first", "Evidence minh bạch")}</span>
+              <span><i><FeatureIcon kind="platform" /></i>{tr("Web · MT5 · Telegram", "Web · MT5 · Telegram")}</span>
             </div>
             <div className={styles.heroActions}>
               <button className={styles.primaryButton} onClick={() => void createPairing("READ_ONLY")} disabled={busy}>{accounts.length > 0 ? tr("+ Connect another account", "+ Kết nối tài khoản khác") : tr("Connect NeoTech account", "Kết nối tài khoản NeoTech")}</button>
@@ -450,6 +542,9 @@ export function NeoTechPublicDashboard() {
           </div>
           <div className={styles.heroVisualV2} aria-hidden="true">
             <div className={styles.heroChartGrid} />
+            <div className={`${styles.heroMountain} ${styles.heroMountainBack}`} />
+            <div className={`${styles.heroMountain} ${styles.heroMountainMid}`} />
+            <div className={`${styles.heroMountain} ${styles.heroMountainFront}`} />
             <div className={`${styles.heroCandle} ${styles.heroCandleA}`} />
             <div className={`${styles.heroCandle} ${styles.heroCandleB}`} />
             <div className={`${styles.heroCandle} ${styles.heroCandleC}`} />
@@ -472,29 +567,26 @@ export function NeoTechPublicDashboard() {
           <div><span className={styles.sectionEyebrow}>RULE ENGINE</span><h2>{tr("14 evaluation criteria", "14 tiêu chí đánh giá")}</h2><p>{tr("E1–E5 eligibility + C1–C9 consistency. Live status appears as soon as an account profile is available.", "E1–E5 điều kiện tham gia + C1–C9 tính nhất quán. Khi có profile, trạng thái live được đổ trực tiếp lên từng rule.")}</p></div>
           <div className={styles.rulesLiveBadge} data-live={profile ? "true" : undefined}><span>{profile ? "✓" : "○"}</span><div><b>{profile ? tr("LIVE PROFILE", "PROFILE LIVE") : tr("RULE PREVIEW", "PREVIEW RULE")}</b><small>{profile ? `${profile.counts.pass} PASS · ${profile.counts.fail} FAIL` : "14 / 14 MAPPED"}</small></div></div>
         </div>
-        <div className={styles.ruleConceptGrid}>
-          {RULE_CONCEPTS.map((item) => {
-            const liveRule = ruleByCode.get(item.code);
-            return (
-              <article key={item.code} className={styles.ruleConceptCard} data-status={liveRule?.status} data-manual={item.verification === "EXTERNAL" ? "true" : undefined}>
-                <div className={styles.ruleConceptTop}><span className={styles.ruleConceptCode}>{item.code}</span><span className={styles.ruleConceptIcon}>{item.icon}</span></div>
-                <h3>{locale === "EN" ? item.en : item.vi}</h3>
-                <p>{locale === "EN" ? item.thresholdEn : item.thresholdVi}</p>
-                <div className={styles.ruleConceptFooter}>
-                  {liveRule ? <StatusPill status={liveRule.status} locale={locale} /> : <span className={styles.autoBadge} data-external={item.verification === "EXTERNAL" ? "true" : undefined}>{item.verification === "AUTO" ? "AUTO CHECK" : "EXTERNAL CHECK"}</span>}
-                  {liveRule && <small title={liveRule.measured}>{liveRule.measured}</small>}
-                </div>
-              </article>
-            );
-          })}
+        <div className={`${styles.ruleConceptGrid} ${styles.ruleConceptEligibility}`}>
+          {RULE_CONCEPTS.slice(0, 5).map((item) => <RuleConceptCard key={item.code} item={item} liveRule={ruleByCode.get(item.code)} locale={locale} />)}
         </div>
-        <div className={styles.sessionPanelV2}>
-          <div className={styles.sessionCopy}><span className={styles.sectionEyebrow}>C5 SESSION MAP</span><h3>{tr("NeoTech trading sessions", "Quy ước phiên giao dịch NeoTech")}</h3><p>{tr("Server-local session windows. Summer = Apr–Oct; Winter = Nov–Mar. If a signal falls inside an overlap, it belongs to the previous session.", "Cửa sổ tính theo giờ server. Mùa Hè = Tháng 4–10; Mùa Đông = Tháng 11–3. Nếu tín hiệu nằm trong vùng giao hai phiên, tín hiệu được tính vào phiên trước.")}</p></div>
-          <div className={styles.sessionTracks}>
-            {SESSION_CONCEPTS.map((session) => <div key={session.code} className={styles.sessionTrack} data-session={session.code}><b>{session.code}</b><span>{tr("Summer", "Hè")} {session.summer}</span><span>{tr("Winter", "Đông")} {session.winter}</span></div>)}
+        <div className={`${styles.ruleConceptGrid} ${styles.ruleConceptConsistency}`}>
+          {RULE_CONCEPTS.slice(5, 12).map((item) => <RuleConceptCard key={item.code} item={item} liveRule={ruleByCode.get(item.code)} locale={locale} />)}
+        </div>
+        <div className={styles.ruleConceptBottomRow}>
+          <div className={styles.ruleConceptTailGrid}>
+            {RULE_CONCEPTS.slice(12).map((item) => <RuleConceptCard key={item.code} item={item} liveRule={ruleByCode.get(item.code)} locale={locale} />)}
+          </div>
+          <div className={styles.sessionPanelV2}>
+            <div className={styles.sessionCopy}><span className={styles.sectionEyebrow}>C5 SESSION MAP · GMT+2 DST</span><h3>{tr("NeoTech trading sessions", "Quy ước phiên giao dịch NeoTech")}</h3><p>{tr("Official server-time windows from the 2024-10-03 NeoTech rules. Summer = Apr–Oct; Winter = Nov–Mar. Overlap signals belong to the previous session.", "Khung giờ server chính thức theo rule NeoTech 2024-10-03. Mùa Hè = Tháng 4–10; Mùa Đông = Tháng 11–3. Tín hiệu trong vùng giao hai phiên được tính cho phiên trước.")}</p></div>
+            <div className={styles.sessionTracks}>
+              {SESSION_CONCEPTS.map((session) => <div key={session.code} className={styles.sessionTrack} data-session={session.code}><b>{session.code}</b><span>{tr("Summer", "Hè")} {session.summer}</span><span>{tr("Winter", "Đông")} {session.winter}</span></div>)}
+            </div>
           </div>
         </div>
       </section>
+
+      {!loading && !profile && <DemoPreview locale={locale} onJoin={() => void createPairing("READ_ONLY")} />}
 
       {error && <div className={styles.error} role="alert">{error}{bootRetryIn > 0 && ` · ${tr("retrying in", "thử lại sau")} ${bootRetryIn}s`}</div>}
       {toastPortal}
@@ -595,6 +687,24 @@ export function NeoTechPublicDashboard() {
           </div>
         </section>
       )}
+
+      <section className={styles.bottomShowcase}>
+        <div className={styles.bottomFeatureGrid}>
+          <article><span><FeatureIcon kind="discipline" /></span><div><b>{tr("Disciplined trading", "Giao dịch có kỷ luật")}</b><small>{tr("Built for sustainable execution", "Vận hành bền vững")}</small></div></article>
+          <article><span><FeatureIcon kind="audit" /></span><div><b>{tr("Automated audit", "Kiểm toán tự động")}</b><small>{tr("Evidence stays explicit", "Dữ liệu minh bạch")}</small></div></article>
+          <article><span><FeatureIcon kind="platform" /></span><div><b>{tr("Multi-platform", "Hỗ trợ đa nền tảng")}</b><small>Web · Telegram · MT5</small></div></article>
+          <article><span><FeatureIcon kind="community" /></span><div><b>{tr("Signal-provider community", "Cộng đồng nhà cung cấp tín hiệu")}</b><small>{tr("Grow with transparent rules", "Phát triển cùng rule minh bạch")}</small></div></article>
+        </div>
+        <div className={styles.joinCta}>
+          <div><span className={styles.sectionEyebrow}>SIGNAL PROVIDER SPECIAL PROGRAM</span><h2>{tr("Trade smarter. Grow together.", "Giao dịch kỷ luật. Phát triển cùng nhau.")}</h2><p>{tr("Use the OAK profile as a transparent self-audit layer before NeoTech makes any official eligibility decision.", "Dùng OAK profile như lớp tự kiểm toán minh bạch trước khi NeoTech đưa ra bất kỳ quyết định eligibility chính thức nào.")}</p></div>
+          <div className={styles.joinCtaAction}><button className={styles.joinButton} onClick={() => void createPairing("READ_ONLY")} disabled={busy}>{tr("JOIN NOW", "THAM GIA NGAY")} <span>→</span></button><small>TRADE TODAY · A BIGGER TOMORROW</small></div>
+        </div>
+        <footer className={styles.neoFooter}>
+          <div className={styles.neoFooterBrand}><span className={styles.neoMark}>N</span><span><b>NeoTech</b><small>TRADERS EMPOWER TRADERS</small></span></div>
+          <span>OFFICIAL RULESET 2024-10-03 · IMPLEMENTED BY OAK GATEKEEPER</span>
+          <span>oakgatekeeper.uk/neotech</span>
+        </footer>
+      </section>
 
       {shareOpen && selected && (
         <div className={styles.pairingOverlay} onMouseDown={(event) => event.target === event.currentTarget && setShareOpen(false)}>

@@ -116,3 +116,27 @@ test("Master pairing is browser-authorized and NeoTech Copy actions expose visib
   assert.match(ui, /Pairing code copied/);
   assert.match(ui, /WebRequest URL copied/);
 });
+
+test("NeoTech Rule Ver 2 visual contract keeps concept hierarchy without changing official session hours", () => {
+  const ui = readFileSync(path.join(dashboardRoot, "src", "app", "neotech", "NeoTechPublicDashboard.tsx"), "utf8");
+  const css = readFileSync(path.join(dashboardRoot, "src", "app", "neotech", "neotech.module.css"), "utf8");
+  assert.match(ui, /function RuleIcon/);
+  assert.match(ui, /RuleConceptCard/);
+  assert.match(ui, /RULE_CONCEPTS\.slice\(0, 5\)/);
+  assert.match(ui, /RULE_CONCEPTS\.slice\(5, 12\)/);
+  assert.match(ui, /RULE_CONCEPTS\.slice\(12\)/);
+  assert.match(css, /ruleConceptEligibility[\s\S]*repeat\(5/);
+  assert.match(css, /ruleConceptConsistency[\s\S]*repeat\(7/);
+  assert.match(css, /data-risk="fdd"|ruleConceptCard\[data-risk="fdd"\]/);
+  assert.match(ui, /DEMO PREVIEW · SAMPLE DATA/);
+  assert.match(ui, /12 PASS/);
+  assert.match(ui, /2 NOT VERIFIABLE/);
+  assert.match(ui, /JOIN NOW/);
+  assert.match(ui, /OFFICIAL RULESET 2024-10-03/);
+  assert.match(ui, /02:00–11:00/);
+  assert.match(ui, /09:00–18:00/);
+  assert.match(ui, /10:00–19:00/);
+  assert.match(ui, /14:00–23:00/);
+  assert.match(ui, /15:00–00:00/);
+  assert.doesNotMatch(ui, /22:00–07:00|07:00–16:00|16:00–22:00/);
+});
