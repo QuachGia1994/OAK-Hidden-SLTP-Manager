@@ -56,7 +56,7 @@
 
 .rulesetV2 { border: 1px solid var(--nt-border); border-radius: var(--nt-radius); padding: 1rem; background: var(--nt-canvas); color: var(--nt-text); }
 .rulesetV2Header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0 .3rem .8rem; }
-.rulesetV2Header h2 { margin: .2rem 0 .3rem; font-size: clamp(1.2rem, 2.4vw, 1.9rem); letter-spacing: .08em; text-transform: uppercase; }
+.rulesetV2Header h2 { margin: .2rem 0 .3rem; font-size: clamp(1.2rem, 2.4vw, 1.9rem); letter-spacing: .08em; text-transform: uppercase; font-weight: 800; }
 .rulesetV2Header p { margin: 0; color: var(--nt-muted); font-size: .8rem; }
 .sectionEyebrow { color: var(--oak-accent-command); font-size: .65rem; font-weight: 700; letter-spacing: .12em; }
 .rulesLiveBadge { display: flex; align-items: center; gap: .7rem; padding: .8rem 1rem; border: 1px solid color-mix(in srgb, var(--nt-green) 40%, var(--nt-border)); border-radius: 14px; background: color-mix(in srgb, var(--nt-green) 12%, var(--nt-canvas)); }
@@ -74,12 +74,12 @@
 .ruleConceptCard[data-status="PASS"] { border-color: color-mix(in srgb, var(--nt-green) 45%, var(--nt-border)); }
 .ruleConceptCard[data-status="FAIL"], .ruleConceptCard[data-risk="fdd"] { border-color: var(--nt-danger); background: color-mix(in srgb, var(--nt-danger) 8%, var(--nt-surface)); }
 .ruleConceptCard[data-risk="fdd"] .ruleConceptCode { color: var(--nt-amber); }
-.ruleConceptCard[data-manual="true"] .ruleConceptCode { color: var(--nt-amber); }
+.ruleConceptEligibility .ruleConceptCard[data-manual="true"] .ruleConceptCode { color: var(--nt-amber); }
 .ruleConceptCode { color: var(--nt-green); font-size: 1.15rem; line-height: 1; font-weight: 700; }
 .ruleConceptCard[data-status="FAIL"] .ruleConceptCode { color: var(--nt-danger); }
 .ruleConceptIcon { color: var(--nt-text); }
 .ruleConceptIcon svg { width: 36px; height: 36px; }
-.ruleConceptCard h3 { margin: 0; font-size: .8rem; line-height: 1.35; }
+.ruleConceptCard h3 { margin: 0; font-size: .8rem; line-height: 1.35; font-weight: 700; }
 .ruleConceptCard p { margin: 0; color: var(--nt-muted); font-size: .72rem; line-height: 1.5; }
 .ruleConceptFooter { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; margin-top: .3rem; min-width: 0; }
 .ruleConceptFooter > small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--nt-muted); font-size: .6rem; }
@@ -125,7 +125,7 @@
 
 .demoPreview { overflow: hidden; border: 1px solid var(--nt-border); border-radius: var(--nt-radius); background: var(--nt-canvas); color: var(--nt-text); }
 .demoHeader { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.1rem .5rem; }
-.demoHeader h2 { margin: 0 0 .2rem; font-size: 1.65rem; letter-spacing: .08em; }
+.demoHeader h2 { margin: 0 0 .2rem; font-size: 1.65rem; letter-spacing: .08em; font-weight: 800; }
 .demoHeader p { margin: 0; color: var(--nt-muted); font-size: .75rem; line-height: 1.5; }
 .demoTabs { display: flex; gap: .25rem; padding: .24rem; border: 1px solid var(--nt-border); border-radius: 999px; background: var(--nt-surface); }
 .demoTabs span { padding: .55rem .75rem; border-radius: 999px; color: var(--nt-muted); font-size: .65rem; white-space: nowrap; }
