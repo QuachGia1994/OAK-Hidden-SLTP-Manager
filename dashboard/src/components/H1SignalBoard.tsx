@@ -453,7 +453,7 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
             ? (locale === "EN" ? "History storage is temporarily unavailable. Calendar stays available while recovery runs automatically…" : "Kho lịch sử tạm không khả dụng. Calendar vẫn bấm được trong khi hệ thống tự phục hồi…")
             : (locale === "EN" ? "Live storage is temporarily unavailable. Waiting for the current broker-day feed to recover…" : "Kho live tạm không khả dụng. Đang chờ feed ngày broker hiện tại tự phục hồi…")}</p>
           : <p className="oak-h1-awaiting">{copy.awaiting}</p>}
-        <p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe horizontally for later blocks" : "Vuốt ngang để xem H12 · H14 · H16"}</p>
+        <p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe if the table extends beyond the screen" : "Vuốt ngang nếu bảng rộng hơn màn hình"}</p>
         <div ref={tableScrollRef} className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
             <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{fallbackHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour}><span>H{String(hour).padStart(2, "0")}</span></th>)}</tr></thead>
@@ -504,7 +504,7 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
           </div>
           <p className="oak-h1-history-coverage">{copy.coverage}</p>
         </div>}
-        {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : <><p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe horizontally for later blocks" : "Vuốt ngang để xem H12 · H14 · H16"}</p><div ref={tableScrollRef} className="oak-h1-table-scroll lux-scroll">
+        {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : <><p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe if the table extends beyond the screen" : "Vuốt ngang nếu bảng rộng hơn màn hình"}</p><div ref={tableScrollRef} className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
             <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{activeHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour} data-manual-close={hour === 16 && manualCloseH16 ? "true" : undefined}><span>H{String(hour).padStart(2, "0")}</span>{hour === 16 && manualCloseH16 ? <small className="oak-h1-close-badge">CLOSE</small> : null}</th>)}</tr></thead>
             <tbody>{visibleH1Symbols(data.symbols).map((base) => {

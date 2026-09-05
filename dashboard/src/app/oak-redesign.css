@@ -480,15 +480,6 @@ max-width: 36rem; font-size: clamp(1.8rem,4vw,2.7rem); line-height: 1; letter-sp
 }
 .oak-fact-process article > i { color: var(--muted); font-style: normal; transition: transform .3s ease, color .3s ease; }
 .oak-fact-process article:hover > i { color: var(--terminal-accent); transform: translate(2px,-2px); }
-.oak-fact-input-panel::after {
-  content: "";
-  position: absolute;
-  inset: auto -20% -5rem auto;
-  width: 16rem;
-  height: 10rem;
-  background: radial-gradient(circle, color-mix(in srgb, var(--terminal-accent) 9%, transparent), transparent 68%);
-  pointer-events: none;
-}
 .oak-char-meter {
   color: var(--muted);
   font: 750 .55rem "Cascadia Mono", Consolas, monospace;
@@ -549,13 +540,13 @@ max-width: 36rem; font-size: clamp(1.8rem,4vw,2.7rem); line-height: 1; letter-sp
 .oak-global-error p { font-size: .7rem; font-weight: 700; }
 
 .oak-fact-results { display: grid; gap: 1rem; margin-top: .15rem; }
-.oak-verdict-panel { --oak-verdict-color: var(--muted); display: grid; gap: 1rem; padding: clamp(1rem, 2vw, 1.35rem); }
+.oak-verdict-panel { --oak-verdict-color: var(--muted); display: grid; min-width: 0; gap: .75rem; padding: .85rem; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-strong)); border-radius: var(--oak-radius-md); background: var(--oak-bg-surface); }
 .oak-verdict-panel[data-verdict="supported"] { --oak-verdict-color: var(--terminal-accent); }
 .oak-verdict-panel[data-verdict="contradicted"] { --oak-verdict-color: var(--terminal-danger); }
 .oak-verdict-panel[data-verdict="mixed"] { --oak-verdict-color: var(--terminal-warning); }
 .oak-verdict-copy { min-width: 0; }
 .oak-verdict-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; margin-top: .35rem; }
-.oak-verdict-title-row h2 { font-size: clamp(1.45rem, 3vw, 2.2rem); font-weight: 900; letter-spacing: -.045em; }
+.oak-verdict-title-row h2 { font-size: 1.25rem; font-weight: 800; letter-spacing: -.025em; }
 .oak-verdict-badge { display: inline-flex; align-items: center; min-height: 1.75rem; padding: .28rem .55rem; border: 1px solid currentColor; border-radius: 999px; font: 900 .54rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
 .oak-verdict-badge[data-verdict="supported"] { color: var(--terminal-accent); background: color-mix(in srgb, var(--terminal-accent) 7%, var(--surface)); }
 .oak-verdict-badge[data-verdict="contradicted"] { color: var(--terminal-danger); background: color-mix(in srgb, var(--terminal-danger) 7%, var(--surface)); }
@@ -567,7 +558,7 @@ max-width: 36rem; font-size: clamp(1.8rem,4vw,2.7rem); line-height: 1; letter-sp
 .oak-summary-card small { color: var(--muted); font: 850 .52rem "Cascadia Mono", Consolas, monospace; letter-spacing: .1em; }
 .oak-summary-card p { margin-top: .35rem; font-size: .78rem; line-height: 1.65; }
 .oak-confidence-block { display: flex; align-items: center; gap: 1rem; }
-.oak-confidence-ring { display: grid; width: 8.8rem; height: 8.8rem; place-items: center; flex: 0 0 auto; border-radius: 50%; box-shadow: 0 0 40px color-mix(in srgb, var(--oak-verdict-color) 8%, transparent); animation: oak-ring-enter .8s .1s cubic-bezier(.16,1,.3,1) both; }
+.oak-confidence-ring { display: grid; width: 5.5rem; height: 5.5rem; place-items: center; flex: 0 0 auto; border-radius: 50%; box-shadow: 0 0 40px color-mix(in srgb, var(--oak-verdict-color) 8%, transparent); animation: oak-ring-enter .8s .1s cubic-bezier(.16,1,.3,1) both; }
 .oak-confidence-ring > div { display: grid; width: calc(100% - .55rem); height: calc(100% - .55rem); place-content: center; border-radius: 50%; background: var(--oak-panel-solid); text-align: center; }
 .oak-confidence-ring b { color: var(--oak-verdict-color); font: 950 2rem "Cascadia Mono", Consolas, monospace; line-height: 1; }
 .oak-confidence-ring > div > span { margin-left: .15rem; color: var(--muted); font: 750 .65rem "Cascadia Mono", Consolas, monospace; }
@@ -578,7 +569,7 @@ max-width: 36rem; font-size: clamp(1.8rem,4vw,2.7rem); line-height: 1; letter-sp
 .oak-result-metrics span { color: var(--muted); font-size: .6rem; }
 
 .oak-claims-panel,
-.oak-sources-panel { overflow: hidden; }
+.oak-sources-panel { min-width: 0; overflow: hidden; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-strong)); border-radius: var(--oak-radius-md); background: var(--oak-bg-surface); }
 .oak-section-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem 1rem; border-bottom: 1px solid var(--panel-border); background: color-mix(in srgb, var(--surface-raised) 70%, transparent); }
 .oak-section-head h3 { margin-top: .18rem; font-size: .95rem; font-weight: 850; }
 .oak-section-head > span { color: var(--terminal-accent); font: 900 .72rem "Cascadia Mono", Consolas, monospace; }
@@ -952,7 +943,7 @@ body.oak-body {
 .oak-main, .oak-footer { position: relative; z-index: 1; }
 :root:not(.dark):not(.contrast) .oak-spatial-grain { opacity: .012; }
 
-:where(.oak-command-strip, .oak-access-panel, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .discover-hero) {
+:where(.oak-command-strip, .oak-access-panel, .oak-account-head, .oak-account-card, .oak-fact-hero, .discover-hero) {
   position: relative;
   overflow: hidden;
   border-color: var(--hud-glass-border) !important;
@@ -1010,12 +1001,12 @@ body.oak-body {
 
 .oak-android .oak-spatial-canvas { opacity: .22; }
 .oak-android .oak-spatial-grid { opacity: .18; transform: none; }
-.oak-android :where(.oak-command-strip, .oak-access-panel, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .discover-hero) { backdrop-filter: none; -webkit-backdrop-filter: none; }
+.oak-android :where(.oak-command-strip, .oak-access-panel, .oak-account-head, .oak-account-card, .oak-fact-hero, .discover-hero) { backdrop-filter: none; -webkit-backdrop-filter: none; }
 
 @media (pointer: coarse), (prefers-reduced-motion: reduce) {
   .oak-spatial-canvas { opacity: .22; }
   .oak-spatial-grid { opacity: .18; transform: none; }
-  :where(.oak-command-strip, .oak-access-panel, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .discover-hero) { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  :where(.oak-command-strip, .oak-access-panel, .oak-account-head, .oak-account-card, .oak-fact-hero, .discover-hero) { backdrop-filter: none; -webkit-backdrop-filter: none; }
   .oak-access-panel:hover, .oak-command-strip:hover, .oak-account-card:hover { transform: none !important; }
 }
 
@@ -1024,12 +1015,12 @@ body.oak-body {
   body.oak-body { background: var(--oak-bg-canvas) !important; }
   .oak-spatial-stage { display: none !important; }
   .oak-footer,
-  :where(.oak-command-strip, .oak-access-panel, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .discover-hero) {
+  :where(.oak-command-strip, .oak-access-panel, .oak-account-head, .oak-account-card, .oak-fact-hero, .discover-hero) {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     box-shadow: var(--oak-shadow-1) !important;
   }
-  :where(.oak-command-strip, .oak-access-panel, .oak-account-head, .oak-account-card, .oak-fact-hero, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .discover-hero) {
+  :where(.oak-command-strip, .oak-access-panel, .oak-account-head, .oak-account-card, .oak-fact-hero, .discover-hero) {
     background: var(--oak-bg-surface) !important;
   }
   :where(.oak-command-strip, .oak-access-panel, .oak-account-card)::before,
@@ -1740,7 +1731,7 @@ body.oak-body:has(.oak-workspace-heading) { background: radial-gradient(ellipse 
 .tarot-placeholder { display: grid; grid-template-columns: repeat(3,minmax(0,13rem)); justify-content: center; gap: 1rem; padding: 1rem; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-strong)); border-radius: var(--oak-radius-md); background: radial-gradient(ellipse at top, var(--oak-reverse-bg), var(--oak-bg-surface)); }
 .tarot-placeholder > p { grid-column: 1 / -1; color: var(--oak-fg-muted); font-size: var(--oak-text-secondary); text-align: center; }
 .tarot-card-back { position: relative; aspect-ratio: 2 / 3; overflow: hidden; border-radius: var(--oak-radius-sm); }
-.tarot-card-back > .oak-tool-art { position: absolute; left: 50%; top: 60%; width: 180%; max-width: none; transform: translate(-50%,-50%); }
+.tarot-card-back > .oak-tool-art { position: absolute; left: 50%; top: 60%; width: 170%; max-width: none; transform: translate(-50%,-50%); }
 .tarot-card { display: grid; gap: .5rem; min-width: 0; padding: .5rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-sm); background: var(--oak-bg-raised); }
 .tarot-draw-button:disabled { opacity: .5; cursor: not-allowed; }
 .tarot-card-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .75rem; }
@@ -1785,7 +1776,7 @@ body.oak-body:has(.oak-workspace-heading) { background: radial-gradient(ellipse 
 /* Trading density and true calendar cells. */
 .oak-access-pill { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; min-width: 0; padding: .4rem .65rem; border: 1px solid var(--oak-accent-command); border-radius: var(--oak-radius-sm); color: var(--oak-accent-command); background: color-mix(in srgb, var(--oak-accent-command) 10%, var(--oak-bg-surface)); font: 800 var(--oak-text-meta) var(--font-sans); }
 .oak-h1-meta > .oak-access-pill { display: inline-flex; min-width: 0; order: 1; }
-.oak-h1-board { position: relative; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-strong)); border-radius: var(--oak-radius-md); background: var(--oak-bg-surface); box-shadow: none; }
+.oak-h1-board { position: relative; min-width: 0; width: 100%; max-width: 100%; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-strong)); border-radius: var(--oak-radius-md); background: var(--oak-bg-surface); box-shadow: none; }
 .oak-h1-board-head { display: flex; align-items: center; justify-content: space-between; padding: .75rem; gap: .5rem; border-bottom: 1px solid var(--oak-border-subtle); background: linear-gradient(120deg, color-mix(in srgb, var(--oak-accent-command) 10%, var(--oak-bg-surface)), var(--oak-bg-surface)); border-radius: var(--oak-radius-md) var(--oak-radius-md) 0 0; }
 .oak-h1-board-head h2 { margin: 0; font-size: 1.1rem; font-weight: 800; }
 .oak-h1-board-head p { margin-top: .25rem; max-width: 25rem; color: var(--oak-fg-muted); font-size: var(--oak-text-meta); line-height: 1.4; }
