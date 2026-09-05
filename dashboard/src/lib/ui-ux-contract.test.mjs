@@ -18,17 +18,16 @@ const spatialSource = readFileSync(new URL("../components/SpatialHudCanvas.tsx",
 const breadcrumbSource = readFileSync(new URL("../components/RouteBreadcrumbs.tsx", import.meta.url), "utf8");
 const historyPageSource = readFileSync(new URL("../app/history/page.tsx", import.meta.url), "utf8");
 
-test("mobile keeps locale reachable without full reload and uses a controlled navigation drawer", () => {
-  assert.match(navSource, /oak-locale-switch/);
-  assert.match(navSource, /setLocaleMode\(item\)/);
-  assert.match(navSource, /router\.refresh\(\)/);
-  assert.doesNotMatch(navSource, /window\.location\.reload/);
-  assert.match(navSource, /oak-mobile-nav-toggle/);
-  assert.match(navSource, /data-mobile-open/);
-  assert.match(navSource, /aria-controls="oak-mobile-navigation"/);
-  assert.match(oakCss, /\.oak-nav-workspace\[data-mobile-open="true"\] \{ display: grid; \}/);
-  assert.match(oakCss, /\.oak-mobile-nav-toggle \{ display: grid; \}/);
-  assert.doesNotMatch(oakCss, /\.oak-locale-switch\s*\{\s*display:\s*none/);
+test("mobile keeps locale reachable and exposes four direct navigation tabs", () => {
+  assert.ok(navSource.includes("oak-locale-switch"));
+  assert.ok(navSource.includes("setLocaleMode(item)"));
+  assert.ok(navSource.includes("router.refresh()"));
+  assert.ok(!navSource.includes("window.location.reload"));
+  assert.ok(navSource.includes('href="/tools" className="oak-nav-link oak-tools-mobile-link"'));
+  assert.doesNotMatch(navSource, /mobileOpen|oak-mobile-nav-toggle|data-mobile-open/);
+  assert.ok(oakCss.includes(".oak-tools-mobile-link { display: inline-flex; }"));
+  assert.ok(oakCss.includes("grid-template-columns: repeat(4,minmax(0,1fr))"));
+  assert.ok(oakCss.includes(".oak-tools-menu > .oak-tools-directory-link { display: flex;"));
 });
 
 test("provider account load failures do not masquerade as auth lock", () => {
@@ -74,7 +73,7 @@ test("H1 entry cells stay centered, expose mobile scroll affordance and table he
 
 test("all custom trading and NeoTech dialogs use the shared keyboard focus trap", () => {
   assert.match(h1EvidenceSource, /const open = Boolean\(selection\);/);
-  assert.match(h1EvidenceSource, /useDialogFocusTrap(?:<[^>]+>)?\(open, onClose\)/);
+  assert.match(h1EvidenceSource, /useDialogFocusTrap(?:<[^>]+>)?\(open && variant === "dialog", onClose\)/);
   assert.match(neoTechSource, /useDialogFocusTrap(?:<[^>]+>)?\(Boolean\(pairing\)/);
   assert.match(dialogHookSource, /event\.key === "Escape"/);
   assert.match(dialogHookSource, /event\.key !== "Tab"/);
@@ -83,8 +82,8 @@ test("all custom trading and NeoTech dialogs use the shared keyboard focus trap"
 
 test("H1 header stays simplified while free access removes VIP actions", () => {
   assert.doesNotMatch(h1EngineSource, /<small>PROFILE<\/small>/);
-  assert.match(h1EngineSource, /FREE ACCESS/);
-  assert.match(h1EngineSource, /All H1 entry-time cells unlocked/);
+  assert.match(h1SignalSource, /FREE ACCESS/);
+  assert.match(h1SignalSource, /All H1 entry-time cells unlocked/);
   assert.doesNotMatch(h1EngineSource, /VIP UNLOCK|VIP LOCKED|oak-button-spinner|\/api\/vip/);
 });
 
@@ -109,7 +108,7 @@ test("spatial HUD layer stays below DOM UI and respects performance guards", () 
   assert.match(spatialSource, /requestAnimationFrame/);
   assert.match(oakCss, /\.oak-spatial-stage \{/);
   assert.match(oakCss, /pointer-events: none/);
-  assert.match(oakCss, /\.oak-main, \.oak-footer, \.oak-nav \{ position: relative; z-index: 1; \}/);
+  assert.match(oakCss, /\.oak-main, \.oak-footer \{ position: relative; z-index: 1; \}/);
   assert.match(oakCss, /radial-gradient\(600px circle at var\(--hud-pointer-x\) var\(--hud-pointer-y\)/);
   assert.match(oakCss, /backdrop-filter: var\(--hud-glass-blur\)/);
   assert.match(oakCss, /@media \(max-width: 899px\), \(pointer: coarse\)/);
@@ -152,7 +151,7 @@ test("technical labels use the shared 12px readability floor and tools menu has 
 
 test("mobile controls and calendar expose 44px-class touch targets", () => {
   assert.match(globalsCss, /--oak-touch-min: 2\.75rem/);
-  assert.match(oakCss, /@media \(max-width: 759px\)[\s\S]*\.oak-mobile-nav-toggle,[\s\S]*width: var\(--oak-touch-min\);[\s\S]*height: var\(--oak-touch-min\)/);
+  assert.match(oakCss, /\.oak-theme-toggle \{[^}]*width: var\(--oak-touch-min\); height: var\(--oak-touch-min\)/);
   assert.match(oakCss, /grid-template-columns: repeat\(7, var\(--oak-touch-min\)\)/);
   assert.match(oakCss, /\.oak-h1-calendar-grid button \{[\s\S]*width: var\(--oak-touch-min\);[\s\S]*height: var\(--oak-touch-min\)/);
   assert.match(oakCss, /\.oak-locale-switch button \{[\s\S]*height: var\(--oak-touch-min\)/);
@@ -174,9 +173,9 @@ test("mobile H1 chrome stays compact and date changes reset the matrix to the fi
   assert.match(h1SignalSource, /ref=\{tableScrollRef\} className="oak-h1-table-scroll lux-scroll"/);
   assert.match(oakCss, /Mobile density pass/);
   assert.match(oakCss, /\.nav-shell \{[\s\S]*padding-left: max\(\.55rem, env\(safe-area-inset-left\)\)/);
-  assert.match(oakCss, /\.oak-brand-copy small \{[\s\S]*display: none/);
-  assert.match(oakCss, /\.oak-h1-board-head \{[\s\S]*padding: \.58rem \.62rem/);
-  assert.match(oakCss, /@media \(max-width: 390px\)[\s\S]*\.oak-brand-copy b \{ display: none; \}/);
+  assert.match(navSource, /<strong>OAK GATEKEEPER<\/strong>/);
+  assert.match(oakCss, /\.oak-h1-board-head \{[^}]*padding: \.6rem/);
+  assert.doesNotMatch(navSource, /<strong>ROBOT SLTP/);
 });
 
 test("light accent and signal states use stronger accessible visual treatment", () => {

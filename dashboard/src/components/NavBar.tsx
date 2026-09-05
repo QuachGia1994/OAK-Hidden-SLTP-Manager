@@ -35,7 +35,6 @@ export function NavBar() {
   const { theme, cycleTheme } = useTheme();
   const { locale, mode, setLocaleMode } = useLocale();
   const [toolsOpen, setToolsOpen] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
   const toolsRef = useRef<HTMLDivElement>(null);
   const toolsButtonRef = useRef<HTMLButtonElement>(null);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
@@ -46,7 +45,6 @@ export function NavBar() {
 
   useEffect(() => {
     setToolsOpen(false);
-    setMobileOpen(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -101,16 +99,14 @@ export function NavBar() {
   return (
     <nav className="oak-nav sticky top-0 z-50">
       <div className="nav-shell oak-nav-layout">
-        <Link href="/engine" className="oak-brand" aria-label="OAK Gatekeeper · ROBOT SLTP Pro">
+        <Link href="/engine" className="oak-brand" aria-label="OAK Gatekeeper">
           <span className="oak-brand-icon"><img src="/oak-app-icon.png" alt="" aria-hidden="true" /></span>
           <span className="oak-brand-copy">
-            <small>OAK GATEKEEPER</small>
-            <strong>ROBOT SLTP <b>PRO</b></strong>
+            <strong>OAK GATEKEEPER</strong>
           </span>
         </Link>
 
-        <div id="oak-mobile-navigation" className="oak-nav-workspace" data-mobile-open={mobileOpen ? "true" : undefined} aria-label="Product navigation">
-          <span className="oak-nav-section-label">TRADING</span>
+        <div className="oak-nav-workspace" aria-label="Product navigation">
           <Link
             href="/engine"
             aria-current={pathname === "/engine" ? "page" : undefined}
@@ -139,8 +135,8 @@ export function NavBar() {
             <span>NeoTech</span>
           </Link>
 
+          <Link href="/tools" className="oak-nav-link oak-tools-mobile-link" data-active={toolsActive ? "true" : undefined} aria-current={pathname === "/tools" ? "page" : undefined}><span className="oak-nav-icon"><ToolsIcon /></span><span>{locale === "EN" ? "Tools" : "Công cụ"}</span></Link>
           <div className="oak-tools" ref={toolsRef}>
-            <span className="oak-nav-section-label">TOOLS</span>
             <button
               ref={toolsButtonRef}
               type="button"
@@ -157,13 +153,13 @@ export function NavBar() {
               }}
             >
               <span className="oak-nav-icon"><ToolsIcon /></span>
-              <span>{locale === "EN" ? "Labs" : "Công cụ"}</span>
+              <span>{locale === "EN" ? "Tools" : "Công cụ"}</span>
               <i aria-hidden="true">⌄</i>
             </button>
             {toolsOpen && (
               <div id="oak-tools-menu" ref={toolsMenuRef} className="oak-tools-menu" role="menu" onKeyDown={handleToolsMenuKeyDown}>
-                <header><span><small>OAK LABS</small><b>{locale === "EN" ? "Secondary tools" : "Công cụ phụ trợ"}</b></span><button type="button" className="oak-tools-close" onClick={() => { setToolsOpen(false); toolsButtonRef.current?.focus(); }} aria-label={locale === "EN" ? "Close tools menu" : "Đóng menu công cụ"}>×</button></header>
-                <Link href="/tools" className="oak-tools-directory-link" role="menuitem">{locale === "EN" ? "All tools" : "Tất cả công cụ"} <span aria-hidden="true">→</span></Link>
+                <header><span><b>{locale === "EN" ? "Tools" : "Công cụ"}</b></span><button type="button" className="oak-tools-close" onClick={() => { setToolsOpen(false); toolsButtonRef.current?.focus(); }} aria-label={locale === "EN" ? "Close tools menu" : "Đóng menu công cụ"}>×</button></header>
+                <Link href="/tools" className="oak-tools-directory-link" role="menuitem"><span>{locale === "EN" ? "All tools" : "Tất cả công cụ"}</span><span aria-hidden="true">→</span></Link>
                 {tools.map((item) => (
                   <Link key={item.href} href={item.href} role="menuitem" data-active={pathname === item.href ? "true" : undefined}>
                     <span className="oak-nav-icon">{item.icon}</span>
@@ -183,9 +179,6 @@ export function NavBar() {
           </div>
           <button onClick={cycleTheme} className="oak-theme-toggle" aria-label={`Theme: ${theme}`} title={`Theme: ${theme}`}>
             <span className="oak-theme-glyph" data-theme={theme}>{theme === "dark" ? "◐" : theme === "contrast" ? "◒" : "☼"}</span>
-          </button>
-          <button type="button" className="oak-mobile-nav-toggle" aria-label={locale === "EN" ? (mobileOpen ? "Close navigation" : "Open navigation") : (mobileOpen ? "Đóng điều hướng" : "Mở điều hướng")} aria-controls="oak-mobile-navigation" aria-expanded={mobileOpen} onClick={() => { setMobileOpen((current) => !current); setToolsOpen(false); }}>
-            <span aria-hidden="true">{mobileOpen ? "×" : "☰"}</span>
           </button>
         </div>
       </div>

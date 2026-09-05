@@ -1,23 +1,26 @@
 # OAK workspaces
 updated 2026-09-05 unreleased
 
-The six-screen concept is a visual reference, not a source of financial data or API behavior.
+The six-screen concept defines visual hierarchy; live prices, dates, cards and AI results always come from the existing product.
 
 ## Routes and contracts
-- /engine: latest retained broker-day H1 matrix. Entry hour and BUY/SELL remain rule-derived.20s refresh is a refresh cadence, not a heartbeat claim. Conditional H16 CLOSE remains advisory.
-- /history: same matrix and evidence with an embedded Sunday-first calendar. Available days come from the retained feed, not fabricated calendar coverage.
-- /tools: directory for the existing three tool routes. OAK_TOOLS in dashboard/src/lib/oak-tools.ts is shared by the directory and NavBar.
-- /factcheck: text/link and image input modes preserve their drafts. OCR returns editable text to the text mode; image authenticity retains independent origin, generation, manipulation and completeness results. APIs and public sharing are unchanged.
-- /tarot: existing78-card deck and one/three draws. Decorative card backs do not replace real card artwork or the server draw. Cards-only partial results and errors remain supported.
-- /discover: Daily, Oracle and Mood remain local; only Dream and Compatibility use the AI endpoint.
+- /engine: latest retained broker-day matrix, single compact board header, FREE ACCESS and 20s refresh. Click a cell to open inline evidence with original base, final source, chronological OHLC chart and expandable bar details. Conditional H16 CLOSE is advisory.
+- /history: the same matrix with an embedded Sunday-first bordered calendar. Only retained dates are enabled. Date changes hide evidence from the previous day.
+- /tools: three horizontal illustrated banners, backed by the shared OAK_TOOLS catalog.
+- /factcheck: text/link and image drafts survive mode switches. OCR returns editable text; image analysis preserves origin, generation, manipulation and completeness. Public sharing and backend handlers are unchanged.
+- /tarot: compact question and one/three-card controls above the real78-card deck. Decorative backs never replace the server draw. AI failure still preserves drawn cards.
+- /discover: Daily across the top, then Dream/Oracle and Mood/Compatibility. Daily, Oracle and Mood stay local; only Dream/Compatibility call AI.
 
 ## Presentation owners
-- globals.css owns existing OAK semantic color, type, radius and motion tokens. Dark surfaces use the navy concept palette; light and contrast variants remain available.
-- oak-redesign.css owns shared workspace styles. Existing H1/Lab declarations are edited at their owner. New patterns are oak-tool-art, oak-tool-card, oak-tool-directory, oak-workspace-heading, oak-input-modes, oak-image-dropzone and oak-access-pill.
-- ToolArtwork is a decorative, aria-hidden SVG with a finite kind variant and unique gradient IDs. It follows theme tokens and does not replace the canonical oak-app-icon.png brand.
-- SundayCalendarPicker's embedded variant reuses the same date selection and month math; it is a region rather than a dialog and remains in document flow on mobile.
-- New tools are reachable through the existing keyboard-operable menu and breadcrumbs. No new account or payment workflow is introduced.
+- globals.css owns semantic tokens, including the navy/cyan dark palette and workspace width. Light and contrast remain available.
+- oak-redesign.css owns navigation, WorkspaceHeading, ToolArtwork, workspace layout and image-input composition. Replaced367old selectors before adding the canonical rules. factcheck-share.css retains report/share semantics; overlapping image-input declarations were moved to their composition owner.
+- WorkspaceHeading provides localized01-06titles and subtitles. NavBar uses the real oak-app-icon.png and OAK GATEKEEPER wordmark. Mobile has four direct tabs; desktop retains a keyboard-operable tools menu. Directory links use flex layout, never the icon/detail grid.
+- ToolArtwork's finite kind maps to one generated transparent3x3atlas, dashboard/public/oak-workspace-atlas-v2.webp (489488bytes, SHA256 df9d9969b7e9fe908123ea053ebf7867490461413454dfef870308fb9db7fa73). Built-in ImageGen prompt: premium luminous navy/cyan/violet/gold painterly3D sprite sheet; photo+magnifier, fanned tarot, compass; mountain sunrise, crescent clouds, oracle sphere; crystal hearts, ornate single card back, night clouds. No text, labels or data. WebP is a format conversion of the generated original. This is concept-directed new artwork, not pixel-identical extracted art.
+- H1EvidencePanel retains its dialog variant with focus trapping; inline variant is a normal region. Copy chart uses the same renderer.
+- /workspace-review.html is a noindex visual QA harness: same-origin real pages at320/393/768/1100px widths. It introduces no mock data or API. This tests responsive layout in Chromium, not iOS Safari engine behavior.
 
 ## Verification
-Existing306-test dashboard suite and TypeScript pass. All six routes compile and render their expected SSR content with HTTP200 on the Windows Next dev preview.
-Desktop/mobile screenshot comparison, browser interactions and production deployment are not yet verified for this revision. Do not claim100% visual parity or AI service health from these checks.
+-306/306dashboard tests pass; TypeScript passes.
+-Source assertions updated for direct mobile navigation, single H1 header and inline evidence; trading/backend assertions retained.
+-Browser audit confirmed all6baseline screens differed before the correction. Post-deployment screenshot and interaction evidence is recorded in the shared task plan.
+-No literal100%pixel-parity or AI health claim follows from unit tests. Concept has illustrative results and sample signals that must never be fabricated in production.

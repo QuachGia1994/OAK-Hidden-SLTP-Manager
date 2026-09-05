@@ -311,9 +311,9 @@ test("H1 board omits the separate Entry Focus panel", () => {
 
 test("H1 Live and History temporarily expose every entry cell as free access", () => {
   assert.match(vipSource, /VIP_FREE_ACCESS = true/);
-  assert.match(engineBoardSource, /FREE ACCESS/);
-  assert.match(engineBoardSource, /All H1 entry-time cells unlocked/);
-  assert.match(boardSource, /oak-h1-free-access/);
+  assert.match(boardSource, /FREE ACCESS/);
+  assert.match(boardSource, /All H1 entry-time cells unlocked/);
+  assert.match(boardSource, /oak-access-pill/);
   assert.doesNotMatch(boardSource, /VIP_SIGNAL_SYMBOL|oak-h1-cell-locked|VIP required/);
   assert.doesNotMatch(engineBoardSource, /VIP UNLOCK|VIP LOCKED|\/api\/vip|useDialogFocusTrap/);
   assert.doesNotMatch(enginePageSource, /redactH1Signals|getVipAccessState/);
@@ -473,8 +473,8 @@ test("native Android is hardened for Google Play February 2027 memory and DEX re
 test("engine web surface is local-H1-only with the compact command header", () => {
   assert.doesNotMatch(enginePageSource, /getLatestPattern5|filterActivePattern5|maskFuturePattern5|redactPattern5Signals/);
   assert.doesNotMatch(engineBoardSource, /Pattern5Payload|Pattern5Table|ENGINE 05|Pattern Matrix|Trạng thái tín hiệu hiện tại|<small>PROFILE<\/small>|h1Data\?\.profile/);
-  assert.match(engineBoardSource, /TRADING \/ H1 LOCAL/);
-  assert.match(engineBoardSource, /MT5 ICMarkets · M15/);
+  assert.match(engineBoardSource, /<WorkspaceHeading workspace="live"/);
+  assert.match(boardSource, /MT5 ICMarkets · M15/);
   assert.doesNotMatch(engineBoardSource, /UNLOCK SIGNALS/);
 });
 
@@ -524,7 +524,7 @@ test("H1 board exports interoperable PNG clipboard data and native share fallbac
 test("populated H1 cells open deterministic M15 pattern evidence without cluttering the cell", () => {
   assert.match(boardSource, /oak-h1-cell-entry oak-h1-cell-evidence/);
   assert.match(boardSource, /setEvidenceSelection/);
-  assert.match(boardSource, /<H1EvidencePanel selection=\{evidenceSelection\} payload=\{data\}/);
+  assert.match(boardSource, /<H1EvidencePanel variant="inline" selection=\{evidenceSelection\} payload=\{data\}/);
   assert.match(evidencePanelSource, /function evidenceFacts\(/);
   assert.match(evidencePanelSource, /let signalSource = ""/);
   assert.match(evidencePanelSource, /BASE CANDLE/);

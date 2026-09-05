@@ -102,8 +102,8 @@ export default function FactCheckPage() {
 
   return (
     <div className="page-shell oak-fact-screen">
+      <FactCheckHero locale={locale} />
       <div className="oak-fact-workbench">
-        <FactCheckHero locale={locale} />
         <FactCheckInput
           text={text}
           setText={setText}

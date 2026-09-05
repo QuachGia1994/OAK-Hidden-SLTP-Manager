@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ToolArtwork } from "@/components/ToolArtwork";
 import { TEXT } from "@/lib/factcheck/locale-copy";
 import { detectInputKind, extractHostnameLabel } from "@/lib/factcheck/input-detect";
 import { mediaClientStatus, normalizeClientImageMime } from "@/lib/factcheck/media-client";
@@ -98,8 +99,7 @@ export function FactCheckInput({
     <section className="oak-fact-input-panel">
       <header className="oak-fact-input-header">
         <div>
-          <span className="oak-eyebrow">{t.input} / CLAIM TERMINAL</span>
-          <h2>{t.textOrImage}</h2>
+          <h2>{locale === "EN" ? "Check news & images" : "Xác thực tin & ảnh"}</h2>
         </div>
         <span className="oak-char-meter">{text.length.toLocaleString()}/12,000</span>
       </header>
@@ -120,7 +120,7 @@ export function FactCheckInput({
         <div className="oak-editor-rail" aria-hidden="true"><span>01</span><span>02</span><span>03</span><span>04</span><span>05</span></div>
         <textarea
           aria-label={t.textOrImage}
-          rows={7}
+          rows={4}
           value={text}
           onChange={(event) => setText(event.target.value)}
           placeholder={ocrLoading ? t.detectText : t.placeholder}
@@ -145,7 +145,7 @@ export function FactCheckInput({
       </div>
       <div hidden={inputMode !== "image"}>
       {!selectedImage && <button type="button" className="oak-image-dropzone" disabled={busy} onClick={() => fileInputRef.current?.click()} onDragOver={event => event.preventDefault()} onDrop={handleDrop}>
-        <span aria-hidden="true">▧</span><b>{t.uploadImage}</b><small>{locale === "EN" ? "Analyze image evidence or extract text to fact-check" : "Phân tích bằng chứng ảnh hoặc trích chữ để kiểm tra tin"}</small>
+        <ToolArtwork kind="factcheck" /><b>{t.uploadImage}</b><small>{locale === "EN" ? "Analyze image evidence or extract text to fact-check" : "Phân tích bằng chứng ảnh hoặc trích chữ để kiểm tra tin"}</small>
       </button>}
       {selectedImage && (
         <div className="oak-image-intent" role="group" aria-label={t.imageSelected} aria-busy={mediaLoading}>
@@ -181,8 +181,8 @@ export function FactCheckInput({
       </div>
       {(ocrError || imageError) && <p className="oak-form-error">{ocrError || imageError}</p>}
 
-      <div className="oak-fact-actions">
-        <button type="button" className="oak-upload-action" onClick={() => fileInputRef.current?.click()} disabled={busy}>
+      <div className="oak-fact-actions" data-mode={inputMode}>
+        <button type="button" className="oak-upload-action" hidden={inputMode === "image"} onClick={() => fileInputRef.current?.click()} disabled={busy}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z" /><path d="m6.5 16 4-4 2.5 2.5 2-2 2.5 3.5M9 9h.01" /></svg>
           <span>{t.uploadImage}</span>
           <small>{t.dragDrop}</small>

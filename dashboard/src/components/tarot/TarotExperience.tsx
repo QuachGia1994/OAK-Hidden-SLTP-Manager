@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useLocale } from "@/components/LocaleProvider";
+import { WorkspaceHeading } from "@/components/WorkspaceHeading";
 import { ToolArtwork } from "@/components/ToolArtwork";
 import { TarotCard } from "@/components/tarot/TarotCard";
 import { TAROT_COPY } from "@/lib/tarot/locale-copy";
@@ -65,23 +66,19 @@ export function TarotExperience() {
 
   return (
     <div className="page-shell terminal-page tarot-screen">
+      <WorkspaceHeading workspace="tarot" locale={locale} />
       <section className="tarot-hero">
-        <div className="tarot-hero-copy">
-          <ToolArtwork kind="tarot" />
-          <p className="terminal-kicker">{copy.kicker}</p>
-          <h1>{copy.title}</h1>
-          <p>{copy.intro}</p>
-        </div>
+        <h2>{copy.title}</h2>
 
         <form className="tarot-form" onSubmit={submitReading}>
-          <label htmlFor="tarot-question">{copy.questionLabel}</label>
+          <label className="sr-only" htmlFor="tarot-question">{copy.questionLabel}</label>
           <textarea
             id="tarot-question"
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
             placeholder={copy.questionPlaceholder}
             maxLength={500}
-            rows={4}
+            rows={2}
             disabled={loading}
           />
           <div className="tarot-question-meta">
@@ -89,7 +86,7 @@ export function TarotExperience() {
           </div>
 
           <fieldset>
-            <legend>{copy.spreadLabel}</legend>
+            <legend className="sr-only">{copy.spreadLabel}</legend>
             <div className="tarot-spread-options">
               {(["one", "three"] as const).map((option) => (
                 <button
@@ -100,7 +97,7 @@ export function TarotExperience() {
                   disabled={loading}
                 >
                   <b>{copy.spread[option].title}</b>
-                  <span>{copy.spread[option].detail}</span>
+                  <span className="sr-only">{copy.spread[option].detail}</span>
                 </button>
               ))}
             </div>
@@ -189,7 +186,7 @@ export function TarotExperience() {
         </section>
       ) : (
         <section className="tarot-placeholder" aria-label={copy.idle}>
-          {[0, 1, 2].map((item) => (
+          {[0, 1, 2].slice(0, spread === "one" ? 1 : 3).map((item) => (
             <div className="tarot-card-back" key={item} aria-hidden="true"><ToolArtwork kind="card" /></div>
           ))}
           <p>{copy.idle}</p>

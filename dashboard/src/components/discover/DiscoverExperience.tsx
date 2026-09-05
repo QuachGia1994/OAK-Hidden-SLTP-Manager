@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { WorkspaceHeading } from "@/components/WorkspaceHeading";
 import { ToolArtwork, type ToolArtworkKind } from "@/components/ToolArtwork";
 import { useLocale } from "@/components/LocaleProvider";
 import type { CompatibilityReading, DreamReading } from "@/lib/discover/gemini";
@@ -93,7 +94,7 @@ function dailyMessage(locale: "EN" | "VN", key: string): DailyMessage {
 
 function FeatureHeader({ index, title, subtitle }: { index: string; title: string; subtitle: string; glyph: string }) {
   const artwork: Record<string, ToolArtworkKind> = { "01": "daily", "02": "dream", "03": "oracle", "04": "mood", "05": "compatibility" };
-  return <header className="discover-card-head"><ToolArtwork kind={artwork[index]} /><div><small>{index === "02" || index === "05" ? "AI" : index}</small><h2>{title}</h2><p>{subtitle}</p></div></header>;
+  return <header className="discover-card-head" data-art={index === "04" ? "none" : undefined}>{index !== "04" && <ToolArtwork kind={artwork[index]} />}<div><h2>{title}</h2>{(index === "02" || index === "05") && <small className="discover-ai-badge">AI</small>}<p>{subtitle}</p></div></header>;
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
@@ -185,20 +186,14 @@ export function DiscoverExperience() {
   const activeDailyMessage = daily?.date === today ? dailyMessage(locale, today) : null;
   return (
     <div className="page-shell discover-screen">
-      <section className="discover-hero">
-        <div><span className="oak-eyebrow">OAK PLAYGROUND / 05 EXPERIENCES</span><h1>{copy.title}</h1><p>{copy.intro}</p></div>
-        <div className="discover-streak"><span>◆</span><b>{streak}</b><small>{copy.streak}</small><p>{copy.localNote}</p></div>
-      </section>
-
-      <nav className="discover-jump" aria-label="Discover modules">
-        <a href="#daily">Daily</a><a href="#dream">Dream</a><a href="#oracle">Oracle</a><a href="#mood">Mood</a><a href="#compatibility">Compatibility</a>
-      </nav>
+      <WorkspaceHeading workspace="discover" locale={locale} />
 
       {error && <div className="oak-global-error" role="alert"><span>!</span><p>{error}</p></div>}
 
       <div className="discover-grid">
         <section id="daily" className="discover-card discover-daily">
           <FeatureHeader index="01" title={copy.daily.title} subtitle={copy.daily.subtitle} glyph="DAILY RITUAL" />
+          <span className="discover-streak" title={copy.streak}>✦ {streak} {locale === "EN" ? "days" : "ngày"}</span>
           {daily?.date === today && activeDailyMessage ? (
             <div className="discover-daily-result">
               <article><small>{copy.daily.energy}</small><b>{activeDailyMessage.energy}</b></article>
@@ -215,7 +210,7 @@ export function DiscoverExperience() {
         <section id="dream" className="discover-card discover-dream">
           <FeatureHeader index="02" title={copy.dream.title} subtitle={copy.dream.subtitle} glyph="GEMINI REFLECTION" />
           <form className="discover-form" onSubmit={submitDream}>
-            <textarea value={dream} onChange={(event) => setDream(event.target.value)} placeholder={copy.dream.placeholder} maxLength={3000} rows={6} disabled={dreamLoading} />
+            <textarea value={dream} onChange={(event) => setDream(event.target.value)} placeholder={copy.dream.placeholder} maxLength={3000} rows={2} disabled={dreamLoading} />
             <div className="discover-form-foot"><small>{[...dream].length}/3000</small><button type="submit" disabled={dreamLoading || dream.trim().length < 10}>{dreamLoading ? copy.dream.loading : copy.dream.action}</button></div>
           </form>
           {dreamReading && <div className="discover-ai-result"><p className="discover-summary">{dreamReading.summary}</p><div className="discover-symbols">{dreamReading.symbols.map((item) => <article key={item.symbol}><b>{item.symbol}</b><p>{item.interpretation}</p></article>)}</div><article className="discover-result-strip"><small>{copy.dream.theme}</small><p>{dreamReading.emotional_theme}</p></article><article className="discover-result-strip"><small>{copy.dream.reflection}</small><p>{dreamReading.reflection}</p></article><article className="discover-result-strip accent"><small>{copy.dream.next}</small><p>{dreamReading.next_step}</p></article></div>}
@@ -229,7 +224,7 @@ export function DiscoverExperience() {
 
         <section id="mood" className="discover-card">
           <FeatureHeader index="04" title={copy.mood.title} subtitle={copy.mood.subtitle} glyph="LOCAL CHECK-IN" />
-          <div className="mood-picker">{copy.mood.labels.map((label, index) => <button type="button" key={label} aria-pressed={moodScore === index + 1} data-active={moodScore === index + 1 ? "true" : undefined} onClick={() => setMoodScore(index + 1)}><b aria-hidden="true">{["☹", "◔", "◑", "☺", "☻"][index]}</b><span>{label}</span></button>)}</div>
+          <div className="mood-picker">{copy.mood.labels.map((label, index) => <button type="button" key={label} aria-label={label} aria-pressed={moodScore === index + 1} data-active={moodScore === index + 1 ? "true" : undefined} onClick={() => setMoodScore(index + 1)}><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" /><circle cx="11" cy="12" r="1" /><circle cx="21" cy="12" r="1" /><path d={["M9 23Q16 12 23 23", "M10 22Q16 16 22 22", "M10 21H22", "M10 19Q16 26 22 19", "M9 18Q16 29 23 18"][index]} /></svg><span>{label}</span></button>)}</div>
           <div className="mood-note"><input value={moodNote} onChange={(event) => setMoodNote(event.target.value)} placeholder={copy.mood.note} maxLength={240} /><button type="button" onClick={saveMood}>{copy.mood.save}</button></div>
           <div className="mood-history"><small>{copy.mood.history}</small><div>{moods.length ? moods.map((entry) => <article key={entry.date} title={entry.note || entry.label}><i style={{ height: `${18 + entry.score * 14}%` }} /><b>{entry.score}</b><span>{entry.date.slice(5).replace("-", "/")}</span></article>) : <p>—</p>}</div></div>
         </section>
@@ -238,13 +233,14 @@ export function DiscoverExperience() {
           <FeatureHeader index="05" title={copy.compatibility.title} subtitle={copy.compatibility.subtitle} glyph="GEMINI PLAY" />
           <form className="discover-form" onSubmit={submitCompatibility}>
             <div className="compat-names"><input value={compatA} onChange={(event) => setCompatA(event.target.value)} placeholder={copy.compatibility.a} maxLength={80} /><span>×</span><input value={compatB} onChange={(event) => setCompatB(event.target.value)} placeholder={copy.compatibility.b} maxLength={80} /></div>
-            <textarea value={compatContext} onChange={(event) => setCompatContext(event.target.value)} placeholder={copy.compatibility.context} maxLength={1200} rows={3} />
+            <details className="discover-extra"><summary>{copy.compatibility.context}</summary><textarea value={compatContext} onChange={(event) => setCompatContext(event.target.value)} placeholder={copy.compatibility.context} maxLength={1200} rows={2} /></details>
             <div className="discover-form-foot"><small>{[...compatContext].length}/1200</small><button type="submit" disabled={compatLoading || !compatA.trim() || !compatB.trim()}>{compatLoading ? copy.compatibility.loading : copy.compatibility.action}</button></div>
           </form>
           {compatReading && <div className="discover-ai-result"><p className="discover-summary">{compatReading.summary}</p><div className="compat-metrics"><Metric label={copy.compatibility.metrics[0]} value={compatReading.communication} /><Metric label={copy.compatibility.metrics[1]} value={compatReading.trust} /><Metric label={copy.compatibility.metrics[2]} value={compatReading.chemistry} /><Metric label={copy.compatibility.metrics[3]} value={compatReading.long_term} /></div><div className="compat-lists"><article><small>{copy.compatibility.strengths}</small><ul>{compatReading.strengths.map((item) => <li key={item}>{item}</li>)}</ul></article><article><small>{copy.compatibility.watchouts}</small><ul>{compatReading.watchouts.map((item) => <li key={item}>{item}</li>)}</ul></article></div><article className="discover-result-strip accent"><small>{copy.compatibility.starter}</small><p>{compatReading.conversation_starter}</p></article></div>}
         </section>
       </div>
 
+      <p className="discover-local-note">{copy.localNote}</p>
       <p className="discover-disclaimer">{locale === "EN" ? "Discover experiences are for entertainment and reflection, not professional or predictive advice." : "Các mục Khám phá phục vụ giải trí và chiêm nghiệm, không phải tư vấn chuyên môn hay dự đoán chắc chắn."}</p>
     </div>
   );

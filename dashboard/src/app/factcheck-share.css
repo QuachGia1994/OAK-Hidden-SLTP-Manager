@@ -148,17 +148,6 @@
   line-height: 1.5;
 }
 /* Image authenticity intent + report */
-.oak-image-intent {
-  display: grid;
-  gap: .65rem;
-  margin-top: .7rem;
-  padding: .7rem;
-  border: 1px solid color-mix(in srgb, var(--terminal-accent) 28%, var(--panel-border));
-  border-radius: .8rem;
-  background: color-mix(in srgb, var(--terminal-accent) 4%, var(--surface-raised));
-}
-.oak-image-intent-summary { display: grid; grid-template-columns: 4.5rem minmax(0,1fr); gap: .7rem; align-items: center; }
-.oak-image-intent-preview { width: 4.5rem; height: 4.5rem; object-fit: cover; border: 1px solid var(--panel-border); border-radius: .65rem; background: var(--surface); }
 .oak-image-intent-copy { min-width: 0; display: grid; gap: .18rem; }
 .oak-image-intent-copy b { overflow: hidden; color: var(--foreground); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
 .oak-image-intent-copy small { color: var(--muted); font-size: .58rem; line-height: 1.45; }
@@ -166,19 +155,6 @@
 .oak-image-selection-actions button { padding: .2rem .4rem; border: 0; background: transparent; color: var(--terminal-accent); font: 750 .55rem "Cascadia Mono", Consolas, monospace; cursor: pointer; }
 .oak-image-selection-actions button:disabled { opacity: .45; cursor: not-allowed; }
 .oak-image-selection-actions button:focus-visible { outline: 2px solid var(--terminal-accent); outline-offset: 2px; }
-.oak-image-auth-disclosure, .oak-image-analysis-status { margin: 0; color: var(--muted); font-size: .6rem; line-height: 1.5; }
-.oak-image-analysis-status { color: var(--terminal-accent); }
-.oak-image-intent-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .5rem; }
-.oak-image-intent-actions button {
-  min-height: 2.6rem;
-  padding: .5rem .7rem;
-  border: 1px solid var(--panel-border);
-  border-radius: .65rem;
-  color: var(--foreground);
-  background: var(--surface);
-  font: 800 .61rem "Cascadia Mono", Consolas, monospace;
-  line-height: 1.3;
-}
 .oak-image-intent-actions .oak-image-auth-action {
   border-color: color-mix(in srgb, var(--terminal-accent) 52%, var(--panel-border));
   color: var(--terminal-accent);

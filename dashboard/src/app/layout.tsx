@@ -13,19 +13,19 @@ import { headers } from "next/headers";
 import { detectServerLocaleFromCookie } from "@/lib/i18n";
 
 export const metadata: Metadata = {
-  title: "ROBOT SLTP Pro — OAK Gatekeeper",
+  title: "OAK Gatekeeper — H1 Live & Tools",
   description: "OAK Gatekeeper trading command system for Engine 5 market signals, broker-aligned evidence, and private signal access.",
   metadataBase: new URL(SITE_URL),
   openGraph: {
     type: "website",
     siteName: "OAK Gatekeeper",
-    title: "ROBOT SLTP Pro — OAK Gatekeeper",
+    title: "OAK Gatekeeper — H1 Live & Tools",
     description: "Trading signals, transparent evidence and NeoTech account analytics.",
     images: [OAK_SHARE_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
-    title: "ROBOT SLTP Pro — OAK Gatekeeper",
+    title: "OAK Gatekeeper — H1 Live & Tools",
     description: "Trading signals, transparent evidence and NeoTech account analytics.",
     images: [OAK_SHARE_IMAGE],
   },

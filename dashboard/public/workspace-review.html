@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>OAK · Workspace review</title>
+<style>
+:root{color-scheme:dark;font:14px system-ui;background:#031325;color:#dcefff}body{margin:0;padding:16px}header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:16px}h1{font-size:18px;margin:0}label{display:flex;gap:8px;align-items:center}select,button{font:inherit;color:inherit;background:#102c49;border:1px solid #49718e;border-radius:6px;padding:10px}#stage{display:grid;grid-template-columns:repeat(3,max-content);gap:16px;align-items:start}article{min-width:0}h2{font-size:14px;margin:0 0 8px}iframe{display:block;width:393px;height:820px;border:1px solid #49718e;border-radius:8px;background:#031325}#stage[data-width="desktop"]{grid-template-columns:max-content}#stage[data-width="desktop"] iframe{width:1100px}#stage[data-width="small"] iframe{width:320px}#stage[data-width="tablet"]{grid-template-columns:repeat(2,max-content)}#stage[data-width="tablet"] iframe{width:768px}
+</style></head><body><header><h1>OAK · Kiểm tra 6 màn</h1><label>Khung nhìn <select id="width"><option value="phone">iPhone · 393 px</option><option value="small">Mobile · 320 px</option><option value="tablet">Tablet · 768 px</option><option value="desktop">Desktop · 1100 px</option></select></label><p>Trang thật trong khung responsive. Dùng dữ liệu hiện có.</p></header>
+<main id="stage" data-width="phone">
+<article><h2>01 · H1 Live</h2><iframe title="H1 Live" src="/engine"></iframe></article>
+<article><h2>02 · History</h2><iframe title="History" src="/history"></iframe></article>
+<article><h2>03 · Công cụ</h2><iframe title="Tools" src="/tools"></iframe></article>
+<article><h2>04 · Xác thực</h2><iframe title="Fact Check" src="/factcheck"></iframe></article>
+<article><h2>05 · Tarot</h2><iframe title="Tarot" src="/tarot"></iframe></article>
+<article><h2>06 · Khám phá</h2><iframe title="Discover" src="/discover"></iframe></article>
+</main><script>document.getElementById("width").addEventListener("change",event=>{document.getElementById("stage").dataset.width=event.target.value;});</script></body></html>

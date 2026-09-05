@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Corrected six-workspace concept parity after browser and iPhone screenshot review: direct mobile navigation with OAK branding, fixed tools-menu wrapping, horizontal illustrated tool banners, compact Tarot/Fact Check workbenches, Daily plus four Discover modules, one H1 header, bordered History calendar and inline pattern evidence. Replaced placeholder line artwork with a compressed illustration atlas and removed conflicting legacy styles. Added a noindex responsive review page for all six real routes.
+
 - Implemented the audited OAK workspace concept: navy theme surfaces, shared decorative vector artwork, a tools directory backed by the same navigation catalog, readable H1 entry/evidence panels and embedded History calendar. Fact Check now separates text/link and image input modes while preserving OCR and independent image-authenticity results; Tarot and all five Discover experiences retain their existing backend and local-storage behavior.
 
 - Refined the NeoTech concept presentation with a compressed cinematic mountain/metallic-N hero, reusable vector wordmark, larger criterion icons, compact 5/7/2 cards, readiness badge beside the criteria, colored session bars, balanced sample dashboard and compact feature/CTA footer. Connection tools remain available in an expandable section; official rule thresholds, session hours and pairing safeguards are preserved.

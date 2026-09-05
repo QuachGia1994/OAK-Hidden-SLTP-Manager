@@ -335,7 +335,7 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
   const manualCloseH16 = isManualCloseH16Day(day);
   const copy = locale === "EN"
     ? {
-        title: historyMode ? "H1 Broker History" : "H1 Live Blocks",
+        title: historyMode ? "H1 History" : "H1 Live",
         sub: historyMode ? "Retained local M15 pattern entries · choose a broker date to review" : "Current broker day · local ICMarkets M15 pattern entries",
         awaiting: "Awaiting local H1 feed",
         freeAccess: "All H1 entry-time cells unlocked",
@@ -344,7 +344,7 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
         coverage: `${allDates.length} trading days · ${earliestDate || "—"} → ${latestDate || "—"}`,
       }
     : {
-        title: historyMode ? "Lịch sử block H1" : "H1 Live",
+        title: historyMode ? "Lịch sử H1" : "H1 Live",
         sub: historyMode ? "Entry pattern M15 local đã lưu · chọn ngày broker để xem lại" : "Ngày broker hiện tại · entry pattern M15 ICMarkets local",
         awaiting: "Đang chờ feed H1 local",
         freeAccess: "Tất cả ô entry-time H1 đã được mở",
@@ -420,15 +420,16 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
     const fallbackDate = historyMode && selectedDate && selectedDate >= fallbackMinDate && selectedDate <= today ? selectedDate : today;
     const fallbackHours = activeH1ScanHoursForBrokerDate(fallbackDate, H1_SCAN_HOURS);
     return (
-      <section className="oak-h1-board">
+      <section className="oak-h1-board" data-mode={mode}>
         <header className="oak-h1-board-head">
-          <div><span className="oak-eyebrow">H1 / {historyMode ? "HISTORY" : "LIVE"}</span><h2>{copy.title}</h2><p>{copy.sub}</p></div>
+          <div><h2>{copy.title}</h2><p>{historyMode ? copy.sub : "MT5 ICMarkets · M15"}</p></div>
           <div className="oak-h1-meta">
-            <span><small>BROKER DAY</small><b>{fallbackDate}</b></span>
+            <span className="oak-access-pill" title={copy.freeAccess}>FREE ACCESS</span>
+            <span><small>{locale === "EN" ? "BROKER DAY" : "NGÀY BROKER"}</small><b>{fallbackDate}</b></span>
             <span><small>{historyMode ? (locale === "EN" ? "PHASE BASIS" : "CƠ SỞ PHA") : "STATUS"}</small><b>{historyMode ? (locale === "EN" ? "selected date" : "ngày đang chọn") : (locale === "EN" ? "current day" : "ngày hiện tại")}</b></span>
           </div>
         </header>
-        <div className="oak-h1-free-access"><b>FREE ACCESS</b><span>{copy.freeAccess}</span></div>
+
         {historyMode && <div className="oak-h1-history" data-empty="true">
           <div className="oak-h1-history-row">
             <span className="oak-h1-history-label">{copy.dateGroup}</span>
@@ -469,19 +470,20 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
 
   return (
     <>
-      <section className="oak-h1-board">
+      <section className="oak-h1-board" data-mode={mode}>
         <header className="oak-h1-board-head">
-          <div><span className="oak-eyebrow">H1 / {historyMode ? "HISTORY" : "LIVE"}</span><h2>{copy.title}</h2><p>{copy.sub}</p></div>
+          <div><h2>{copy.title}</h2><p>{historyMode ? copy.sub : "MT5 ICMarkets · M15"}</p></div>
           <div className="oak-h1-meta">
-            <span><small>BROKER DAY</small><b>{date || "—"}</b></span>
-            <span><small>UPDATED</small><b>{formatPublished(data.publishedAt, locale)}</b></span>
+            <span className="oak-access-pill" title={copy.freeAccess}>FREE ACCESS</span>
+            <span><small>{locale === "EN" ? "BROKER DAY" : "NGÀY BROKER"}</small><b>{date || "—"}</b></span>
+            <span><small>{locale === "EN" ? "UPDATED" : "CẬP NHẬT"}</small><b>{formatPublished(data.publishedAt, locale)} {!historyMode && " · ↻ 20s"}</b></span>
             <button type="button" className="oak-h1-share-png" onClick={() => void copyScannerPng()} disabled={!shareArtifact || shareBusy} aria-label={locale === "EN" ? "Copy H1 scanner PNG to clipboard" : "Copy ảnh PNG bảng H1 vào clipboard"} title={locale === "EN" ? "Copy PNG image to clipboard" : "Copy ảnh PNG vào clipboard để dán nơi khác"} data-copied={shareCopied ? "true" : undefined} data-failed={shareFailed ? "true" : undefined}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h9a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm-3 9H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2" /></svg>
               <b>{shareBusy ? "..." : shareCopied ? "COPIED" : shareFailed ? "FAILED" : "COPY PNG"}</b>
             </button>
           </div>
         </header>
-        <div className="oak-h1-free-access"><b>FREE ACCESS</b><span>{copy.freeAccess}</span></div>
+
         {historyMode && <div className="oak-h1-history">
           <div className="oak-h1-history-row">
             <span className="oak-h1-history-label">{copy.dateGroup}</span>
@@ -518,7 +520,7 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
           <div><b>H16 CLOSE</b><p>{locale === "EN" ? "XAUUSD H3 entry is H4. H16 uses the inverse of H14; CLOSE is advisory only and never closes positions automatically." : "XAUUSD block H3 có entry H4. H16 lấy tín hiệu đảo ngược H14; CLOSE chỉ là badge khuyến nghị và không tự đóng lệnh."}</p></div>
         </aside>}</>}
       </section>
-      <H1EvidencePanel selection={evidenceSelection} payload={data} locale={locale} onClose={() => setEvidenceSelection(null)} />
+      {evidenceSelection?.brokerDate === date ? <H1EvidencePanel variant="inline" selection={evidenceSelection} payload={data} locale={locale} onClose={() => setEvidenceSelection(null)} /> : <p className="oak-evidence-hint">▧ {locale === "EN" ? "Select a cell to inspect its pattern and chart" : "Chọn ô để xem pattern & chart"}</p>}
     </>
   );
 }

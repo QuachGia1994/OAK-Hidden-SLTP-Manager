@@ -227,9 +227,9 @@ function EvidenceChart({ bars, blockHour, entryHour }: { bars: H1SignalSampleBar
   );
 }
 
-export function H1EvidencePanel({ selection, payload, locale, onClose }: { selection: H1EvidenceSelection | null; payload: H1SignalPayload; locale: Locale; onClose: () => void }) {
+export function H1EvidencePanel({ selection, payload, locale, onClose, variant = "dialog" }: { variant?: "dialog" | "inline"; selection: H1EvidenceSelection | null; payload: H1SignalPayload; locale: Locale; onClose: () => void }) {
   const open = Boolean(selection);
-  const dialogRef = useDialogFocusTrap<HTMLElement>(open, onClose);
+  const dialogRef = useDialogFocusTrap<HTMLElement>(open && variant === "dialog", onClose);
   const [copied, setCopied] = useState(false);
   const copy = locale === "EN"
     ? { eyebrow: "PATTERN EVIDENCE", title: "H1 Cell Evidence", source: "Source symbol", family: "Original family", broker: "Broker date / time", pattern: "Pattern match", bars: "Pattern Evidence · newest → oldest", copy: "Copy chart", copied: "Chart copied" }
@@ -254,8 +254,8 @@ export function H1EvidencePanel({ selection, payload, locale, onClose }: { selec
   };
 
   return (
-    <div className="oak-modal-backdrop oak-h1-evidence-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section ref={dialogRef} className="oak-h1-evidence-panel" role="dialog" aria-modal="true" aria-label={`${copy.title} ${base} H${alert.slotHour}`} tabIndex={-1}>
+    <div className={variant === "inline" ? "oak-h1-evidence-inline" : "oak-modal-backdrop oak-h1-evidence-backdrop"} onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section ref={dialogRef} className="oak-h1-evidence-panel" role={variant === "dialog" ? "dialog" : "region"} aria-modal={variant === "dialog" ? true : undefined} aria-label={`${copy.title} ${base} H${alert.slotHour}`} tabIndex={-1}>
         <header className="oak-h1-evidence-head">
           <div><span className="oak-eyebrow">{copy.eyebrow}</span><h2>{base} · H{String(alert.slotHour).padStart(2, "0")}</h2><p>{copy.title}</p></div>
           <div className="oak-h1-evidence-actions"><button type="button" className="oak-h1-evidence-copy" onClick={() => void copyChart()} disabled={!orderedBars.length} aria-label={locale === "EN" ? "Copy M15 chart as PNG" : "Copy chart M15 dạng PNG"}>{copied ? copy.copied : copy.copy}</button><button type="button" className="oak-h1-evidence-close" onClick={onClose} aria-label={locale === "EN" ? "Close evidence" : "Đóng evidence"}>×</button></div>
@@ -284,8 +284,8 @@ export function H1EvidencePanel({ selection, payload, locale, onClose }: { selec
           <EvidenceChart bars={orderedBars} blockHour={alert.slotHour} entryHour={entryHour} />
         </div>
 
+        <details className="oak-h1-evidence-details" open={variant === "dialog"}><summary>{copy.bars} · {patternLabel(alert.pattern)}</summary>
         <div className="oak-h1-evidence-list">
-          <header><small>{copy.bars}</small><b>{patternLabel(alert.pattern)}</b></header>
           {orderedBars.length ? orderedBars.map((bar, index) => (
             <div key={`${bar.brokerDate}-${bar.brokerTime}-${index}`} data-selected={bar.selected ? "true" : "false"}>
               <span><b>{bar.brokerTime}</b><small>{bar.brokerDate}</small></span>
@@ -295,6 +295,7 @@ export function H1EvidencePanel({ selection, payload, locale, onClose }: { selec
             </div>
           )) : <p className="oak-h1-evidence-empty">{locale === "EN" ? "This retained row predates OHLC evidence storage." : "Cell lịch sử này có trước khi hệ thống lưu OHLC evidence."}</p>}
         </div>
+        </details>
       </section>
     </div>
   );

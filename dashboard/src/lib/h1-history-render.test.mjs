@@ -119,7 +119,7 @@ test("local pattern entry hour and BUY/SELL render in the matching H1 table cell
 
 test("H1 empty live state stays current-day only without history calendar", () => {
   const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data: null, degraded: true, locale: "VN", unlocked: true, mode: "live" }));
-  assert.match(markup, /H1 \/ LIVE/);
+  assert.match(markup, /data-mode="live"/);
   assert.match(markup, /ngày hiện tại/);
   assert.doesNotMatch(markup, /oak-h1-history/);
   assert.doesNotMatch(markup, /oak-h1-calendar-trigger/);
@@ -128,7 +128,7 @@ test("H1 empty live state stays current-day only without history calendar", () =
 
 test("H1 empty history state keeps the fallback calendar interactive", () => {
   const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data: null, degraded: true, locale: "VN", unlocked: true, mode: "history" }));
-  assert.match(markup, /H1 \/ HISTORY/);
+  assert.match(markup, /data-mode="history"/);
   assert.match(markup, /oak-h1-history/);
   assert.match(markup, /oak-h1-calendar-trigger/);
   assert.match(markup, /aria-haspopup="dialog"/);
