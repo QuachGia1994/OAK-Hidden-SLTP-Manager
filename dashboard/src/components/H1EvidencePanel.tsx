@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useDialogFocusTrap } from "@/hooks/useDialogFocusTrap";
+import { deliverPngBlob, type PngDeliveryResult } from "@/lib/png-delivery";
 import type { H1SignalAlert, H1SignalPayload, H1SignalSampleBar } from "@/lib/h1-signals";
 
 type Locale = "EN" | "VN";
@@ -230,10 +231,10 @@ function EvidenceChart({ bars, blockHour, entryHour }: { bars: H1SignalSampleBar
 export function H1EvidencePanel({ selection, payload, locale, onClose, variant = "dialog" }: { variant?: "dialog" | "inline"; selection: H1EvidenceSelection | null; payload: H1SignalPayload; locale: Locale; onClose: () => void }) {
   const open = Boolean(selection);
   const dialogRef = useDialogFocusTrap<HTMLElement>(open && variant === "dialog", onClose);
-  const [copied, setCopied] = useState(false);
+  const [delivery, setDelivery] = useState<PngDeliveryResult | "failed" | null>(null);
   const copy = locale === "EN"
-    ? { eyebrow: "PATTERN EVIDENCE", title: "H1 Cell Evidence", source: "Source symbol", family: "Original family", broker: "Broker date / time", pattern: "Pattern match", bars: "Pattern Evidence · newest → oldest", copy: "Copy chart", copied: "Chart copied" }
-    : { eyebrow: "PATTERN EVIDENCE", title: "Evidence ô H1", source: "Source symbol", family: "Family gốc", broker: "Ngày / giờ broker", pattern: "Pattern match", bars: "Pattern Evidence · mới → cũ", copy: "Copy chart", copied: "Đã copy chart" };
+    ? { eyebrow: "PATTERN EVIDENCE", title: "H1 Cell Evidence", source: "Source symbol", family: "Original family", broker: "Broker date / time", pattern: "Pattern match", bars: "Pattern Evidence · newest → oldest", copy: "Copy chart", copied: "Chart copied", shared: "Chart shared", saved: "Chart saved", cancelled: "Cancelled", failed: "Failed" }
+    : { eyebrow: "PATTERN EVIDENCE", title: "Evidence ô H1", source: "Source symbol", family: "Family gốc", broker: "Ngày / giờ broker", pattern: "Pattern match", bars: "Pattern Evidence · mới → cũ", copy: "Copy chart", copied: "Đã copy chart", shared: "Đã chia sẻ chart", saved: "Đã lưu chart", cancelled: "Đã hủy", failed: "Thất bại" };
   const orderedBars = useMemo(() => [...(selection?.alert.sampleBars ?? [])], [selection]);
   if (!selection) return null;
   const { base, brokerDate, alert } = selection;
@@ -241,15 +242,20 @@ export function H1EvidencePanel({ selection, payload, locale, onClose, variant =
   const facts = evidenceFacts(selection, payload);
 
   const copyChart = async () => {
+    setDelivery(null);
     try {
       const svg = dialogRef.current?.querySelector("svg.oak-h1-evidence-chart") as SVGSVGElement | null;
-      if (!svg || !orderedBars.length || typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) throw new Error("Image clipboard unavailable");
-      const png = renderEvidenceChartPng(svg, selection);
-      await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
+      if (!svg || !orderedBars.length) throw new Error("Chart unavailable");
+      const png = await renderEvidenceChartPng(svg, selection);
+      const result = await deliverPngBlob(png, {
+        fileName: `oak-h1-${base}-h${String(alert.slotHour).padStart(2, "0")}-${brokerDate}.png`,
+        title: `OAK H1 ${base} H${String(alert.slotHour).padStart(2, "0")}`,
+      });
+      setDelivery(result);
+      window.setTimeout(() => setDelivery(null), 1800);
     } catch {
-      setCopied(false);
+      setDelivery("failed");
+      window.setTimeout(() => setDelivery(null), 1800);
     }
   };
 
@@ -258,7 +264,7 @@ export function H1EvidencePanel({ selection, payload, locale, onClose, variant =
       <section ref={dialogRef} className="oak-h1-evidence-panel" role={variant === "dialog" ? "dialog" : "region"} aria-modal={variant === "dialog" ? true : undefined} aria-label={`${copy.title} ${base} H${alert.slotHour}`} tabIndex={-1}>
         <header className="oak-h1-evidence-head">
           <div><span className="oak-eyebrow">{copy.eyebrow}</span><h2>{base} · H{String(alert.slotHour).padStart(2, "0")}</h2><p>{copy.title}</p></div>
-          <div className="oak-h1-evidence-actions"><button type="button" className="oak-h1-evidence-copy" onClick={() => void copyChart()} disabled={!orderedBars.length} aria-label={locale === "EN" ? "Copy M15 chart as PNG" : "Copy chart M15 dạng PNG"}>{copied ? copy.copied : copy.copy}</button><button type="button" className="oak-h1-evidence-close" onClick={onClose} aria-label={locale === "EN" ? "Close evidence" : "Đóng evidence"}>×</button></div>
+          <div className="oak-h1-evidence-actions"><button type="button" className="oak-h1-evidence-copy" onClick={() => void copyChart()} disabled={!orderedBars.length} aria-label={locale === "EN" ? "Copy or share M15 chart as PNG" : "Copy hoặc chia sẻ chart M15 dạng PNG"}>{delivery === "copied" ? copy.copied : delivery === "shared" ? copy.shared : delivery === "downloaded" ? copy.saved : delivery === "cancelled" ? copy.cancelled : delivery === "failed" ? copy.failed : copy.copy}</button><button type="button" className="oak-h1-evidence-close" onClick={onClose} aria-label={locale === "EN" ? "Close evidence" : "Đóng evidence"}>×</button></div>
         </header>
 
         <div className="oak-h1-evidence-chips">

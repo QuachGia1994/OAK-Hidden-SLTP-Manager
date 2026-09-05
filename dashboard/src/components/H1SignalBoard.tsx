@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { H1EvidencePanel, type H1EvidenceSelection } from "@/components/H1EvidencePanel";
 import { historyDatesForWeekday, selectHistoryDate } from "@/lib/h1-history-navigation";
 import { activeH1ScanHoursForBrokerDate, H1_SCAN_HOURS, H1_TARGET_BASES } from "@/lib/h1-cloud-scanner";
+import { deliverPngBlob, type PngDeliveryResult } from "@/lib/png-delivery";
 import type { H1SignalAlert, H1SignalDay, H1SignalPayload } from "@/lib/h1-signals";
 
 type Locale = "EN" | "VN";
@@ -325,8 +326,7 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
   const [evidenceSelection, setEvidenceSelection] = useState<H1EvidenceSelection | null>(null);
   const [shareArtifact, setShareArtifact] = useState<ShareArtifact | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
-  const [shareCopied, setShareCopied] = useState(false);
-  const [shareFailed, setShareFailed] = useState(false);
+  const [shareOutcome, setShareOutcome] = useState<PngDeliveryResult | "failed" | null>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const hasData = Boolean(data);
   const allDates = data ? historyDatesForWeekday(data.days, "all") : [];
@@ -389,20 +389,17 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
   const copyScannerPng = async () => {
     if (!shareArtifact || shareBusy) return;
     setShareBusy(true);
-    setShareFailed(false);
+    setShareOutcome(null);
     try {
-      if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
-        throw new Error("Image clipboard is unavailable");
-      }
-      await navigator.clipboard.write([
-        new ClipboardItem({ "image/png": shareArtifact.blob }),
-      ]);
-      setShareCopied(true);
-      window.setTimeout(() => setShareCopied(false), 1600);
+      const result = await deliverPngBlob(shareArtifact.blob, {
+        fileName: `oak-h1-${shareArtifact.date}.png`,
+        title: locale === "EN" ? "OAK H1 scanner" : "OAK H1 scanner",
+      });
+      setShareOutcome(result);
+      window.setTimeout(() => setShareOutcome(null), 1800);
     } catch {
-      setShareCopied(false);
-      setShareFailed(true);
-      window.setTimeout(() => setShareFailed(false), 1800);
+      setShareOutcome("failed");
+      window.setTimeout(() => setShareOutcome(null), 1800);
     } finally {
       setShareBusy(false);
     }
@@ -479,9 +476,9 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
             <span className="oak-access-pill" title={copy.freeAccess}>FREE ACCESS</span>
             <span><small>{locale === "EN" ? "BROKER DAY" : "NGÀY BROKER"}</small><b>{date || "—"}</b></span>
             <span><small>{locale === "EN" ? "UPDATED" : "CẬP NHẬT"}</small><b>{formatPublished(data.publishedAt, locale)} {!historyMode && " · ↻ 20s"}</b></span>
-            <button type="button" className="oak-h1-share-png" onClick={() => void copyScannerPng()} disabled={!shareArtifact || shareBusy} aria-label={locale === "EN" ? "Copy H1 scanner PNG to clipboard" : "Copy ảnh PNG bảng H1 vào clipboard"} title={locale === "EN" ? "Copy PNG image to clipboard" : "Copy ảnh PNG vào clipboard để dán nơi khác"} data-copied={shareCopied ? "true" : undefined} data-failed={shareFailed ? "true" : undefined}>
+            <button type="button" className="oak-h1-share-png" onClick={() => void copyScannerPng()} disabled={!shareArtifact || shareBusy} aria-label={locale === "EN" ? "Copy or share H1 scanner PNG" : "Copy hoặc chia sẻ ảnh PNG bảng H1"} title={locale === "EN" ? "Copy PNG; on unsupported Android browsers open the native share sheet" : "Copy PNG; nếu browser Android không hỗ trợ sẽ mở bảng chia sẻ hệ thống"} data-copied={shareOutcome === "copied" ? "true" : undefined} data-failed={shareOutcome === "failed" ? "true" : undefined}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h9a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm-3 9H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2" /></svg>
-              <b>{shareBusy ? "..." : shareCopied ? "COPIED" : shareFailed ? "FAILED" : "COPY PNG"}</b>
+              <b>{shareBusy ? "..." : shareOutcome === "copied" ? "COPIED" : shareOutcome === "shared" ? "SHARED" : shareOutcome === "downloaded" ? "SAVED" : shareOutcome === "cancelled" ? "CANCELLED" : shareOutcome === "failed" ? "FAILED" : "COPY PNG"}</b>
             </button>
           </div>
         </header>

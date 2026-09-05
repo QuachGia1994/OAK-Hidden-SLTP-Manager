@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed web H1 PNG delivery on Firefox/Android and other browsers that reject `image/png` Clipboard API writes. `COPY PNG` and Evidence `Copy chart` now share one delivery path: try image clipboard first, then the native Web Share sheet with a PNG file, then a download fallback. UI reports `COPIED`, `SHARED`, `SAVED`, `CANCELLED`, or `FAILED` instead of treating unsupported image clipboard as an immediate failure; H1 rendering/signal logic is unchanged.
+
 - Corrected six-workspace concept parity after browser and iPhone screenshot review: direct mobile navigation with OAK branding, fixed tools-menu wrapping, horizontal illustrated tool banners, compact Tarot/Fact Check workbenches, Daily plus four Discover modules, one H1 header, bordered History calendar and inline pattern evidence. Replaced placeholder line artwork with a compressed illustration atlas and removed conflicting legacy styles. Added a noindex responsive review page for all six real routes.
 
 - Implemented the audited OAK workspace concept: navy theme surfaces, shared decorative vector artwork, a tools directory backed by the same navigation catalog, readable H1 entry/evidence panels and embedded History calendar. Fact Check now separates text/link and image input modes while preserving OCR and independent image-authenticity results; Tarot and all five Discover experiences retain their existing backend and local-storage behavior.

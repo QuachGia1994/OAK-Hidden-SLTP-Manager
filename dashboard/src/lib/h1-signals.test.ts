@@ -10,6 +10,7 @@ const vipSource = readFileSync(new URL("./vip.ts", import.meta.url), "utf8");
 const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.meta.url), "utf8");
 const historyPageSource = readFileSync(new URL("../app/history/page.tsx", import.meta.url), "utf8");
 const evidencePanelSource = readFileSync(new URL("../components/H1EvidencePanel.tsx", import.meta.url), "utf8");
+const pngDeliverySource = readFileSync(new URL("./png-delivery.ts", import.meta.url), "utf8");
 const rootPageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const navBarSource = readFileSync(new URL("../components/NavBar.tsx", import.meta.url), "utf8");
 const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
@@ -478,14 +479,20 @@ test("engine web surface is local-H1-only with the compact command header", () =
   assert.doesNotMatch(engineBoardSource, /UNLOCK SIGNALS/);
 });
 
-test("H1 board exports interoperable PNG clipboard data and native share fallbacks", () => {
+test("H1 board exports interoperable PNG with clipboard, Android share-sheet and download fallbacks", () => {
   assert.match(boardSource, /oak-h1-share-png/);
   assert.match(boardSource, /document\.createElement\("canvas"\)/);
   assert.match(boardSource, /canvas\.toBlob/);
   assert.match(boardSource, /H1_SHARE_SCALE = 2/);
-  assert.match(boardSource, /navigator\.clipboard\?\.write/);
-  assert.match(boardSource, /new ClipboardItem\(\{ "image\/png": shareArtifact\.blob \}\)/);
-  assert.doesNotMatch(boardSource, /navigator\.share\(|navigator\.canShare|anchor\.download|downloadPng/);
+  assert.match(boardSource, /deliverPngBlob/);
+  assert.match(boardSource, /SHARED/);
+  assert.match(boardSource, /SAVED/);
+  assert.match(pngDeliverySource, /navigator\.clipboard\?\.write/);
+  assert.match(pngDeliverySource, /new ClipboardItem\(\{ "image\/png": blob \}\)/);
+  assert.match(pngDeliverySource, /navigator\.share/);
+  assert.match(pngDeliverySource, /navigator\.canShare/);
+  assert.match(pngDeliverySource, /anchor\.download = options\.fileName/);
+  assert.match(pngDeliverySource, /AbortError/);
   assert.match(nativeH1BoardSource, /copySchedulePNG/);
   assert.match(nativeH1BoardSource, /shareSchedulePNG/);
   assert.match(nativeH1BoardSource, /private struct ScheduleExportMatrix/);
@@ -543,8 +550,9 @@ test("populated H1 cells open deterministic M15 pattern evidence without clutter
   assert.match(evidencePanelSource, /Pattern Evidence · newest → oldest/);
   assert.match(evidencePanelSource, /copy: "Copy chart"/);
   assert.match(evidencePanelSource, /renderEvidenceChartPng/);
-  assert.match(evidencePanelSource, /navigator\.clipboard\.write/);
-  assert.match(evidencePanelSource, /new ClipboardItem\(\{ "image\/png": png \}\)/);
+  assert.match(evidencePanelSource, /deliverPngBlob/);
+  assert.match(evidencePanelSource, /delivery === "shared"/);
+  assert.match(evidencePanelSource, /delivery === "downloaded"/);
   assert.match(evidencePanelSource, /canvas\.toBlob/);
   assert.doesNotMatch(evidencePanelSource, /Copy evidence|navigator\.clipboard\.writeText|evidenceText\(/);
   assert.match(evidencePanelSource, /BLOCK H/);
