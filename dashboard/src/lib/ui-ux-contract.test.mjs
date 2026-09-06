@@ -204,3 +204,22 @@ test("light theme keeps strong text, borders and opaque H1 surfaces over the des
   assert.match(oakCss, /:root:not\(\.dark\):not\(\.contrast\) \.oak-h1-table tbody td/);
   assert.match(oakCss, /:root:not\(\.dark\):not\(\.contrast\) \.oak-h1-calendar-picker/);
 });
+
+test("NeoTech consumes the global semantic theme tokens instead of fixed dark and light islands", () => {
+  const neoCss = readFileSync(new URL("../app/neotech/neotech.module.css", import.meta.url), "utf8");
+  assert.match(neoCss, /--nt-canvas: var\(--oak-bg-canvas\)/);
+  assert.match(neoCss, /--nt-surface: var\(--oak-bg-surface\)/);
+  assert.match(neoCss, /--nt-border: var\(--oak-border-subtle\)/);
+  assert.match(neoCss, /--nt-text: var\(--oak-fg-primary\)/);
+  assert.match(neoCss, /--nt-muted: var\(--oak-fg-muted\)/);
+  assert.match(neoCss, /--nt-blue: var\(--oak-accent-command\)/);
+  assert.match(neoCss, /\.heroV2 \{[^}]*border: 1px solid var\(--nt-border\);[^}]*background: var\(--nt-surface\)/);
+  assert.match(neoCss, /\.rulesetV2 \{[^}]*background: var\(--nt-surface\)/);
+  assert.match(neoCss, /\.ruleConceptCard \{[^}]*background: var\(--nt-raised\)/);
+  assert.match(neoCss, /\.demoCard \{[^}]*background: var\(--oak-bg-surface\);[^}]*color: var\(--oak-fg-primary\)/);
+  assert.match(neoCss, /\.demoFacts div \{[^}]*background: var\(--oak-bg-raised\)/);
+  assert.match(neoCss, /\.demoDonut::after \{[^}]*background: var\(--oak-bg-surface\)/);
+  assert.match(neoCss, /\.bottomShowcase \{[^}]*background: var\(--oak-bg-canvas\)/);
+  assert.doesNotMatch(neoCss, /#f5f9ff|#eaf1f9|#0b1b32|#14233a|#51647e|#ced8e6/);
+  assert.doesNotMatch(neoTechSource, /fill=\"#[0-9a-fA-F]{6}\"/);
+});

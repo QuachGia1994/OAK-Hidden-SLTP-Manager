@@ -126,7 +126,7 @@ function RuleIcon({ code }: { code: NeoTechPublicRuleCode }) {
 }
 
 function NeoTechMark() {
-  return <svg className={styles.neoMark} viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M5 40 17 8h9L14 40Z" fill="#559bff" /><path d="M17 8h9l7 25-9 7Z" fill="#68c7ff" /><path d="M24 40 36 8h9L33 40Z" fill="#8be4ff" /></svg>;
+  return <svg className={styles.neoMark} viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M5 40 17 8h9L14 40Z" fill="var(--oak-accent-command-strong)" /><path d="M17 8h9l7 25-9 7Z" fill="var(--oak-accent-command)" /><path d="M24 40 36 8h9L33 40Z" fill="color-mix(in srgb, var(--oak-accent-command) 58%, var(--oak-fg-primary))" /></svg>;
 }
 
 function RuleConceptCard({ item, liveRule, locale }: { item: RuleConcept; liveRule?: NeoTechPublicRule; locale: Locale }) {
