@@ -17,6 +17,9 @@ const layoutSource = readFileSync(new URL("../app/layout.tsx", import.meta.url),
 const spatialSource = readFileSync(new URL("../components/SpatialHudCanvas.tsx", import.meta.url), "utf8");
 const breadcrumbSource = readFileSync(new URL("../components/RouteBreadcrumbs.tsx", import.meta.url), "utf8");
 const historyPageSource = readFileSync(new URL("../app/history/page.tsx", import.meta.url), "utf8");
+const historyClientSource = readFileSync(new URL("../app/history/HistoryClient.tsx", import.meta.url), "utf8");
+const toolsPageSource = readFileSync(new URL("../app/tools/page.tsx", import.meta.url), "utf8");
+const toolsClientSource = readFileSync(new URL("../app/tools/ToolsClient.tsx", import.meta.url), "utf8");
 const tarotSource = readFileSync(new URL("../components/tarot/TarotExperience.tsx", import.meta.url), "utf8");
 
 test("mobile keeps locale reachable and exposes four direct navigation tabs", () => {
@@ -48,6 +51,11 @@ test("provider account UI follows the global EN/VN locale", () => {
 });
 
 test("H1 live stays latest-day only while History owns Sunday-first date navigation", () => {
+  assert.match(h1EngineSource, /useLocale\(\)/);
+  assert.match(h1EngineSource, /locale: serverLocale/);
+  assert.match(h1EngineSource, /const \{ locale: liveLocale \} = useLocale\(\)/);
+  assert.match(h1EngineSource, /<WorkspaceHeading workspace="live" locale=\{locale\} \/>/);
+  assert.match(h1EngineSource, /<H1SignalBoard data=\{h1Data\} degraded=\{degraded\} locale=\{locale\} mode="live" \/>/);
   assert.match(h1SignalSource, /function SundayCalendarPicker/);
   assert.match(h1SignalSource, /\[\"SUN\", \"MON\", \"TUE\", \"WED\", \"THU\", \"FRI\", \"SAT\"\]/);
   assert.match(h1SignalSource, /\[\"CN\", \"T2\", \"T3\", \"T4\", \"T5\", \"T6\", \"T7\"\]/);
@@ -55,9 +63,28 @@ test("H1 live stays latest-day only while History owns Sunday-first date navigat
   assert.match(h1SignalSource, /historyMode \? selectHistoryDate\(data\.days, "all", selectedDate\) : latestDate/);
   assert.match(h1SignalSource, /\{historyMode && <div className="oak-h1-history"/);
   assert.match(h1EngineSource, /mode="live"/);
-  assert.match(historyPageSource, /mode="history"/);
+  assert.match(historyPageSource, /<HistoryClient/);
+  assert.match(historyClientSource, /mode="history"/);
   assert.doesNotMatch(h1SignalSource, /type=\"date\"|HISTORY_FILTERS|weekdayFilter|oak-h1-history-options|Lọc theo thứ|Filter by weekday/);
   assert.doesNotMatch(enginePageSource, /DashboardAutoRefresh|router\.refresh/);
+});
+
+test("primary History and Tools tabs follow LocaleProvider immediately without waiting for F5", () => {
+  assert.match(historyClientSource, /useLocale\(\)/);
+  assert.match(historyClientSource, /locale: serverLocale/);
+  assert.match(historyClientSource, /const \{ locale: liveLocale \} = useLocale\(\)/);
+  assert.match(historyClientSource, /<WorkspaceHeading workspace="history" locale=\{locale\} \/>/);
+  assert.match(historyClientSource, /<H1SignalBoard data=\{data\} degraded=\{degraded\} locale=\{locale\} mode="history" \/>/);
+  assert.match(historyPageSource, /<HistoryClient data=\{read\.ok \? read\.data : null\} degraded=\{read\.ok === false\} locale=\{locale\} \/>/);
+
+  assert.match(toolsClientSource, /useLocale\(\)/);
+  assert.match(toolsClientSource, /locale: serverLocale/);
+  assert.match(toolsClientSource, /const \{ locale: liveLocale \} = useLocale\(\)/);
+  assert.match(toolsClientSource, /<WorkspaceHeading workspace="tools" locale=\{locale\} \/>/);
+  assert.match(toolsClientSource, /tool\.name\[locale\]/);
+  assert.match(toolsClientSource, /tool\.detail\[locale\]/);
+  assert.match(toolsPageSource, /generateMetadata/);
+  assert.match(toolsPageSource, /<ToolsClient locale=\{locale\} \/>/);
 });
 
 test("H1 entry cells stay centered, expose mobile scroll affordance and table header relationships", () => {
@@ -131,7 +158,8 @@ test("desktop spatial grid uses a stronger two-scale perspective plane without r
 test("history route is restored to primary navigation and nested routes keep skip/breadcrumb context", () => {
   assert.match(navSource, /href="\/history"/);
   assert.match(historyPageSource, /readLatestH1Signals/);
-  assert.match(historyPageSource, /<H1SignalBoard/);
+  assert.match(historyPageSource, /<HistoryClient/);
+  assert.match(historyClientSource, /<H1SignalBoard/);
   assert.match(layoutSource, /oak-skip-link/);
   assert.match(layoutSource, /id="main-content"/);
   assert.match(layoutSource, /<RouteBreadcrumbs \/>/);
