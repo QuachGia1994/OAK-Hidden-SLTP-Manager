@@ -6,11 +6,12 @@ import { WorkspaceHeading } from "@/components/WorkspaceHeading";
 import { ToolArtwork } from "@/components/ToolArtwork";
 import { TarotCard } from "@/components/tarot/TarotCard";
 import { TAROT_COPY } from "@/lib/tarot/locale-copy";
-import type { TarotApiResponse, TarotCardDraw, TarotInterpretation, TarotSpread } from "@/lib/tarot/types";
+import { TAROT_DOMAINS, type TarotApiResponse, type TarotCardDraw, type TarotDomain, type TarotInterpretation, type TarotSpread } from "@/lib/tarot/types";
 
 interface DisplayResult {
   cards: TarotCardDraw[];
   spread: TarotSpread;
+  domain: TarotDomain;
   reading?: TarotInterpretation;
 }
 
@@ -18,6 +19,7 @@ export function TarotExperience() {
   const { locale } = useLocale();
   const copy = TAROT_COPY[locale];
   const [question, setQuestion] = useState("");
+  const [domain, setDomain] = useState<TarotDomain>("personal");
   const [spread, setSpread] = useState<TarotSpread>("three");
   const [loading, setLoading] = useState(false);
   const [errorCode, setErrorCode] = useState<string | null>(null);
@@ -40,17 +42,17 @@ export function TarotExperience() {
       const response = await fetch("/api/tarot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, spread, locale }),
+        body: JSON.stringify({ question, spread, domain, locale }),
       });
       const payload = await response.json() as TarotApiResponse;
 
       if (!payload.ok) {
-        if (payload.cards?.length) setResult({ cards: payload.cards, spread });
+        if (payload.cards?.length) setResult({ cards: payload.cards, spread, domain });
         setErrorCode(payload.code || "AI_RESPONSE_ERROR");
         return;
       }
 
-      setResult({ cards: payload.cards, spread, reading: payload.reading });
+      setResult({ cards: payload.cards, spread, domain, reading: payload.reading });
     } catch (error) {
       console.error("Tarot request failed:", error instanceof Error ? error.name : "unknown");
       setErrorCode("NETWORK_ERROR");
@@ -86,7 +88,24 @@ export function TarotExperience() {
           </div>
 
           <fieldset>
-            <legend className="sr-only">{copy.spreadLabel}</legend>
+            <legend>{copy.domainLabel}</legend>
+            <div className="tarot-domain-options">
+              {TAROT_DOMAINS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={domain === option}
+                  onClick={() => setDomain(option)}
+                  disabled={loading}
+                >
+                  {copy.domain[option]}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>{copy.spreadLabel}</legend>
             <div className="tarot-spread-options">
               {(["one", "three"] as const).map((option) => (
                 <button
@@ -97,7 +116,7 @@ export function TarotExperience() {
                   disabled={loading}
                 >
                   <b>{copy.spread[option].title}</b>
-                  <span className="sr-only">{copy.spread[option].detail}</span>
+                  <span className="tarot-option-detail">{copy.spread[option].detail}</span>
                 </button>
               ))}
             </div>
@@ -138,7 +157,7 @@ export function TarotExperience() {
           <header>
             <div>
               <p className="terminal-kicker">{copy.resultTitle}</p>
-              <h2>{copy.spread[result.spread].detail}</h2>
+              <h2>{copy.domain[result.domain]} · {copy.spread[result.spread].detail}</h2>
             </div>
             <button type="button" onClick={resetReading}>{copy.newReading}</button>
           </header>

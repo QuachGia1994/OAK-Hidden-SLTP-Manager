@@ -30,6 +30,10 @@ export const MEDIA_PRESENTATION_TEXT = {
     noVisual: "Không có quan sát thị giác cụ thể để hiển thị.",
     noDetectors: "Không có detector chuyên biệt khả dụng trong lần phân tích này.",
     noTechnicalSignals: "Không có tín hiệu metadata/container bổ sung.",
+    evidenceLayers: "Các lớp bằng chứng",
+    metadataContainer: "Metadata / container",
+    checked: "Đã kiểm tra",
+    singleDetectorCaution: "Không có detector đơn lẻ nào chứng minh ảnh là thật hay do AI tạo. Kết luận được tổng hợp từ nhiều lớp bằng chứng và có thể vẫn chưa đủ kết luận.",
     noProbability: "OAK không hiển thị phần trăm AI. Các mức weak/moderate/strong mô tả độ mạnh của bằng chứng, không phải xác suất.",
     originStatus: {
       verified_algorithmic: "Nguồn AI đã xác minh bằng provenance",
@@ -92,6 +96,10 @@ export const MEDIA_PRESENTATION_TEXT = {
     noVisual: "No specific visual observations are available to display.",
     noDetectors: "No specialist detector was available for this analysis.",
     noTechnicalSignals: "No additional metadata/container signals were recorded.",
+    evidenceLayers: "Evidence layers",
+    metadataContainer: "Metadata / container",
+    checked: "Checked",
+    singleDetectorCaution: "No single detector can prove that an image is real or AI-generated. The result combines multiple evidence layers and may remain inconclusive.",
     noProbability: "OAK does not display an AI percentage. Weak/moderate/strong describe evidence strength, not probability.",
     originStatus: {
       verified_algorithmic: "AI origin verified by provenance",

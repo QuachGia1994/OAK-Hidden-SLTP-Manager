@@ -162,6 +162,11 @@
 }
 .oak-image-intent-actions button:disabled { opacity: .45; cursor: not-allowed; }
 .oak-image-intent-actions button:focus-visible { outline: 2px solid var(--terminal-accent); outline-offset: 2px; }
+.oak-image-evidence-method { display: grid; gap: .5rem; margin-top: .75rem; padding: .75rem; border: 1px solid var(--panel-border); border-radius: .8rem; background: var(--surface-raised); }
+.oak-image-evidence-method > small, .oak-media-evidence-layers > small { color: var(--muted); font: 800 .55rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.oak-image-evidence-list { display: flex; flex-wrap: wrap; gap: .35rem; }
+.oak-image-evidence-list span { padding: .28rem .45rem; border: 1px solid var(--panel-border); border-radius: 999px; color: var(--foreground); background: var(--surface); font-size: .6rem; }
+.oak-image-evidence-method > p { margin: 0; color: var(--muted); font-size: .65rem; line-height: 1.5; }
 
 .oak-media-results { --oak-media-color: var(--muted); }
 .oak-media-evidence-report { display: grid; gap: .75rem; }
@@ -174,6 +179,12 @@
 .oak-media-verdict-badge[data-media-tone="warning"] { color: var(--terminal-warning); }
 .oak-media-verdict-badge[data-media-tone="neutral"] { color: var(--muted); }
 .oak-media-confidence-note { margin-top: .55rem; color: var(--muted); font-size: .62rem; line-height: 1.5; }
+.oak-media-evidence-layers { display: grid; gap: .55rem; padding: .8rem .95rem; border: 1px solid var(--panel-border); border-radius: .85rem; background: var(--surface); }
+.oak-media-evidence-layers > div { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .45rem; }
+.oak-media-evidence-layers article { display: grid; gap: .2rem; min-width: 0; padding: .55rem .6rem; border: 1px solid var(--panel-border); border-radius: .65rem; background: var(--surface-raised); }
+.oak-media-evidence-layers article b { overflow-wrap: anywhere; font-size: .62rem; line-height: 1.35; }
+.oak-media-evidence-layers article span { color: var(--muted); font-size: .56rem; }
+.oak-media-evidence-layers > p { margin: 0; color: var(--muted); font-size: .64rem; line-height: 1.5; }
 .oak-media-assessment-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .55rem; padding: .75rem; }
 .oak-media-assessment-card { display: grid; gap: .35rem; min-width: 0; padding: .8rem; border: 1px solid var(--panel-border); border-radius: .72rem; background: var(--surface-raised); }
 .oak-media-assessment-card small { color: var(--muted); font: 750 .5rem "Cascadia Mono", Consolas, monospace; letter-spacing: .06em; text-transform: uppercase; }
@@ -227,6 +238,7 @@
     width: 100%;
   }
   .oak-image-intent-actions,
+  .oak-media-evidence-layers > div,
   .oak-media-assessment-grid,
   .oak-media-technical { grid-template-columns: 1fr; }
   .oak-media-status-panel > div { display: grid; gap: .25rem; }

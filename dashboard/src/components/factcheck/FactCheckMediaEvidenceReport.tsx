@@ -55,6 +55,17 @@ export function FactCheckMediaEvidenceReport({
       tone: manipulationTone(result.assessments.manipulation.status),
     },
   ];
+  const specialistStatus = result.specialistDetectors.length
+    ? t.present
+    : result.evidenceSources.forensics === "available"
+      ? t.absent
+      : t.sourceStatus[result.evidenceSources.forensics];
+  const evidenceLayers = [
+    { key: "provenance", label: t.provenance, status: t.provenanceStatus[result.provenance.status] },
+    { key: "metadata", label: t.metadataContainer, status: t.checked },
+    { key: "gemini", label: t.sourceName.gemini, status: t.sourceStatus[result.evidenceSources.gemini] },
+    { key: "specialist", label: t.detectors, status: specialistStatus },
+  ];
 
   return (
     <div className="oak-media-evidence-report">
@@ -68,6 +79,14 @@ export function FactCheckMediaEvidenceReport({
           <p className="oak-model-line">{formatCheckedAt(result.checkedAt, locale)} · {result.model}</p>
           <p className="oak-media-confidence-note">{t.noProbability}</p>
         </div>
+      </section>
+
+      <section className="oak-media-evidence-layers" aria-label={t.evidenceLayers}>
+        <small>{t.evidenceLayers}</small>
+        <div>
+          {evidenceLayers.map((layer) => <article key={layer.key}><b>{layer.label}</b><span>{layer.status}</span></article>)}
+        </div>
+        <p>{t.singleDetectorCaution}</p>
       </section>
 
       <section className="oak-media-section" aria-labelledby="oak-media-assessments-heading">

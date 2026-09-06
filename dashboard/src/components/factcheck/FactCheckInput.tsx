@@ -178,6 +178,11 @@ export function FactCheckInput({
         </div>
       )}
 
+      <aside className="oak-image-evidence-method" aria-label={t.imageEvidenceLayers}>
+        <small>{t.imageEvidenceLayers}</small>
+        <div className="oak-image-evidence-list">{t.imageEvidenceItems.map((item) => <span key={item}>{item}</span>)}</div>
+        <p>{t.imageAuthenticityCaution}</p>
+      </aside>
       </div>
       {(ocrError || imageError) && <p className="oak-form-error">{ocrError || imageError}</p>}
 

@@ -1,9 +1,9 @@
-import type { TarotLocale, TarotSpread } from "./types";
+import { TAROT_DOMAINS, type TarotDomain, type TarotLocale, type TarotSpread } from "./types.ts";
 
-export type TarotInputErrorCode = "INVALID_REQUEST" | "QUESTION_REQUIRED" | "QUESTION_TOO_LONG" | "INVALID_SPREAD" | "INVALID_LOCALE";
+export type TarotInputErrorCode = "INVALID_REQUEST" | "QUESTION_REQUIRED" | "QUESTION_TOO_LONG" | "INVALID_SPREAD" | "INVALID_DOMAIN" | "INVALID_LOCALE";
 
 export type TarotInputResult =
-  | { ok: true; value: { question: string; spread: TarotSpread; locale: TarotLocale } }
+  | { ok: true; value: { question: string; spread: TarotSpread; domain: TarotDomain; locale: TarotLocale } }
   | { ok: false; code: TarotInputErrorCode; error: string };
 
 function normalizeQuestion(value: string): string {
@@ -31,12 +31,16 @@ export function parseTarotRequest(value: unknown): TarotInputResult {
   if (body.spread !== "one" && body.spread !== "three") {
     return { ok: false, code: "INVALID_SPREAD", error: "spread must be one or three" };
   }
+  const domain = body.domain === undefined ? "personal" : body.domain;
+  if (typeof domain !== "string" || !TAROT_DOMAINS.includes(domain as TarotDomain)) {
+    return { ok: false, code: "INVALID_DOMAIN", error: "domain is invalid" };
+  }
   if (body.locale !== "VN" && body.locale !== "EN") {
     return { ok: false, code: "INVALID_LOCALE", error: "locale must be VN or EN" };
   }
 
   return {
     ok: true,
-    value: { question, spread: body.spread, locale: body.locale },
+    value: { question, spread: body.spread, domain: domain as TarotDomain, locale: body.locale },
   };
 }

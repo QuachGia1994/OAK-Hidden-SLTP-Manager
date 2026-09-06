@@ -116,6 +116,16 @@ test("VN report localizes assessment states and never renders raw enum keys", ()
   }
 });
 
+test("report makes the multi-signal evidence method and uncertainty explicit", () => {
+  const en = render(FactCheckMediaEvidenceReport, { result: mediaResult(), locale: "EN", headingAs: "h2" });
+  for (const label of ["Evidence layers", "C2PA / provenance", "Metadata / container", "Gemini visual analysis", "Specialist detectors"]) assert.match(en, new RegExp(label.replace("/", "\\/")));
+  assert.match(en, /No single detector can prove that an image is real or AI-generated/);
+
+  const vn = render(FactCheckMediaEvidenceReport, { result: mediaResult({ locale: "VN" }), locale: "VN", headingAs: "h2" });
+  assert.match(vn, /Các lớp bằng chứng/);
+  assert.match(vn, /Không có detector đơn lẻ nào chứng minh ảnh là thật hay do AI tạo/);
+});
+
 test("advanced evidence is collapsed by default", () => {
   const html = render(FactCheckMediaEvidenceReport, { result: mediaResult(), locale: "EN", headingAs: "h2" });
   assert.match(html, /<details class="oak-media-advanced">/);

@@ -4,7 +4,7 @@ import { enforceServerRateLimit, readPositiveLimit } from "@/lib/server-rate-lim
 import { drawTarotCards } from "@/lib/tarot/deck";
 import { TarotGeminiHttpError, TAROT_MODEL, runGeminiTarot } from "@/lib/tarot/gemini";
 import { parseTarotRequest } from "@/lib/tarot/input";
-import type { TarotCardDraw } from "@/lib/tarot/types";
+import { TAROT_DOMAINS, type TarotCardDraw } from "@/lib/tarot/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,6 +54,7 @@ export async function GET(request: Request) {
     configured: Boolean(process.env.GEMINI_API_KEY),
     deckSize: 78,
     spreads: ["one", "three"],
+    domains: TAROT_DOMAINS,
   });
 }
 
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
 
   const cards = drawTarotCards(input.value.spread);
   try {
-    const reading = await runGeminiTarot(input.value.question, cards, input.value.locale, apiKey);
+    const reading = await runGeminiTarot(input.value.question, cards, input.value.domain, input.value.locale, apiKey);
     return NextResponse.json({
       ok: true,
       cards,

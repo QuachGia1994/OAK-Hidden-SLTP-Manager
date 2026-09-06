@@ -1,6 +1,8 @@
 import type { Locale } from "@/lib/i18n";
 
 export type TarotLocale = Locale;
+export const TAROT_DOMAINS = ["relationship", "career", "personal", "money", "study"] as const;
+export type TarotDomain = (typeof TAROT_DOMAINS)[number];
 export type TarotSpread = "one" | "three";
 export type TarotOrientation = "upright" | "reversed";
 export type TarotPosition = "focus" | "context" | "challenge" | "guidance";

@@ -66,15 +66,23 @@ test("server draw returns unique cards and the requested spread positions", () =
   }
 });
 
-test("request parsing normalizes Unicode and rejects invalid boundaries", () => {
-  const valid = parseTarotRequest({ question: "  Tôi   cần nhìn rõ điều gì?  ", spread: "three", locale: "VN" });
+test("request parsing normalizes Unicode, preserves domain and rejects invalid boundaries", () => {
+  const valid = parseTarotRequest({ question: "  Tôi   cần nhìn rõ điều gì?  ", spread: "three", domain: "career", locale: "VN" });
   assert.equal(valid.ok, true);
-  if (valid.ok) assert.equal(valid.value.question, "Tôi cần nhìn rõ điều gì?");
+  if (valid.ok) {
+    assert.equal(valid.value.question, "Tôi cần nhìn rõ điều gì?");
+    assert.equal(valid.value.domain, "career");
+  }
 
-  assert.deepEqual(parseTarotRequest({ question: "x", spread: "one", locale: "EN" }).ok, false);
-  assert.deepEqual(parseTarotRequest({ question: "Valid question", spread: "five", locale: "EN" }).ok, false);
-  assert.deepEqual(parseTarotRequest({ question: "Valid question", spread: "one", locale: "FR" }).ok, false);
-  assert.deepEqual(parseTarotRequest({ question: "a".repeat(501), spread: "one", locale: "EN" }).ok, false);
+  const compatible = parseTarotRequest({ question: "What should I focus on?", spread: "one", locale: "EN" });
+  assert.equal(compatible.ok, true);
+  if (compatible.ok) assert.equal(compatible.value.domain, "personal");
+
+  assert.deepEqual(parseTarotRequest({ question: "x", spread: "one", domain: "personal", locale: "EN" }).ok, false);
+  assert.deepEqual(parseTarotRequest({ question: "Valid question", spread: "five", domain: "personal", locale: "EN" }).ok, false);
+  assert.deepEqual(parseTarotRequest({ question: "Valid question", spread: "one", domain: "health", locale: "EN" }).ok, false);
+  assert.deepEqual(parseTarotRequest({ question: "Valid question", spread: "one", domain: "personal", locale: "FR" }).ok, false);
+  assert.deepEqual(parseTarotRequest({ question: "a".repeat(501), spread: "one", domain: "personal", locale: "EN" }).ok, false);
 });
 
 test("Gemini response parsing enforces every expected position", () => {

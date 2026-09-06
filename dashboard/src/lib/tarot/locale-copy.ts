@@ -1,4 +1,4 @@
-import type { TarotLocale, TarotPosition, TarotSpread } from "./types";
+import type { TarotDomain, TarotLocale, TarotPosition, TarotSpread } from "./types";
 
 export interface TarotCopy {
   kicker: string;
@@ -6,6 +6,8 @@ export interface TarotCopy {
   intro: string;
   questionLabel: string;
   questionPlaceholder: string;
+  domainLabel: string;
+  domain: Record<TarotDomain, string>;
   spreadLabel: string;
   spread: Record<TarotSpread, { title: string; detail: string }>;
   draw: string;
@@ -32,6 +34,8 @@ export const TAROT_COPY: Record<TarotLocale, TarotCopy> = {
     intro: "Đặt một câu hỏi rõ ràng. Trải bài giúp bạn nhìn lại bối cảnh và lựa chọn, không quyết định thay bạn.",
     questionLabel: "Câu hỏi của bạn",
     questionPlaceholder: "Điều gì tôi cần nhìn rõ trong tình huống này?",
+    domainLabel: "Chủ đề",
+    domain: { relationship: "Tình cảm", career: "Công việc", personal: "Cá nhân", money: "Tài chính", study: "Học tập" },
     spreadLabel: "Kiểu trải bài",
     spread: {
       one: { title: "1 lá", detail: "Thông điệp trọng tâm" },
@@ -60,6 +64,7 @@ export const TAROT_COPY: Record<TarotLocale, TarotCopy> = {
       QUESTION_REQUIRED: "Hãy nhập câu hỏi có ít nhất 3 ký tự.",
       QUESTION_TOO_LONG: "Câu hỏi quá dài. Giới hạn là 500 ký tự.",
       INVALID_SPREAD: "Kiểu trải bài không hợp lệ.",
+      INVALID_DOMAIN: "Chủ đề Tarot không hợp lệ.",
       INVALID_LOCALE: "Ngôn ngữ không hợp lệ.",
       INVALID_REQUEST: "Yêu cầu không hợp lệ. Hãy thử lại.",
       RATE_LIMITED: "Bạn gửi quá nhanh. Hãy thử lại sau một phút.",
@@ -80,6 +85,8 @@ export const TAROT_COPY: Record<TarotLocale, TarotCopy> = {
     intro: "Ask a clear question. The reading helps you examine context and choices; it does not decide for you.",
     questionLabel: "Your question",
     questionPlaceholder: "What do I need to see clearly in this situation?",
+    domainLabel: "Topic",
+    domain: { relationship: "Relationship", career: "Career", personal: "Personal", money: "Money", study: "Study" },
     spreadLabel: "Reading format",
     spread: {
       one: { title: "1 card", detail: "A focused message" },
@@ -108,6 +115,7 @@ export const TAROT_COPY: Record<TarotLocale, TarotCopy> = {
       QUESTION_REQUIRED: "Enter a question with at least 3 characters.",
       QUESTION_TOO_LONG: "Your question is too long. The limit is 500 characters.",
       INVALID_SPREAD: "The reading format is invalid.",
+      INVALID_DOMAIN: "The Tarot topic is invalid.",
       INVALID_LOCALE: "The language selection is invalid.",
       INVALID_REQUEST: "The request is invalid. Please try again.",
       RATE_LIMITED: "You are drawing too quickly. Try again in one minute.",

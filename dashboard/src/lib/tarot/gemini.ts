@@ -1,4 +1,4 @@
-import type { TarotCardDraw, TarotInterpretation, TarotLocale, TarotPosition } from "./types";
+import type { TarotCardDraw, TarotDomain, TarotInterpretation, TarotLocale, TarotPosition } from "./types";
 
 export const TAROT_MODEL = process.env.TAROT_MODEL || "gemini-3.5-flash-lite";
 
@@ -42,7 +42,7 @@ function systemPrompt(outputLanguage: "Vietnamese" | "English"): string {
   ].join(" ");
 }
 
-function requestBody(question: string, cards: TarotCardDraw[], locale: TarotLocale) {
+function requestBody(question: string, cards: TarotCardDraw[], domain: TarotDomain, locale: TarotLocale) {
   const outputLanguage = locale === "EN" ? "English" : "Vietnamese";
   const draw = cards.map((card) => ({
     id: card.id,
@@ -56,7 +56,7 @@ function requestBody(question: string, cards: TarotCardDraw[], locale: TarotLoca
     systemInstruction: { parts: [{ text: systemPrompt(outputLanguage) }] },
     contents: [{
       role: "user",
-      parts: [{ text: JSON.stringify({ user_question: question, draw }) }],
+      parts: [{ text: JSON.stringify({ user_question: question, domain, draw }) }],
     }],
     generationConfig: {
       temperature: 0.6,
@@ -108,6 +108,7 @@ export function parseTarotInterpretation(text: string, expectedPositions: TarotP
 export async function runGeminiTarot(
   question: string,
   cards: TarotCardDraw[],
+  domain: TarotDomain,
   locale: TarotLocale,
   apiKey: string,
 ): Promise<TarotInterpretation> {
@@ -115,7 +116,7 @@ export async function runGeminiTarot(
   const response = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: JSON.stringify(requestBody(question, cards, locale)),
+    body: JSON.stringify(requestBody(question, cards, domain, locale)),
     signal: AbortSignal.timeout(45000),
   });
   const payload = await response.json().catch(() => ({})) as GeminiResponse;

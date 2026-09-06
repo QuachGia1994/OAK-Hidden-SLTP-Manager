@@ -6,6 +6,8 @@ All notable changes to the dashboard are recorded here.
 
 ### Added
 
+- Expanded Tarot reflection with five question topics (relationship, career, personal, money and study). The selected topic is validated server-side, included in Gemini context, and shown with visible three-card position detail while legacy requests safely default to personal reflection.
+- Made Image Authenticity's multi-signal method explicit before and after analysis. The UI now surfaces C2PA/provenance, metadata/container, Gemini visual analysis and specialist-detector layers, and states that no single detector proves an image real or AI-generated.
 - Added click-through H1 pattern evidence for populated Live/History cells. The evidence panel uses the exact retained local ICMarkets M15 OHLC bars used by matching, shows source symbol, block/entry, SW/BT, original GT/TG or TT/GG family, final pattern and weekday inversion, supports PNG chart clipboard export, and renders a dependency-free SVG candlestick chart with sampled-window, BLOCK and ENTRY markers. Mobile presents the same evidence as a bottom sheet.
 
 - Added the PC-local scheduled MT5 entry driver and EA v1.08 preparation contract. Only due `entry` intents may use targeted MT5 order-window messages with no global mouse/keyboard injection; immediate entry and every management action remain on the EA mailbox path, while ambiguous submit outcomes are durably `UNCERTAIN` and never replayed automatically.
