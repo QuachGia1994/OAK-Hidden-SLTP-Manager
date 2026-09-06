@@ -1,6 +1,6 @@
 import type { H1SignalAlert, H1SignalPayload } from "./types";
 
-export const DEFAULT_H1_HOURS = [3, 4, 6, 9, 12, 14, 16, 21] as const;
+export const DEFAULT_H1_HOURS = [3, 6, 9, 12, 14] as const;
 
 export function latestH1Date(payload: H1SignalPayload | null): string {
   if (!payload) return "";

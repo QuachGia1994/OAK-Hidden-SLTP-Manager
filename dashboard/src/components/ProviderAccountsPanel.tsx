@@ -59,6 +59,7 @@ export function ProviderAccountsPanel() {
   const [providerTab, setProviderTab] = useState<Provider>("ctrader");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
+  const [cTraderPending, setCTraderPending] = useState(false);
 
   const load = useCallback(async () => {
     setError("");
@@ -75,6 +76,7 @@ export function ProviderAccountsPanel() {
   }, [locale]);
 
   useEffect(() => {
+    setCTraderPending(new URLSearchParams(window.location.search).get("ctrader") === "confirm");
     load().catch((reason) => {
       setError(reason instanceof Error ? reason.message : String(reason));
       setState("error");
@@ -111,6 +113,23 @@ export function ProviderAccountsPanel() {
       window.location.assign(body.authorizeUrl);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
+      setBusy("");
+    }
+  }
+
+  async function finalizeCTrader() {
+    setBusy("finalize-ctrader");
+    setError("");
+    try {
+      const response = await fetch("/api/ctrader/oauth/finalize", { method: "POST" });
+      const body = await response.json().catch(() => null) as { ok?: boolean; sync?: "ok" | "failed"; error?: string } | null;
+      if (!response.ok || body?.ok !== true) throw new Error(body?.error || tr("cTrader confirmation failed", "Xác nhận cTrader thất bại"));
+      setCTraderPending(false);
+      window.history.replaceState({}, "", `/accounts?ctrader=connected&sync=${body.sync || "failed"}`);
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
       setBusy("");
     }
   }
@@ -287,6 +306,11 @@ export function ProviderAccountsPanel() {
         </>}
         <span>{tr("Enabled", "Đang bật")} <b>{enabled}/{activeAccounts.length}</b></span>
       </div>
+
+      {cTraderPending && providerTab === "ctrader" && <div className="oak-account-card">
+        <header><div><b>{tr("Confirm cTrader connection", "Xác nhận kết nối cTrader")}</b><span>{tr("The OAuth callback is staged but cannot write the trading vault until you confirm from this authenticated admin page.", "OAuth callback đã được giữ tạm nhưng chưa được phép ghi trading vault cho tới khi bạn xác nhận tại trang admin này.")}</span></div></header>
+        <footer><button type="button" onClick={finalizeCTrader} disabled={Boolean(busy)}>{busy === "finalize-ctrader" ? tr("Confirming…", "Đang xác nhận…") : tr("Confirm cTrader connection", "Xác nhận kết nối cTrader")}</button></footer>
+      </div>}
 
       {error && <p className="oak-account-error">{error}</p>}
 

@@ -26,6 +26,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const manifest = JSON.parse(await fs.readFile(path.join(HERE, "behavior-cases.json"), "utf8"));
 const installerSource = await fs.readFile(path.join(HERE, "install-local-failover-task.ps1"), "utf8");
 const hiddenLauncherSource = await fs.readFile(path.join(HERE, "run-hidden-node.vbs"), "utf8");
+const watchdogSource = await fs.readFile(path.join(HERE, "watch-local-failover.ps1"), "utf8");
 assert.equal(manifest.length, 39);
 assert.deepEqual(manifest.map((row) => row.id), Array.from({ length: 39 }, (_, index) => index + 1));
 
@@ -694,14 +695,22 @@ test("local-primary runtime rewrites a stale account snapshot from fresh EA iden
   } finally { await h.cleanup(); }
 });
 
-test("local task self-heals an externally terminated controller without duplicate instances", () => {
-  assert.match(installerSource, /watchdogTrigger/);
+test("local task self-heals exited or hung controllers without duplicate live instances", () => {
+  assert.match(installerSource, /WatchdogTaskName = "OAK Local Telegram Failover Watchdog"/);
+  assert.match(installerSource, /New-FailoverWatchdogTaskDefinition/);
   assert.match(installerSource, /RepetitionInterval \(New-TimeSpan -Minutes 1\)/);
   assert.match(installerSource, /RepetitionDuration \(New-TimeSpan -Days 3650\)/);
+  assert.match(installerSource, /Register-ScheduledTask -TaskName \$WatchdogTaskName/);
   assert.match(installerSource, /MultipleInstances IgnoreNew/);
   assert.match(installerSource, /RestartCount 999/);
+  assert.match(installerSource, /MaxStaleSeconds 120/);
   assert.match(installerSource, /AllowStartIfOnBatteries/);
   assert.match(installerSource, /DontStopIfGoingOnBatteries/);
+  assert.match(watchdogSource, /lastLoopAt/);
+  assert.match(watchdogSource, /lockOwner\.pid/);
+  assert.match(watchdogSource, /oak-local-telegram-failover\\\.mjs/);
+  assert.match(watchdogSource, /Stop-Process -Id \$pidValue -Force/);
+  assert.match(watchdogSource, /Start-ScheduledTask -TaskName \$TaskName/);
 });
 
 test("18 account identity, stale snapshot and cTrader target mismatch reject", () => {
@@ -751,6 +760,31 @@ test("19 timed schedule auto-arms, stays PC-owned across handback, and immediate
     await h.runtime.runOneIteration(h.config, state);
     assert.equal(state.intents[staleId].status, "expired");
     assert.equal(h.eaExecutions, 1);
+  } finally { await h.cleanup(); }
+});
+
+test("failed cloud handback preserves unapproved local intents until webhook ownership is verified", { concurrency: false }, async () => {
+  const h = await createHarness("handback-preserve-unapproved", {
+    webhook: "",
+    restoredWebhookUrl: "https://wrong.example/telegram-webhook",
+    statuses: [statusFor()],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    let statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, {
+      update_id: 195,
+      message: { chat: { id: 123 }, text: "/sell GBPUSD 0.01 @acct-a" },
+    }, statuses);
+    const [intentId] = Object.keys(state.intents);
+    assert.equal(state.intents[intentId].status, "approval_required");
+
+    await h.writeStatus(statusFor(ACCOUNT_A, { cloudOk: true, cloudFailureStreak: 0, cloudSuccessStreak: 3 }, h.now));
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(state.mode, FAILOVER_MODES.BLOCKED_UNCERTAIN);
+    assert.equal(state.intents[intentId].status, "approval_required");
+    const persisted = JSON.parse(await fs.readFile(h.runtime.paths.statePath, "utf8"));
+    assert.equal(persisted.intents[intentId].status, "approval_required");
   } finally { await h.cleanup(); }
 });
 

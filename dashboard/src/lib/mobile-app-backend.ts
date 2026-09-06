@@ -6,8 +6,8 @@ import { isMonthEndBridgeCell } from "./h1-cloud-scanner";
 import { providerAccountsWithRuntimeStatus } from "./provider-account-status";
 import { getDefaultProviderAccountId, listProviderAccounts } from "./provider-accounts";
 
-const FALLBACK_SYMBOLS = ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"];
-const FALLBACK_HOURS = [3, 4, 6, 9, 12, 14, 16, 21];
+const FALLBACK_SYMBOLS = ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"];
+const FALLBACK_HOURS = [3, 6, 9, 12, 14];
 
 function vietnamDateKey(now = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {

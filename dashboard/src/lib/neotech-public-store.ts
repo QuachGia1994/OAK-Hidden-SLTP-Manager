@@ -30,6 +30,19 @@ function parseJson<T>(raw: unknown): T | null {
   }
 }
 
+async function deleteMatchingKeys(pattern: string): Promise<number> {
+  let cursor = 0;
+  let deleted = 0;
+  do {
+    const [nextCursor, keys] = await redis.scan(cursor, { match: pattern, count: 100 });
+    cursor = Number(nextCursor);
+    for (const redisKey of keys) {
+      deleted += Number(await redis.del(String(redisKey))) || 0;
+    }
+  } while (cursor !== 0);
+  return deleted;
+}
+
 export const neoTechPublicStore: NeoTechPublicStore = {
   async putWorkspace(workspace) {
     await redis.set(key("workspace", workspace.id), JSON.stringify(workspace), { ex: NEOTECH_PUBLIC_DATA_RETENTION_SECONDS });
@@ -84,6 +97,8 @@ export const neoTechPublicStore: NeoTechPublicStore = {
     await redis.srem(key("workspace-accounts", workspaceId), accountId);
     await redis.del(key("profile", accountId));
     await redis.del(key("equity", accountId));
+    await deleteMatchingKeys(key("nonce", connectorId, "*"));
+    await deleteMatchingKeys(key("idem", connectorId, "*"));
     await redis.del(key("connector", connectorId));
     await redis.del(key("account", accountId));
     await redis.del(key("audit", `account:${accountId}`));

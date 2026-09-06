@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getFreshCTraderTokens } from "@/lib/ctrader-vault";
-import { armCTraderDynamicPartial, prepareCTraderManagedEntry } from "@/lib/ctrader-account-manager";
+import { armCTraderDynamicPartial, prepareCTraderManagedEntry, withCTraderAccountMutationLock } from "@/lib/ctrader-account-manager";
 import {
   amendCTraderPositionProtection,
   closeCTraderPositions,
@@ -89,53 +89,55 @@ function preflight(task: CloudIntent, accounts: ProviderAccountSummary[]): Provi
 }
 
 async function executeCTraderForAccount(task: CloudIntent, account: CTraderManagedAccount, session: CTraderScannerSession): Promise<CTraderMutationResult[]> {
-  if (task.kind === "entry") {
-    const accountId = `ctrader:${account.accountId}`;
-    const protection = task.protectionPlan?.[accountId];
-    if (!protection) throw new Error(`Missing SL/TP snapshot for @${account.label}`);
-    const side = String(task.payload.side || "").toUpperCase() as "BUY" | "SELL";
-    const symbol = String(task.payload.symbol || "");
-    const lots = requireNumber(task.payload.lot, "Lot");
-    const prepared = await prepareCTraderManagedEntry({ account, session, symbol, side, lots });
-    if (prepared.skip) return [...prepared.mutations, prepared.skip];
-    return [...prepared.mutations, await placeCTraderMarketOrder({
-      session,
-      symbol,
-      side,
-      lots,
-      slPoints: protection.slPoints,
-      tpPoints: protection.tpPoints,
-      clientOrderId: `oak-tg-${task.id}-${account.accountId}`,
-      label: `OAK TG #${task.id}`,
-    })];
-  }
-  if (task.kind === "close") {
-    const scope = String(task.payload.scope || "ALL").toUpperCase();
-    return closeCTraderPositions({ session, symbol: scope === "ALL" ? undefined : scope });
-  }
-  if (task.kind === "modify") {
-    const field = String(task.payload.field || "").toUpperCase();
-    if (field !== "SL" && field !== "TP") throw new Error("Modify field must be SL or TP");
-    return amendCTraderPositionProtection({
-      session,
-      symbol: String(task.payload.symbol || ""),
-      field,
-      value: requireNumber(task.payload.value, "Protection price"),
-    });
-  }
-  if (task.kind === "partial") {
-    return [await armCTraderDynamicPartial({
-      intentId: task.id,
-      account,
-      session,
-      ticket: Number.isSafeInteger(Number(task.payload.ticket || 0)) && Number(task.payload.ticket || 0) > 0 ? Number(task.payload.ticket) : null,
-      symbol: String(task.payload.symbol || "").trim() || null,
-      mode: String(task.payload.mode || "").toLowerCase() as "profit" | "price",
-      threshold: requireNumber(task.payload.threshold, "Partial threshold"),
-      volumeLots: requireNumber(task.payload.volume, "Partial volume"),
-    })];
-  }
-  throw new Error(`cTrader does not support cloud action ${task.kind}`);
+  return withCTraderAccountMutationLock(account.accountId, async () => {
+    if (task.kind === "entry") {
+      const accountId = `ctrader:${account.accountId}`;
+      const protection = task.protectionPlan?.[accountId];
+      if (!protection) throw new Error(`Missing SL/TP snapshot for @${account.label}`);
+      const side = String(task.payload.side || "").toUpperCase() as "BUY" | "SELL";
+      const symbol = String(task.payload.symbol || "");
+      const lots = requireNumber(task.payload.lot, "Lot");
+      const prepared = await prepareCTraderManagedEntry({ account, session, symbol, side, lots });
+      if (prepared.skip) return [...prepared.mutations, prepared.skip];
+      return [...prepared.mutations, await placeCTraderMarketOrder({
+        session,
+        symbol,
+        side,
+        lots,
+        slPoints: protection.slPoints,
+        tpPoints: protection.tpPoints,
+        clientOrderId: `oak-tg-${task.id}-${account.accountId}`,
+        label: `OAK TG #${task.id}`,
+      })];
+    }
+    if (task.kind === "close") {
+      const scope = String(task.payload.scope || "ALL").toUpperCase();
+      return closeCTraderPositions({ session, symbol: scope === "ALL" ? undefined : scope });
+    }
+    if (task.kind === "modify") {
+      const field = String(task.payload.field || "").toUpperCase();
+      if (field !== "SL" && field !== "TP") throw new Error("Modify field must be SL or TP");
+      return amendCTraderPositionProtection({
+        session,
+        symbol: String(task.payload.symbol || ""),
+        field,
+        value: requireNumber(task.payload.value, "Protection price"),
+      });
+    }
+    if (task.kind === "partial") {
+      return [await armCTraderDynamicPartial({
+        intentId: task.id,
+        account,
+        session,
+        ticket: Number.isSafeInteger(Number(task.payload.ticket || 0)) && Number(task.payload.ticket || 0) > 0 ? Number(task.payload.ticket) : null,
+        symbol: String(task.payload.symbol || "").trim() || null,
+        mode: String(task.payload.mode || "").toLowerCase() as "profit" | "price",
+        threshold: requireNumber(task.payload.threshold, "Partial threshold"),
+        volumeLots: requireNumber(task.payload.volume, "Partial volume"),
+      })];
+    }
+    throw new Error(`cTrader does not support cloud action ${task.kind}`);
+  });
 }
 
 function failed(account: ProviderAccountSummary, action: string, detail: string): CloudExecutionResult {

@@ -2,15 +2,16 @@ import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis-core";
 import { requireAdminOrApiAuth } from "@/lib/admin-auth";
-import { exchangeAuthorizationCode } from "@/lib/ctrader-vault";
-import { fetchCTraderGrantedAccounts } from "@/lib/ctrader-json";
-import { syncManagedCTraderAccounts } from "@/lib/ctrader-accounts";
 
 export const dynamic = "force-dynamic";
 
 const INTENT_COOKIE = "oak_ctrader_oauth_intent";
+const PENDING_COOKIE = "oak_ctrader_oauth_pending";
 const SETUP_PREFIX = "oak:ctrader:oauth-ticket:";
+const INTENT_PREFIX = "oak:ctrader:oauth-intent:";
+const PENDING_PREFIX = "oak:ctrader:oauth-pending:";
 const SETUP_TTL_SECONDS = 600;
+const PENDING_TTL_SECONDS = 300;
 const DEFAULT_REDIRECT_URI = "https://www.oakgatekeeper.uk/api/ctrader/oauth";
 
 function clientConfig() {
@@ -44,6 +45,17 @@ function clearIntent(response: NextResponse) {
     sameSite: "lax",
     path: "/api/ctrader/oauth",
     maxAge: 0,
+  });
+}
+
+function setPendingCookie(response: NextResponse, pending: string) {
+  applySensitiveResponseHeaders(response);
+  response.cookies.set(PENDING_COOKIE, pending, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "strict",
+    path: "/api/ctrader/oauth/finalize",
+    maxAge: PENDING_TTL_SECONDS,
   });
 }
 
@@ -83,27 +95,28 @@ export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code") || "";
   if (code) {
     const intent = request.cookies.get(INTENT_COOKIE)?.value || "";
-    if (!intent) {
+    if (!intent || !/^[A-Za-z0-9_-]{20,80}$/.test(intent)) {
       return NextResponse.json({ ok: false, error: "Missing or expired cTrader OAuth intent." }, { status: 401 });
     }
-    try {
-      const token = await exchangeAuthorizationCode(code, redirectUri, "trading");
-      let syncStatus = "ok";
-      try {
-        const granted = await fetchCTraderGrantedAccounts({ clientId, clientSecret, accessToken: token.accessToken });
-        await syncManagedCTraderAccounts(granted.accounts);
-      } catch {
-        syncStatus = "failed";
-      }
-      const destination = new URL(`/accounts?ctrader=connected&sync=${syncStatus}`, request.url);
-      const response = NextResponse.redirect(destination);
-      clearIntent(response);
-      return response;
-    } catch {
-      const response = NextResponse.json({ ok: false, error: "cTrader OAuth token exchange failed." }, { status: 502 });
+    const intentKey = `${INTENT_PREFIX}${intent}`;
+    const active = await redis.getdel<string>(intentKey);
+    if (active !== "1") {
+      const response = NextResponse.json({ ok: false, error: "Missing or expired cTrader OAuth intent." }, { status: 401 });
       clearIntent(response);
       return response;
     }
+    if (code.length < 8 || code.length > 1024 || /[\u0000-\u0020]/.test(code)) {
+      const response = NextResponse.json({ ok: false, error: "Invalid cTrader OAuth code." }, { status: 400 });
+      clearIntent(response);
+      return response;
+    }
+    const pending = randomBytes(24).toString("base64url");
+    await redis.set(`${PENDING_PREFIX}${pending}`, code, { ex: PENDING_TTL_SECONDS });
+    const destination = new URL("/accounts?ctrader=confirm", request.url);
+    const response = NextResponse.redirect(destination);
+    clearIntent(response);
+    setPendingCookie(response, pending);
+    return response;
   }
 
   const ticket = request.nextUrl.searchParams.get("ticket") || "";
@@ -111,15 +124,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "A valid one-time setup ticket is required." }, { status: 401 });
   }
   const key = `${SETUP_PREFIX}${ticket}`;
-  const exists = await redis.get<string>(key);
-  if (!exists) {
+  const consumed = await redis.getdel<string>(key);
+  if (!consumed) {
     return NextResponse.json({ ok: false, error: "cTrader setup ticket is invalid or expired." }, { status: 401 });
   }
-  await redis.del(key);
 
+  const intent = randomBytes(24).toString("base64url");
+  await redis.set(`${INTENT_PREFIX}${intent}`, "1", { ex: SETUP_TTL_SECONDS });
   const response = NextResponse.redirect(grantUrl(clientId, redirectUri));
   applySensitiveResponseHeaders(response);
-  response.cookies.set(INTENT_COOKIE, randomBytes(24).toString("base64url"), {
+  response.cookies.set(INTENT_COOKIE, intent, {
     httpOnly: true,
     secure: true,
     sameSite: "lax",

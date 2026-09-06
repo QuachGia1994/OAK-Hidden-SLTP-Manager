@@ -54,6 +54,16 @@ export function canCancelCloudIntentStatus(status: CloudIntentStatus): boolean {
 }
 
 export const SCHEDULED_EXECUTION_GRACE_MS = 2 * 60 * 1000;
+export const STALE_EXECUTING_MS = 10 * 60 * 1000;
+
+export function isStaleExecutingIntent(task: Pick<CloudIntent, "status" | "executionStartedAt">, nowMs: number): boolean {
+  const startedAt = Number(task.executionStartedAt);
+  return task.status === "executing"
+    && Number.isFinite(startedAt)
+    && startedAt > 0
+    && nowMs >= startedAt
+    && nowMs - startedAt > STALE_EXECUTING_MS;
+}
 
 export function isDueScheduledIntent(task: Pick<CloudIntent, "status" | "dueAt">, nowMs: number): boolean {
   return task.status === "scheduled"
@@ -159,6 +169,30 @@ function canonicalSymbol(value: string): string {
 const LEGACY_PROFILE_ALIASES = new Set(["fxce", "vantage", "vantagedemo", "darwinex", "th5ers"]);
 const PLAIN_COMMANDS = new Set(["start", "help", "myid", "status", "profiles", "positions", "pending", "approve", "buy", "sell", "close", "closeall", "modify", "partial", "del"]);
 export const TELEGRAM_MULTI_COMMAND_LIMIT = 10;
+export const TELEGRAM_TEXT_CHUNK_LIMIT = 4000;
+
+export function chunkTelegramText(text: string, limit = TELEGRAM_TEXT_CHUNK_LIMIT): string[] {
+  const safeLimit = Math.max(256, Math.min(TELEGRAM_TEXT_CHUNK_LIMIT, Math.trunc(limit)));
+  const chunks: string[] = [];
+  let current = "";
+  const flush = () => {
+    if (current) chunks.push(current);
+    current = "";
+  };
+  for (const line of String(text || "").split("\n")) {
+    const candidate = current ? `${current}\n${line}` : line;
+    if (Array.from(candidate).length <= safeLimit) {
+      current = candidate;
+      continue;
+    }
+    flush();
+    const points = Array.from(line);
+    while (points.length > safeLimit) chunks.push(points.splice(0, safeLimit).join(""));
+    current = points.join("");
+  }
+  flush();
+  return chunks.length ? chunks : [""];
+}
 
 function parsePositiveIntentIds(values: string[]): number[] | null {
   if (!values.length || values.some((value) => !/^\d+$/.test(value))) return null;

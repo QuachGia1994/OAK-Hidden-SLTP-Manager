@@ -153,7 +153,6 @@ export async function exchangeAuthorizationCode(code: string, redirectUri: strin
     scope,
     savedAt: now,
   };
-  await saveCTraderTokens(record);
   return record;
 }
 

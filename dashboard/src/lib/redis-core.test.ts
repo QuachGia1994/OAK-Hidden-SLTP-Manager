@@ -6,17 +6,27 @@ import { REDIS_FAILOVER_MARKER_VALUE, isRedisFailoverError, shouldUseRedisBackup
 
 const redisCoreSource = readFileSync(new URL("./redis-core.ts", import.meta.url), "utf8");
 
-test("Redis failover recognizes quota, rate-limit and upstream outage errors", () => {
+test("Redis failover recognizes quota, rate-limit and transient upstream/network outages", () => {
+  assert.equal(isRedisFailoverError({ status: 408 }), true);
   assert.equal(isRedisFailoverError({ status: 429 }), true);
   assert.equal(isRedisFailoverError({ statusCode: 503 }), true);
   assert.equal(isRedisFailoverError(new Error("ERR max requests limit exceeded")), true);
   assert.equal(isRedisFailoverError(new Error("daily request limit exceeded")), true);
+  assert.equal(isRedisFailoverError(new TypeError("fetch failed")), true);
+  assert.equal(isRedisFailoverError({ code: "ECONNRESET" }), true);
+  assert.equal(isRedisFailoverError({ cause: { code: "EAI_AGAIN" } }), true);
+  assert.equal(isRedisFailoverError({ name: "TimeoutError", message: "request aborted" }), true);
+  assert.equal(isRedisFailoverError(new Error("socket hang up")), true);
 });
 
-test("Redis failover does not mask auth or application errors", () => {
-  assert.equal(isRedisFailoverError({ status: 401 }), false);
-  assert.equal(isRedisFailoverError({ status: 403 }), false);
+test("Redis failover does not mask explicit auth or application errors", () => {
+  assert.equal(isRedisFailoverError({ status: 400, message: "fetch failed" }), false);
+  assert.equal(isRedisFailoverError({ status: 401, message: "fetch failed" }), false);
+  assert.equal(isRedisFailoverError({ status: 403, message: "quota exceeded" }), false);
+  assert.equal(isRedisFailoverError({ status: 404 }), false);
   assert.equal(isRedisFailoverError(new Error("WRONGTYPE operation against a key")), false);
+  assert.equal(isRedisFailoverError(new Error("ERR syntax error")), false);
+  assert.equal(isRedisFailoverError(new Error("unauthorized invalid token")), false);
 });
 
 test("shared backup authority survives a fresh serverless process", () => {
@@ -26,8 +36,9 @@ test("shared backup authority survives a fresh serverless process", () => {
   assert.equal(shouldUseRedisBackup(0, null, now), false);
 });
 
-test("Redis core persists shared failover authority and blocks stale primary overwrite", () => {
+test("Redis core persists shared failover authority, mirrors one-time GETDEL consumption, and blocks stale primary overwrite", () => {
   assert.match(redisCoreSource, /backupRedis\.set\(SHARED_FAILOVER_KEY, REDIS_FAILOVER_MARKER_VALUE\)/);
+  assert.match(redisCoreSource, /MUTATING_REDIS_METHODS = new Set\(\[[\s\S]*"getdel"/);
   assert.match(redisCoreSource, /shouldUseRedisBackup\(primaryUnavailableUntil, marker\)/);
   assert.match(redisCoreSource, /Upstash backup is the active failover authority; primary-to-backup sync is blocked/);
 });

@@ -941,15 +941,17 @@ export function createLocalFailoverRuntime(options = {}) {
       return;
     }
 
-    const expired = expireUnapprovedAtHandback(state);
-    if (expired.length) state.pendingSystemMessages.push(`ℹ️ Local handback expired ${expired.length} unapproved intent(s): ${expired.join(", ")}. Reissue through cloud if still needed.`);
-    await saveState(state);
-
     await telegram.setWebhook(config);
     const info = await telegram.getWebhookInfo(config);
     if (webhookUrl(info) !== config.webhookUrl) {
       return transition(state, FAILOVER_MODES.BLOCKED_UNCERTAIN, "setWebhook returned but production webhook URL could not be verified");
     }
+
+    // Only terminalize local unapproved intents after cloud ownership is proven.
+    // A failed/mismatched setWebhook must leave them recoverable while local
+    // remains blocked rather than silently discarding operator intent.
+    const expired = expireUnapprovedAtHandback(state);
+    if (expired.length) state.pendingSystemMessages.push(`ℹ️ Local handback expired ${expired.length} unapproved intent(s): ${expired.join(", ")}. Reissue through cloud if still needed.`);
     state.handledUpdateIds = [];
     state.webhookVerifiedEmptyAt = 0;
     state.lastWebhookCheckAt = clock();

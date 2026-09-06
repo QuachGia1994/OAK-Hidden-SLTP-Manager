@@ -68,6 +68,23 @@ test("entry netting and cTrader dynamic partial share the provider execution bou
   assert.match(executionSource, /Dynamic partial requires exactly one provider account/);
 });
 
+test("cloud cTrader mutations serialize on the same account lock as the background manager", () => {
+  assert.match(managerSource, /export async function withCTraderAccountMutationLock/);
+  assert.match(managerSource, /CLOUD_MUTATION_LOCK_WAIT_MS = 8_000/);
+  assert.match(managerSource, /await acquireAccountLock\(accountId\)/);
+  assert.match(managerSource, /releaseAccountLock\(accountId, token\)/);
+  assert.match(managerSource, /cTrader account is busy with another manager or broker mutation/);
+  assert.match(executionSource, /withCTraderAccountMutationLock\(account\.accountId, async \(\) => \{/);
+  const lockStart = executionSource.indexOf("withCTraderAccountMutationLock(account.accountId");
+  const entryCheck = executionSource.indexOf("prepareCTraderManagedEntry", lockStart);
+  const orderPlace = executionSource.indexOf("placeCTraderMarketOrder", entryCheck);
+  const closeMutation = executionSource.indexOf("closeCTraderPositions", lockStart);
+  const modifyMutation = executionSource.indexOf("amendCTraderPositionProtection", lockStart);
+  const partialMutation = executionSource.indexOf("armCTraderDynamicPartial", lockStart);
+  assert.ok(lockStart >= 0 && entryCheck > lockStart && orderPlace > entryCheck);
+  assert.ok(closeMutation > lockStart && modifyMutation > lockStart && partialMutation > lockStart);
+});
+
 test("minute cloud tick runs cTrader Auto Manager and UI exposes explicit opt-in controls", () => {
   assert.match(tickSource, /runCTraderAccountManager/);
   assert.match(panelSource, /cTrader Auto Manager/);

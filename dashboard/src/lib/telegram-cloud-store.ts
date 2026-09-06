@@ -8,6 +8,7 @@ import {
   initialCloudIntentStatus,
   canCancelCloudIntentStatus,
   isDueScheduledIntent,
+  isStaleExecutingIntent,
   normalizeProviderAccountId,
   type CloudIntent,
   type CloudIntentKind,
@@ -193,6 +194,24 @@ export async function expireScheduledCloudIntent(task: CloudIntent, nowMs = Date
   return current;
 }
 
+export async function markStaleExecutingCloudIntent(task: CloudIntent, nowMs = Date.now()): Promise<CloudIntent | null> {
+  const current = await getCloudIntent(task.id) || task;
+  if (!isStaleExecutingIntent(current, nowMs)) return null;
+  current.status = "uncertain";
+  current.executionFinishedAt = nowMs;
+  current.executionError = "Cloud worker did not report a final broker result within 10 minutes of claim. Broker state is unknown; automatic retry is disabled. Verify positions before any manual retry.".slice(0, 500);
+  await redis.hset(TASKS_KEY, { [String(current.id)]: JSON.stringify(current) });
+  await appendTelegramAudit({
+    action: "intent_execution_stale",
+    taskId: current.id,
+    kind: current.kind,
+    executionStartedAt: current.executionStartedAt,
+    staleMs: current.executionStartedAt ? nowMs - current.executionStartedAt : null,
+    status: current.status,
+  });
+  return current;
+}
+
 export async function normalizeCloudIntentLot(task: CloudIntent, lot: number): Promise<CloudIntent> {
   if (!Number.isFinite(lot) || lot <= 0 || task.kind !== "entry") return task;
   if (!(task.status === "approval_required" || task.status === "scheduled" || task.status === "approved")) return task;
@@ -221,7 +240,7 @@ export async function claimCloudIntentExecution(id: number, nowMs = Date.now()):
   const task = await getCloudIntent(id);
   const executable = task && (task.status === "approved" || isDueScheduledIntent(task, nowMs));
   if (!task || !executable) {
-    await redis.del(lockKey);
+    await releaseExecutionLock(id, lockToken);
     return null;
   }
   task.status = "executing";

@@ -57,7 +57,7 @@ class FakeStore implements NeoTechPublicStore {
   async getAccount(id: string) { return this.accounts.get(id) || null; }
   async listWorkspaceAccountIds(id: string) { return [...(this.workspaceAccounts.get(id) || [])]; }
   async addWorkspaceAccount(workspaceId: string, accountId: string) { const set = this.workspaceAccounts.get(workspaceId) || new Set<string>(); set.add(accountId); this.workspaceAccounts.set(workspaceId, set); }
-  async purgeAccountData(workspaceId: string, accountId: string, connectorId: string) { this.workspaceAccounts.get(workspaceId)?.delete(accountId); this.accounts.delete(accountId); this.connectors.delete(connectorId); this.profiles.delete(accountId); this.equity.delete(accountId); }
+  async purgeAccountData(workspaceId: string, accountId: string, connectorId: string) { this.workspaceAccounts.get(workspaceId)?.delete(accountId); this.accounts.delete(accountId); this.connectors.delete(connectorId); this.profiles.delete(accountId); this.equity.delete(accountId); for (const key of [...this.nonces]) if (key.startsWith(`${connectorId}:`)) this.nonces.delete(key); for (const key of [...this.idem.keys()]) if (key.startsWith(`${connectorId}:`)) this.idem.delete(key); }
   async putConnector(value: NeoTechPublicConnectorRecord) { this.connectors.set(value.id, value); }
   async getConnector(id: string) { return this.connectors.get(id) || null; }
   async putProfile(accountId: string, profile: NeoTechPublicProfile) { this.profiles.set(accountId, profile); }
@@ -443,6 +443,8 @@ test("delete my data purges retained account, profile, equity and connector only
   assert.equal(a.store.connectors.has(a.pair.connectorId), false);
   assert.equal(a.store.profiles.has(a.pair.account.id), false);
   assert.equal(a.store.equity.has(a.pair.account.id), false);
+  assert.equal([...a.store.nonces].some((key) => key.startsWith(`${a.pair.connectorId}:`)), false);
+  assert.equal([...a.store.idem.keys()].some((key) => key.startsWith(`${a.pair.connectorId}:`)), false);
   assert.equal((await listWorkspaceAccounts(a.store, b.session.workspace.id)).length, 1);
 });
 

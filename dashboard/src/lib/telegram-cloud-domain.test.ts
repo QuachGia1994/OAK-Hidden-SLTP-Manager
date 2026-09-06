@@ -3,14 +3,36 @@ import assert from "node:assert/strict";
 import {
   approvedStatusForDueAt,
   canCancelCloudIntentStatus,
+  chunkTelegramText,
   initialCloudIntentStatus,
   isDueScheduledIntent,
   isExpiredScheduledIntent,
+  isStaleExecutingIntent,
+  STALE_EXECUTING_MS,
   parseCloudTelegramCommand,
   renderHelp,
   resolveVietnamDueAt,
   splitCloudTelegramCommands,
 } from "./telegram-cloud-domain.ts";
+
+test("Telegram response chunking stays below the Bot API text limit and preserves unicode", () => {
+  const text = `${"A".repeat(3990)}\n${"🙂".repeat(50)}\n${"B".repeat(4200)}`;
+  const chunks = chunkTelegramText(text);
+  assert.ok(chunks.length >= 3);
+  assert.ok(chunks.every((chunk) => Array.from(chunk).length <= 4000));
+  assert.equal(chunks.join("\n").replace(/\n+/g, "\n").includes("🙂".repeat(50)), true);
+});
+
+test("stale executing intents fail closed only after the 10-minute crash-recovery threshold", () => {
+  const now = Date.UTC(2026, 8, 6, 2, 0, 0);
+  assert.equal(STALE_EXECUTING_MS, 10 * 60 * 1000);
+  assert.equal(isStaleExecutingIntent({ status: "executing", executionStartedAt: now - STALE_EXECUTING_MS }, now), false);
+  assert.equal(isStaleExecutingIntent({ status: "executing", executionStartedAt: now - STALE_EXECUTING_MS - 1 }, now), true);
+  assert.equal(isStaleExecutingIntent({ status: "executing", executionStartedAt: now + 1 }, now), false);
+  assert.equal(isStaleExecutingIntent({ status: "executing" }, now), false);
+  assert.equal(isStaleExecutingIntent({ status: "scheduled", executionStartedAt: now - STALE_EXECUTING_MS - 1 }, now), false);
+  assert.equal(isStaleExecutingIntent({ status: "uncertain", executionStartedAt: now - STALE_EXECUTING_MS - 1 }, now), false);
+});
 
 test("scheduled entry parses Vietnam civil time deterministically", () => {
   const now = Date.UTC(2026, 7, 21, 1, 0, 0); // 08:00 VN

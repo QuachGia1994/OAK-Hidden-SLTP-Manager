@@ -18,6 +18,7 @@ import {
   TELEGRAM_CLOUD_EXECUTION_MODE,
   TELEGRAM_CLOUD_PROFILE,
   TELEGRAM_MULTI_COMMAND_LIMIT,
+  chunkTelegramText,
   parseCloudTelegramCommand,
   renderHelp,
   splitCloudTelegramCommands,
@@ -100,6 +101,10 @@ async function sendTelegram(token: string, chatId: string, text: string): Promis
   if (!response.ok || payload.ok !== true) {
     throw new Error(payload.description || `Telegram send failed (${response.status})`);
   }
+}
+
+async function sendTelegramChunks(token: string, chatId: string, text: string): Promise<void> {
+  for (const chunk of chunkTelegramText(text)) await sendTelegram(token, chatId, chunk);
 }
 
 async function sendNeoTechTelegram(token: string, chatId: string, text: string, replyMarkup?: Record<string, unknown>): Promise<void> {
@@ -423,7 +428,7 @@ export async function POST(request: Request) {
     for (let index = 0; index < commandLines.length; index += 1) {
       responses.push(await handleCommand(commandLines[index], chatId, updateId, index));
     }
-    await sendTelegram(config.telegramToken, chatId, responses.join("\n\n"));
+    await sendTelegramChunks(config.telegramToken, chatId, responses.join("\n\n"));
     await appendTelegramAudit({ action: "command_processed", updateId, chatId, rawText: text });
     await completeTelegramUpdate(updateId);
     return NextResponse.json({ ok: true });

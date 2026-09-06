@@ -18,7 +18,7 @@ const backupRedis = BACKUP_REDIS_URL && BACKUP_REDIS_TOKEN
 let primaryUnavailableUntil = 0;
 
 const MUTATING_REDIS_METHODS = new Set([
-  "append", "decr", "decrby", "del", "eval", "expire", "expireat", "flushall", "flushdb",
+  "append", "decr", "decrby", "del", "eval", "expire", "expireat", "flushall", "flushdb", "getdel",
   "hdel", "hincrby", "hincrbyfloat", "hset", "incr", "incrby", "incrbyfloat", "lpop", "lpush",
   "lrem", "lset", "ltrim", "mset", "persist", "pexpire", "pexpireat", "rename", "renamenx", "rpop",
   "rpush", "sadd", "set", "setbit", "setex", "setnx", "srem", "unlink", "zadd", "zincrby", "zrem",

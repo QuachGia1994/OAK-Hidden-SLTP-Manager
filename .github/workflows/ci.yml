@@ -30,3 +30,15 @@ jobs:
       - name: Test Cloudflare H1 timekeeper
         working-directory: cloudflare/h1-timekeeper
         run: npm test
+
+      - name: Set up pnpm for Expo contract
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+          run_install: false
+
+      - name: Typecheck Expo mobile
+        working-directory: mobile
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run typecheck

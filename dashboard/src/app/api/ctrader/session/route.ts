@@ -8,15 +8,18 @@ const DISCOVERY_TICKET_HEADER = "x-ctrader-session-ticket";
 const DISCOVERY_TICKET_PREFIX = "oak:ctrader:session-ticket:";
 
 async function authorizeSessionRequest(request: Request, discovery: boolean): Promise<NextResponse | null> {
-  const denied = requireAuth(request);
-  if (!denied) return null;
-  if (!discovery) return denied;
+  if (!discovery) return requireAuth(request);
 
+  // Discovery is the only surface allowed to return bootstrap credentials and
+  // must always consume its own one-time capability. An API key alone cannot
+  // upgrade a normal status read into a secret-bearing bootstrap response.
   const ticket = request.headers.get(DISCOVERY_TICKET_HEADER) || "";
-  if (!/^[A-Za-z0-9_-]{40,80}$/.test(ticket)) return denied;
+  if (!/^[A-Za-z0-9_-]{40,80}$/.test(ticket)) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
   const key = `${DISCOVERY_TICKET_PREFIX}${ticket}`;
   const exists = await redis.getdel<string>(key);
-  if (!exists) return denied;
+  if (!exists) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   return null;
 }
 
@@ -43,19 +46,22 @@ export async function GET(request: Request) {
         { status: 409, headers: { "Cache-Control": "no-store" } },
       );
     }
-    return NextResponse.json({
+    const common = {
       ok: true,
       provider: "ctrader-open-api",
       clientId,
-      clientSecret,
-      accessToken: token.accessToken,
-      tokenType: token.tokenType,
       expiresAt: token.expiresAt,
       accountId: accountId > 0 ? accountId : null,
       environment: (process.env.OAK_CTRADER_ENV || "demo").toLowerCase() === "live" ? "live" : "demo",
       broker: process.env.OAK_CTRADER_BROKER || "ICMarkets",
       scope: token.scope,
-    }, {
+    };
+    return NextResponse.json(discovery ? {
+      ...common,
+      clientSecret,
+      accessToken: token.accessToken,
+      tokenType: token.tokenType,
+    } : common, {
       headers: {
         "Cache-Control": "no-store, max-age=0",
         Pragma: "no-cache",

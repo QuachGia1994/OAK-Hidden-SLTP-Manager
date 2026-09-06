@@ -8,7 +8,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 $TaskName = "OAK Local Telegram Failover"
+$WatchdogTaskName = "OAK Local Telegram Failover Watchdog"
 $Script = Join-Path $PSScriptRoot "oak-local-telegram-failover.mjs"
+$WatchdogScript = Join-Path $PSScriptRoot "watch-local-failover.ps1"
 $HiddenLauncher = Join-Path $PSScriptRoot "run-hidden-node.vbs"
 $Domain = Join-Path $PSScriptRoot "oak-local-failover-domain.mjs"
 $RuntimeDir = Join-Path $env:LOCALAPPDATA "OAK Gatekeeper"
@@ -74,6 +76,7 @@ function Test-Mt5UserContext {
 function Invoke-Doctor {
   if (-not (Test-Path -LiteralPath $Script -PathType Leaf)) { throw "Failover controller not found: $Script" }
   if (-not (Test-Path -LiteralPath $HiddenLauncher -PathType Leaf)) { throw "Hidden launcher not found: $HiddenLauncher" }
+  if (-not (Test-Path -LiteralPath $WatchdogScript -PathType Leaf)) { throw "Failover watchdog not found: $WatchdogScript" }
   if (-not (Test-Path -LiteralPath $Domain -PathType Leaf)) { throw "Failover domain not found: $Domain" }
   $node = Get-NodeInfo
   Test-NodeImportGraph $node.Path
@@ -103,11 +106,23 @@ function New-FailoverTaskDefinition {
   $arguments = '"{0}" "{1}" "{2}"' -f $HiddenLauncher, $node.Path, $Script
   $taskAction = New-ScheduledTaskAction -Execute $wscript -Argument $arguments -WorkingDirectory $PSScriptRoot
   $logonTrigger = New-ScheduledTaskTrigger -AtLogOn -User $identity.Name
-  $watchdogStart = (Get-Date).AddMinutes(1)
-  $watchdogTrigger = New-ScheduledTaskTrigger -Once -At $watchdogStart -RepetitionInterval (New-TimeSpan -Minutes 1) -RepetitionDuration (New-TimeSpan -Days 3650)
   $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
   $principal = New-ScheduledTaskPrincipal -UserId $identity.Name -LogonType Interactive -RunLevel Limited
-  New-ScheduledTask -Action $taskAction -Trigger @($logonTrigger, $watchdogTrigger) -Settings $settings -Principal $principal
+  New-ScheduledTask -Action $taskAction -Trigger @($logonTrigger) -Settings $settings -Principal $principal
+}
+
+function New-FailoverWatchdogTaskDefinition {
+  $identity = Get-CurrentIdentityInfo
+  $powershell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+  if (-not (Test-Path -LiteralPath $powershell -PathType Leaf)) { throw "Windows PowerShell unavailable: $powershell" }
+  $statePath = Join-Path $RuntimeDir "state.json"
+  $arguments = '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" -TaskName "{1}" -StatePath "{2}" -MaxStaleSeconds 120' -f $WatchdogScript, $TaskName, $statePath
+  $taskAction = New-ScheduledTaskAction -Execute $powershell -Argument $arguments -WorkingDirectory $PSScriptRoot
+  $watchdogStart = (Get-Date).AddMinutes(1)
+  $watchdogTrigger = New-ScheduledTaskTrigger -Once -At $watchdogStart -RepetitionInterval (New-TimeSpan -Minutes 1) -RepetitionDuration (New-TimeSpan -Days 3650)
+  $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 2) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+  $principal = New-ScheduledTaskPrincipal -UserId $identity.Name -LogonType Interactive -RunLevel Limited
+  New-ScheduledTask -Action $taskAction -Trigger @($watchdogTrigger) -Settings $settings -Principal $principal
 }
 
 try {
@@ -119,31 +134,45 @@ try {
     }
     "Status" {
       $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-      [pscustomobject]@{ installed = [bool]$task; state = if ($task) { [string]$task.State } else { "Absent" }; mutationsPerformed = 0 } | ConvertTo-Json
+      $watchdogTask = Get-ScheduledTask -TaskName $WatchdogTaskName -ErrorAction SilentlyContinue
+      [pscustomobject]@{
+        installed = [bool]$task
+        state = if ($task) { [string]$task.State } else { "Absent" }
+        watchdogInstalled = [bool]$watchdogTask
+        watchdogState = if ($watchdogTask) { [string]$watchdogTask.State } else { "Absent" }
+        mutationsPerformed = 0
+      } | ConvertTo-Json
       exit 0
     }
     "Install" {
       $null = Invoke-Doctor
       $definition = New-FailoverTaskDefinition
+      $watchdogDefinition = New-FailoverWatchdogTaskDefinition
       if ($DryRun) {
-        [pscustomobject]@{ ok = $true; dryRun = $true; action = "Install"; taskName = $TaskName; multipleInstances = "IgnoreNew"; restartCount = 999; watchdogEveryMinutes = 1; allowStartOnBatteries = $true; stopIfGoingOnBatteries = $false; logonType = "Interactive"; windowMode = "hidden-wscript"; mutationsPerformed = 0 } | ConvertTo-Json
+        [pscustomobject]@{ ok = $true; dryRun = $true; action = "Install"; taskName = $TaskName; watchdogTaskName = $WatchdogTaskName; multipleInstances = "IgnoreNew"; restartCount = 999; watchdogEveryMinutes = 1; watchdogStaleSeconds = 120; allowStartOnBatteries = $true; stopIfGoingOnBatteries = $false; logonType = "Interactive"; windowMode = "hidden-wscript"; mutationsPerformed = 0 } | ConvertTo-Json
         exit 0
       }
       Register-ScheduledTask -TaskName $TaskName -InputObject $definition -Force | Out-Null
-      Write-Output "Installed: $TaskName (starts at logon; no password stored)"
+      Register-ScheduledTask -TaskName $WatchdogTaskName -InputObject $watchdogDefinition -Force | Out-Null
+      Write-Output "Installed: $TaskName + watchdog (starts at logon; no password stored)"
       exit 0
     }
     "Uninstall" {
       $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+      $watchdogTask = Get-ScheduledTask -TaskName $WatchdogTaskName -ErrorAction SilentlyContinue
       if ($DryRun) {
-        [pscustomobject]@{ ok = $true; dryRun = $true; action = "Uninstall"; installed = [bool]$task; mutationsPerformed = 0 } | ConvertTo-Json
+        [pscustomobject]@{ ok = $true; dryRun = $true; action = "Uninstall"; installed = [bool]$task; watchdogInstalled = [bool]$watchdogTask; mutationsPerformed = 0 } | ConvertTo-Json
         exit 0
+      }
+      if ($watchdogTask) {
+        Stop-ScheduledTask -TaskName $WatchdogTaskName -ErrorAction SilentlyContinue
+        Unregister-ScheduledTask -TaskName $WatchdogTaskName -Confirm:$false
       }
       if ($task) {
         Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
         Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
       }
-      Write-Output "Uninstalled: $TaskName"
+      Write-Output "Uninstalled: $TaskName + watchdog"
       exit 0
     }
   }

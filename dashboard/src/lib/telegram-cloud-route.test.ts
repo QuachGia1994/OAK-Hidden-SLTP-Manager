@@ -28,6 +28,8 @@ test("Telegram webhook is secret-fenced, chat-fenced and retry-idempotent", () =
   assert.match(webhook, /sourceCommandIndex/);
   assert.match(webhook, /splitCloudTelegramCommands/);
   assert.match(webhook, /TELEGRAM_MULTI_COMMAND_LIMIT/);
+  assert.match(webhook, /sendTelegramChunks/);
+  assert.match(webhook, /chunkTelegramText/);
   assert.match(webhook, /task\.kind === "entry"[\s\S]*task\.payload\.side[\s\S]*task\.payload\.symbol[\s\S]*\.\.\.entryRows/);
   assert.match(store, /INTENT_BY_UPDATE_PREFIX/);
   assert.match(store, /sourceCommandIndex > 0/);
@@ -127,10 +129,24 @@ test("due scheduler self-heals missing webhook config and executes armed schedul
   assert.match(store, /isDueScheduledIntent\(task, nowMs\)/);
   assert.match(store, /listDueScheduledIntents/);
   assert.match(tick, /renderCloudExecutionResult/);
+  assert.match(tick, /async function notifyTelegram/);
+  assert.match(tick, /for \(const chunk of chunkTelegramText\(text\)\) await sendTelegram/);
+  assert.match(tick, /notification deferred/);
+  assert.match(tick, /notifyFailed/);
+  assert.match(tick, /isStaleExecutingIntent\(task, now\)/);
+  assert.match(tick, /markStaleExecutingCloudIntent\(task, now\)/);
+  assert.match(tick, /Automatic retry bị khóa/);
+  assert.match(tick, /reconciledStaleExecuting/);
+  assert.match(store, /markStaleExecutingCloudIntent/);
+  assert.match(store, /current\.status = "uncertain"/);
+  assert.match(store, /intent_execution_stale/);
+  assert.doesNotMatch(store, /markStaleExecutingCloudIntent[\s\S]*runCloudIntentExecution/);
+  assert.match(tick, /if \(!notified\) \{[\s\S]*continue;[\s\S]*markDueNotification/);
   assert.match(tick, /nx: true, ex: LOCK_SECONDS/);
   assert.match(tick, /releaseOwnedRedisLock\(LOCK_KEY, value\)/);
+  assert.match(store, /if \(!task \|\| !executable\) \{\s*await releaseExecutionLock\(id, lockToken\)/);
   assert.match(tick, /managerActivity/);
-  assert.match(tick, /if \(expiredScheduled\.length > 0 \|\| due\.length > 0 \|\| unapprovedDue\.length > 0/);
+  assert.match(tick, /if \(expiredScheduled\.length > 0 \|\| staleExecuting\.length > 0 \|\| due\.length > 0 \|\| unapprovedDue\.length > 0/);
   assert.doesNotMatch(tick, /Broker execution: chưa tự động/);
 });
 

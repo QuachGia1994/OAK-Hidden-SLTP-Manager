@@ -17,6 +17,9 @@ const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx"
 const mobileH1RouteSource = readFileSync(new URL("../app/api/mobile/h1/route.ts", import.meta.url), "utf8");
 const mobileAppRouteSource = readFileSync(new URL("../app/api/mobile/app/route.ts", import.meta.url), "utf8");
 const mobileAppBackendSource = readFileSync(new URL("./mobile-app-backend.ts", import.meta.url), "utf8");
+const expoH1Source = readFileSync(new URL("../../../mobile/src/lib/h1.ts", import.meta.url), "utf8");
+const expoCalendarSource = readFileSync(new URL("../../../mobile/app/(tabs)/calendar.tsx", import.meta.url), "utf8");
+const expoSignalsSource = readFileSync(new URL("../../../mobile/app/(tabs)/signals.tsx", import.meta.url), "utf8");
 const androidScreensSource = readFileSync(new URL("../../../android-native/app/src/main/java/uk/oakgatekeeper/mobile/Screens.kt", import.meta.url), "utf8");
 const androidModelsSource = readFileSync(new URL("../../../android-native/app/src/main/java/uk/oakgatekeeper/mobile/Models.kt", import.meta.url), "utf8");
 const androidStateSource = readFileSync(new URL("../../../android-native/app/src/main/java/uk/oakgatekeeper/mobile/AppState.kt", import.meta.url), "utf8");
@@ -91,6 +94,13 @@ test("H1 rows and block set match the local ICMarkets v77 five-block contract", 
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14\]/);
   assert.doesNotMatch(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[[^\]]*16/);
+  assert.match(mobileAppBackendSource, /FALLBACK_HOURS = \[3, 6, 9, 12, 14\]/);
+  assert.match(mobileAppBackendSource, /FALLBACK_SYMBOLS = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
+  assert.match(expoH1Source, /DEFAULT_H1_HOURS = \[3, 6, 9, 12, 14\]/);
+  assert.doesNotMatch(expoH1Source + mobileAppBackendSource, /\[[^\]]*16[^\]]*\]/);
+  assert.match(expoCalendarSource, /FALLBACK_SYMBOLS = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
+  assert.doesNotMatch(expoCalendarSource + expoSignalsSource, /TEMP_HIDDEN_H1_ROWS/);
+  assert.match(nativeSignalsSource, /visibleSymbols = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 77/);
   assert.match(scannerSource, /if \(hour === 3\) return \["XAUUSD", "GBPAUD"\]/);
   assert.match(scannerSource, /if \(hour === 6\) return \["XAUUSD", "GBPAUD", "GBPJPY"\]/);

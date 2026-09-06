@@ -29,6 +29,8 @@ const STATE_TTL_SECONDS = 45 * 24 * 3600;
 const STATE_REFRESH_MS = 12 * 60 * 60 * 1000;
 const MUTATION_TTL_SECONDS = 45 * 24 * 3600;
 const LOCK_SECONDS = 55;
+const CLOUD_MUTATION_LOCK_WAIT_MS = 8_000;
+const CLOUD_MUTATION_LOCK_POLL_MS = 200;
 
 export type CTraderDynamicPartialRule = {
   ruleId: string;
@@ -342,6 +344,23 @@ async function releaseAccountLock(accountId: number, token: string): Promise<voi
     await releaseOwnedRedisLock(lockKey(accountId), token);
   } catch {
     // TTL is the safety net.
+  }
+}
+
+export async function withCTraderAccountMutationLock<T>(accountId: number, operation: () => Promise<T>, waitMs = CLOUD_MUTATION_LOCK_WAIT_MS): Promise<T> {
+  const deadline = Date.now() + Math.max(0, Math.min(30_000, Math.trunc(waitMs)));
+  while (true) {
+    const token = await acquireAccountLock(accountId);
+    if (token) {
+      try {
+        return await operation();
+      } finally {
+        await releaseAccountLock(accountId, token);
+      }
+    }
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new Error("cTrader account is busy with another manager or broker mutation; broker state may have changed. Verify positions before manual retry.");
+    await new Promise((resolve) => setTimeout(resolve, Math.min(CLOUD_MUTATION_LOCK_POLL_MS, remaining)));
   }
 }
 

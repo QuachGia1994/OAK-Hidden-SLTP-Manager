@@ -4,6 +4,9 @@ import { readFileSync } from "node:fs";
 import { lotsToProtocolVolume, mt5PointsToCTraderRelative } from "./ctrader-execution-domain.ts";
 
 const oauthSource = readFileSync(new URL("../app/api/ctrader/oauth/route.ts", import.meta.url), "utf8");
+const oauthFinalizeSource = readFileSync(new URL("../app/api/ctrader/oauth/finalize/route.ts", import.meta.url), "utf8");
+const vaultSource = readFileSync(new URL("./ctrader-vault.ts", import.meta.url), "utf8");
+const accountsPanelSource = readFileSync(new URL("../components/ProviderAccountsPanel.tsx", import.meta.url), "utf8");
 const executionSource = readFileSync(new URL("./telegram-cloud-execution.ts", import.meta.url), "utf8");
 const ctraderSource = readFileSync(new URL("./ctrader-json.ts", import.meta.url), "utf8");
 const accountsSource = readFileSync(new URL("./ctrader-accounts.ts", import.meta.url), "utf8");
@@ -22,9 +25,25 @@ test("legacy MT5 points convert to cTrader relative price units by symbol digits
   assert.equal(mt5PointsToCTraderRelative(500, 3), 50_000);
 });
 
-test("OAuth reconnect requests trading scope explicitly", () => {
+test("cTrader OAuth callback stages the code and requires authenticated explicit finalize before vault write", () => {
   assert.match(oauthSource, /set\("scope", "trading"\)/);
-  assert.match(oauthSource, /exchangeAuthorizationCode\(code, redirectUri, "trading"\)/);
+  assert.match(oauthSource, /INTENT_PREFIX/);
+  assert.match(oauthSource, /PENDING_PREFIX/);
+  assert.match(oauthSource, /const consumed = await redis\.getdel<string>\(key\)/);
+  assert.match(oauthSource, /redis\.getdel<string>\(intentKey\)/);
+  assert.match(oauthSource, /ctrader=confirm/);
+  assert.doesNotMatch(oauthSource, /exchangeAuthorizationCode|saveCTraderTokens|syncManagedCTraderAccounts/);
+  assert.match(oauthFinalizeSource, /requireAdminOrApiAuth\(request\)/);
+  assert.match(oauthFinalizeSource, /redis\.getdel<string>\(`\$\{PENDING_PREFIX\}\$\{pending\}`\)/);
+  assert.match(oauthFinalizeSource, /exchangeAuthorizationCode\(code, redirectUri, "trading"\)/);
+  assert.match(oauthFinalizeSource, /saveCTraderTokens\(token\)/);
+  assert.match(oauthFinalizeSource, /syncManagedCTraderAccounts/);
+  assert.match(accountsPanelSource, /\/api\/ctrader\/oauth\/finalize/);
+  assert.match(accountsPanelSource, /Confirm cTrader connection/);
+  const exchangeStart = vaultSource.indexOf("export async function exchangeAuthorizationCode");
+  const exchangeEnd = vaultSource.indexOf("export async function getFreshCTraderTokens", exchangeStart);
+  assert.ok(exchangeStart >= 0 && exchangeEnd > exchangeStart);
+  assert.doesNotMatch(vaultSource.slice(exchangeStart, exchangeEnd), /saveCTraderTokens/);
 });
 
 test("execution boundary uses confirm-time snapshot protection and all target accounts", () => {
