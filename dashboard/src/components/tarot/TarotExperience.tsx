@@ -87,7 +87,7 @@ export function TarotExperience() {
             <span>{questionLength}/500</span>
           </div>
 
-          <fieldset>
+          <fieldset className="tarot-domain-fieldset">
             <legend>{copy.domainLabel}</legend>
             <div className="tarot-domain-options">
               {TAROT_DOMAINS.map((option) => (
@@ -104,7 +104,7 @@ export function TarotExperience() {
             </div>
           </fieldset>
 
-          <fieldset>
+          <fieldset className="tarot-spread-fieldset">
             <legend>{copy.spreadLabel}</legend>
             <div className="tarot-spread-options">
               {(["one", "three"] as const).map((option) => (

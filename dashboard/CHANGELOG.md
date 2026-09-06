@@ -20,6 +20,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Fixed Tarot control overlap at desktop zoom and narrow viewports. Topic and spread groups now occupy distinct grid rows, spread choices wrap into a stable responsive grid, and the draw action no longer collides with labels or controls.
 - Unified NeoTech with the global OAK Light/Dark/Contrast semantic tokens. Hero, ruleset, criteria/session cards, Demo Preview, charts, status colors, logo treatment and CTA/footer no longer mix fixed dark and fixed light palettes, while artwork-overlay copy keeps a stable light-on-image treatment.
 - Advanced local H1 to v77 and retired H16 across scanner/feed/history/evidence/Web/native iOS/native Android/Expo/PNG. The active block matrix is H3/H6/H9/H12/H14; stale retained H16 rows are filtered during parse/backfill, the H14 copy/invert + CLOSE advisory path is removed, and H1 Telegram display sync stops after H14 without changing the separate broker-order scheduler.
 - Restored NeoTech 14-rule parity between the MT5 compliance EA and the public dashboard engine. E4/C3 are present again; C3 uses strict floating drawdown `<2%`, C5 counts one canonical-symbol signal per NeoTech session, C7 fails both hedging and adverse DCA, and C9 ignores ambiguous balance adjustments and pre-program-start funding. Dashboard validation now accepts `oak-neotech-compliance-report-v3`, and the downloadable telemetry connector is v1.0.5 with regenerated source/binary/SHA-256 artifacts.

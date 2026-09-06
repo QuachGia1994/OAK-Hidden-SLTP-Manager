@@ -17,6 +17,7 @@ const layoutSource = readFileSync(new URL("../app/layout.tsx", import.meta.url),
 const spatialSource = readFileSync(new URL("../components/SpatialHudCanvas.tsx", import.meta.url), "utf8");
 const breadcrumbSource = readFileSync(new URL("../components/RouteBreadcrumbs.tsx", import.meta.url), "utf8");
 const historyPageSource = readFileSync(new URL("../app/history/page.tsx", import.meta.url), "utf8");
+const tarotSource = readFileSync(new URL("../components/tarot/TarotExperience.tsx", import.meta.url), "utf8");
 
 test("mobile keeps locale reachable and exposes four direct navigation tabs", () => {
   assert.ok(navSource.includes("oak-locale-switch"));
@@ -147,6 +148,16 @@ test("technical labels use the shared 12px readability floor and tools menu has 
   assert.match(globalsCss, /--oak-text-meta: \.75rem/);
   assert.match(oakCss, /\/\* Readability pass[\s\S]*\.oak-eyebrow,[\s\S]*\.oak-breadcrumb-inner \{ font-size: var\(--oak-text-meta\); \}/);
   assert.match(oakCss, /padding-left: max\(\.85rem, env\(safe-area-inset-left\)\)/);
+});
+
+test("Tarot controls keep domain and spread groups in distinct responsive grid rows", () => {
+  assert.match(tarotSource, /fieldset className="tarot-domain-fieldset"/);
+  assert.match(tarotSource, /fieldset className="tarot-spread-fieldset"/);
+  assert.match(oakCss, /\.tarot-domain-fieldset \{ grid-row: 3; \}/);
+  assert.match(oakCss, /\.tarot-spread-fieldset \{ grid-row: 4; \}/);
+  assert.match(oakCss, /\.tarot-spread-options \{ display: grid; grid-template-columns: repeat\(2,minmax\(0,1fr\)\)/);
+  assert.doesNotMatch(oakCss, /\.tarot-form fieldset \{[^}]*grid-column: 2;[^}]*grid-row: 1/);
+  assert.doesNotMatch(oakCss, /\.tarot-form fieldset \{[^}]*grid-row: 3/);
 });
 
 test("mobile controls and calendar expose 44px-class touch targets", () => {
