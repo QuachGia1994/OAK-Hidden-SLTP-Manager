@@ -20,6 +20,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Advanced local H1 to v80: XAUUSD, GBPAUD, GBPCAD and GBPJPY now all read previous-broker-day H(entry-2) from GBPUSD, AUDUSD, USDCAD and USDJPY respectively; entry H8 therefore reads H6 on the corresponding base symbol. GBPUSD/EURUSD H9/H12/H14 continue copying XAUUSD's exact entry hour/final side. Public schema 18/state v56 remain stable for an in-place 90-day history rebuild.
 - Advanced local H1 to v79: XAUUSD and GBPCAD final signals now read previous-broker-day GBPUSD at H(entry-2), so entry H8 uses GBPUSD H6. GBPUSD/EURUSD H9/H12/H14 continue copying XAUUSD's exact entry hour/final side; GBPAUD and GBPJPY remain on their existing H(entry-1) AUDUSD/USDJPY bases. Public schema 18 and state v56 stay stable for an in-place 90-day history rebuild.
 - Advanced local H1 to v78 so Monday uses the same normal weekday FX eligibility as Tuesday-Friday: GBPAUD H3/H6/H9/H12/H14, GBPUSD/EURUSD/GBPCAD H9/H12/H14, and GBPJPY H6/H9. Weekend blocking, signal bases, entry timing, XAU synchronization and the retired H16 contract are unchanged.
 - Fixed reactive EN/VN switching across the primary H1 Live, History and Tools surfaces. Their body copy now follows the shared LocaleProvider immediately instead of waiting for a server refresh/F5, while the existing cookie/router refresh path remains for persistence and server-rendered metadata.

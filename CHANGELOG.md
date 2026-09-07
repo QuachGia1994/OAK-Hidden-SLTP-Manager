@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced H1 to v80: XAUUSD, GBPAUD, GBPCAD and GBPJPY now all read their previous-broker-day signal base at `H(entry-2)`. Sources are GBPUSD for XAUUSD, AUDUSD for GBPAUD, USDCAD for GBPCAD and USDJPY for GBPJPY; for example entry H8 reads H6 on the corresponding base symbol. GBPUSD/EURUSD H9/H12/H14 continue copying XAUUSD's exact entry hour and final side. Public schema 18/state v56 remain stable for an in-place 90-day history rebuild.
+
 - Advanced H1 to v79: XAUUSD and GBPCAD final signals now use previous-broker-day GBPUSD at `H(entry-2)` instead of their prior base rules; for example entry H8 reads GBPUSD H6. GBPUSD/EURUSD H9/H12/H14 continue copying XAUUSD's exact entry hour and final side, while GBPAUD and GBPJPY keep their existing H(entry-1) AUDUSD/USDJPY bases. State schema v56/public schema 18 remain unchanged so the 90-day history can be rebuilt in place.
 
 - Advanced H1 to v78 so Monday follows the same normal weekday FX block eligibility as Tuesday-Friday: GBPAUD H3/H6/H9/H12/H14, GBPUSD/EURUSD/GBPCAD H9/H12/H14, and GBPJPY H6/H9. Weekend blocking, signal bases, entry timing, XAU final-signal synchronization and the retired H16 contract are unchanged.

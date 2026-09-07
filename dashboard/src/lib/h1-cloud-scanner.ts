@@ -16,7 +16,7 @@ import {
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 79;
+export const H1_SIGNAL_RULE_VERSION = 80;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
@@ -84,7 +84,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 79;
+  signalRuleVersion: 80;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -220,6 +220,7 @@ function syncFinalFromXau(base: H1TargetBase, slotHour: number): boolean {
 
 function signalBaseSourceForTarget(base: H1TargetBase): H1LocalSource {
   if (base === "GBPAUD") return "AUDUSD";
+  if (base === "GBPCAD") return "USDCAD";
   if (base === "GBPJPY") return "USDJPY";
   return "GBPUSD";
 }
@@ -249,7 +250,8 @@ function previousAvailableBrokerDate(brokerDate: string, bars: H1M15Bar[]): stri
 }
 
 function signalBaseHourForTarget(base: H1TargetBase, entryHour: number): number {
-  return entryHour - (base === "XAUUSD" || base === "GBPCAD" ? 2 : 1);
+  const usesHMinusTwo = base === "XAUUSD" || base === "GBPAUD" || base === "GBPCAD" || base === "GBPJPY";
+  return entryHour - (usesHMinusTwo ? 2 : 1);
 }
 
 function h1DirectionForBaseHour(brokerDate: string, baseHour: number, bars: H1M15Bar[]): { brokerDate: string; hour: number; direction: H1Direction } | null {
@@ -356,7 +358,7 @@ type H1SlotPolicy = {
 };
 
 // Exact special-Thursday month table, ordered as:
-// [H3/H4, H6, H9, H12, H14]. H16 is retired in rule v79.
+// [H3/H4, H6, H9, H12, H14]. H16 is retired in rule v80.
 const SPECIAL_MONTH_WEEK_TABLE: Record<H1Weekday, H1PhaseRow> = {
   1: ["C", "N", "N", "C", "C"], // Mon
   2: ["N", "C", "N", "C", "N"], // Tue
