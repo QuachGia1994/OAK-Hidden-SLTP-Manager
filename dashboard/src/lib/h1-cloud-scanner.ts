@@ -16,7 +16,7 @@ import {
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 77;
+export const H1_SIGNAL_RULE_VERSION = 78;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
@@ -84,7 +84,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 77;
+  signalRuleVersion: 78;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -354,7 +354,7 @@ type H1SlotPolicy = {
 };
 
 // Exact special-Thursday month table, ordered as:
-// [H3/H4, H6, H9, H12, H14]. H16 is retired in rule v77.
+// [H3/H4, H6, H9, H12, H14]. H16 is retired in rule v78.
 const SPECIAL_MONTH_WEEK_TABLE: Record<H1Weekday, H1PhaseRow> = {
   1: ["C", "N", "N", "C", "C"], // Mon
   2: ["N", "C", "N", "C", "N"], // Tue

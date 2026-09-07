@@ -67,24 +67,25 @@ test("GBP crosses share GBPUSD scanner source across all active blocks", () => {
   }
 });
 
-test("GBP cross early-block gates apply Tuesday-Friday while Monday remains XAUUSD-only", () => {
+test("Monday uses the same symbol and block eligibility as normal weekdays", () => {
   const monday = "2026-09-07";
-  for (const hour of H1_LOCAL_SCAN_HOURS) {
-    assert.equal(targetEnabledForDate("XAUUSD", monday, hour), true);
-    for (const fx of ["GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"] as const) assert.equal(targetEnabledForDate(fx, monday, hour), false);
-  }
   const tuesday = "2026-09-08";
-  for (const fx of ["GBPUSD", "EURUSD", "GBPCAD"] as const) {
-    assert.equal(targetEnabledForDate(fx, tuesday, 3), false);
-    assert.equal(targetEnabledForDate(fx, tuesday, 6), false);
-    for (const hour of [9, 12, 14]) assert.equal(targetEnabledForDate(fx, tuesday, hour), true);
+  for (const target of H1_LOCAL_TARGETS) {
+    for (const hour of H1_LOCAL_SCAN_HOURS) {
+      assert.equal(targetEnabledForDate(target, monday, hour), targetEnabledForDate(target, tuesday, hour));
+    }
   }
-  for (const hour of [3, 12, 14]) assert.equal(targetEnabledForDate("GBPJPY", tuesday, hour), false);
-  for (const hour of [6, 9]) assert.equal(targetEnabledForDate("GBPJPY", tuesday, hour), true);
-  for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(targetEnabledForDate("GBPAUD", tuesday, hour), true);
+  for (const fx of ["GBPUSD", "EURUSD", "GBPCAD"] as const) {
+    assert.equal(targetEnabledForDate(fx, monday, 3), false);
+    assert.equal(targetEnabledForDate(fx, monday, 6), false);
+    for (const hour of [9, 12, 14]) assert.equal(targetEnabledForDate(fx, monday, hour), true);
+  }
+  for (const hour of [3, 12, 14]) assert.equal(targetEnabledForDate("GBPJPY", monday, hour), false);
+  for (const hour of [6, 9]) assert.equal(targetEnabledForDate("GBPJPY", monday, hour), true);
+  for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(targetEnabledForDate("GBPAUD", monday, hour), true);
 });
 
-test("rule v77 has no weekday inversion badges", () => {
+test("rule v78 has no weekday inversion badges", () => {
   const tue = "2026-09-08";
   const thu = "2026-09-03";
   const fri = "2026-09-04";

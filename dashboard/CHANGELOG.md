@@ -20,6 +20,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Advanced local H1 to v78 so Monday uses the same normal weekday FX eligibility as Tuesday-Friday: GBPAUD H3/H6/H9/H12/H14, GBPUSD/EURUSD/GBPCAD H9/H12/H14, and GBPJPY H6/H9. Weekend blocking, signal bases, entry timing, XAU synchronization and the retired H16 contract are unchanged.
 - Fixed reactive EN/VN switching across the primary H1 Live, History and Tools surfaces. Their body copy now follows the shared LocaleProvider immediately instead of waiting for a server refresh/F5, while the existing cookie/router refresh path remains for persistence and server-rendered metadata.
 - Fixed Tarot control overlap at desktop zoom and narrow viewports. Topic and spread groups now occupy distinct grid rows, spread choices wrap into a stable responsive grid, and the draw action no longer collides with labels or controls.
 - Unified NeoTech with the global OAK Light/Dark/Contrast semantic tokens. Hero, ruleset, criteria/session cards, Demo Preview, charts, status colors, logo treatment and CTA/footer no longer mix fixed dark and fixed light palettes, while artwork-overlay copy keeps a stable light-on-image treatment.
