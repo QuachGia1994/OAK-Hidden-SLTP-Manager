@@ -13,7 +13,7 @@ Pure SwiftUI iPhone client for ROBOT SLTP. This target replaces the previous Exp
 - Tabs: Live, History, Signals, Reports, More.
 - H1 Live/History matrix uses the same server payload and six visible rows as web: XAUUSD, GBPUSD, EURUSD, GBPAUD, GBPCAD and GBPJPY.
 - Active H1 blocks are H3/H6/H9/H12/H14. Entry-reference cells cover GBPAUD H3/H6 and GBPUSD H9/H12/H14.
-- H16 is retired in rule v82 and is not rendered, exported or available for evidence. Actual broker-order execution remains independent from the H1 display matrix.
+- H16 is retired in rule v83 and is not rendered, exported or available for evidence. Actual broker-order execution remains independent from the H1 display matrix.
 - M15 evidence sheet with candlestick rendering and copy evidence.
 - Native PNG export/share for the selected H1 day.
 - Pull-to-refresh + 20-second server refresh loop.

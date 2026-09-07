@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced H1 to v83: GBPAUD, GBPCAD and GBPJPY again scan their dedicated sources (AUDUSD, USDCAD and USDJPY respectively) for pattern/evidence and SW/BT entry timing, while all three final BUY/SELL signals use previous-broker-day GBPUSD at `H(entry-2)`. XAUUSD remains XAUUSD scanner + GBPUSD H(entry-2), and GBPUSD/EURUSD H9/H12/H14 continue copying XAUUSD's exact entry hour/final side. Public schema 18/state v56 remain stable for an in-place 90-day History rebuild.
+
 - Advanced H1 to v82: GBPAUD, GBPCAD and GBPJPY now all scan GBPUSD for pattern family/evidence and SW/BT entry timing, while final BUY/SELL returns to their dedicated previous-broker-day bases at `H(entry-2)`: AUDUSD, USDCAD and USDJPY respectively. XAUUSD remains XAUUSD scanner + GBPUSD H(entry-2), and GBPUSD/EURUSD H9/H12/H14 continue copying XAUUSD's exact entry hour/final side. Public schema 18/state v56 remain stable for an in-place 90-day History rebuild.
 
 - Advanced H1 to v81: GBPAUD, GBPCAD and GBPJPY now scan their own underlying FX sources (AUDUSD, USDCAD and USDJPY respectively), so pattern family/evidence and SW/BT entry timing are independent per cross. Their final BUY/SELL base is unified with XAUUSD: previous-broker-day GBPUSD at `H(entry-2)`. GBPUSD/EURUSD H9/H12/H14 continue copying XAUUSD's exact entry hour/final side. Public schema 18/state v56 stay unchanged for an in-place history rebuild.
