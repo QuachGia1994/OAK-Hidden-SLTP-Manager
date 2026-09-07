@@ -73,9 +73,7 @@ export function scannerSourceForTarget(target: H1LocalTarget, slotHour: number):
   if (target === "XAUUSD") return "XAUUSD";
   if (target === "GBPUSD") return "GBPUSD";
   if (target === "EURUSD") return "EURUSD";
-  if (target === "GBPAUD") return "AUDUSD";
-  if (target === "GBPCAD") return "USDCAD";
-  if (target === "GBPJPY") return "USDJPY";
+  if (target === "GBPAUD" || target === "GBPCAD" || target === "GBPJPY") return "GBPUSD";
   return "GBPUSD";
 }
 

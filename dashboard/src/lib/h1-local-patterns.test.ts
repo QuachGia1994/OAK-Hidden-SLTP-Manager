@@ -58,13 +58,12 @@ test("new H1 scanner exposes exactly five active blocks and six display rows", (
   assert.deepEqual(H1_LOCAL_TARGETS, ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"]);
 });
 
-test("GBP crosses use dedicated AUDUSD USDCAD USDJPY scanner sources", () => {
+test("GBP crosses share GBPUSD scanner source across all active blocks", () => {
   assert.equal(scannerSourceForTarget("XAUUSD", 3), "XAUUSD");
   assert.equal(scannerSourceForTarget("GBPUSD", 9), "GBPUSD");
   assert.equal(scannerSourceForTarget("EURUSD", 9), "EURUSD");
-  const sources = [["GBPAUD", "AUDUSD"], ["GBPCAD", "USDCAD"], ["GBPJPY", "USDJPY"]] as const;
-  for (const [cross, source] of sources) {
-    for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(scannerSourceForTarget(cross, hour), source);
+  for (const cross of ["GBPAUD", "GBPCAD", "GBPJPY"] as const) {
+    for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(scannerSourceForTarget(cross, hour), "GBPUSD");
   }
 });
 
@@ -86,7 +85,7 @@ test("Monday uses the same symbol and block eligibility as normal weekdays", () 
   for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(targetEnabledForDate("GBPAUD", monday, hour), true);
 });
 
-test("rule v81 has no weekday inversion badges", () => {
+test("rule v82 has no weekday inversion badges", () => {
   const tue = "2026-09-08";
   const thu = "2026-09-03";
   const fri = "2026-09-04";
