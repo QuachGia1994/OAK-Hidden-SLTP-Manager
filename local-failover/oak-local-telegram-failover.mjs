@@ -56,7 +56,8 @@ const LOCAL_PRIMARY_FENCE_KEY = "oak:telegram:local-primary:active:v1";
 const LOCAL_PRIMARY_FENCE_TTL_SECONDS = 300;
 const FENCE_HEARTBEAT_MIN_INTERVAL_MS = 60_000;
 
-const ACTIVE_INTENT_STATUSES = new Set(["approval_required", "scheduled", "approved", "executing", "uncertain"]);
+const CANCELLABLE_INTENT_STATUSES = new Set(["approval_required", "scheduled", "approved"]);
+const ACTIVE_INTENT_STATUSES = new Set([...CANCELLABLE_INTENT_STATUSES, "executing"]);
 
 export function resolveRuntimePaths(env = process.env) {
   const runtimeDir = env.OAK_LOCAL_FAILOVER_HOME || path.join(APP_LOCAL, "OAK Gatekeeper");
@@ -1507,7 +1508,10 @@ export function createLocalFailoverRuntime(options = {}) {
     if (!conflict) return;
     const symbol = normalizedScheduledSymbol(resolvedSymbol || parsed.payload?.symbol || conflict.resolvedSymbol || conflict.payload?.symbol);
     const display = shortIntentId(conflict);
-    throw new Error(`@${account.label}: ${symbol} already has active scheduled intent #${display} (${conflict.status}); cancel /del ${display} or wait for it to finish`);
+    const action = CANCELLABLE_INTENT_STATUSES.has(conflict.status)
+      ? `cancel /del ${display} or wait for it to finish`
+      : "execution is already in progress; wait for it to finish";
+    throw new Error(`@${account.label}: ${symbol} already has active scheduled intent #${display} (${conflict.status}); ${action}`);
   }
 
   async function createIntent(config, state, parsed, statuses, updateId, commandIndex) {
@@ -1598,15 +1602,19 @@ export function createLocalFailoverRuntime(options = {}) {
 
   async function deleteLocal(state, parsed) {
     const references = parsed.all
-      ? Object.values(state.intents || {}).filter((intent) => ["approval_required", "scheduled", "approved"].includes(intent.status)).map((intent) => intent.id)
+      ? Object.values(state.intents || {}).filter((intent) => CANCELLABLE_INTENT_STATUSES.has(intent.status)).map((intent) => intent.id)
       : parsed.ids;
     const messages = [];
     for (const reference of references) {
       const id = resolveLocalIntentReference(state, reference);
       const intent = id ? state.intents[id] : null;
       const display = intent ? shortIntentId(intent) : String(reference);
-      if (!intent || !["approval_required", "scheduled", "approved"].includes(intent.status)) {
-        messages.push(`• #${display}: cannot cancel`);
+      if (!intent) {
+        messages.push(`• #${display}: not found`);
+        continue;
+      }
+      if (!CANCELLABLE_INTENT_STATUSES.has(intent.status)) {
+        messages.push(`• #${display}: already ${intent.status}; nothing to cancel`);
         continue;
       }
       intent.status = "cancelled";

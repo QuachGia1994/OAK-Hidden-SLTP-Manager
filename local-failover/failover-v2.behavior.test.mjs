@@ -1607,6 +1607,80 @@ test("same-account scheduled entries reject a second active intent for the same 
   } finally { await h.cleanup(); }
 });
 
+test("terminal uncertain entry is not pending, needs no delete, and does not block same-symbol reschedule", { concurrency: false }, async () => {
+  const h = await createHarness("scheduled-uncertain-terminal", {
+    controlMode: "local-primary",
+    webhook: "",
+    scheduledEntryExecution: "mt5-ui",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+    webSignal: true,
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, {
+      update_id: 418,
+      message: { chat: { id: 123 }, text: "/sell GBPUSD 0.05 23:59 @acct-a" },
+    }, statuses);
+
+    const prior = Object.values(state.intents)[0];
+    assert.equal(prior.status, "scheduled");
+    prior.status = "uncertain";
+    prior.executionFinishedAt = h.now;
+    prior.executionResult = { ok: false, uncertain: true, action: "entry", detail: "synthetic uncertain terminal result" };
+
+    await h.runtime.processTelegramUpdate(h.config, state, {
+      update_id: 419,
+      message: { chat: { id: 123 }, text: "/pending" },
+    }, statuses);
+    assert.match(state.commands["419:0"].outcome, /no pending local intent/i);
+
+    await h.runtime.processTelegramUpdate(h.config, state, {
+      update_id: 420,
+      message: { chat: { id: 123 }, text: "/del 1" },
+    }, statuses);
+    assert.match(state.commands["420:0"].outcome, /#1: already uncertain; nothing to cancel/i);
+    assert.equal(prior.status, "uncertain");
+
+    await h.runtime.processTelegramUpdate(h.config, state, {
+      update_id: 421,
+      message: { chat: { id: 123 }, text: "/buy GBPUSD 0.04 23:58 @acct-a" },
+    }, statuses);
+    const rescheduled = Object.values(state.intents).filter((intent) => intent.status === "scheduled");
+    assert.equal(rescheduled.length, 1);
+    assert.equal(rescheduled[0].payload.symbol, "GBPUSD");
+    assert.equal(state.nextIntentSeq, 3);
+    assert.match(state.commands["421:0"].outcome, /intent #2 saved/i);
+    assert.doesNotMatch(state.commands["421:0"].outcome, /already has active scheduled intent/i);
+  } finally { await h.cleanup(); }
+});
+
+test("executing same-symbol conflict never suggests an impossible /del", { concurrency: false }, async () => {
+  const h = await createHarness("scheduled-executing-conflict-copy", {
+    controlMode: "local-primary",
+    webhook: "",
+    scheduledEntryExecution: "mt5-ui",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, {
+      update_id: 422,
+      message: { chat: { id: 123 }, text: "/sell GBPUSD 0.05 23:59 @acct-a" },
+    }, statuses);
+    const prior = Object.values(state.intents)[0];
+    prior.status = "executing";
+
+    await h.runtime.processTelegramUpdate(h.config, state, {
+      update_id: 423,
+      message: { chat: { id: 123 }, text: "/buy GBPUSD 0.04 23:58 @acct-a" },
+    }, statuses);
+    assert.match(state.commands["423:0"].outcome, /execution is already in progress; wait for it to finish/i);
+    assert.doesNotMatch(state.commands["423:0"].outcome, /\/del 1/i);
+  } finally { await h.cleanup(); }
+});
+
 test("same-time scheduled entries on two MT5 accounts each send their own execution notice", { concurrency: false }, async () => {
   const providerA = "mt5:localtest01";
   const providerB = "mt5:localtest02";
