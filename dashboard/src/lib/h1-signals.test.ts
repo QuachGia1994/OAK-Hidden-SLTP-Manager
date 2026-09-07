@@ -89,7 +89,7 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 rows and block set match the local ICMarkets v78 five-block contract", () => {
+test("H1 rows and block set match the local ICMarkets v79 five-block contract", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14\]/);
@@ -101,7 +101,7 @@ test("H1 rows and block set match the local ICMarkets v78 five-block contract", 
   assert.match(expoCalendarSource, /FALLBACK_SYMBOLS = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.doesNotMatch(expoCalendarSource + expoSignalsSource, /TEMP_HIDDEN_H1_ROWS/);
   assert.match(nativeSignalsSource, /visibleSymbols = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
-  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 78/);
+  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 79/);
   assert.match(scannerSource, /if \(hour === 3\) return \["XAUUSD", "GBPAUD"\]/);
   assert.match(scannerSource, /if \(hour === 6\) return \["XAUUSD", "GBPAUD", "GBPJPY"\]/);
   assert.match(localMarketRouteSource, /evaluateLocalH1PatternsForTarget/);
@@ -117,8 +117,9 @@ test("H1 rows and block set match the local ICMarkets v78 five-block contract", 
   assert.match(localPatternsSource, /target === "GBPJPY" && \(slotHour === 3 \|\| slotHour === 12 \|\| slotHour === 14\)/);
   assert.match(scannerSource, /hour === 12 \|\| hour === 14[^\n]*base !== "GBPJPY"/);
   assert.match(scannerSource, /if \(base === "GBPAUD"\) return "AUDUSD"/);
-  assert.match(scannerSource, /if \(base === "GBPCAD"\) return "USDCAD"/);
+  assert.doesNotMatch(scannerSource, /if \(base === "GBPCAD"\) return "USDCAD"/);
   assert.match(scannerSource, /if \(base === "GBPJPY"\) return "USDJPY"/);
+  assert.match(scannerSource, /base === "XAUUSD" \|\| base === "GBPCAD" \? 2 : 1/);
   assert.match(scannerSource, /baseSymbol: signalBaseSource/);
 });
 

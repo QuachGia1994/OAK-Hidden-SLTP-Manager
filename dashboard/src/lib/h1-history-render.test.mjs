@@ -57,7 +57,7 @@ function alert(slotHour, entryHour = slotHour + 1, signal = "BUY") {
     profile: "MT5 ICMarkets Local",
     baseSymbol: "GBPUSD",
     baseSignal: signal,
-    baseHour: entryHour - 1,
+    baseHour: entryHour - 2,
     baseMinute: 0,
     baseDirection: signal === "BUY" ? "T" : "G",
     signal,

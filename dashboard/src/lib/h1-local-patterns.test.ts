@@ -85,7 +85,7 @@ test("Monday uses the same symbol and block eligibility as normal weekdays", () 
   for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(targetEnabledForDate("GBPAUD", monday, hour), true);
 });
 
-test("rule v78 has no weekday inversion badges", () => {
+test("rule v79 has no weekday inversion badges", () => {
   const tue = "2026-09-08";
   const thu = "2026-09-03";
   const fri = "2026-09-04";

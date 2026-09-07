@@ -16,7 +16,7 @@ import {
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 78;
+export const H1_SIGNAL_RULE_VERSION = 79;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
@@ -84,7 +84,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 78;
+  signalRuleVersion: 79;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -220,7 +220,6 @@ function syncFinalFromXau(base: H1TargetBase, slotHour: number): boolean {
 
 function signalBaseSourceForTarget(base: H1TargetBase): H1LocalSource {
   if (base === "GBPAUD") return "AUDUSD";
-  if (base === "GBPCAD") return "USDCAD";
   if (base === "GBPJPY") return "USDJPY";
   return "GBPUSD";
 }
@@ -249,8 +248,11 @@ function previousAvailableBrokerDate(brokerDate: string, bars: H1M15Bar[]): stri
   return dates.at(-1) ?? null;
 }
 
-function h1DirectionForEntry(brokerDate: string, entryHour: number, bars: H1M15Bar[]): { brokerDate: string; hour: number; direction: H1Direction } | null {
-  const baseHour = entryHour - 1;
+function signalBaseHourForTarget(base: H1TargetBase, entryHour: number): number {
+  return entryHour - (base === "XAUUSD" || base === "GBPCAD" ? 2 : 1);
+}
+
+function h1DirectionForBaseHour(brokerDate: string, baseHour: number, bars: H1M15Bar[]): { brokerDate: string; hour: number; direction: H1Direction } | null {
   if (!Number.isInteger(baseHour) || baseHour < 0 || baseHour > 23) return null;
   const referenceDate = previousAvailableBrokerDate(brokerDate, bars);
   if (!referenceDate) return null;
@@ -354,7 +356,7 @@ type H1SlotPolicy = {
 };
 
 // Exact special-Thursday month table, ordered as:
-// [H3/H4, H6, H9, H12, H14]. H16 is retired in rule v78.
+// [H3/H4, H6, H9, H12, H14]. H16 is retired in rule v79.
 const SPECIAL_MONTH_WEEK_TABLE: Record<H1Weekday, H1PhaseRow> = {
   1: ["C", "N", "N", "C", "C"], // Mon
   2: ["N", "C", "N", "C", "N"], // Tue
@@ -499,7 +501,8 @@ export function evaluateLocalH1PatternsForTarget(
     if (!entryMatch) continue;
     const entryHour = xauAlert?.entryHour ?? entryMatch.entryHour;
     const signalBaseSource = signalBaseSourceForTarget(base);
-    const reference = h1DirectionForEntry(brokerDate, entryHour, market[signalBaseSource].bars);
+    const baseHour = signalBaseHourForTarget(base, entryHour);
+    const reference = h1DirectionForBaseHour(brokerDate, baseHour, market[signalBaseSource].bars);
     const baseH1Signal = reference ? signalFromDirection(reference.direction) : null;
     const symbolH1Signal = xauAlert?.symbolH1Signal ?? baseH1Signal;
     alerts.push({
@@ -508,7 +511,7 @@ export function evaluateLocalH1PatternsForTarget(
       profile: H1_CLOUD_PROFILE,
       baseSymbol: signalBaseSource,
       baseH1Signal,
-      baseHour: entryHour - 1,
+      baseHour,
       baseMinute: 0,
       baseDirection: reference?.direction ?? "",
       symbolH1Signal,

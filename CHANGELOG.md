@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced H1 to v79: XAUUSD and GBPCAD final signals now use previous-broker-day GBPUSD at `H(entry-2)` instead of their prior base rules; for example entry H8 reads GBPUSD H6. GBPUSD/EURUSD H9/H12/H14 continue copying XAUUSD's exact entry hour and final side, while GBPAUD and GBPJPY keep their existing H(entry-1) AUDUSD/USDJPY bases. State schema v56/public schema 18 remain unchanged so the 90-day history can be rebuilt in place.
+
 - Advanced H1 to v78 so Monday follows the same normal weekday FX block eligibility as Tuesday-Friday: GBPAUD H3/H6/H9/H12/H14, GBPUSD/EURUSD/GBPCAD H9/H12/H14, and GBPJPY H6/H9. Weekend blocking, signal bases, entry timing, XAU final-signal synchronization and the retired H16 contract are unchanged.
 
 - Unified the NeoTech Light theme with the shared OAK semantic design system. Hero, ruleset, criteria/session cards, Demo Preview, charts, status colors, branding and CTA/footer now inherit the same Light/Dark/Contrast surface, text, border and accent tokens as H1, History and Tools instead of mixing fixed dark and fixed light palettes.
