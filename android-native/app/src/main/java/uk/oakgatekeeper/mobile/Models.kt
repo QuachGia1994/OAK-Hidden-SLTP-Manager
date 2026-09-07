@@ -79,7 +79,9 @@ data class H1SignalPayload(
         var signalSource = ""
         var rule = "DIRECT BASE"
 
-        if ((sourceAlert.symbol == "GBPUSD" || sourceAlert.symbol == "EURUSD") && sourceAlert.slotHour in listOf(9, 12, 14)) {
+        if (sourceAlert.slotHour == 16) {
+            rule = "ENTRY ONLY"
+        } else if ((sourceAlert.symbol == "GBPUSD" || sourceAlert.symbol == "EURUSD") && sourceAlert.slotHour in listOf(9, 12, 14)) {
             val xau = alert(date, "XAUUSD", sourceAlert.slotHour)
             signalSource = "XAUUSD H${sourceAlert.slotHour.toString().padStart(2, '0')} · ${xau?.signal?.name ?: "—"}"
             rule = "SYNC XAUUSD"

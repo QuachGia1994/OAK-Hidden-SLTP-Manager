@@ -41,7 +41,9 @@ function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload)
   let signalSource = "";
   let rule = "DIRECT BASE";
 
-  if ((base === "GBPUSD" || base === "EURUSD") && [9, 12, 14].includes(alert.slotHour)) {
+  if (alert.slotHour === 16) {
+    rule = "ENTRY ONLY";
+  } else if ((base === "GBPUSD" || base === "EURUSD") && [9, 12, 14].includes(alert.slotHour)) {
     const xau = payload.days[brokerDate]?.symbols?.XAUUSD?.alerts?.find((row) => row.slotHour === alert.slotHour);
     signalSource = `XAUUSD H${String(alert.slotHour).padStart(2, "0")} · ${xau?.signal ?? "—"}`;
     rule = "SYNC XAUUSD";

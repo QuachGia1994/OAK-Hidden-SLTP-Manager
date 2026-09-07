@@ -53,8 +53,8 @@ function h3Bars(sequence: string, family: "ALT" | "SAME", date = "2026-09-02", s
   return barsFor(date, rows);
 }
 
-test("new H1 scanner exposes exactly five active blocks and six display rows", () => {
-  assert.deepEqual(H1_LOCAL_SCAN_HOURS, [3, 6, 9, 12, 14]);
+test("new H1 scanner exposes six active blocks and six display rows", () => {
+  assert.deepEqual(H1_LOCAL_SCAN_HOURS, [3, 6, 9, 12, 14, 16]);
   assert.deepEqual(H1_LOCAL_TARGETS, ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"]);
 });
 
@@ -76,22 +76,22 @@ test("Monday uses the same symbol and block eligibility as normal weekdays", () 
       assert.equal(targetEnabledForDate(target, monday, hour), targetEnabledForDate(target, tuesday, hour));
     }
   }
-  for (const fx of ["GBPUSD", "EURUSD", "GBPCAD"] as const) {
+  for (const fx of ["GBPUSD", "EURUSD"] as const) {
     assert.equal(targetEnabledForDate(fx, monday, 3), false);
     assert.equal(targetEnabledForDate(fx, monday, 6), false);
-    for (const hour of [9, 12, 14]) assert.equal(targetEnabledForDate(fx, monday, hour), true);
+    for (const hour of [9, 12, 14, 16]) assert.equal(targetEnabledForDate(fx, monday, hour), true);
   }
-  for (const hour of [3, 12, 14]) assert.equal(targetEnabledForDate("GBPJPY", monday, hour), false);
-  for (const hour of [6, 9]) assert.equal(targetEnabledForDate("GBPJPY", monday, hour), true);
-  for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(targetEnabledForDate("GBPAUD", monday, hour), true);
+  for (const cross of ["GBPAUD", "GBPCAD", "GBPJPY"] as const) {
+    for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(targetEnabledForDate(cross, monday, hour), true);
+  }
 });
 
-test("rule v83 has no weekday inversion badges", () => {
+test("rule v84 has no weekday inversion badges", () => {
   const tue = "2026-09-08";
   const thu = "2026-09-03";
   const fri = "2026-09-04";
   for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(weekdayInversionBadge("GBPAUD", tue, hour), false);
-  for (const hour of [9, 12, 14]) {
+  for (const hour of [9, 12, 14, 16]) {
     assert.equal(weekdayInversionBadge("GBPUSD", thu, hour), false);
     assert.equal(weekdayInversionBadge("EURUSD", fri, hour), false);
   }

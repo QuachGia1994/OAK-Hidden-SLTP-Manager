@@ -1,6 +1,6 @@
 import { brokerDateWeekdayIndex, isValidBrokerDateKey } from "./h1-broker-date.ts";
 
-export const H1_LOCAL_SCAN_HOURS = [3, 6, 9, 12, 14] as const;
+export const H1_LOCAL_SCAN_HOURS = [3, 6, 9, 12, 14, 16] as const;
 export const H1_LOCAL_TARGETS = ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"] as const;
 export const H1_LOCAL_SOURCES = ["XAUUSD", "AUDUSD", "USDCAD", "USDJPY", "GBPUSD", "EURUSD"] as const;
 
@@ -83,8 +83,7 @@ export function targetEnabledForDate(target: H1LocalTarget, brokerDate: string, 
   if (!isValidBrokerDateKey(brokerDate) || !(H1_LOCAL_SCAN_HOURS as readonly number[]).includes(slotHour)) return false;
   const weekday = brokerDateWeekdayIndex(brokerDate);
   if (weekday === 0 || weekday === 6) return false;
-  if ((target === "GBPUSD" || target === "EURUSD" || target === "GBPCAD") && (slotHour === 3 || slotHour === 6)) return false;
-  if (target === "GBPJPY" && (slotHour === 3 || slotHour === 12 || slotHour === 14)) return false;
+  if ((target === "GBPUSD" || target === "EURUSD") && (slotHour === 3 || slotHour === 6)) return false;
   return true;
 }
 

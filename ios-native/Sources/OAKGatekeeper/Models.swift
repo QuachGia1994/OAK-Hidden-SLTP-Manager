@@ -282,7 +282,9 @@ extension H1SignalPayload {
         var signalSource = ""
         var rule = "DIRECT BASE"
 
-        if (sourceAlert.symbol == "GBPUSD" || sourceAlert.symbol == "EURUSD") && [9, 12, 14].contains(sourceAlert.slotHour) {
+        if sourceAlert.slotHour == 16 {
+            rule = "ENTRY ONLY"
+        } else if (sourceAlert.symbol == "GBPUSD" || sourceAlert.symbol == "EURUSD") && [9, 12, 14].contains(sourceAlert.slotHour) {
             let xau = alert(date: date, symbol: "XAUUSD", hour: sourceAlert.slotHour)
             signalSource = "XAUUSD H\(String(format: "%02d", sourceAlert.slotHour)) · \(xau?.signal?.rawValue ?? "—")"
             rule = "SYNC XAUUSD"
