@@ -276,15 +276,16 @@ extension H1SignalPayload {
     func evidenceFacts(date: String, sourceAlert: H1SignalAlert) -> H1EvidenceFacts {
         let baseHour = sourceAlert.baseHour.map { "H\(String(format: "%02d", $0))" } ?? "—"
         let baseSignal = sourceAlert.baseSignal?.rawValue ?? "—"
+        let previousBase = !sourceAlert.baseSymbol.isEmpty && sourceAlert.baseSymbol != sourceAlert.symbol
         let rawBase = sourceAlert.baseDirection.isEmpty
             ? "—"
-            : "\(sourceAlert.baseSymbol.isEmpty ? "—" : sourceAlert.baseSymbol) \(baseHour) · \(sourceAlert.baseDirection) → \(baseSignal)"
+            : "\(sourceAlert.baseSymbol.isEmpty ? "—" : sourceAlert.baseSymbol) \(previousBase ? "PREV " : "")\(baseHour) · \(sourceAlert.baseDirection) → \(baseSignal)"
 
         return H1EvidenceFacts(
             patternSource: sourceAlert.scannerSource ?? sourceAlert.symbol,
             rawBase: rawBase,
             signalSource: "",
-            rule: sourceAlert.slotHour == 16 ? "ENTRY ONLY" : "OWN H(entry-1)",
+            rule: sourceAlert.slotHour == 16 ? "ENTRY ONLY" : previousBase ? "PREV H(entry-1)" : "OWN H(entry-1)",
             finalSignal: sourceAlert.signal?.rawValue ?? "—"
         )
     }

@@ -36,14 +36,15 @@ function hourLabel(value: number | null | undefined): string {
 function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload): H1EvidenceFacts {
   const { base, alert } = selection;
   void payload;
+  const previousBase = Boolean(alert.baseSymbol && alert.baseSymbol !== base);
   const rawBase = alert.baseDirection
-    ? `${alert.baseSymbol || "—"} ${hourLabel(alert.baseHour)} · ${alert.baseDirection} → ${alert.baseSignal ?? "—"}`
+    ? `${alert.baseSymbol || "—"} ${previousBase ? "PREV " : ""}${hourLabel(alert.baseHour)} · ${alert.baseDirection} → ${alert.baseSignal ?? "—"}`
     : "—";
   return {
     patternSource: alert.scannerSource || base,
     rawBase,
     signalSource: "",
-    rule: alert.slotHour === 16 ? "ENTRY ONLY" : "OWN H(entry-1)",
+    rule: alert.slotHour === 16 ? "ENTRY ONLY" : previousBase ? "PREV H(entry-1)" : "OWN H(entry-1)",
     finalSignal: alert.signal ?? "—",
   };
 }

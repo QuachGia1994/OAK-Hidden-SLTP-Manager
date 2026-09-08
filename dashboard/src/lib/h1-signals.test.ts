@@ -91,7 +91,7 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 rows and block set match the local ICMarkets v86 XAU-entry own-candle contract", () => {
+test("H1 rows and block set match the local ICMarkets v87 XAU-entry mapped-base contract", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14, 16\]/);
@@ -101,7 +101,7 @@ test("H1 rows and block set match the local ICMarkets v86 XAU-entry own-candle c
   assert.match(expoCalendarSource, /FALLBACK_SYMBOLS = \["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.doesNotMatch(expoCalendarSource + expoSignalsSource, /TEMP_HIDDEN_H1_ROWS/);
   assert.match(nativeSignalsSource, /visibleSymbols = \["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
-  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 86/);
+  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 87/);
   assert.match(scannerSource, /includes\(hour\) \? H1_TARGET_BASES : \[\]/);
   assert.match(localMarketRouteSource, /evaluateLocalH1PatternsForTarget/);
   assert.doesNotMatch(scannerSource, /h14SignalForH16|repairLegacyH16AdvisorySignals/);
@@ -111,12 +111,18 @@ test("H1 rows and block set match the local ICMarkets v86 XAU-entry own-candle c
   assert.match(scannerSource, /appointmentMinute >= 22 \* 60 \+ 5/);
   assert.match(scannerSource, /evaluateLocalH1Pattern\(\{ target: "XAUUSD", brokerDate, slotHour, bars: market\.XAUUSD\.bars \}\)/);
   assert.match(scannerSource, /const baseHour = entryHour - 1/);
-  assert.match(scannerSource, /baseSymbol: base/);
-  assert.match(scannerSource, /market\[base\]\.bars/);
-  assert.match(localPatternsSource, /H1_LOCAL_SOURCES = H1_LOCAL_TARGETS/);
+  assert.match(scannerSource, /signalBaseSourceForTarget/);
+  assert.match(scannerSource, /base === "XAUUSD"\) return "GBPUSD"/);
+  assert.match(scannerSource, /base === "GBPAUD"\) return "AUDUSD"/);
+  assert.match(scannerSource, /base === "GBPCAD"\) return "USDCAD"/);
+  assert.match(scannerSource, /base === "GBPJPY"\) return "USDJPY"/);
+  assert.match(scannerSource, /signalBaseUsesPreviousBrokerDay/);
+  assert.match(scannerSource, /h1DirectionForPreviousAvailableBrokerDay/);
+  assert.match(scannerSource, /h1DirectionForBrokerDay/);
+  assert.match(localPatternsSource, /H1_SIGNAL_BASE_SOURCES = \["AUDUSD", "USDCAD", "USDJPY"\]/);
+  assert.match(localPatternsSource, /H1_LOCAL_SOURCES = \[\.\.\.H1_LOCAL_TARGETS, \.\.\.H1_SIGNAL_BASE_SOURCES\]/);
   assert.match(localPatternsSource, /return "XAUUSD"/);
-  assert.doesNotMatch(scannerSource, /syncFinalFromXau|patternDriverTargetFor|entryDriverTargetFor|signalBaseSourceForTarget|previousAvailableBrokerDate|signalBaseHourForTarget/);
-  assert.doesNotMatch(localPatternsSource, /return "AUDUSD"|return "USDCAD"|return "USDJPY"/);
+  assert.doesNotMatch(scannerSource, /syncFinalFromXau|patternDriverTargetFor|entryDriverTargetFor|signalBaseHourForTarget/);
 });
 
 test("web tab softly refreshes server data every 20 seconds", () => {
@@ -519,9 +525,13 @@ test("populated H1 cells open deterministic M15 pattern evidence without clutter
   assert.match(evidencePanelSource, /FINAL/);
   assert.doesNotMatch(evidencePanelSource, /COPY H14|INVERT H14|H14 OVERRIDE/);
   assert.match(evidencePanelSource, /OWN H\(entry-1\)/);
+  assert.match(evidencePanelSource, /PREV H\(entry-1\)/);
   assert.match(nativeModelsSource, /"OWN H\(entry-1\)"/);
+  assert.match(nativeModelsSource, /"PREV H\(entry-1\)"/);
   assert.match(androidModelsSource, /"OWN H\(entry-1\)"/);
-  assert.doesNotMatch(evidencePanelSource + nativeModelsSource + androidModelsSource, /SYNC XAUUSD|SYNC GBPCAD| PREV /);
+  assert.match(androidModelsSource, /"PREV H\(entry-1\)"/);
+  assert.match(evidencePanelSource + nativeModelsSource + androidModelsSource, /PREV /);
+  assert.doesNotMatch(evidencePanelSource + nativeModelsSource + androidModelsSource, /SYNC XAUUSD|SYNC GBPCAD/);
   assert.match(evidencePanelSource, /M15 candlestick pattern evidence/);
   assert.match(evidencePanelSource, /sampleBars/);
   assert.match(evidencePanelSource, /Pattern Evidence · newest → oldest/);

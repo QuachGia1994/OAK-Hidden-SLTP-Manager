@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced H1 to v87: entry time remains shared from XAUUSD, while mapped signal bases return to previous available broker-day H(entry-1): XAUUSD<-GBPUSD, GBPAUD<-AUDUSD, GBPCAD<-USDCAD and GBPJPY<-USDJPY. GBPUSD keeps its v86 same-day own GBPUSD H(entry-1) rule. Monday resolves the prior Friday, H16 remains entry-only, schema 18/state v56 stay stable, and local snapshots now include AUDUSD/USDCAD/USDJPY plus previous-day bars for live/history reconstruction.
+
 - Advanced H1 to v86: XAUUSD is the single entry-time pattern owner for the five-row H1 matrix (`XAUUSD`, `GBPUSD`, `GBPAUD`, `GBPCAD`, `GBPJPY`). All five rows now calculate every `H3/H6/H9/H12/H14/H16` block Monday-Friday; weekends remain off and EURUSD is retired from H1 only. Once XAUUSD resolves an entry hour, every row copies it, then derives its own BUY/SELL from its own same-broker-day H(entry-1) candle after all four M15 quarters close; for example entry H4 reads that row's H3 candle. GBPUSD is fully independent for final direction, H16 remains entry/evidence only, schema 18/state v56 stay stable, stale v85 rows are not relabeled, and retained History is rebuilt from local source M15 bars after deployment.
 
 - Advanced H1 to v85: Monday no longer calculates GBPAUD, GBPCAD or GBPJPY on any H1 block; XAUUSD keeps normal Monday calculation and GBPUSD/EURUSD retain H9/H12/H14/H16 eligibility. Retained/public state filters stale Monday GBP-cross rows under the same schema 18/state v56 contract. On Web, when XAUUSD H3 resolves to entry H4, the XAUUSD H3 and H14 cells are highlighted together without changing H14 calculation or signal.

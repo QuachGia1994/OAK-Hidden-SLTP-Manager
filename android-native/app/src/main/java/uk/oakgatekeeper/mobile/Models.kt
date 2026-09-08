@@ -71,17 +71,18 @@ data class H1SignalPayload(
     fun evidenceFacts(date: String, sourceAlert: H1SignalAlert): H1EvidenceFacts {
         val baseHour = sourceAlert.baseHour?.let { "H${it.toString().padStart(2, '0')}" } ?: "—"
         val baseSignal = sourceAlert.baseSignal?.name ?: "—"
+        val previousBase = sourceAlert.baseSymbol.isNotBlank() && sourceAlert.baseSymbol != sourceAlert.symbol
         val rawBase = if (sourceAlert.baseDirection.isBlank()) {
             "—"
         } else {
-            "${sourceAlert.baseSymbol.ifBlank { "—" }} $baseHour · ${sourceAlert.baseDirection} → $baseSignal"
+            "${sourceAlert.baseSymbol.ifBlank { "—" }} ${if (previousBase) "PREV " else ""}$baseHour · ${sourceAlert.baseDirection} → $baseSignal"
         }
 
         return H1EvidenceFacts(
             patternSource = sourceAlert.scannerSource ?: sourceAlert.symbol,
             rawBase = rawBase,
             signalSource = "",
-            rule = if (sourceAlert.slotHour == 16) "ENTRY ONLY" else "OWN H(entry-1)",
+            rule = if (sourceAlert.slotHour == 16) "ENTRY ONLY" else if (previousBase) "PREV H(entry-1)" else "OWN H(entry-1)",
             finalSignal = sourceAlert.signal?.name ?: "—",
         )
     }

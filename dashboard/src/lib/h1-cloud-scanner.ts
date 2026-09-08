@@ -14,7 +14,7 @@ import {
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 86;
+export const H1_SIGNAL_RULE_VERSION = 87;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
@@ -82,7 +82,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 86;
+  signalRuleVersion: 87;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -203,7 +203,19 @@ export function xauH3EntryHour(brokerDate: string, market: H1LocalMarketSnapshot
   return Number.isInteger(entryHour) ? Number(entryHour) : null;
 }
 
-function h1DirectionForSameBrokerDay(
+export function signalBaseSourceForTarget(base: H1TargetBase): H1LocalSource {
+  if (base === "XAUUSD") return "GBPUSD";
+  if (base === "GBPAUD") return "AUDUSD";
+  if (base === "GBPCAD") return "USDCAD";
+  if (base === "GBPJPY") return "USDJPY";
+  return "GBPUSD";
+}
+
+export function signalBaseUsesPreviousBrokerDay(base: H1TargetBase): boolean {
+  return base !== "GBPUSD";
+}
+
+function h1DirectionForBrokerDay(
   brokerDate: string,
   baseHour: number,
   bars: H1M15Bar[],
@@ -216,6 +228,19 @@ function h1DirectionForSameBrokerDay(
   const open = quarters[0]!.open;
   const close = quarters[3]!.close;
   return { brokerDate, hour: baseHour, direction: close > open ? "T" : "G" };
+}
+
+function h1DirectionForPreviousAvailableBrokerDay(
+  brokerDate: string,
+  baseHour: number,
+  bars: H1M15Bar[],
+): { brokerDate: string; hour: number; direction: H1Direction } | null {
+  const priorDates = [...new Set(bars.map((bar) => bar.brokerDate).filter((date) => date < brokerDate))].sort().reverse();
+  for (const date of priorDates) {
+    const direction = h1DirectionForBrokerDay(date, baseHour, bars);
+    if (direction) return direction;
+  }
+  return null;
 }
 
 export function signalledH1Candle(
@@ -311,7 +336,7 @@ type H1SlotPolicy = {
 };
 
 // Exact special-Thursday month table, ordered as:
-// [H3/H4, H6, H9, H12, H14]. H16 is entry-time-only in rule v86 and is excluded from the signal phase.
+// [H3/H4, H6, H9, H12, H14]. H16 is entry-time-only in rule v87 and is excluded from the signal phase.
 const SPECIAL_MONTH_WEEK_TABLE: Record<H1Weekday, H1PhaseRow> = {
   1: ["C", "N", "N", "C", "C"], // Mon
   2: ["N", "C", "N", "C", "N"], // Tue
@@ -446,17 +471,21 @@ export function evaluateLocalH1PatternsForTarget(
     const entryHour = match.entryHour;
     const baseHour = entryHour - 1;
     const entryOnly = slotHour === 16;
-    const signalReady = throughHour >= entryHour;
+    const baseSymbol = signalBaseSourceForTarget(base);
+    const previousBrokerDay = signalBaseUsesPreviousBrokerDay(base);
+    const signalReady = previousBrokerDay || throughHour >= entryHour;
     const reference = entryOnly || !signalReady
       ? null
-      : h1DirectionForSameBrokerDay(brokerDate, baseHour, market[base].bars);
+      : previousBrokerDay
+        ? h1DirectionForPreviousAvailableBrokerDay(brokerDate, baseHour, market[baseSymbol].bars)
+        : h1DirectionForBrokerDay(brokerDate, baseHour, market[baseSymbol].bars);
     const baseH1Signal = reference ? signalFromDirection(reference.direction) : null;
     const symbolH1Signal = entryOnly ? null : baseH1Signal;
     alerts.push({
       slotHour,
       symbol: base,
       profile: H1_CLOUD_PROFILE,
-      baseSymbol: base,
+      baseSymbol,
       baseH1Signal,
       baseHour,
       baseMinute: 0,
@@ -549,10 +578,10 @@ function hasLocalPatternMetadata(alert: H1StoredAlert): boolean {
   return Number.isInteger(alert.entryHour) && (alert.patternGroup === "SW" || alert.patternGroup === "BT");
 }
 
-function matchesV86LocalPatternContract(base: H1TargetBase, alert: H1StoredAlert): boolean {
+function matchesV87LocalPatternContract(base: H1TargetBase, alert: H1StoredAlert): boolean {
   if (!hasLocalPatternMetadata(alert)) return true;
   return alert.scannerSource === "XAUUSD"
-    && alert.baseSymbol === base
+    && alert.baseSymbol === signalBaseSourceForTarget(base)
     && alert.baseHour === Number(alert.entryHour) - 1;
 }
 
@@ -646,7 +675,7 @@ export function parseCloudState(raw: unknown): H1CloudState {
         if (!migratedAlert) throw new Error("Invalid H1 cloud alert state");
         if (!isH1SlotActiveForBrokerDate(dateKey, migratedAlert.slotHour)) continue;
         if (!targetEnabledForDate(base as H1TargetBase, dateKey, migratedAlert.slotHour)) continue;
-        if (!matchesV86LocalPatternContract(base as H1TargetBase, migratedAlert)) {
+        if (!matchesV87LocalPatternContract(base as H1TargetBase, migratedAlert)) {
           const scheduledOnly = preserveScheduledSignalOnly(base as H1TargetBase, migratedAlert);
           if (scheduledOnly) alerts.push(scheduledOnly);
           continue;
@@ -728,7 +757,7 @@ export function parsePublicFeedCloudState(raw: unknown): H1CloudState | null {
         const localPattern = Number.isInteger(row.entryHour) && (row.patternGroup === "SW" || row.patternGroup === "BT");
         if (localPattern && (
           row.scannerSource !== "XAUUSD"
-          || String(row.baseSymbol || base) !== base
+          || String(row.baseSymbol || base) !== signalBaseSourceForTarget(base)
           || baseHour !== Number(row.entryHour) - 1
         )) continue;
         const entryOnly = row.slotHour === 16;
@@ -805,7 +834,7 @@ export function buildPublicFeed(state: H1CloudState, publishedAt = new Date().to
           .filter((alert) => (
             isH1SlotActiveForBrokerDate(dateKey, alert.slotHour)
             && targetEnabledForDate(base, dateKey, alert.slotHour)
-            && matchesV86LocalPatternContract(base, alert)
+            && matchesV87LocalPatternContract(base, alert)
           ))
           .sort((left, right) => left.slotHour - right.slotHour)
           .map((alert) => {
