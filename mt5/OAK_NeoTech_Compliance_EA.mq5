@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.03"
+#property version   "1.04"
 #property description "OAK read-only NeoTech compliance auditor with direct Telegram reporting. Never sends, modifies or closes trades."
 
 #include "neotech\\NeoTechComplianceCore.mqh"
@@ -18,6 +18,7 @@ input group "3. TUY CHON TELEGRAM"
 input int    InpTelegramPollSeconds         = 15;    // Chu ky doc lenh (giay)
 input bool   InpTelegramDeleteWebhookOnInit = false; // Xoa webhook cu khi khoi dong (chi bat 1 lan)
 input bool   InpTelegramSendOnChange        = false; // Tu gui khi bao cao thay doi
+input bool   InpTelegramC5ReentryReminder   = true;  // Nhac moc vao lai cung symbol theo C5
 input int    InpTelegramPageSize            = 6;     // So muc moi trang
 
 input group "4. KIEM TRA - GIU MAC DINH NEU KHONG RO"
@@ -158,6 +159,13 @@ struct NTJsonEvent
    string json;
   };
 
+struct NTC5TelegramReminder
+  {
+   ulong deal_ticket;
+   string text;
+   int next_chat_index;
+  };
+
 bool g_history_dirty=true;
 long g_last_deals=-1;
 long g_last_orders=-1;
@@ -178,6 +186,8 @@ NTDealRecord g_cached_deals[];
 NTCashFlow g_cached_cashflows[];
 long g_cached_program_start=0;
 double g_cached_opening_balance=0.0;
+NTC5TelegramReminder g_c5_reminder_queue[];
+ulong g_c5_reminder_seen_deals[];
 
 string NTTrim(string value)
   {
@@ -453,6 +463,38 @@ void NTObserveCurrentPositionSltp(const ulong position_ticket,const long time_ms
    NTObserveJournalSnapshot(index,time_msc,PositionGetDouble(POSITION_PRICE_OPEN),PositionGetDouble(POSITION_SL),PositionGetDouble(POSITION_TP));
   }
 
+bool NTC5ReminderDealSeen(const ulong deal_ticket)
+  {
+   for(int i=0;i<ArraySize(g_c5_reminder_seen_deals);i++) if(g_c5_reminder_seen_deals[i]==deal_ticket) return true;
+   return false;
+  }
+
+void NTC5RememberReminderDeal(const ulong deal_ticket)
+  {
+   const int max_seen=256;
+   if(ArraySize(g_c5_reminder_seen_deals)>=max_seen)
+     {
+      for(int i=1;i<ArraySize(g_c5_reminder_seen_deals);i++) g_c5_reminder_seen_deals[i-1]=g_c5_reminder_seen_deals[i];
+      ArrayResize(g_c5_reminder_seen_deals,max_seen-1);
+     }
+   const int n=ArraySize(g_c5_reminder_seen_deals);
+   ArrayResize(g_c5_reminder_seen_deals,n+1);
+   g_c5_reminder_seen_deals[n]=deal_ticket;
+  }
+
+void NTQueueC5ReentryReminder(const ulong deal_ticket,const string canonical_symbol,const long opened_server_seconds)
+  {
+   if(!InpTelegramC5ReentryReminder || deal_ticket==0 || canonical_symbol=="" || opened_server_seconds<=0 || NTC5ReminderDealSeen(deal_ticket)) return;
+   const string text=NTTelegramC5ReentryReminder(canonical_symbol,opened_server_seconds);
+   if(text=="") return;
+   NTC5RememberReminderDeal(deal_ticket);
+   const int n=ArraySize(g_c5_reminder_queue);
+   ArrayResize(g_c5_reminder_queue,n+1);
+   g_c5_reminder_queue[n].deal_ticket=deal_ticket;
+   g_c5_reminder_queue[n].text=text;
+   g_c5_reminder_queue[n].next_chat_index=0;
+  }
+
 void NTRecordProspectiveTradeEvidence(const MqlTradeTransaction &trans)
   {
    bool changed=false;
@@ -471,7 +513,7 @@ void NTRecordProspectiveTradeEvidence(const MqlTradeTransaction &trans)
          bool is_forex=false,is_gold=false;
          double pip_size=0.0;
          bool classification_reliable=false;
-         NTResolveProduct(broker_symbol,canonical,is_forex,is_gold,pip_size,classification_reliable);
+         const bool product_eligible=NTResolveProduct(broker_symbol,canonical,is_forex,is_gold,pip_size,classification_reliable);
          int active=NTFindActiveSltpJournal(position_id);
          if(entry==DEAL_ENTRY_IN || entry==DEAL_ENTRY_INOUT)
            {
@@ -504,6 +546,7 @@ void NTRecordProspectiveTradeEvidence(const MqlTradeTransaction &trans)
                g_sltp_journal[n].timeline_complete=(classification_reliable && pip_size>0.0);
                g_sltp_journal[n].active=true;
                active=n;
+               if(product_eligible && classification_reliable) NTQueueC5ReentryReminder(trans.deal,canonical,time_msc/1000L);
               }
             NTObserveJournalSnapshot(active,time_msc,HistoryDealGetDouble(trans.deal,DEAL_PRICE),HistoryDealGetDouble(trans.deal,DEAL_SL),HistoryDealGetDouble(trans.deal,DEAL_TP));
             changed=true;
@@ -2133,6 +2176,32 @@ int NTTelegramAllowedChats(long &ids[])
    return ArraySize(ids);
   }
 
+void NTRemoveFirstC5Reminder()
+  {
+   const int n=ArraySize(g_c5_reminder_queue);
+   if(n<=0) return;
+   for(int i=1;i<n;i++) g_c5_reminder_queue[i-1]=g_c5_reminder_queue[i];
+   ArrayResize(g_c5_reminder_queue,n-1);
+  }
+
+void NTTelegramFlushC5ReentryReminders()
+  {
+   if(!InpTelegramC5ReentryReminder || ArraySize(g_c5_reminder_queue)==0 || NTTelegramBackoffActive()) return;
+   long chats[];
+   if(NTTelegramAllowedChats(chats)<=0) return;
+   while(ArraySize(g_c5_reminder_queue)>0 && !NTTelegramBackoffActive())
+     {
+      const string text=NTTelegramSafeText(g_c5_reminder_queue[0].text);
+      while(g_c5_reminder_queue[0].next_chat_index<ArraySize(chats))
+        {
+         const int index=g_c5_reminder_queue[0].next_chat_index;
+         if(!NTTelegramSendMessage(chats[index],text)) return;
+         g_c5_reminder_queue[0].next_chat_index=index+1;
+        }
+      NTRemoveFirstC5Reminder();
+     }
+  }
+
 void NTTelegramMaybeSendOnChange()
   {
    if(!InpTelegramSendOnChange || g_cached_report_json=="" || g_last_report_hash=="" || g_last_report_hash==g_telegram_last_notified_hash || NTTelegramBackoffActive()) return;
@@ -2249,6 +2318,7 @@ void OnTimer()
    if(!g_telegram_polling_enabled && !g_telegram_webhook_blocked && !NTTelegramBackoffActive()) NTTelegramConfigurePolling();
    if(!g_telegram_polling_enabled) return;
    NTTelegramPollUpdates();
+   NTTelegramFlushC5ReentryReminders();
    NTTelegramMaybeSendOnChange();
   }
 

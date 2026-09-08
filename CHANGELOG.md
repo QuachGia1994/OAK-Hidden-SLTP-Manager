@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added a read-only NeoTech C5 Telegram discipline reminder. Each newly observed eligible Forex/XAUUSD opening deal now reports the current effective session and the earliest next session/time the same canonical symbol may be entered again, using the existing C5 overlap classifier and Vietnam UTC+7 conversion; outside-session openings remain not verifiable and no reminder path can place or modify trades.
+
 - Advanced H1 to v88: all H3-H14 signal bases now use H(entry-2) instead of H(entry-1). XAUUSD/GBPAUD/GBPCAD/GBPJPY keep their previous available broker-day GBPUSD/AUDUSD/USDCAD/USDJPY mappings; GBPUSD keeps same-day own GBPUSD. H16 remains entry-only, schema 18/state v56 stay stable, and stale v87 H(entry-1) rows are rejected so retained History requires a fresh local M15 rebuild after deployment.
 
 - Advanced H1 to v87: entry time remains shared from XAUUSD, while mapped signal bases return to previous available broker-day H(entry-1): XAUUSD<-GBPUSD, GBPAUD<-AUDUSD, GBPCAD<-USDCAD and GBPJPY<-USDJPY. GBPUSD keeps its v86 same-day own GBPUSD H(entry-1) rule. Monday resolves the prior Friday, H16 remains entry-only, schema 18/state v56 stay stable, and local snapshots now include AUDUSD/USDCAD/USDJPY plus previous-day bars for live/history reconstruction.

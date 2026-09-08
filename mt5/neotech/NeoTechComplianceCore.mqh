@@ -276,6 +276,28 @@ NTSession NTAssignSession(const long epoch_seconds)
    return NT_OUTSIDE_SESSION;
   }
 
+bool NTC5NextReentry(const long opened_server_seconds,NTSession &current_session,NTSession &next_session,long &next_start_server_seconds)
+  {
+   current_session=NTAssignSession(opened_server_seconds);
+   next_session=NT_OUTSIDE_SESSION;
+   next_start_server_seconds=0;
+   if(opened_server_seconds<=0 || current_session==NT_OUTSIDE_SESSION) return false;
+   long cursor=opened_server_seconds-(opened_server_seconds%60)+60;
+   const long limit=opened_server_seconds+2L*NT_DAY_SECONDS;
+   while(cursor<=limit)
+     {
+      const NTSession candidate=NTAssignSession(cursor);
+      if(candidate!=NT_OUTSIDE_SESSION && candidate!=current_session)
+        {
+         next_session=candidate;
+         next_start_server_seconds=cursor;
+         return true;
+        }
+      cursor+=60;
+     }
+   return false;
+  }
+
 long NTWeeklyCountingStart(const long first_signal_seconds)
   {
    MqlDateTime dt;

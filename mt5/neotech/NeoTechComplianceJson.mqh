@@ -95,6 +95,39 @@ string NTVietnamTimeText(const long server_seconds)
    return NTDateTimeText(NTVietnamSecondsFromNeoTechServer(server_seconds));
   }
 
+string NTTelegramSessionVi(const NTSession session)
+  {
+   if(session==NT_ASIA) return "Á";
+   if(session==NT_EUROPE) return "ÂU";
+   if(session==NT_US) return "MỸ";
+   return "NGOÀI PHIÊN";
+  }
+
+string NTTelegramUtcOffsetText(const int minutes)
+  {
+   const int hours=minutes/60;
+   return "UTC"+(hours>=0?"+":"")+IntegerToString(hours);
+  }
+
+string NTTelegramC5ReentryReminder(const string canonical_symbol,const long opened_server_seconds)
+  {
+   const NTSession opened_session=NTAssignSession(opened_server_seconds);
+   const string opened_vietnam=NTVietnamTimeText(opened_server_seconds);
+   if(opened_session==NT_OUTSIDE_SESSION)
+      return "⚠️ NeoTech E5/C5 · "+canonical_symbol+"\nE5 sản phẩm: HỢP LỆ\nĐã mở: "+opened_vietnam+" VN · NGOÀI PHIÊN\nC5: KHÔNG XÁC MINH. Không tự coi là được vào lại cho tới khi kiểm tra thủ công.";
+   NTSession current_session=NT_OUTSIDE_SESSION;
+   NTSession next_session=NT_OUTSIDE_SESSION;
+   long next_start_server_seconds=0;
+   if(!NTC5NextReentry(opened_server_seconds,current_session,next_session,next_start_server_seconds))
+      return "⚠️ NeoTech E5/C5 · "+canonical_symbol+"\nE5 sản phẩm: HỢP LỆ\nC5: chưa xác định được mốc vào lại an toàn.";
+   return "⏱ NeoTech E5/C5 · "+canonical_symbol
+      +"\nE5 sản phẩm: HỢP LỆ"
+      +"\nĐã mở: "+opened_vietnam+" VN · phiên "+NTTelegramSessionVi(current_session)
+      +"\nKhông vào lại "+canonical_symbol+" trong phiên "+NTTelegramSessionVi(current_session)+"."
+      +"\nĐược vào lại sớm nhất theo C5: phiên "+NTTelegramSessionVi(next_session)+" · "+NTVietnamTimeText(next_start_server_seconds)+" VN"
+      +"\nServer: "+NTDateTimeText(next_start_server_seconds)+" · "+NTTelegramUtcOffsetText(NTServerUtcOffsetMinutes(next_start_server_seconds));
+  }
+
 string NTTimePointJson(const long server_seconds)
   {
    if(server_seconds<=0) return "null";

@@ -557,6 +557,57 @@ void Fixture61_CrossPositionDca()
    NTCheck("61 cross-session adverse same-direction second position is C7 DCA but not C5 duplicate",NTCountC5ConfirmedViolations(episodes,-1)==0 && NTHasDcaCandidate(episodes) && NTEvaluateC7(episodes,T("2026-08-03 13:00:00")*1000L,true,true)==NT_FAIL);
   }
 
+void Fixture62_C5NextReentrySummer()
+  {
+   NTSession current=NT_OUTSIDE_SESSION,next=NT_OUTSIDE_SESSION;
+   long start=0;
+   const bool asia=NTC5NextReentry(T("2026-08-03 10:10:00"),current,next,start)
+      && current==NT_ASIA && next==NT_EUROPE && start==T("2026-08-03 11:00:00");
+   const bool europe=NTC5NextReentry(T("2026-08-03 14:30:00"),current,next,start)
+      && current==NT_EUROPE && next==NT_US && start==T("2026-08-03 18:00:00");
+   NTCheck("62 C5 summer re-entry starts at the next effective session",asia && europe);
+  }
+
+void Fixture63_C5NextReentryWinter()
+  {
+   NTSession current=NT_OUTSIDE_SESSION,next=NT_OUTSIDE_SESSION;
+   long start=0;
+   const bool ok=NTC5NextReentry(T("2026-11-02 12:00:00"),current,next,start)
+      && current==NT_EUROPE && next==NT_US && start==T("2026-11-02 19:00:00")
+      && NTVietnamTimeText(start)=="2026-11-03 00:00:00";
+   NTCheck("63 C5 winter Europe to US boundary renders midnight Vietnam time",ok);
+  }
+
+void Fixture64_C5UsReentryNextAsia()
+  {
+   NTSession current=NT_OUTSIDE_SESSION,next=NT_OUTSIDE_SESSION;
+   long start=0;
+   const bool ok=NTC5NextReentry(T("2026-08-03 22:30:00"),current,next,start)
+      && current==NT_US && next==NT_ASIA && start==T("2026-08-04 02:00:00")
+      && NTVietnamTimeText(start)=="2026-08-04 06:00:00";
+   NTCheck("64 C5 US re-entry rolls to next-day Asia",ok);
+  }
+
+void Fixture65_C5OutsideSessionHasNoPermission()
+  {
+   NTSession current=NT_ASIA,next=NT_ASIA;
+   long start=123;
+   const bool ok=!NTC5NextReentry(T("2026-08-03 01:30:00"),current,next,start)
+      && current==NT_OUTSIDE_SESSION && next==NT_OUTSIDE_SESSION && start==0;
+   NTCheck("65 outside-session trade never gets a false C5 permission",ok);
+  }
+
+void Fixture66_C5TelegramReminderVietnamTime()
+  {
+   const string text=NTTelegramC5ReentryReminder("EURUSD",T("2026-08-03 10:10:00"));
+   const string outside=NTTelegramC5ReentryReminder("EURUSD",T("2026-08-03 01:30:00"));
+   const bool normal=StringFind(text,"EURUSD")>=0 && StringFind(text,"2026-08-03 14:10:00 VN")>=0
+      && StringFind(text,"phiên Á")>=0 && StringFind(text,"phiên ÂU · 2026-08-03 15:00:00 VN")>=0
+      && StringFind(text,"Server: 2026-08-03 11:00:00 · UTC+3")>=0;
+   const bool blocked=StringFind(outside,"NGOÀI PHIÊN")>=0 && StringFind(outside,"KHÔNG XÁC MINH")>=0 && StringFind(outside,"Được vào lại")<0;
+   NTCheck("66 Telegram C5 reminder shows Vietnam time and refuses outside-session permission",normal && blocked);
+  }
+
 void OnStart()
   {
    Fixture01_PartialClosesOneSignal();
@@ -613,6 +664,11 @@ void OnStart()
    Fixture59_RestoredCriteriaAndVietnameseLabels();
    Fixture60_C3FloatingThreshold();
    Fixture61_CrossPositionDca();
+   Fixture62_C5NextReentrySummer();
+   Fixture63_C5NextReentryWinter();
+   Fixture64_C5UsReentryNextAsia();
+   Fixture65_C5OutsideSessionHasNoPermission();
+   Fixture66_C5TelegramReminderVietnamTime();
    for(int i=0;i<ArraySize(g_failed_names);i++) PrintFormat("[NEOTECH SYNTHETIC] FAILURE fixture=%s expected=%s actual=%s",g_failed_names[i],g_failed_expected[i],g_failed_actual[i]);
    PrintFormat("[NEOTECH SYNTHETIC] TOTAL=%d PASS=%d FAIL=%d RESULT=%s",g_total,g_pass,g_fail,g_fail==0?"PASS":"FAIL");
   }
