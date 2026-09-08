@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed NeoTech C5 reminder runtime delivery in production. Compliance EA v1.05 can forward its already-computed read-only C5 message through the existing account-fenced OAK Local Telegram FILE_COMMON bus while direct Bot API polling remains optional; recent still-open positions can be catch-up scanned on startup, and controller delivery stays deduplicated by provider/account/event ID. This avoids a second `getUpdates` owner and keeps the Telegram bot secret out of the compliance chart.
+
 - Added a read-only NeoTech C5 Telegram discipline reminder. Each newly observed eligible Forex/XAUUSD opening deal now reports the current effective session and the earliest next session/time the same canonical symbol may be entered again, using the existing C5 overlap classifier and Vietnam UTC+7 conversion; outside-session openings remain not verifiable and no reminder path can place or modify trades.
 
 - Advanced H1 to v88: all H3-H14 signal bases now use H(entry-2) instead of H(entry-1). XAUUSD/GBPAUD/GBPCAD/GBPJPY keep their previous available broker-day GBPUSD/AUDUSD/USDCAD/USDJPY mappings; GBPUSD keeps same-day own GBPUSD. H16 remains entry-only, schema 18/state v56 stay stable, and stale v87 H(entry-1) rows are rejected so retained History requires a fresh local M15 rebuild after deployment.

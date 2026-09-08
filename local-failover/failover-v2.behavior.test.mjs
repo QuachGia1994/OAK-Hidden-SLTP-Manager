@@ -1410,20 +1410,22 @@ test("EA trade events are delivered to Telegram once and duplicate files are sup
       { eventId: "sl:601", eventType: "stop_loss", deal: 601, positionId: 5001, symbol: "XAUUSD", side: "BUY", volume: 0.01, price: 2490.0, profit: -10.0 },
       { eventId: "pending_fill:701:702", eventType: "pending_fill", order: 701, deal: 702, positionId: 7001, symbol: "GBPAUD", side: "BUY", volume: 0.05, price: 1.95 },
       { eventId: "partial:801", eventType: "partial_close", deal: 801, positionId: 8001, symbol: "GBPUSD", side: "SELL", closedVolume: 0.02, remainingVolume: 0.03, price: 1.31, profit: 5.0 },
+      { eventId: "neotech_c5:901", eventType: "neotech_c5_reentry", deal: 901, symbol: "EURUSD", text: "⏱ NeoTech E5/C5 · EURUSD\nĐược vào lại sớm nhất theo C5: phiên ÂU · 15:00 VN" },
     ];
     for (const event of events) await writeTradeEvent(h, event);
 
     await h.runtime.runOneIteration(h.config, state);
-    assert.equal(h.sent.length, 4);
+    assert.equal(h.sent.length, 5);
     assert.ok(h.sent.some((text) => /BE.*acct-a/i.test(text)));
     assert.ok(h.sent.some((text) => /SL.*acct-a/i.test(text)));
     assert.ok(h.sent.some((text) => /Pending.*filled.*acct-a/i.test(text)));
     assert.ok(h.sent.some((text) => /Partial.*close.*acct-a/i.test(text)));
-    assert.equal(state.deliveredTradeEventIds.length, 4);
+    assert.ok(h.sent.some((text) => /NeoTech E5\/C5.*EURUSD/i.test(text)));
+    assert.equal(state.deliveredTradeEventIds.length, 5);
 
     for (const event of events) await writeTradeEvent(h, event);
     await h.runtime.runOneIteration(h.config, state);
-    assert.equal(h.sent.length, 4);
+    assert.equal(h.sent.length, 5);
   } finally { await h.cleanup(); }
 });
 

@@ -1,6 +1,6 @@
 #property strict
-#property version   "1.04"
-#property description "OAK read-only NeoTech compliance auditor with direct Telegram reporting. Never sends, modifies or closes trades."
+#property version   "1.05"
+#property description "OAK read-only NeoTech compliance auditor with direct/local Telegram reporting. Never sends, modifies or closes trades."
 
 #include "neotech\\NeoTechComplianceCore.mqh"
 #include "neotech\\NeoTechComplianceJson.mqh"
@@ -9,16 +9,19 @@ input group "1. BAT BUOC - TAI KHOAN"
 input string InpProfileSlug                 = ""; // 1. Profile slug tu dat (VD: neotech_main)
 input long   InpExpectedLogin               = 0;  // 2. So tai khoan MT5 (Login)
 
-input group "2. BAT BUOC - TELEGRAM"
+input group "2. TELEGRAM TRUC TIEP - TUY CHON"
+input bool   InpTelegramDirectEnabled       = true;  // Poll/send truc tiep qua Bot API
 input string InpTelegramBotToken            = ""; // 3. Bot token tu @BotFather
 input string InpTelegramAllowedChatIds      = ""; // 4. Chat ID duoc phep (group: -100...)
 input string InpTelegramAllowedUserIds      = ""; // 5. User ID Telegram duoc phep
 
 input group "3. TUY CHON TELEGRAM"
-input int    InpTelegramPollSeconds         = 15;    // Chu ky doc lenh (giay)
+input int    InpTelegramPollSeconds         = 15;    // Chu ky timer (giay)
 input bool   InpTelegramDeleteWebhookOnInit = false; // Xoa webhook cu khi khoi dong (chi bat 1 lan)
 input bool   InpTelegramSendOnChange        = false; // Tu gui khi bao cao thay doi
 input bool   InpTelegramC5ReentryReminder   = true;  // Nhac moc vao lai cung symbol theo C5
+input bool   InpLocalC5ForwardEnabled       = true;  // Day reminder sang OAK Local Telegram controller
+input int    InpC5StartupCatchupMinutes     = 30;    // Phuc hoi reminder cho lenh dang mo gan day
 input int    InpTelegramPageSize            = 6;     // So muc moi trang
 
 input group "4. KIEM TRA - GIU MAC DINH NEU KHONG RO"
@@ -30,6 +33,7 @@ input int    InpReconstructionSliceSeconds  = 30;  // Moi lan xu ly toi da (giay
 input int    InpReconstructionBudgetMs      = 250; // Ngan sach moi lan xu ly (ms)
 
 #define NT_LOCAL_DIR "OAKNeoTechCompliance\\"
+#define NT_LOCAL_FORWARD_DIR "OAKLocalFailover\\"
 #define NT_TELEGRAM_API_BASE "https://api.telegram.org"
 #define NT_TELEGRAM_HTTP_TIMEOUT_MS 5000
 #define NT_TELEGRAM_MESSAGE_BUDGET 3800
@@ -162,7 +166,9 @@ struct NTJsonEvent
 struct NTC5TelegramReminder
   {
    ulong deal_ticket;
+   string symbol;
    string text;
+   bool local_forwarded;
    int next_chat_index;
   };
 
@@ -287,6 +293,107 @@ bool NTReadCommonText(const string path,string &text)
 void NTDeleteCommon(const string path)
   {
    if(FileIsExist(path,FILE_COMMON)) FileDelete(path,FILE_COMMON);
+  }
+
+bool NTWriteCommonAtomic(const string final_path,const string text)
+  {
+   if(FileIsExist(final_path,FILE_COMMON)) return true;
+   const string temp_path=final_path+".tmp."+IntegerToString((long)GetTickCount64())+"."+IntegerToString((long)MathRand());
+   if(!NTWriteCommonText(temp_path,text)) return false;
+   ResetLastError();
+   const bool moved=FileMove(temp_path,FILE_COMMON,final_path,FILE_COMMON);
+   if(!moved) NTDeleteCommon(temp_path);
+   return moved || FileIsExist(final_path,FILE_COMMON);
+  }
+
+string NTNormalizeServerIdentity(string value)
+  {
+   value=NTLower(NTTrim(value));
+   string out="";
+   bool pending_space=false;
+   for(int i=0;i<StringLen(value);i++)
+     {
+      const ushort c=StringGetCharacter(value,i);
+      const bool whitespace=(c==' ' || c=='\t' || c=='\r' || c=='\n');
+      if(whitespace)
+        {
+         if(StringLen(out)>0) pending_space=true;
+         continue;
+        }
+      if(pending_space) out+=" ";
+      pending_space=false;
+      out+=ShortToString(c);
+     }
+   return out;
+  }
+
+string NTLocalProfileKey(string value)
+  {
+   value=NTLower(NTTrim(value));
+   string out="";
+   for(int i=0;i<StringLen(value);i++)
+     {
+      const ushort c=StringGetCharacter(value,i);
+      const bool safe=(c>='a' && c<='z') || (c>='0' && c<='9') || c=='-' || c=='_';
+      out+=safe ? ShortToString(c) : "_";
+     }
+   return out;
+  }
+
+bool NTLocalForwardIdentity(string &profile,string &provider_account_id)
+  {
+   profile="";
+   provider_account_id="";
+   const long current_login=(long)AccountInfoInteger(ACCOUNT_LOGIN);
+   const string current_server=NTNormalizeServerIdentity(AccountInfoString(ACCOUNT_SERVER));
+   const long now_msc=(long)TimeGMT()*1000L;
+   string found="";
+   const long search=FileFindFirst(NT_LOCAL_FORWARD_DIR+"status_*.json",found,FILE_COMMON);
+   if(search==INVALID_HANDLE) return false;
+   do
+     {
+      string json="";
+      long login=0,at=0;
+      string server="",candidate_profile="",candidate_provider="";
+      if(!NTReadCommonText(NT_LOCAL_FORWARD_DIR+found,json)) continue;
+      if(!NTJsonGetLong(json,"login",login) || login!=current_login) continue;
+      if(!NTJsonGetString(json,"server",server) || NTNormalizeServerIdentity(server)!=current_server) continue;
+      if(!NTJsonGetString(json,"profile",candidate_profile) || NTLocalProfileKey(candidate_profile)=="") continue;
+      if(!NTJsonGetString(json,"providerAccountId",candidate_provider) || StringFind(candidate_provider,"mt5:")!=0) continue;
+      if(!NTJsonGetLong(json,"at",at) || at<=0 || (now_msc>0 && MathAbs((double)(now_msc-at))>120000.0)) continue;
+      profile=candidate_profile;
+      provider_account_id=candidate_provider;
+      break;
+     }
+   while(FileFindNext(search,found));
+   FileFindClose(search);
+   return profile!="" && provider_account_id!="";
+  }
+
+bool NTEmitLocalC5Reminder(const ulong deal_ticket,const string canonical_symbol,const string text)
+  {
+   if(!InpLocalC5ForwardEnabled || deal_ticket==0 || canonical_symbol=="" || text=="") return !InpLocalC5ForwardEnabled;
+   string profile="",provider_account_id="";
+   if(!NTLocalForwardIdentity(profile,provider_account_id)) return false;
+   const long login=(long)AccountInfoInteger(ACCOUNT_LOGIN);
+   const string event_id="neotech_c5:"+IntegerToString((long)deal_ticket);
+   const string hash=NTSha256Hex(event_id);
+   if(StringLen(hash)!=64) return false;
+   const string path=NT_LOCAL_FORWARD_DIR+"event_"+NTLocalProfileKey(profile)+"_"+IntegerToString(login)+"_"+StringSubstr(hash,0,40)+".json";
+   const string json="{\"version\":1"
+      +",\"eventId\":"+NTJsonQuote(event_id)
+      +",\"eventType\":\"neotech_c5_reentry\""
+      +",\"profile\":"+NTJsonQuote(profile)
+      +",\"providerAccountId\":"+NTJsonQuote(provider_account_id)
+      +",\"login\":"+IntegerToString(login)
+      +",\"server\":"+NTJsonQuote(AccountInfoString(ACCOUNT_SERVER))
+      +",\"at\":"+IntegerToString((long)TimeGMT()*1000L)
+      +",\"deal\":"+IntegerToString((long)deal_ticket)
+      +",\"symbol\":"+NTJsonQuote(canonical_symbol)
+      +",\"text\":"+NTJsonQuote(text)+"}";
+   if(NTWriteCommonAtomic(path,json)) return true;
+   PrintFormat("[NEOTECH] local C5 reminder persistence failed deal=%I64u",deal_ticket);
+   return false;
   }
 
 void NTSaveProspectiveExtrema()
@@ -491,8 +598,32 @@ void NTQueueC5ReentryReminder(const ulong deal_ticket,const string canonical_sym
    const int n=ArraySize(g_c5_reminder_queue);
    ArrayResize(g_c5_reminder_queue,n+1);
    g_c5_reminder_queue[n].deal_ticket=deal_ticket;
+   g_c5_reminder_queue[n].symbol=canonical_symbol;
    g_c5_reminder_queue[n].text=text;
+   g_c5_reminder_queue[n].local_forwarded=!InpLocalC5ForwardEnabled;
    g_c5_reminder_queue[n].next_chat_index=0;
+  }
+
+void NTQueueRecentOpenC5Reminders()
+  {
+   if(!InpTelegramC5ReentryReminder || InpC5StartupCatchupMinutes<=0 || ArraySize(g_cached_deals)==0) return;
+   const long now_server=((long)TimeTradeServer()>0 ? (long)TimeTradeServer() : (long)TimeCurrent());
+   const long cutoff_msc=(now_server-(long)InpC5StartupCatchupMinutes*60L)*1000L;
+   for(int i=0;i<PositionsTotal();i++)
+     {
+      const ulong position_ticket=PositionGetTicket(i);
+      if(position_ticket==0) continue;
+      const ulong position_id=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+      int first=-1;
+      for(int j=0;j<ArraySize(g_cached_deals);j++)
+        {
+         if(g_cached_deals[j].position_id!=position_id || !NTIsOpeningEntry(g_cached_deals[j].entry)) continue;
+         if(first<0 || g_cached_deals[j].time_msc<g_cached_deals[first].time_msc) first=j;
+        }
+      if(first<0 || g_cached_deals[first].time_msc<cutoff_msc) continue;
+      if(!g_cached_deals[first].product_eligible || !g_cached_deals[first].product_classification_reliable) continue;
+      NTQueueC5ReentryReminder(g_cached_deals[first].ticket,g_cached_deals[first].canonical_symbol,g_cached_deals[first].time_msc/1000L);
+     }
   }
 
 void NTRecordProspectiveTradeEvidence(const MqlTradeTransaction &trans)
@@ -2186,17 +2317,26 @@ void NTRemoveFirstC5Reminder()
 
 void NTTelegramFlushC5ReentryReminders()
   {
-   if(!InpTelegramC5ReentryReminder || ArraySize(g_c5_reminder_queue)==0 || NTTelegramBackoffActive()) return;
+   if(!InpTelegramC5ReentryReminder || ArraySize(g_c5_reminder_queue)==0) return;
    long chats[];
-   if(NTTelegramAllowedChats(chats)<=0) return;
-   while(ArraySize(g_c5_reminder_queue)>0 && !NTTelegramBackoffActive())
+   const int chat_count=(InpTelegramDirectEnabled ? NTTelegramAllowedChats(chats) : 0);
+   while(ArraySize(g_c5_reminder_queue)>0)
      {
-      const string text=NTTelegramSafeText(g_c5_reminder_queue[0].text);
-      while(g_c5_reminder_queue[0].next_chat_index<ArraySize(chats))
+      if(!g_c5_reminder_queue[0].local_forwarded)
         {
-         const int index=g_c5_reminder_queue[0].next_chat_index;
-         if(!NTTelegramSendMessage(chats[index],text)) return;
-         g_c5_reminder_queue[0].next_chat_index=index+1;
+         if(!NTEmitLocalC5Reminder(g_c5_reminder_queue[0].deal_ticket,g_c5_reminder_queue[0].symbol,g_c5_reminder_queue[0].text)) return;
+         g_c5_reminder_queue[0].local_forwarded=true;
+        }
+      if(InpTelegramDirectEnabled)
+        {
+         if(NTTelegramBackoffActive() || chat_count<=0) return;
+         const string text=NTTelegramSafeText(g_c5_reminder_queue[0].text);
+         while(g_c5_reminder_queue[0].next_chat_index<chat_count)
+           {
+            const int index=g_c5_reminder_queue[0].next_chat_index;
+            if(!NTTelegramSendMessage(chats[index],text)) return;
+            g_c5_reminder_queue[0].next_chat_index=index+1;
+           }
         }
       NTRemoveFirstC5Reminder();
      }
@@ -2266,14 +2406,14 @@ int OnInit()
       Print("[NEOTECH] Account fingerprint generation failed; initialization stopped.");
       return INIT_FAILED;
      }
-   if(NTTrim(InpTelegramBotToken)=="" || !NTTelegramHasConfiguredId(InpTelegramAllowedChatIds) || !NTTelegramHasConfiguredId(InpTelegramAllowedUserIds))
+   if(InpTelegramDirectEnabled && (NTTrim(InpTelegramBotToken)=="" || !NTTelegramHasConfiguredId(InpTelegramAllowedChatIds) || !NTTelegramHasConfiguredId(InpTelegramAllowedUserIds)))
      {
-      Print("[NEOTECH] Telegram token, allowed chat IDs and allowed user IDs are required; no values are hard-coded.");
+      Print("[NEOTECH] Direct Telegram mode requires token, allowed chat IDs and allowed user IDs; local C5 forwarding requires none of these secrets.");
       return INIT_PARAMETERS_INCORRECT;
      }
-   if(InpTelegramPollSeconds<1 || InpTelegramPollSeconds>300 || InpTelegramPageSize<1 || InpTelegramPageSize>20)
+   if(InpTelegramPollSeconds<1 || InpTelegramPollSeconds>300 || InpTelegramPageSize<1 || InpTelegramPageSize>20 || InpC5StartupCatchupMinutes<0 || InpC5StartupCatchupMinutes>120)
      {
-      Print("[NEOTECH] InpTelegramPollSeconds must be 1..300 and InpTelegramPageSize must be 1..20.");
+      Print("[NEOTECH] Telegram timer must be 1..300s, page size 1..20, and C5 startup catch-up 0..120 minutes.");
       return INIT_PARAMETERS_INCORRECT;
      }
    FolderCreate(NT_LOCAL_DIR,FILE_COMMON);
@@ -2282,9 +2422,10 @@ int OnInit()
    NTLoadSltpJournal();
    NTLoadFddJob();
    NTRefreshReportIfNeeded();
-   NTTelegramConfigurePolling();
+   NTQueueRecentOpenC5Reminders();
+   if(InpTelegramDirectEnabled) NTTelegramConfigurePolling();
    if(!EventSetTimer(InpTelegramPollSeconds)) return INIT_FAILED;
-   PrintFormat("[NEOTECH] Read-only direct-Telegram compliance auditor initialized profile=@%s ruleset=%s polling=%s",profile,NT_RULESET_ID,g_telegram_polling_enabled?"enabled":"disabled");
+   PrintFormat("[NEOTECH] Read-only compliance auditor initialized profile=@%s ruleset=%s directTelegram=%s polling=%s localC5Forward=%s",profile,NT_RULESET_ID,InpTelegramDirectEnabled?"enabled":"disabled",g_telegram_polling_enabled?"enabled":"disabled",InpLocalC5ForwardEnabled?"enabled":"disabled");
    return INIT_SUCCEEDED;
   }
 
@@ -2315,11 +2456,10 @@ void OnTimer()
      }
    NTAdvanceCachedFdd();
    NTRefreshReportIfNeeded();
-   if(!g_telegram_polling_enabled && !g_telegram_webhook_blocked && !NTTelegramBackoffActive()) NTTelegramConfigurePolling();
-   if(!g_telegram_polling_enabled) return;
-   NTTelegramPollUpdates();
+   if(InpTelegramDirectEnabled && !g_telegram_polling_enabled && !g_telegram_webhook_blocked && !NTTelegramBackoffActive()) NTTelegramConfigurePolling();
+   if(InpTelegramDirectEnabled && g_telegram_polling_enabled) NTTelegramPollUpdates();
    NTTelegramFlushC5ReentryReminders();
-   NTTelegramMaybeSendOnChange();
+   if(InpTelegramDirectEnabled && g_telegram_polling_enabled) NTTelegramMaybeSendOnChange();
   }
 
 void OnTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &request,const MqlTradeResult &result)

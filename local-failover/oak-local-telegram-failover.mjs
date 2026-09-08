@@ -527,6 +527,7 @@ export function createLocalFailoverRuntime(options = {}) {
         `• Deal #${event.deal || "?"} @ ${compactNumber(event.price)} · P/L ${compactNumber(event.profit)}`,
       ].join("\n");
     }
+    if (event.eventType === "neotech_c5_reentry") return String(event.text || "").slice(0, 3800);
     return "";
   }
 
@@ -604,7 +605,7 @@ export function createLocalFailoverRuntime(options = {}) {
       const event = await readJson(file, null);
       const eventId = String(event?.eventId || "");
       const deliveryId = tradeEventDeliveryId(event);
-      if (!event || Number(event.version) !== 1 || !eventId || !deliveryId || !["break_even", "stop_loss", "pending_fill", "partial_close"].includes(String(event.eventType || ""))) continue;
+      if (!event || Number(event.version) !== 1 || !eventId || !deliveryId || !["break_even", "stop_loss", "pending_fill", "partial_close", "neotech_c5_reentry"].includes(String(event.eventType || ""))) continue;
       if (!name.toLowerCase().endsWith(`_${tradeEventDigest(eventId)}.json`)) continue;
       if ((state.deliveredTradeEventIds || []).includes(deliveryId)) {
         await unlinkIfExists(file);
