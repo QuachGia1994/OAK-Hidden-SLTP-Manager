@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced H1 to v89 and restored a visible five-row signal matrix under the shared XAUUSD-owned `ENTRY TIME` row: `XAUUSD`, `GBPUSD`, `AUDUSD`, `USDCAD`, `USDJPY`. Every block H3/H6/H9/H12/H14/H16 reads the exact same-broker-day M15 candle at `entry time - 2h15` from that row's own symbol (for example entry H11 reads 08:45); bullish/bearish maps directly to BUY/SELL for XAUUSD/GBPUSD/AUDUSD and is inverted for USDCAD/USDJPY. Web/PNG/evidence/native row identities are synchronized, evidence records the exact base time/OHLC, stale v88 rows are rejected, schema 18/state v56 remain stable, and legacy GBP-cross Telegram scheduling continues routing to the corresponding AUDUSD/USDCAD/USDJPY table row without changing broker execution.
+
 - Updated app/H1 loading screens to the shared workspace palette with localized loading states. Published NeoTech Compliance EA v1.08 with automatic current-login/server binding across MT5 account switches, no fixed-login input, refreshed SHA-256 verification, and explicit existing-controller vs new-PC Telegram setup guidance.
 
 - Redesigned all OAK workspaces with a shared graphite/mint palette: H1 Live gains a geometric core and explicit feed status; NeoTech gains a compact connection entry and readable criteria; Tools, Fact Check, Tarot and Discover gain illustrated layouts and clearer controls. Preserved signal logic, account access, AI requests, tool drafts and actual result rendering; refined mobile layouts and EN/VN, Light/Dark/Contrast presentation.

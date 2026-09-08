@@ -54,11 +54,11 @@ function h3Bars(sequence: string, family: "ALT" | "SAME", date = "2026-09-02", s
   return barsFor(date, rows);
 }
 
-test("v88 H1 scanner exposes six active blocks, five rows and three hidden signal-base sources", () => {
-  const targets = ["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"];
+test("v89 H1 scanner exposes six active blocks and five own-symbol sources", () => {
+  const targets = ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"];
   assert.deepEqual(H1_LOCAL_SCAN_HOURS, [3, 6, 9, 12, 14, 16]);
   assert.deepEqual(H1_LOCAL_TARGETS, targets);
-  assert.deepEqual(H1_LOCAL_SOURCES, [...targets, "AUDUSD", "USDCAD", "USDJPY"]);
+  assert.deepEqual(H1_LOCAL_SOURCES, targets);
 });
 
 test("XAUUSD is the single pattern and entry-time source for every symbol", () => {
@@ -78,11 +78,11 @@ test("Monday through Friday calculate every H1 row and block while weekends stay
   }
 });
 
-test("rule v88 has no weekday inversion badges", () => {
+test("rule v89 has no weekday inversion badges", () => {
   const tue = "2026-09-08";
   const thu = "2026-09-03";
   for (const hour of H1_LOCAL_SCAN_HOURS) {
-    assert.equal(weekdayInversionBadge("GBPAUD", tue, hour), false);
+    assert.equal(weekdayInversionBadge("AUDUSD", tue, hour), false);
     assert.equal(weekdayInversionBadge("GBPUSD", thu, hour), false);
   }
 });
@@ -121,14 +121,14 @@ test("six pattern definitions classify long patterns before their TGT prefix", (
 
 test("SW enters block+2 and BT enters block+1", () => {
   const date = "2026-09-02";
-  const sw = evaluateLocalH1Pattern({ target: "GBPAUD", brokerDate: date, slotHour: 3, bars: h3Bars("TGGTTT", "ALT", date) });
+  const sw = evaluateLocalH1Pattern({ target: "AUDUSD", brokerDate: date, slotHour: 3, bars: h3Bars("TGGTTT", "ALT", date) });
   assert.equal(sw?.group, "SW");
   assert.equal(sw?.entryHour, 5);
   assert.equal(sw?.inverted, false);
   assert.equal(sw?.sampleBars.length, 6);
   assert.equal(sw?.sampleBars[0]?.brokerTime, "02:15");
   assert.equal(sw?.sampleBars[0]?.open, 102);
-  const bt = evaluateLocalH1Pattern({ target: "GBPAUD", brokerDate: date, slotHour: 3, bars: h3Bars("TTGTTT", "ALT", date) });
+  const bt = evaluateLocalH1Pattern({ target: "AUDUSD", brokerDate: date, slotHour: 3, bars: h3Bars("TTGTTT", "ALT", date) });
   assert.equal(bt?.group, "BT");
   assert.equal(bt?.entryHour, 4);
 });

@@ -46,6 +46,7 @@ export type H1SignalAlert = {
   scannerSource?: "XAUUSD" | "";
   inversionBadge?: boolean;
   sampleBars?: H1SignalSampleBar[];
+  signalBaseBar?: H1SignalSampleBar | null;
 };
 
 export type H1SymbolDay = {

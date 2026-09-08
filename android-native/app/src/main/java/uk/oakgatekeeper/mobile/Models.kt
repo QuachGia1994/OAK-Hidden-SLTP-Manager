@@ -69,20 +69,25 @@ data class H1SignalPayload(
         days[date]?.symbols?.get(symbol)?.alerts?.firstOrNull { it.slotHour == hour }
 
     fun evidenceFacts(date: String, sourceAlert: H1SignalAlert): H1EvidenceFacts {
-        val baseHour = sourceAlert.baseHour?.let { "H${it.toString().padStart(2, '0')}" } ?: "—"
+        val baseTime = if (sourceAlert.baseHour != null && sourceAlert.baseMinute != null) {
+            "${sourceAlert.baseHour.toString().padStart(2, '0')}:${sourceAlert.baseMinute.toString().padStart(2, '0')}"
+        } else {
+            "—"
+        }
         val baseSignal = sourceAlert.baseSignal?.name ?: "—"
-        val previousBase = sourceAlert.baseSymbol.isNotBlank() && sourceAlert.baseSymbol != sourceAlert.symbol
+        val inverted = sourceAlert.symbol == "USDCAD" || sourceAlert.symbol == "USDJPY"
+        val signalSource = sourceAlert.baseSymbol.ifBlank { sourceAlert.symbol }
         val rawBase = if (sourceAlert.baseDirection.isBlank()) {
             "—"
         } else {
-            "${sourceAlert.baseSymbol.ifBlank { "—" }} ${if (previousBase) "PREV " else ""}$baseHour · ${sourceAlert.baseDirection} → $baseSignal"
+            "$signalSource M15 $baseTime · ${sourceAlert.baseDirection} → $baseSignal"
         }
 
         return H1EvidenceFacts(
-            patternSource = sourceAlert.scannerSource ?: sourceAlert.symbol,
+            patternSource = sourceAlert.scannerSource ?: "XAUUSD",
             rawBase = rawBase,
-            signalSource = "",
-            rule = if (sourceAlert.slotHour == 16) "ENTRY ONLY" else if (previousBase) "PREV H(entry-2)" else "OWN H(entry-2)",
+            signalSource = signalSource,
+            rule = "M15 entry-2h15 · ${if (inverted) "INVERT" else "KEEP"}",
             finalSignal = sourceAlert.signal?.name ?: "—",
         )
     }

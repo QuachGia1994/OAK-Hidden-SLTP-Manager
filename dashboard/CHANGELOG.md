@@ -6,6 +6,8 @@ All notable changes to the dashboard are recorded here.
 
 ### Changed
 
+- Advanced H1 to v89: the shared XAUUSD entry-time row now sits above five visible signal rows (`XAUUSD`, `GBPUSD`, `AUDUSD`, `USDCAD`, `USDJPY`). Each cell reads that row's own same-day M15 candle at `entry - 2h15`; XAUUSD/GBPUSD/AUDUSD keep the candle direction while USDCAD/USDJPY invert it. H16 now carries the same table signal rule, PNG/export/evidence use the new rows and exact base time/OHLC, and Telegram/broker execution boundaries remain separate.
+
 - Refreshed the shared loading splash to match the workspace palette and follow EN/VN and reduced-motion preferences.
 
 - Unified H1 Live, NeoTech and all tool workspaces with theme-aware graphite/mint surfaces, stronger typography, responsive layouts and existing illustrated assets.

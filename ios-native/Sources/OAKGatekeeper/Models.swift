@@ -274,18 +274,23 @@ extension H1SignalPayload {
     }
 
     func evidenceFacts(date: String, sourceAlert: H1SignalAlert) -> H1EvidenceFacts {
-        let baseHour = sourceAlert.baseHour.map { "H\(String(format: "%02d", $0))" } ?? "—"
+        let baseTime: String
+        if let hour = sourceAlert.baseHour, let minute = sourceAlert.baseMinute {
+            baseTime = String(format: "%02d:%02d", hour, minute)
+        } else {
+            baseTime = "—"
+        }
         let baseSignal = sourceAlert.baseSignal?.rawValue ?? "—"
-        let previousBase = !sourceAlert.baseSymbol.isEmpty && sourceAlert.baseSymbol != sourceAlert.symbol
+        let inverted = sourceAlert.symbol == "USDCAD" || sourceAlert.symbol == "USDJPY"
         let rawBase = sourceAlert.baseDirection.isEmpty
             ? "—"
-            : "\(sourceAlert.baseSymbol.isEmpty ? "—" : sourceAlert.baseSymbol) \(previousBase ? "PREV " : "")\(baseHour) · \(sourceAlert.baseDirection) → \(baseSignal)"
+            : "\(sourceAlert.baseSymbol.isEmpty ? sourceAlert.symbol : sourceAlert.baseSymbol) M15 \(baseTime) · \(sourceAlert.baseDirection) → \(baseSignal)"
 
         return H1EvidenceFacts(
-            patternSource: sourceAlert.scannerSource ?? sourceAlert.symbol,
+            patternSource: sourceAlert.scannerSource ?? "XAUUSD",
             rawBase: rawBase,
-            signalSource: "",
-            rule: sourceAlert.slotHour == 16 ? "ENTRY ONLY" : previousBase ? "PREV H(entry-2)" : "OWN H(entry-2)",
+            signalSource: sourceAlert.baseSymbol.isEmpty ? sourceAlert.symbol : sourceAlert.baseSymbol,
+            rule: "M15 entry-2h15 · \(inverted ? "INVERT" : "KEEP")",
             finalSignal: sourceAlert.signal?.rawValue ?? "—"
         )
     }

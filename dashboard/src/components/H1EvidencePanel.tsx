@@ -24,27 +24,32 @@ function patternLabel(value: string | undefined): string {
 type H1EvidenceFacts = {
   patternSource: string;
   rawBase: string;
+  baseOhlc: string;
   signalSource: string;
   rule: string;
   finalSignal: string;
 };
 
-function hourLabel(value: number | null | undefined): string {
-  return Number.isInteger(value) ? `H${String(value).padStart(2, "0")}` : "—";
-}
-
 function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload): H1EvidenceFacts {
   const { base, alert } = selection;
   void payload;
-  const previousBase = Boolean(alert.baseSymbol && alert.baseSymbol !== base);
+  const baseTime = Number.isInteger(alert.baseHour) && Number.isInteger(alert.baseMinute)
+    ? `${String(alert.baseHour).padStart(2, "0")}:${String(alert.baseMinute).padStart(2, "0")}`
+    : "—";
+  const inverted = base === "USDCAD" || base === "USDJPY";
   const rawBase = alert.baseDirection
-    ? `${alert.baseSymbol || "—"} ${previousBase ? "PREV " : ""}${hourLabel(alert.baseHour)} · ${alert.baseDirection} → ${alert.baseSignal ?? "—"}`
+    ? `${alert.baseSymbol || base} M15 ${baseTime} · ${alert.baseDirection} → ${alert.baseSignal ?? "—"}`
+    : "—";
+  const signalBaseBar = alert.signalBaseBar;
+  const baseOhlc = signalBaseBar
+    ? `O ${price(signalBaseBar.open)} · H ${price(signalBaseBar.high)} · L ${price(signalBaseBar.low)} · C ${price(signalBaseBar.close)}`
     : "—";
   return {
-    patternSource: alert.scannerSource || base,
+    patternSource: alert.scannerSource || "XAUUSD",
     rawBase,
-    signalSource: "",
-    rule: alert.slotHour === 16 ? "ENTRY ONLY" : previousBase ? "PREV H(entry-2)" : "OWN H(entry-2)",
+    baseOhlc,
+    signalSource: alert.baseSymbol || base,
+    rule: `M15 entry-2h15 · ${inverted ? "INVERT" : "KEEP"}`,
     finalSignal: alert.signal ?? "—",
   };
 }
@@ -150,7 +155,10 @@ async function renderEvidenceChartPng(svg: SVGSVGElement, selection: H1EvidenceS
   ctx.fillText(`OAK H1 · ${selection.base} H${String(selection.alert.slotHour).padStart(2, "0")} · ${selection.brokerDate}`, chartX, 25);
   ctx.fillStyle = mutedColor;
   ctx.font = '800 11px "Cascadia Mono", Consolas, monospace';
-  ctx.fillText(`${selection.alert.patternGroup ?? "—"} · ${familyLabel(selection.alert.patternFamily)} · ${patternLabel(selection.alert.pattern)} · OLDEST → NEWEST`, chartX, 44);
+  const baseTime = Number.isInteger(selection.alert.baseHour) && Number.isInteger(selection.alert.baseMinute)
+    ? `${String(selection.alert.baseHour).padStart(2, "0")}:${String(selection.alert.baseMinute).padStart(2, "0")}`
+    : "—";
+  ctx.fillText(`${selection.alert.patternGroup ?? "—"} · ${familyLabel(selection.alert.patternFamily)} · ${patternLabel(selection.alert.pattern)} · BASE ${selection.alert.baseSymbol || selection.base} M15 ${baseTime} · FINAL ${selection.alert.signal ?? "—"}`, chartX, 44);
 
   const image = await loadSvgImage(inlineSvgComputedStyles(svg));
   ctx.drawImage(image, chartX, chartY, chartWidth, chartHeight);
@@ -268,13 +276,14 @@ export function H1EvidencePanel({ selection, payload, locale, onClose, variant =
           <div><small>{copy.pattern}</small><b>{patternLabel(alert.pattern)}</b></div>
           <div><small>{copy.broker}</small><b>{brokerDate} · {String(alert.slotHour).padStart(2, "0")}:00</b></div>
           <div><small>BASE CANDLE</small><b>{facts.rawBase}</b></div>
-          {facts.signalSource && <div><small>FINAL SOURCE</small><b>{facts.signalSource}</b></div>}
+          <div><small>BASE OHLC</small><b>{facts.baseOhlc}</b></div>
+          {facts.signalSource && <div><small>SIGNAL SOURCE</small><b>{facts.signalSource}</b></div>}
           <div><small>RULE</small><b>{facts.rule}</b></div>
           <div><small>FINAL</small><b>{facts.finalSignal}</b></div>
         </div>
 
         <div className="oak-h1-evidence-chart-card">
-          <div className="oak-h1-evidence-card-head"><div><small>M15 · ICMarkets local · OLDEST → NEWEST</small><b>{alert.scannerSource || base}</b></div><span>{orderedBars.filter((bar) => bar.selected).length}/{orderedBars.length || 0} selected</span></div>
+          <div className="oak-h1-evidence-card-head"><div><small>ENTRY PATTERN · M15 · ICMarkets local · OLDEST → NEWEST</small><b>{alert.scannerSource || "XAUUSD"}</b></div><span>{orderedBars.filter((bar) => bar.selected).length}/{orderedBars.length || 0} selected</span></div>
           <EvidenceChart bars={orderedBars} blockHour={alert.slotHour} entryHour={entryHour} />
         </div>
 

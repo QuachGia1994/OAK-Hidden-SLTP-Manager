@@ -57,12 +57,12 @@ test("local ICMarkets reader uses M15 only and does not double-shift MT5 server-
   assert.match(reader, /datetime\.fromtimestamp\(epoch_seconds, timezone\.utc\)/);
   assert.doesNotMatch(reader, /icmarkets_offset_seconds|timedelta|ZoneInfo/);
   assert.match(reader, /broker_wall_parts/);
-  assert.match(reader, /"XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY", "AUDUSD", "USDCAD", "USDJPY"/);
+  assert.match(reader, /"XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"/);
   assert.match(reader, /"icmarkets" not in server\.lower\(\)/);
   assert.doesNotMatch(reader, /order_send|positions_get|TRADE_ACTION|ORDER_TYPE_BUY|ORDER_TYPE_SELL/);
 });
 
-test("local publisher sends current plus previous broker-day bars for displayed and mapped base sources and supports bounded 90-day history backfill", () => {
+test("local publisher sends same-day bars for the five v89 own-symbol rows and supports bounded 90-day history backfill", () => {
   assert.match(publisher, /MAX_BACKFILL_DAYS = 90/);
   assert.match(publisher, /HISTORICAL_READER_TIMEOUT_MS = 180_000/);
   assert.match(publisher, /HISTORICAL_READER_MAX_BUFFER = 32_000_000/);
@@ -77,9 +77,10 @@ test("local publisher sends current plus previous broker-day bars for displayed 
   assert.match(publisher, /days > 4 \? HISTORICAL_READER_MAX_BUFFER : LIVE_READER_MAX_BUFFER/);
   assert.match(publisher, /--backfill/);
   assert.match(publisher, /currentDaySnapshot/);
-  assert.match(publisher, /"XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY", "AUDUSD", "USDCAD", "USDJPY"/);
+  assert.match(publisher, /"XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"/);
   assert.match(publisher, /snapshotBarsForSource/);
-  assert.match(publisher, /previousAvailableDate/);
+  assert.match(publisher, /bar\.brokerDate === brokerDate/);
+  assert.doesNotMatch(publisher, /previousAvailableDate/);
   assert.match(publisher, /dateSnapshots/);
   assert.match(publisher, /source: "local-mt5-icmarkets"|local-market/);
   assert.match(publisher, /x-telegram-bot-api-secret-token/);

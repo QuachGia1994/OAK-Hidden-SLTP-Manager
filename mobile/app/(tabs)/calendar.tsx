@@ -6,7 +6,7 @@ import { h1Hours, latestH1Date, signalFor } from "@/lib/h1";
 import { radius, spacing, useOakTheme } from "@/lib/theme";
 import { useOakData } from "@/state/data";
 
-const FALLBACK_SYMBOLS = ["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"];
+const FALLBACK_SYMBOLS = ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"];
 
 
 function isoDaysAgo(days: number) {

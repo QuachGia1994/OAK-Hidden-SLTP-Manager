@@ -14,7 +14,7 @@ import {
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 88;
+export const H1_SIGNAL_RULE_VERSION = 89;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
@@ -31,11 +31,11 @@ export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
 export const H1_FIRST_SCAN_HOUR = 3;
 export const H1_SCAN_START_HOUR = 3;
 export const H1_SCAN_END_HOUR = 16;
-export const H1_SIGNAL_END_HOUR = 14;
+export const H1_SIGNAL_END_HOUR = 16;
 export const H1_SCAN_HOURS = H1_LOCAL_SCAN_HOURS;
 
 export const H1_TARGET_BASES = H1_LOCAL_TARGETS;
-export const H1_FX_BASES = ["GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"] as const;
+export const H1_FX_BASES = ["GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const;
 export const H1_ALL_BASES = H1_TARGET_BASES;
 export type H1TargetBase = typeof H1_TARGET_BASES[number];
 export type H1Base = typeof H1_ALL_BASES[number];
@@ -70,6 +70,7 @@ export type H1StoredAlert = {
   scannerSource?: H1LocalSource | "";
   inversionBadge?: boolean;
   sampleBars?: H1PatternSampleBar[];
+  signalBaseBar?: H1PatternSampleBar | null;
 };
 
 export type H1CloudState = {
@@ -82,7 +83,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 88;
+  signalRuleVersion: 89;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -108,6 +109,7 @@ export type H1PublicFeed = {
       scannerSource: H1LocalSource | "";
       inversionBadge: boolean;
       sampleBars: H1PatternSampleBar[];
+      signalBaseBar: H1PatternSampleBar | null;
     }> }>>;
   }>;
 };
@@ -118,6 +120,9 @@ export function targetsForBlockHour(hour: number): readonly H1TargetBase[] {
 
 export function h1TargetBaseFromSymbol(value: unknown): H1TargetBase | null {
   const normalized = String(value || "").trim().toUpperCase();
+  if (normalized.startsWith("GBPAUD")) return "AUDUSD";
+  if (normalized.startsWith("GBPCAD")) return "USDCAD";
+  if (normalized.startsWith("GBPJPY")) return "USDJPY";
   return H1_TARGET_BASES.find((base) => normalized.startsWith(base)) || null;
 }
 
@@ -204,43 +209,26 @@ export function xauH3EntryHour(brokerDate: string, market: H1LocalMarketSnapshot
 }
 
 export function signalBaseSourceForTarget(base: H1TargetBase): H1LocalSource {
-  if (base === "XAUUSD") return "GBPUSD";
-  if (base === "GBPAUD") return "AUDUSD";
-  if (base === "GBPCAD") return "USDCAD";
-  if (base === "GBPJPY") return "USDJPY";
-  return "GBPUSD";
+  return base;
 }
 
-export function signalBaseUsesPreviousBrokerDay(base: H1TargetBase): boolean {
-  return base !== "GBPUSD";
+export function signalInvertedForTarget(base: H1TargetBase): boolean {
+  return base === "USDCAD" || base === "USDJPY";
 }
 
-function h1DirectionForBrokerDay(
+function m15SignalBaseForEntry(
   brokerDate: string,
-  baseHour: number,
+  entryHour: number,
   bars: H1M15Bar[],
-): { brokerDate: string; hour: number; direction: H1Direction } | null {
-  if (!Number.isInteger(baseHour) || baseHour < 0 || baseHour > 23) return null;
-  const quarters = [0, 15, 30, 45].map((minute) => bars.find((bar) => (
-    bar.brokerDate === brokerDate && bar.hour === baseHour && bar.minute === minute
-  )));
-  if (quarters.some((bar) => !bar)) return null;
-  const open = quarters[0]!.open;
-  const close = quarters[3]!.close;
-  return { brokerDate, hour: baseHour, direction: close > open ? "T" : "G" };
-}
-
-function h1DirectionForPreviousAvailableBrokerDay(
-  brokerDate: string,
-  baseHour: number,
-  bars: H1M15Bar[],
-): { brokerDate: string; hour: number; direction: H1Direction } | null {
-  const priorDates = [...new Set(bars.map((bar) => bar.brokerDate).filter((date) => date < brokerDate))].sort().reverse();
-  for (const date of priorDates) {
-    const direction = h1DirectionForBrokerDay(date, baseHour, bars);
-    if (direction) return direction;
-  }
-  return null;
+): H1M15Bar | null {
+  if (!Number.isInteger(entryHour) || entryHour < 0 || entryHour > 23) return null;
+  const totalMinutes = entryHour * 60 - 135;
+  if (totalMinutes < 0) return null;
+  const baseHour = Math.floor(totalMinutes / 60);
+  const baseMinute = totalMinutes % 60;
+  return bars.find((bar) => (
+    bar.brokerDate === brokerDate && bar.hour === baseHour && bar.minute === baseMinute
+  )) || null;
 }
 
 export function signalledH1Candle(
@@ -336,7 +324,8 @@ type H1SlotPolicy = {
 };
 
 // Exact special-Thursday month table, ordered as:
-// [H3/H4, H6, H9, H12, H14]. H16 is entry-time-only in rule v88 and is excluded from the signal phase.
+// [H3/H4, H6, H9, H12, H14]. This legacy post-signal/Telegram phase still
+// excludes H16; rule v89's read-only table signal is computed separately for H16.
 const SPECIAL_MONTH_WEEK_TABLE: Record<H1Weekday, H1PhaseRow> = {
   1: ["C", "N", "N", "C", "C"], // Mon
   2: ["N", "C", "N", "C", "N"], // Tue
@@ -469,18 +458,15 @@ export function evaluateLocalH1PatternsForTarget(
     const match = evaluateLocalH1Pattern({ target: "XAUUSD", brokerDate, slotHour, bars: market.XAUUSD.bars });
     if (!match) continue;
     const entryHour = match.entryHour;
-    const baseHour = entryHour - 2;
-    const entryOnly = slotHour === 16;
     const baseSymbol = signalBaseSourceForTarget(base);
-    const previousBrokerDay = signalBaseUsesPreviousBrokerDay(base);
-    const signalReady = previousBrokerDay || throughHour >= entryHour - 1;
-    const reference = entryOnly || !signalReady
-      ? null
-      : previousBrokerDay
-        ? h1DirectionForPreviousAvailableBrokerDay(brokerDate, baseHour, market[baseSymbol].bars)
-        : h1DirectionForBrokerDay(brokerDate, baseHour, market[baseSymbol].bars);
+    const reference = m15SignalBaseForEntry(brokerDate, entryHour, market[baseSymbol].bars);
     const baseH1Signal = reference ? signalFromDirection(reference.direction) : null;
-    const symbolH1Signal = entryOnly ? null : baseH1Signal;
+    const symbolH1Signal = baseH1Signal
+      ? (signalInvertedForTarget(base) ? invertSignal(baseH1Signal) : baseH1Signal)
+      : null;
+    const baseTotalMinutes = entryHour * 60 - 135;
+    const baseHour = baseTotalMinutes >= 0 ? Math.floor(baseTotalMinutes / 60) : -1;
+    const baseMinute = baseTotalMinutes >= 0 ? baseTotalMinutes % 60 : -1;
     alerts.push({
       slotHour,
       symbol: base,
@@ -488,7 +474,7 @@ export function evaluateLocalH1PatternsForTarget(
       baseSymbol,
       baseH1Signal,
       baseHour,
-      baseMinute: 0,
+      baseMinute,
       baseDirection: reference?.direction ?? "",
       symbolH1Signal,
       scheduledSignal: null,
@@ -501,6 +487,11 @@ export function evaluateLocalH1PatternsForTarget(
       scannerSource: match.scannerSource,
       inversionBadge: false,
       sampleBars: match.sampleBars,
+      signalBaseBar: reference ? {
+        ...reference,
+        brokerTime: `${String(reference.hour).padStart(2, "0")}:${String(reference.minute).padStart(2, "0")}`,
+        selected: true,
+      } : null,
     });
   }
   return alerts;
@@ -531,7 +522,7 @@ export function emptyCloudState(): H1CloudState {
   return { version: H1_CLOUD_STATE_VERSION, days: {} };
 }
 
-const RETIRED_H1_TARGET_BASES = new Set(["AUDUSD", "USDCAD", "USDJPY", "EURUSD"]);
+const RETIRED_H1_TARGET_BASES = new Set(["GBPAUD", "GBPCAD", "GBPJPY", "EURUSD"]);
 
 function isTargetBase(value: string): value is H1TargetBase {
   return (H1_TARGET_BASES as readonly string[]).includes(value);
@@ -578,11 +569,17 @@ function hasLocalPatternMetadata(alert: H1StoredAlert): boolean {
   return Number.isInteger(alert.entryHour) && (alert.patternGroup === "SW" || alert.patternGroup === "BT");
 }
 
-function matchesV88LocalPatternContract(base: H1TargetBase, alert: H1StoredAlert): boolean {
+function matchesV89LocalPatternContract(base: H1TargetBase, alert: H1StoredAlert): boolean {
   if (!hasLocalPatternMetadata(alert)) return true;
+  const totalMinutes = Number(alert.entryHour) * 60 - 135;
+  if (totalMinutes < 0) return false;
   return alert.scannerSource === "XAUUSD"
     && alert.baseSymbol === signalBaseSourceForTarget(base)
-    && alert.baseHour === Number(alert.entryHour) - 2;
+    && alert.baseHour === Math.floor(totalMinutes / 60)
+    && alert.baseMinute === totalMinutes % 60
+    && (!alert.symbolH1Signal || !alert.baseH1Signal || alert.symbolH1Signal === (
+      signalInvertedForTarget(base) ? invertSignal(alert.baseH1Signal) : alert.baseH1Signal
+    ));
 }
 
 function preserveScheduledSignalOnly(base: H1TargetBase, alert: H1StoredAlert): H1StoredAlert | null {
@@ -602,6 +599,7 @@ function preserveScheduledSignalOnly(base: H1TargetBase, alert: H1StoredAlert): 
     scannerSource: "",
     inversionBadge: false,
     sampleBars: [],
+    signalBaseBar: null,
     postSignalInverted: false,
     postSignalRule: "none",
   };
@@ -675,20 +673,12 @@ export function parseCloudState(raw: unknown): H1CloudState {
         if (!migratedAlert) throw new Error("Invalid H1 cloud alert state");
         if (!isH1SlotActiveForBrokerDate(dateKey, migratedAlert.slotHour)) continue;
         if (!targetEnabledForDate(base as H1TargetBase, dateKey, migratedAlert.slotHour)) continue;
-        if (!matchesV88LocalPatternContract(base as H1TargetBase, migratedAlert)) {
+        if (!matchesV89LocalPatternContract(base as H1TargetBase, migratedAlert)) {
           const scheduledOnly = preserveScheduledSignalOnly(base as H1TargetBase, migratedAlert);
           if (scheduledOnly) alerts.push(scheduledOnly);
           continue;
         }
-        if (migratedAlert.slotHour === 16) {
-          migratedAlert.baseH1Signal = null;
-          migratedAlert.baseDirection = "";
-          migratedAlert.symbolH1Signal = null;
-          migratedAlert.scheduledSignal = null;
-          migratedAlert.inversionBadge = false;
-          migratedAlert.postSignalInverted = false;
-          migratedAlert.postSignalRule = "none";
-        } else if (Number.isInteger(migratedAlert.entryHour) && migratedAlert.patternGroup) {
+        if (Number.isInteger(migratedAlert.entryHour) && migratedAlert.patternGroup) {
           migratedAlert.inversionBadge = false;
           migratedAlert.postSignalInverted = false;
           migratedAlert.postSignalRule = "none";
@@ -755,29 +745,31 @@ export function parsePublicFeedCloudState(raw: unknown): H1CloudState | null {
         if (!targetEnabledForDate(base, dateKey, row.slotHour)) continue;
         const decision = cycleDecisionFor(base, dateKey, row.slotHour);
         const localPattern = Number.isInteger(row.entryHour) && (row.patternGroup === "SW" || row.patternGroup === "BT");
-        if (localPattern && (
-          row.scannerSource !== "XAUUSD"
-          || String(row.baseSymbol || base) !== signalBaseSourceForTarget(base)
-          || baseHour !== Number(row.entryHour) - 2
-        )) continue;
-        const entryOnly = row.slotHour === 16;
+        if (localPattern) {
+          const totalMinutes = Number(row.entryHour) * 60 - 135;
+          if (
+            totalMinutes < 0
+            || row.scannerSource !== "XAUUSD"
+            || String(row.baseSymbol || base) !== signalBaseSourceForTarget(base)
+            || baseHour !== Math.floor(totalMinutes / 60)
+            || baseMinute !== totalMinutes % 60
+          ) continue;
+        }
         alerts.push({
           slotHour: row.slotHour,
           symbol: String(row.symbol || base),
           profile: H1_CLOUD_PROFILE,
           baseSymbol: String(row.baseSymbol || base),
-          baseH1Signal: entryOnly ? null : row.baseSignal,
+          baseH1Signal: row.baseSignal,
           baseHour,
           baseMinute,
-          baseDirection: entryOnly ? "" : row.baseDirection,
-          symbolH1Signal: entryOnly
-            ? null
-            : localPattern
-              ? row.signal
-              : row.baseSignal
-                ? (decision.inverted ? invertSignal(row.baseSignal) : row.baseSignal)
-                : row.signal,
-          scheduledSignal: entryOnly ? null : (row.scheduledSignal === undefined ? null : row.scheduledSignal),
+          baseDirection: row.baseDirection,
+          symbolH1Signal: localPattern
+            ? row.signal
+            : row.baseSignal
+              ? (decision.inverted ? invertSignal(row.baseSignal) : row.baseSignal)
+              : row.signal,
+          scheduledSignal: row.scheduledSignal === undefined ? null : row.scheduledSignal,
           postSignalInverted: localPattern ? false : Boolean(row.inversionBadge ?? row.postSignalInverted ?? decision.inverted),
           postSignalRule: localPattern ? "none" : (isPostSignalRule(row.postSignalRule) ? row.postSignalRule : decision.rule),
           entryHour: Number.isInteger(row.entryHour) ? Number(row.entryHour) : null,
@@ -787,6 +779,7 @@ export function parsePublicFeedCloudState(raw: unknown): H1CloudState | null {
           scannerSource: (H1_LOCAL_SOURCES as readonly string[]).includes(String(row.scannerSource || "")) ? row.scannerSource as H1LocalSource : "",
           inversionBadge: localPattern ? false : Boolean(row.inversionBadge ?? row.postSignalInverted ?? decision.inverted),
           sampleBars: Array.isArray(row.sampleBars) ? row.sampleBars : [],
+          signalBaseBar: row.signalBaseBar && typeof row.signalBaseBar === "object" ? row.signalBaseBar : null,
         });
       }
       alerts.sort((left, right) => left.slotHour - right.slotHour);
@@ -834,31 +827,28 @@ export function buildPublicFeed(state: H1CloudState, publishedAt = new Date().to
           .filter((alert) => (
             isH1SlotActiveForBrokerDate(dateKey, alert.slotHour)
             && targetEnabledForDate(base, dateKey, alert.slotHour)
-            && matchesV88LocalPatternContract(base, alert)
+            && matchesV89LocalPatternContract(base, alert)
           ))
           .sort((left, right) => left.slotHour - right.slotHour)
           .map((alert) => {
             const decision = cycleDecisionFor(base, dateKey, alert.slotHour);
             const localPattern = Number.isInteger(alert.entryHour) && Boolean(alert.patternGroup);
-            const entryOnly = alert.slotHour === 16;
-            const signal = entryOnly
-              ? null
-              : localPattern
-                ? alert.symbolH1Signal
-                : alert.baseH1Signal
-                  ? (decision.inverted ? invertSignal(alert.baseH1Signal) : alert.baseH1Signal)
-                  : alert.symbolH1Signal;
+            const signal = localPattern
+              ? alert.symbolH1Signal
+              : alert.baseH1Signal
+                ? (decision.inverted ? invertSignal(alert.baseH1Signal) : alert.baseH1Signal)
+                : alert.symbolH1Signal;
             return {
               slotHour: alert.slotHour,
               symbol: alert.symbol,
               profile: H1_CLOUD_PROFILE,
               baseSymbol: alert.baseSymbol,
-              baseSignal: entryOnly ? null : alert.baseH1Signal,
+              baseSignal: alert.baseH1Signal,
               baseHour: alert.baseHour,
               baseMinute: alert.baseMinute,
-              baseDirection: entryOnly ? "" : alert.baseDirection,
+              baseDirection: alert.baseDirection,
               signal,
-              scheduledSignal: entryOnly ? null : (alert.scheduledSignal ?? null),
+              scheduledSignal: alert.scheduledSignal ?? null,
               postSignalInverted: localPattern ? false : (alert.inversionBadge ?? decision.inverted),
               postSignalRule: localPattern ? "none" : alert.postSignalRule,
               entryHour: Number.isInteger(alert.entryHour) ? Number(alert.entryHour) : null,
@@ -868,6 +858,7 @@ export function buildPublicFeed(state: H1CloudState, publishedAt = new Date().to
               scannerSource: alert.scannerSource ?? "",
               inversionBadge: localPattern ? false : Boolean(alert.inversionBadge ?? alert.postSignalInverted),
               sampleBars: alert.sampleBars ?? [],
+              signalBaseBar: alert.signalBaseBar ?? null,
             };
           }),
       };

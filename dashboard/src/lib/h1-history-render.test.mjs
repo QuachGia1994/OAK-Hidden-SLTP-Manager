@@ -115,16 +115,17 @@ test("unified H1 keeps the calendar month grid out of the normal closed DOM", ()
   assert.doesNotMatch(h1SignalBoardSource, /embedded|data-embedded/);
 });
 
-test("shared Entry time row highlights H12 and H14 unconditionally", () => {
+test("H12 and H14 highlight the shared Entry row plus every v89 signal row", () => {
   const data = payload();
   data.days["2026-02-03"].symbols.XAUUSD.alerts = [alert(3, 5, "BUY"), alert(14, 15, "SELL")];
   const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data, locale: "VN", unlocked: true }));
-  assert.equal((markup.match(/data-entry-highlight="true"/g) || []).length, 4);
+  assert.equal((markup.match(/data-entry-highlight="true"/g) || []).length, 14);
   assert.match(markup, /<b>ENTRY TIME<\/b>/);
-  assert.doesNotMatch(markup, /h1-symbol-XAUUSD|h1-symbol-GBPUSD|data-xau-h4-highlight/);
+  for (const symbol of ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"]) assert.match(markup, new RegExp(`<b>${symbol}<\\/b>`));
+  assert.doesNotMatch(markup, /data-xau-h4-highlight/);
 });
 
-test("shared H1 table renders entry hour only plus previous broker-day H3 reference", () => {
+test("shared H1 table keeps entry hour and previous H3 reference above v89 signal rows", () => {
   const data = payload();
   data.days["2026-02-03"].symbols.XAUUSD.alerts = [alert(3, 5, "SELL")];
   const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data, locale: "VN", unlocked: true }));
