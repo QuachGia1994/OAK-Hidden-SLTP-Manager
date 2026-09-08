@@ -83,7 +83,8 @@ test("H1 entry cells stay centered, expose mobile scroll affordance and table he
   assert.match(h1SignalSource, /oak-h1-cell-entry/);
   assert.match(h1SignalSource, /scope="col"/);
   assert.match(h1SignalSource, /scope="row"/);
-  assert.match(h1SignalSource, /headers=\{`h1-symbol-\$\{base\} h1-hour-\$\{hour\}`\}/);
+  assert.match(h1SignalSource, /id="h1-entry-time-row"/);
+  assert.match(h1SignalSource, /headers=\{`h1-entry-time-row h1-hour-\$\{hour\}`\}/);
   assert.match(h1SignalSource, /oak-h1-cell-evidence/);
   assert.doesNotMatch(h1SignalSource, /VIP required|oak-h1-cell-locked/);
   assert.match(oakCss, /\.oak-h1-cell-entry[\s\S]*display: grid/);

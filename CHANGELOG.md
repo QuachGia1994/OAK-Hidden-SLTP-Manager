@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Simplified the web H1 Live/History matrix to the shared XAUUSD-owned entry-time surface: one `ENTRY TIME` row replaces the repeated XAUUSD/FX symbol rows, H3/H6/H9/H12/H14/H16 cells show only the entry hour with no BUY/SELL badge, H12/H14 are always highlighted, and the previous retained broker day's H3 entry hour is shown as a reference (Monday therefore resolves Friday). PNG export mirrors the same layout. This is presentation-only: H1 rule v88, schema 18/state v56, scanner signal computation and Telegram/execution logic are unchanged.
+
 - Added NeoTech `/look` to the PC-local Telegram controller. The C5-only EA now publishes a fresh account-fenced current-session snapshot containing the effective NeoTech session, Vietnam session window and unique eligible Forex/XAUUSD symbols that already had an opening episode in that session; `/look` (or `/look @ACCOUNT`) renders that list and fails closed on stale/mismatched/outside-session evidence. Closed trades still count for the current session, while scale-in/partial fills do not create a fresh symbol occurrence.
 
 - Slimmed `OAK_NeoTech_Compliance_EA` to one responsibility: NeoTech C5 re-entry discipline reminders only. Removed the standalone 14-rule auditor, `/check`, direct Telegram polling/webhook/ACL ownership, report cache, FDD reconstruction, SL/TP journal, history/month/week/cash-flow analysis and legacy MQL5 compliance JSON/core tests. The ReadOnly Connector + dashboard remain the 14-rule NeoTech web owner; the auxiliary EA now only account-binds, detects a new eligible Forex/XAUUSD opening episode, computes the next effective NeoTech session/time and forwards one deduplicated `neotech_c5_reentry` event through the existing local Telegram controller.

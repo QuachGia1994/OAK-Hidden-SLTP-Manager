@@ -151,37 +151,36 @@ test("H16 is entry-time-only across web and native clients with no CLOSE or BUY/
   assert.doesNotMatch(nativeEvidenceSource, /manualClose|label: "CLOSE"/);
   assert.match(androidModelsSource, /val signal: SignalSide\?/);
   assert.match(nativeModelsSource, /let signal: H1SignalSide\?/);
-  assert.match(boardSource, /drawCentered\(alert\?\.signal \|\| "—"/);
-  assert.match(boardSource, /<small data-signal=\{alert\?\.signal \|\| undefined\}>\{alert\?\.signal \|\| "—"\}<\/small>/);
+  assert.match(boardSource, /entryHourLabel\(byHour\.get\(hour\)\)/);
+  assert.match(boardSource, /entryHourLabel\(alert\)/);
+  assert.doesNotMatch(boardSource, /data-signal=\{alert\?\.signal|drawCentered\(alert\?\.signal/);
   assert.match(androidScreensSource, /Fact\("FINAL", facts\.finalSignal\)/);
   assert.match(nativeEvidenceSource, /fact\("FINAL", facts\.finalSignal\)/);
   assert.doesNotMatch(boardSource + androidScreensSource, /order_send|closePosition|dispatchTask|\/approve/);
 });
 
-test("GBPAUD, GBPCAD and GBPJPY are visible again across web iOS and Android", () => {
-  assert.match(boardSource, /H1_TEMP_HIDDEN_ROWS = new Set<string>\(\)/);
-  assert.match(boardSource, /visibleH1Symbols\(data\.symbols\)/);
-  assert.match(boardSource, /visibleH1Symbols\(H1_TARGET_BASES\)/);
+test("scanner/native clients retain five H1 symbols while web collapses them to shared Entry time", () => {
+  assert.match(boardSource, /<b>ENTRY TIME<\/b>/);
+  assert.match(boardSource, /entryByHour = new Map\(\(day\?\.symbols\?\.XAUUSD\?\.alerts/);
+  assert.doesNotMatch(boardSource, /H1_TEMP_HIDDEN_ROWS|visibleH1Symbols\(|h1-symbol-XAUUSD/);
   assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"\)/);
   assert.match(nativeH1BoardSource, /visibleSymbols = \["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
 });
 
-test("H1 cells render entry hour plus final rule-derived BUY/SELL", () => {
+test("web H1 table renders shared entry hours only while v88 scanner retains BUY/SELL data", () => {
   assert.match(boardSource, /oak-h1-cell-entry/);
-  assert.match(boardSource, /alert\?\.entryHour/);
-  assert.match(boardSource, /alert\?\.signal/);
-  assert.match(boardSource, /data-signal=\{alert\?\.signal/);
+  assert.match(boardSource, /entryHourLabel\(alert\)/);
   assert.match(boardSource, /data-pattern-group/);
-  assert.match(boardSource, /scannerSource/);
-  assert.doesNotMatch(boardSource, /data-scheduled-signal/);
-  assert.doesNotMatch(boardSource, /data-post-signal-inverted/);
-  assert.match(redesignCss, /\.oak-h1-cell-entry small\[data-signal="BUY"\]/);
-  assert.match(redesignCss, /\.oak-h1-cell-entry small\[data-signal="SELL"\]/);
-  assert.match(boardSource, /data-xau-h4-highlight/);
-  assert.match(redesignCss, /\[data-xau-h4-highlight="true"\]/);
-  assert.doesNotMatch(boardSource, /isEntryReferenceCell|data-entry-reference/);
-  assert.doesNotMatch(redesignCss, /data-entry-reference/);
+  assert.match(boardSource, /base: "XAUUSD"/);
+  assert.doesNotMatch(boardSource, /data-signal=|alert\?\.signal|data-scheduled-signal|data-post-signal-inverted/);
+  assert.match(boardSource, /previousRetainedBrokerDate/);
+  assert.match(boardSource, /H3 HÔM TRƯỚC/);
+  assert.match(boardSource, /data-entry-highlight=\{hour === 12 \|\| hour === 14/);
+  assert.match(redesignCss, /\[data-entry-highlight="true"\]/);
+  assert.doesNotMatch(boardSource + redesignCss, /data-xau-h4-highlight/);
+  assert.match(scannerSource, /const symbolH1Signal = entryOnly \? null/);
+  assert.match(scannerSource, /signal:/);
   assert.doesNotMatch(nativeH1BoardSource, /entryReference|isReference\(symbol:/);
   assert.doesNotMatch(androidScreensSource, /entryReference/);
   assert.doesNotMatch(androidShareSource, /val reference = \(symbol == "XAUUSD"/);
@@ -507,7 +506,9 @@ test("H1 board exports interoperable PNG with clipboard, Android share-sheet and
   assert.match(androidScreensSource, /Đã copy PNG · có thể dán sang Telegram/);
   assert.match(boardSource, /activeH1ScanHoursForBrokerDate\(date, data\.hours\)/);
   assert.match(boardSource, /hours\.forEach/);
-  assert.match(boardSource, /visibleSymbols\.forEach/);
+  assert.match(boardSource, /entryHourLabel\(byHour\.get\(hour\)\)/);
+  assert.match(boardSource, /const previousReference =/);
+  assert.match(boardSource, /hour === 12 \|\| hour === 14/);
   assert.match(redesignCss, /\.oak-h1-share-png \{/);
   assert.match(redesignCss, /data-copied="true"/);
 });
@@ -552,5 +553,6 @@ test("populated H1 cells open deterministic M15 pattern evidence without clutter
   assert.match(redesignCss, /@media \(max-width: 759px\)[\s\S]*\.oak-h1-evidence-backdrop \{ align-items: flex-end;/);
   assert.match(boardSource, /oak-h1-degraded/);
   assert.match(boardSource, /H1_SCAN_HOURS/);
-  assert.match(boardSource, /H1_TARGET_BASES/);
+  assert.match(boardSource, /base: "XAUUSD"/);
+  assert.match(boardSource, /entryByHour/);
 });

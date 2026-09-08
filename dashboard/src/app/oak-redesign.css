@@ -235,14 +235,17 @@ min-height: 2rem; padding: .35rem .6rem;
   .oak-h1-symbol-sticky { width: clamp(8rem, 10vw, 11rem) !important; min-width: clamp(8rem, 10vw, 11rem); }
 }
 .oak-h1-table tbody .oak-h1-symbol-sticky b { color: var(--oak-fg-primary); font: 900 .67rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-table tbody .oak-h1-symbol-sticky small { display: block; margin-top: .22rem; color: var(--oak-fg-muted); font: 800 .43rem/1.25 "Cascadia Mono", Consolas, monospace; letter-spacing: .02em; white-space: nowrap; }
 .oak-h1-table thead th[data-post-signal-inverted="true"],
 .oak-h1-table tbody td[data-post-signal-inverted="true"] { background: color-mix(in srgb, var(--oak-status-warning) 12%, var(--oak-bg-surface)); }
 .oak-h1-table thead th[data-post-signal-inverted="true"] { color: var(--oak-status-warning); box-shadow: inset 0 -3px 0 var(--oak-status-warning); }
-.oak-h1-table tbody td[data-xau-h4-highlight="true"] {
+.oak-h1-table thead th[data-entry-highlight="true"],
+.oak-h1-table tbody td[data-entry-highlight="true"] {
   background: color-mix(in srgb, var(--oak-status-warning) 18%, var(--oak-bg-surface));
   box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--oak-status-warning) 72%, transparent), inset 0 0 20px color-mix(in srgb, var(--oak-status-warning) 10%, transparent);
 }
-.oak-h1-table tbody td[data-xau-h4-highlight="true"] .oak-h1-cell-entry b { color: var(--oak-status-warning); }
+.oak-h1-table thead th[data-entry-highlight="true"],
+.oak-h1-table tbody td[data-entry-highlight="true"] .oak-h1-cell-entry b { color: var(--oak-status-warning); }
 .oak-h1-table thead th[data-month-end-bridge="true"],
 .oak-h1-table tbody td[data-month-end-bridge="true"] {
   background:
@@ -975,7 +978,8 @@ body.oak-body {
 :root:not(.dark):not(.contrast) .oak-h1-symbol-sticky { background: #eef3f8 !important; color: var(--oak-fg-primary) !important; }
 :root:not(.dark):not(.contrast) .oak-h1-table thead th { color: #344054; background: #eef3f8; border-color: #b8c2cf; }
 :root:not(.dark):not(.contrast) .oak-h1-table tbody td { color: var(--oak-fg-primary); background: rgba(255,255,255,.98); border-color: #c3ccd7; }
-:root:not(.dark):not(.contrast) .oak-h1-table tbody td[data-xau-h4-highlight="true"] {
+:root:not(.dark):not(.contrast) .oak-h1-table thead th[data-entry-highlight="true"],
+:root:not(.dark):not(.contrast) .oak-h1-table tbody td[data-entry-highlight="true"] {
   background: color-mix(in srgb, var(--oak-status-warning) 22%, #fff);
   box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--oak-status-warning) 78%, transparent);
 }

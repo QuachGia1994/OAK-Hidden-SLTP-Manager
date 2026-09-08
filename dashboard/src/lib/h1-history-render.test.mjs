@@ -115,27 +115,24 @@ test("unified H1 keeps the calendar month grid out of the normal closed DOM", ()
   assert.doesNotMatch(h1SignalBoardSource, /embedded|data-embedded/);
 });
 
-test("XAUUSD H3 and H14 cells highlight together when H3 entry is H4", () => {
+test("shared Entry time row highlights H12 and H14 unconditionally", () => {
   const data = payload();
-  data.days["2026-02-03"].symbols.XAUUSD.alerts = [alert(3, 4, "BUY"), alert(14, 15, "SELL")];
-  const highlighted = renderToStaticMarkup(React.createElement(H1SignalBoard, { data, locale: "VN", unlocked: true }));
-  assert.equal((highlighted.match(/data-xau-h4-highlight="true"/g) || []).length, 2);
-  assert.match(highlighted, /data-xau-h4-highlight="true"[^>]*title="XAUUSD/);
-
   data.days["2026-02-03"].symbols.XAUUSD.alerts = [alert(3, 5, "BUY"), alert(14, 15, "SELL")];
-  const normal = renderToStaticMarkup(React.createElement(H1SignalBoard, { data, locale: "VN", unlocked: true }));
-  assert.doesNotMatch(normal, /data-xau-h4-highlight="true"/);
+  const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data, locale: "VN", unlocked: true }));
+  assert.equal((markup.match(/data-entry-highlight="true"/g) || []).length, 4);
+  assert.match(markup, /<b>ENTRY TIME<\/b>/);
+  assert.doesNotMatch(markup, /h1-symbol-XAUUSD|h1-symbol-GBPUSD|data-xau-h4-highlight/);
 });
 
-test("local pattern entry hour and BUY/SELL render in the matching H1 table cell", () => {
+test("shared H1 table renders entry hour only plus previous broker-day H3 reference", () => {
   const data = payload();
   data.days["2026-02-03"].symbols.XAUUSD.alerts = [alert(3, 5, "SELL")];
   const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data, locale: "VN", unlocked: true }));
   assert.match(markup, /data-pattern-group="BT"/);
   assert.match(markup, />H05<\/b>/);
-  assert.match(markup, />SELL<\/small>/);
-  assert.doesNotMatch(markup, /data-post-signal-inverted/);
-  assert.doesNotMatch(markup, />ĐẢO<\/small>|>INVERT<\/small>/);
+  assert.match(markup, /H3 HÔM TRƯỚC · H04/);
+  assert.doesNotMatch(markup, />SELL<\/small>|data-signal=/);
+  assert.doesNotMatch(markup, /data-post-signal-inverted|>ĐẢO<\/small>|>INVERT<\/small>/);
 });
 
 test("unified H1 empty state keeps the fallback calendar interactive", () => {
