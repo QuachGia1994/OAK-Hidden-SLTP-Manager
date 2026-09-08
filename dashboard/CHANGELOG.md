@@ -14,7 +14,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Added
 
-- Added a visible NeoTech Compliance EA v1.07 download, checksum and bilingual installation guide. The optional EA provides C5 reminders and `/look` through an existing account-bound local Telegram controller.
+- Added a visible NeoTech Compliance EA v1.08 download, checksum and bilingual installation/controller guide. The optional EA provides C5 reminders and `/look`, auto-binds the active MT5 login/server across account switches, and keeps Telegram secrets exclusively in the OAK Local Telegram controller.
 
 - Expanded Tarot reflection with five question topics (relationship, career, personal, money and study). The selected topic is validated server-side, included in Gemini context, and shown with visible three-card position detail while legacy requests safely default to personal reflection.
 - Made Image Authenticity's multi-signal method explicit before and after analysis. The UI now surfaces C2PA/provenance, metadata/container, Gemini visual analysis and specialist-detector layers, and states that no single detector proves an image real or AI-generated.

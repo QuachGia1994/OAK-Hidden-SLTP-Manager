@@ -81,9 +81,9 @@ The 14-rule NeoTech table is owned by `OAK_NeoTech_ReadOnly_Connector.mq5` plus 
 
 ### Public download
 
-The `/neotech` page offers `dashboard/public/downloads/OAK_NeoTech_Compliance_EA.ex5`, a bilingual installation guide and a SHA-256 checksum. Version 1.07 was compiled from the unchanged EA and `neotech/NeoTechC5Reminder.mqh` at commit `94e0868` on 2026-09-08: MetaEditor reported 0 errors, 0 warnings, X64 Regular. The public binary is not attached to a terminal during web verification. Rebuild and update the checksum/guide together when the source changes.
+The `/neotech` page offers `dashboard/public/downloads/OAK_NeoTech_Compliance_EA.ex5`, a bilingual installation/controller guide and a SHA-256 checksum. Version 1.08 was compiled on 2026-09-08 from the current EA plus `neotech/NeoTechC5Reminder.mqh`: MetaEditor reported 0 errors, 0 warnings, X64 Regular for both the EA and `tests/NeoTechC5ReminderSyntheticTests.mq5`. The public EX5 is 53,126 bytes with SHA-256 `42df9d177311ff8261a9da2a51588500b50b2725a6e871e33128064e418bb093`. Rebuild and update the checksum/guide together whenever this source changes.
 
-The download requires the existing OAK Local Telegram controller on the same PC, bound to the same MT5 login/server. Website connector pairing alone does not configure this controller.
+Telegram delivery still requires the OAK Local Telegram controller on the same PC; the EA itself never stores a bot token or chat ID. v1.08 removes `InpExpectedLogin`: it reads the active MT5 login/server on every timer cycle and automatically follows account switches. Controller bootstrap writes its protected configuration to `%LOCALAPPDATA%\OAK Gatekeeper\telegram-failover-config.json`; the repo's `local-failover/README.md` owns bootstrap/Doctor/Scheduled Task setup. Website Connector pairing alone does not configure this controller.
 
 ### Runtime flow
 
@@ -106,11 +106,10 @@ The EA remains broker-read-only. It reads deal/position metadata and local contr
 
 ### Inputs
 
-1. `InpExpectedLogin` - required exact MT5 login. Initialization fails closed on zero or mismatch.
-2. `InpTimerSeconds` - local relay retry interval, default 2 seconds, valid 1-60.
-3. `InpStartupCatchupMinutes` - optional recent-open-position recovery after attach/restart, default 30 minutes, valid 0-120.
+1. `InpTimerSeconds` - local relay retry interval, default 2 seconds, valid 1-60.
+2. `InpStartupCatchupMinutes` - optional recent-open-position recovery after attach/restart or an account switch, default 30 minutes, valid 0-120.
 
-No Telegram bot token, chat/user ACL, webhook setting, WebRequest allow-list, profile slug, history lookback, FDD or SL/TP audit input is required. The local Telegram controller remains the sole bot owner and keeps the token outside MT5.
+No account/login input is required. v1.08 keeps the active normalized login/server as its runtime identity; when either changes it clears account-scoped reminder/dedupe memory, catch-up scans the new account and then resolves the matching fresh controller heartbeat. No Telegram bot token, chat/user ACL, webhook setting, WebRequest allow-list, profile slug, history lookback, FDD or SL/TP audit input is required. The local Telegram controller remains the sole bot owner and keeps the token outside MT5.
 
 ### C5 semantics
 
@@ -124,7 +123,7 @@ No Telegram bot token, chat/user ACL, webhook setting, WebRequest allow-list, pr
 
 ### Delivery and dedupe
 
-The EA matches the current MT5 login/server against a fresh `OAKLocalFailover/status_*.json` heartbeat and reuses that heartbeat's `profile` and `providerAccountId`. It persists an immutable `neotech_c5_reentry` event under MT5 `FILE_COMMON`; the local controller validates the same account identity and delivers the text through its existing durable notification ledger.
+The EA matches the current MT5 login/server against a fresh `OAKLocalFailover/status_*.json` heartbeat and reuses that heartbeat's `profile` and `providerAccountId`. On an MT5 account switch it automatically resets the previous account's transient queue/dedupe state and rebinds to the new login/server without re-entering Properties. It persists an immutable `neotech_c5_reentry` event under MT5 `FILE_COMMON`; the local controller validates the same account identity and delivers the text through its existing durable notification ledger.
 
 Event IDs are deal-scoped (`neotech_c5:<deal-ticket>`). Duplicate MT5 callbacks are suppressed in-memory, while controller delivery remains durable across EA/controller restarts. If the local identity heartbeat is temporarily unavailable, the reminder stays queued and retries on the next timer tick instead of being discarded.
 

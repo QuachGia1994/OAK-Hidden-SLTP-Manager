@@ -1,13 +1,10 @@
 #property strict
-#property version   "1.07"
+#property version   "1.08"
 #property description "OAK NeoTech C5 discipline helper: re-entry reminder + /look snapshot. Read-only."
 
 #include "neotech\\NeoTechC5Reminder.mqh"
 
-input group "1. TAI KHOAN"
-input long InpExpectedLogin             = 0;  // Bat buoc: login MT5 dang gan EA
-
-input group "2. NHAC C5"
+input group "1. NHAC C5"
 input int  InpTimerSeconds              = 2;  // Chu ky day reminder qua local Telegram controller
 input int  InpStartupCatchupMinutes     = 30; // Phuc hoi lenh dang mo gan day sau attach/restart
 
@@ -23,6 +20,8 @@ struct NC5Reminder
 
 NC5Reminder g_reminder_queue[];
 ulong g_seen_deals[];
+long g_bound_login=0;
+string g_bound_server="";
 
 bool NC5WriteCommonText(const string path,const string text)
   {
@@ -391,24 +390,34 @@ void NC5FlushReminders()
      }
   }
 
-int OnInit()
+bool NC5RefreshAccountIdentity(const bool force=false)
   {
    const long current_login=(long)AccountInfoInteger(ACCOUNT_LOGIN);
-   if(InpExpectedLogin<=0 || current_login!=InpExpectedLogin)
-     {
-      Print("[NEOTECH-C5] InpExpectedLogin is required and must match the attached MT5 account.");
-      return INIT_PARAMETERS_INCORRECT;
-     }
+   const string current_server=NC5NormalizeServerIdentity(AccountInfoString(ACCOUNT_SERVER));
+   if(current_login<=0 || current_server=="") return false;
+   if(!force && current_login==g_bound_login && current_server==g_bound_server) return false;
+   const long previous_login=g_bound_login;
+   g_bound_login=current_login;
+   g_bound_server=current_server;
+   ArrayResize(g_reminder_queue,0);
+   ArrayResize(g_seen_deals,0);
+   NC5QueueRecentOpenPositions();
+   PrintFormat("[NEOTECH-C5] auto-bound account previous=%I64d current=%I64d server=%s",previous_login,current_login,AccountInfoString(ACCOUNT_SERVER));
+   return true;
+  }
+
+int OnInit()
+  {
    if(InpTimerSeconds<1 || InpTimerSeconds>60 || InpStartupCatchupMinutes<0 || InpStartupCatchupMinutes>120)
      {
       Print("[NEOTECH-C5] Timer must be 1..60s and startup catch-up 0..120 minutes.");
       return INIT_PARAMETERS_INCORRECT;
      }
    FolderCreate(NC5_LOCAL_FORWARD_DIR,FILE_COMMON);
-   NC5QueueRecentOpenPositions();
+   NC5RefreshAccountIdentity(true);
    NC5PublishLookSnapshot();
    if(!EventSetTimer(InpTimerSeconds)) return INIT_FAILED;
-   PrintFormat("[NEOTECH-C5] C5-only helper initialized login=%I64d timer=%ds catchup=%dm",current_login,InpTimerSeconds,InpStartupCatchupMinutes);
+   PrintFormat("[NEOTECH-C5] C5-only helper initialized auto-bind=true login=%I64d timer=%ds catchup=%dm",(long)AccountInfoInteger(ACCOUNT_LOGIN),InpTimerSeconds,InpStartupCatchupMinutes);
    return INIT_SUCCEEDED;
   }
 
@@ -419,6 +428,7 @@ void OnDeinit(const int reason)
 
 void OnTimer()
   {
+   NC5RefreshAccountIdentity();
    NC5PublishLookSnapshot();
    NC5FlushReminders();
   }

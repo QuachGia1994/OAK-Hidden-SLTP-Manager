@@ -553,21 +553,24 @@ export function NeoTechPublicDashboard() {
 
       <section className={styles.downloadPanel} aria-labelledby="neotech-ea-download-title">
         <div className={styles.downloadCopy}>
-          <div className={styles.downloadEyebrow}>{tr("OPTIONAL MT5 HELPER · VERSION 1.07", "TIỆN ÍCH MT5 TÙY CHỌN · PHIÊN BẢN 1.07")}</div>
+          <div className={styles.downloadEyebrow}>{tr("OPTIONAL MT5 HELPER · VERSION 1.08", "TIỆN ÍCH MT5 TÙY CHỌN · PHIÊN BẢN 1.08")}</div>
           <h2 id="neotech-ea-download-title">{tr("NeoTech Compliance EA", "EA NeoTech Compliance")}</h2>
           <p>{tr("Read-only helper for the optional C5 session reminder and Telegram /look snapshot. It does not place, modify, or close trades.", "Nhắc thời điểm vào lại lệnh theo phiên C5 và xem các mã trong phiên qua Telegram /look. EA chỉ đọc dữ liệu, không đặt, sửa hoặc đóng lệnh.")}</p>
-          <p className={styles.downloadRequirement}>{tr("Requires the existing OAK Local Telegram controller running on the same PC and bound to the same account. Not a standalone 14-rule auditor.", "Cần OAK Local Telegram controller chạy trên cùng máy và đã liên kết đúng tài khoản MT5. Bảng đánh giá 14 tiêu chí dùng Connector riêng.")}</p>
+          <p className={styles.downloadRequirement}>{tr("Telegram delivery uses the OAK Local Telegram controller on the same PC. The EA needs no bot token and v1.08 follows the active MT5 login/server automatically. The 14-rule assessment still uses the separate Connector.", "Telegram được gửi qua OAK Local Telegram controller trên cùng máy. EA không cần bot token và v1.08 tự bám theo login/server MT5 đang hoạt động khi đổi tài khoản. Bảng đánh giá 14 tiêu chí vẫn dùng Connector riêng.")}</p>
           <div className={styles.downloadActions}>
             <a className={styles.primaryButton} href="/downloads/OAK_NeoTech_Compliance_EA.ex5" download>{tr("Download EA · .ex5", "Tải EA · .ex5")}</a>
             <a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_Compliance_EA-README.txt" target="_blank" rel="noreferrer">{tr("Install guide", "Hướng dẫn cài đặt")}</a>
+            <a className={styles.secondaryButton} href="https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/blob/main/local-failover/README.md" target="_blank" rel="noreferrer">{tr("Controller setup", "Cài Telegram controller")}</a>
             <a className={styles.downloadChecksum} href="/downloads/OAK_NeoTech_Compliance_EA.sha256.txt" target="_blank" rel="noreferrer">SHA-256</a>
           </div>
         </div>
         <div className={styles.downloadInstall}>
-          <b>{tr("Install", "Cài đặt")}</b>
-          <span>{tr("File → Open Data Folder → MQL5/Experts", "File → Open Data Folder → MQL5/Experts")}</span>
-          <span>{tr("Refresh Navigator, attach on a separate chart, set InpExpectedLogin to the exact MT5 login.", "Làm mới Navigator, gắn EA trên biểu đồ riêng và đặt InpExpectedLogin đúng số tài khoản MT5.")}</span>
-          <span>{tr("Keep MT5 and the controller online.", "Giữ MT5 và controller hoạt động.")}</span>
+          <b>{tr("Already using OAK Telegram", "Máy đã có OAK Telegram")}</b>
+          <span>{tr("Copy the EX5 to MQL5/Experts, refresh Navigator and attach it on a separate chart.", "Chép EX5 vào MQL5/Experts, làm mới Navigator rồi gắn EA trên một chart riêng.")}</span>
+          <span>{tr("No account input is needed: v1.08 auto-binds the current MT5 login/server and follows account switches.", "Không cần nhập số tài khoản: v1.08 tự bind login/server MT5 hiện tại và tự theo khi đổi account.")}</span>
+          <b>{tr("New PC / controller setup", "Máy mới / cài controller")}</b>
+          <span>{tr("Use the repository controller guide. Bootstrap writes the protected config to %LOCALAPPDATA%\\OAK Gatekeeper\\telegram-failover-config.json; then run Doctor and install the Scheduled Task.", "Làm theo hướng dẫn controller trong repo. Bootstrap sẽ ghi config được bảo vệ vào %LOCALAPPDATA%\\OAK Gatekeeper\\telegram-failover-config.json; sau đó chạy Doctor và cài Scheduled Task.")}</span>
+          <span>{tr("Bootstrap requires the OAK operator Telegram/Upstash configuration. Without controller credentials, the EA remains read-only but cannot deliver Telegram reminders or /look.", "Bootstrap cần cấu hình Telegram/Upstash của OAK operator. Nếu không có credential của controller, EA vẫn chỉ đọc nhưng sẽ không gửi reminder hoặc /look qua Telegram.")}</span>
         </div>
       </section>
 

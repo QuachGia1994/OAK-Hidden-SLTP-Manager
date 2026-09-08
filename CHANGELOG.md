@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Updated app/H1 loading screens to the shared workspace palette with localized loading states. Added a public NeoTech Compliance EA v1.07 download with installation guidance, SHA-256 verification and explicit local Telegram controller requirements.
+- Updated app/H1 loading screens to the shared workspace palette with localized loading states. Published NeoTech Compliance EA v1.08 with automatic current-login/server binding across MT5 account switches, no fixed-login input, refreshed SHA-256 verification, and explicit existing-controller vs new-PC Telegram setup guidance.
 
 - Redesigned all OAK workspaces with a shared graphite/mint palette: H1 Live gains a geometric core and explicit feed status; NeoTech gains a compact connection entry and readable criteria; Tools, Fact Check, Tarot and Discover gain illustrated layouts and clearer controls. Preserved signal logic, account access, AI requests, tool drafts and actual result rendering; refined mobile layouts and EN/VN, Light/Dark/Contrast presentation.
 
