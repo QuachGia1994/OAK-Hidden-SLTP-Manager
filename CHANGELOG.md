@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Slimmed `OAK_NeoTech_Compliance_EA` to one responsibility: NeoTech C5 re-entry discipline reminders only. Removed the standalone 14-rule auditor, `/check`, direct Telegram polling/webhook/ACL ownership, report cache, FDD reconstruction, SL/TP journal, history/month/week/cash-flow analysis and legacy MQL5 compliance JSON/core tests. The ReadOnly Connector + dashboard remain the 14-rule NeoTech web owner; the auxiliary EA now only account-binds, detects a new eligible Forex/XAUUSD opening episode, computes the next effective NeoTech session/time and forwards one deduplicated `neotech_c5_reentry` event through the existing local Telegram controller.
+
 - Fixed NeoTech C5 reminder runtime delivery in production. Compliance EA v1.05 can forward its already-computed read-only C5 message through the existing account-fenced OAK Local Telegram FILE_COMMON bus while direct Bot API polling remains optional; recent still-open positions can be catch-up scanned on startup, and controller delivery stays deduplicated by provider/account/event ID. This avoids a second `getUpdates` owner and keeps the Telegram bot secret out of the compliance chart.
 
 - Added a read-only NeoTech C5 Telegram discipline reminder. Each newly observed eligible Forex/XAUUSD opening deal now reports the current effective session and the earliest next session/time the same canonical symbol may be entered again, using the existing C5 overlap classifier and Vietnam UTC+7 conversion; outside-session openings remain not verifiable and no reminder path can place or modify trades.

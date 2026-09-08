@@ -73,65 +73,51 @@ Customer flow is three steps: choose Investor Password (recommended) or explicit
 
 The connector receives one revocable 256-bit ingest token after pairing and stores it only inside the customer's MT5 Files area; the server stores only its SHA-256. Raw deal/cash-flow history is transmitted over HTTPS for server-side rule computation and is not retained as a database record. The retained cloud state is masked/fingerprinted account metadata, derived Visual Profile, bounded equity samples and scoped audit metadata with a 400-day maximum sliding retention. The `/neotech` UI can revoke connector access or immediately purge retained account/profile/equity/connector data.
 
-## NeoTech compliance EA — independent, read-only
+## NeoTech C5 reminder EA - auxiliary, read-only
 
-`OAK_NeoTech_Compliance_EA.mq5` is a standalone MQL5 auditor. It reads the attached account's MT5 history and evaluates the NeoTech criteria. Telegram can run either directly through the Bot API or, for the PC-local production setup, by forwarding C5 reminder events through the existing account-fenced `OAKLocalFailover` FILE_COMMON bus to the OAK Local Telegram controller. MQL5 (`OAK_NeoTech_Compliance_EA.mq5` plus `neotech/`) remains the only source of truth for formulas and conclusions. This project does not claim official NeoTech approval.
+`OAK_NeoTech_Compliance_EA.mq5` keeps its legacy filename so existing MT5 installation paths remain stable, but it is no longer a standalone compliance auditor. Its only responsibility is the C5 discipline reminder: when a new eligible Forex/XAUUSD opening episode is observed, it calculates the current effective NeoTech session and the earliest next session/time that the same canonical symbol may be entered again, then forwards one `neotech_c5_reentry` event to the existing OAK Local Telegram controller.
 
-The compliance surface is broker-read-only. It reads account/order/deal/position/price history, samples balance/equity and stores bounded evidence/checkpoints in MT5 `FILE_COMMON`. It has no order-send, trade-class, close, modify or delete path. `OnTradeTransaction` only records prospective evidence and marks the cached report dirty.
+The 14-rule NeoTech table is owned by `OAK_NeoTech_ReadOnly_Connector.mq5` plus the dashboard NeoTech engine. Do not add report formulas, FDD reconstruction, `/check`, direct Telegram polling or other compliance analytics back into this EA.
 
-### Install and bind the account
+### Runtime flow
 
-1. Compile `OAK_NeoTech_Compliance_EA.mq5` in MetaEditor together with the two `neotech/*.mqh` includes; require zero errors and zero warnings.
-2. Attach one compliance EA instance to one chart on the intended account. Set `InpExpectedLogin` to that account's exact MT5 login; initialization fails closed on zero or mismatch.
-3. Set `InpProfileSlug` to an opaque 6–32 character slug matching `[a-z0-9_-]`, for example `oakdemo`. Do not use the raw login as the slug.
-4. For the PC-local production setup, set `InpTelegramDirectEnabled=false`, keep `InpLocalC5ForwardEnabled=true`, and keep the OAK Local Telegram controller running. No Telegram token/ACL or `api.telegram.org` WebRequest permission is required in the compliance chart for this relay mode.
-5. For standalone direct Telegram commands instead, set `InpTelegramDirectEnabled=true`, add exactly `https://api.telegram.org` to the MT5 WebRequest allow-list, and configure `InpTelegramBotToken`, `InpTelegramAllowedChatIds` and `InpTelegramAllowedUserIds`. Both ACL lists are required and each incoming command must match both chat and sender user IDs.
-6. Keep `InpTelegramDeleteWebhookOnInit=false` unless a direct-mode bot is deliberately being moved from webhook delivery to this EA's `getUpdates` polling. Never run two update consumers for the same bot.
-7. `InpTelegramPollSeconds` controls the timer (1–300 seconds), `InpTelegramC5ReentryReminder=true` enables the discipline reminder, and `InpC5StartupCatchupMinutes` (0–120) can recover recent still-open eligible positions after attach/restart. `InpTelegramPageSize` and `InpTelegramSendOnChange` apply to direct mode.
-8. For XAUUSD C6 distance, set `InpGoldPipSizeOverride` only after verifying the broker's XAUUSD pip convention. Optional manual pauses use server-local `YYYY-MM-DD/YYYY-MM-DD;...` in `InpManualPausePeriods`.
+```text
+New eligible MT5 opening episode
+-> reminder-only EA
+-> NeoTech session/next-entry calculation
+-> account-fenced FILE_COMMON event
+-> existing OAK Local Telegram controller
+-> Telegram reminder
+```
 
-The bot token is a runtime secret. Never commit it, log it, include it in screenshots or share a populated `.set` file. The account fingerprint is SHA-256 over `login|broker-company|server`; Telegram/report output uses the fingerprint and masked account identity, not the raw login, broker, server or token.
+The EA remains broker-read-only. It reads deal/position metadata and local controller heartbeat files only. It contains no `OrderSend`, `CTrade`, close, modify, delete, approve or schedule path.
 
-### Direct Telegram commands
+### Inputs
 
-- `/check @profile` — summary page 1.
-- `/check @profile 2` — summary page 2.
-- `/check @profile C5` — one criterion; valid tokens are E1–E5 and C1–C9.
-- `/check @profile violations 2` — violations page 2.
-- In groups, Telegram's addressed form is accepted, for example `/check@NeoTechAuditBot @profile C5`.
+1. `InpExpectedLogin` - required exact MT5 login. Initialization fails closed on zero or mismatch.
+2. `InpTimerSeconds` - local relay retry interval, default 2 seconds, valid 1-60.
+3. `InpStartupCatchupMinutes` - optional recent-open-position recovery after attach/restart, default 30 minutes, valid 0-120.
 
-Reply buttons use the same deterministic callback paging contract. Telegram output is concise Vietnamese and includes criterion totals plus, where evidence exists, the date/time, symbol, ticket identifiers, measured value, threshold and reason. Oversized detail is split below the message budget rather than silently truncated.
+No Telegram bot token, chat/user ACL, webhook setting, WebRequest allow-list, profile slug, history lookback, FDD or SL/TP audit input is required. The local Telegram controller remains the sole bot owner and keeps the token outside MT5.
 
-With `InpTelegramC5ReentryReminder=true`, a newly observed eligible Forex/XAUUSD opening deal queues one advisory message. It identifies the current effective C5 session and the earliest next effective session in which that same canonical symbol may be entered again, using the exact `NTAssignSession` overlap priority rather than a duplicate session table. Times are shown in Vietnam time (UTC+7) plus NeoTech server time/offset. An opening outside Asia/Europe/US is reported as C5 `NOT_VERIFIABLE` and never receives a false "allowed again" time. In local-forward mode the EA matches a fresh `OAKLocalFailover/status_*.json` by login and server, reuses that heartbeat's profile/provider identity, and writes an immutable `neotech_c5_reentry` event for the existing local Telegram owner to deliver. Event IDs are deal-scoped and controller delivery is provider/account-scoped, so restart/callback duplicates do not resend. `InpC5StartupCatchupMinutes` can enqueue a recent still-open position that predates the EA attach. The reminder is informational only and does not place, close, modify, approve or schedule an order.
+### C5 semantics
 
-The displayed report contains all 14 criteria. E4 remains `NOT_VERIFIABLE` without authoritative NeoTech enrollment/KYC/public-account integration. E5 accepts only Forex symbols and XAUUSD. C2 requires every completed 30-day month to return at least 1%, with no annual averaging. C3 requires floating drawdown to stay strictly below 2%; exact or reconstructed evidence at `>=2%` is a confirmed failure, while peak-to-trough drawdown is diagnostic only. C5 allows at most one signal per canonical symbol in each NeoTech Asia/Europe/US session occurrence, independent of position overlap. C6 flags a close under 15 minutes unless an observed SL or TP exceeded 30 pips. C7 forbids both hedging and adverse-price DCA, including a distinct same-direction add-entry order or a second same-direction position while the first remains active; same opening-order partial fills are not DCA. C8 forbids copied signals but remains unverified without an authoritative external source. C9 only counts confidently classified deposits/withdrawals after program start; initial funding and ambiguous balance adjustments do not automatically fail C9.
+- Eligible products: broker metadata must classify the symbol as Forex or XAU/USD. Broker aliases such as `GOLD` resolve through currency metadata to canonical `XAUUSD` when the broker exposes `XAU`/`USD` correctly.
+- Session basis: NeoTech server-local time with UTC+2 in November-March and UTC+3 in April-October.
+- Overlap priority: Asia -> Europe -> US, so overlap remains assigned to the earlier session.
+- Reminder time: displayed in Vietnam UTC+7 plus the NeoTech server time/offset.
+- Same-position scale-in fills are not treated as a fresh opening episode. A reversal (`DEAL_ENTRY_INOUT`) starts a new episode.
+- Opening outside Asia/Europe/US is fail-closed: Telegram shows `C5: KHÔNG XÁC MINH` and does not invent a next-entry permission.
+- Startup catch-up only considers currently open positions whose current episode began inside the configured recent window.
 
-### PASS, FAIL and incomplete evidence
+### Delivery and dedupe
 
-A confirmed violation can produce `FAIL` even when older history is incomplete. An absence-based `PASS` is allowed only when the evidence streams required by that criterion are complete. Otherwise the report uses `DATA_GAP`, `NOT_VERIFIABLE`, `IN_PROGRESS` or `RECONSTRUCTED` as appropriate. In `/check`, `UNKNOWN` is the umbrella label for `NOT_VERIFIABLE`, `DATA_GAP` and `RECONSTRUCTED`; `IN_PROGRESS` remains separate for an unfinished participation window. In particular, missing historical order/deal coverage cannot produce absence-based E1/E5/C5/C6/C4/C7/C9 PASS.
+The EA matches the current MT5 login/server against a fresh `OAKLocalFailover/status_*.json` heartbeat and reuses that heartbeat's `profile` and `providerAccountId`. It persists an immutable `neotech_c5_reentry` event under MT5 `FILE_COMMON`; the local controller validates the same account identity and delivers the text through its existing durable notification ledger.
 
-C6 has a prospective bounded SL/TP journal from the time this EA observes a position. A short closed signal may be a confirmed C6 FAIL only when the continuous observed timeline is complete and proves no SL/TP distance exceeded 30 pips. MT5 historical deals/orders do not prove every past SL/TP modification, so short trades predating complete journal coverage remain `NOT_VERIFIABLE`; a missing historical snapshot is never interpreted as "no SL/TP". Restarting with an active journal row also breaks completeness for that row until a new fully observed episode begins.
+Event IDs are deal-scoped (`neotech_c5:<deal-ticket>`). Duplicate MT5 callbacks are suppressed in-memory, while controller delivery remains durable across EA/controller restarts. If the local identity heartbeat is temporarily unavailable, the reminder stays queued and retries on the next timer tick instead of being discarded.
 
-### FDD reconstruction and performance
+### Verification
 
-Prospective extrema are exact only for the interval continuously observed while the EA is attached. Historical floating drawdown is reconstructed at account level, not per-position: the job processes chronological deal/cash-flow/quote events, carries the latest valid bid/ask per simultaneously active symbol, marks all open exposure with broker `OrderCalcProfit`, applies realized P/L/commission/swap/fee/balance events at their event times and records aggregate balance/equity, floating-loss percentage, peak-to-trough drawdown, worst timestamp and contributing position IDs/symbols.
+`tests/NeoTechC5ReminderSyntheticTests.mq5` covers summer/winter session transitions, US -> next-day Asia, outside-session refusal, Vietnam-time conversion, C5-only wording and local heartbeat JSON parsing. Compile both the EA and this script with MetaEditor and require `0 errors, 0 warnings`.
 
-Historical work is resumable/checkpointed in bounded `FILE_COMMON` state. Timer invocations process time slices under `InpReconstructionBudgetMs`; the job does not rescan the entire year every 15 seconds and tick requests have an explicit maximum count. Missing quote/conversion evidence creates `DATA_GAP`. When tick coverage is unavailable/too dense, M1 fallback uses conservative adverse low/high marks and remains explicitly `M1`/`RECONSTRUCTED`; historical reconstructed evidence is never promoted to an unconditional PASS.
-
-### Time semantics
-
-MT5/NeoTech server-local timestamps are carried separately from UTC. The report records server-local text, the configured NeoTech server UTC offset (UTC+2 November–March, UTC+3 April–October under this ruleset), normalized UTC where available, and Vietnam time (UTC+7). `generatedAtUtc` comes from `TimeGMT()`. Weeks, 30-day months, program start, history ranges and evidence retain their server-time basis instead of being mislabeled as UTC.
-
-### Local state, polling and removal
-
-The timer defaults to 15 seconds. Report cache, Telegram update offset, last-notified hash, FDD reconstruction and prospective SL/TP/extrema checkpoints use a `FILE_COMMON` namespace derived from the profile slug plus account fingerprint. A restart resumes the saved polling offset and reconstruction instead of replaying acknowledged updates or rescanning the whole horizon.
-
-When direct mode is enabled, Telegram `getUpdates` uses `timeout=0`; failures use bounded exponential backoff and only one consumer may own that bot's updates. In local-forward mode the compliance EA does not poll Telegram at all: it emits C5 events to FILE_COMMON and the existing OAK Local Telegram controller remains the sole bot owner. A cached report remains available while history refresh/reconstruction continues.
-
-To remove the auditor, detach `OAK_NeoTech_Compliance_EA`, remove its source/compiled files if desired, remove the `https://api.telegram.org` allowlist entry when unused, and optionally delete that profile/account namespace under `OAKNeoTechCompliance` from MT5 `FILE_COMMON`. No trading, dashboard or Vercel component needs changing.
-
-### Synthetic verification and troubleshooting
-
-Compile `tests/NeoTechComplianceSyntheticTests.mq5` with the same `neotech/` includes, then execute it as an MT5 script in an isolated demo/non-trading terminal. It never calls the real Telegram API. A successful run ends with the exact line `[NEOTECH SYNTHETIC] TOTAL=59 PASS=59 FAIL=0 RESULT=PASS`; failures print fixture name plus expected/actual. Compilation alone is not a runtime PASS.
-
-If initialization fails, verify the login binding, slug, token, both ACL lists and input ranges. If polling is blocked, inspect `getWebhookInfo`: either keep the existing webhook owner or deliberately opt in once to `deleteWebhook`. For HTTP failures, verify the Telegram WebRequest allowlist and network access. `DATA_GAP` in FDD means required price/conversion evidence is missing; `NOT_VERIFIABLE` on historical C6 usually means the EA did not continuously observe that trade's SL/TP lifecycle. Never convert either status manually into PASS.
+The former MQL5 14-rule compliance core/JSON modules and 59-fixture auditor suite were intentionally removed. Public NeoTech analytics tests now assert that the connector/dashboard keep the 14-rule contract while this auxiliary EA stays C5-reminder-only.
