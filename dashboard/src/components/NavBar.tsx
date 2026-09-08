@@ -10,9 +10,6 @@ import { useLocale } from "./LocaleProvider";
 function EngineIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18V9m5 9V5m5 13v-7m5 7V3" /></svg>;
 }
-function HistoryIcon() {
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4m8-4v4M4 10h16M8 14h3m2 0h3" /></svg>;
-}
 function CheckIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5.6c0 4.4 3.1 7.8 7.5 9.4 4.4-1.6 7.5-5 7.5-9.4V6L12 3Z" /><path d="m8.5 12 2.2 2.2 4.8-5" /></svg>;
 }
@@ -115,15 +112,6 @@ export function NavBar() {
           >
             <span className="oak-nav-icon"><EngineIcon /></span>
             <span>H1 Live</span>
-          </Link>
-          <Link
-            href="/history"
-            aria-current={pathname === "/history" ? "page" : undefined}
-            className="oak-nav-link"
-            data-active={pathname === "/history" ? "true" : undefined}
-          >
-            <span className="oak-nav-icon"><HistoryIcon /></span>
-            <span>{locale === "EN" ? "History" : "Lịch sử"}</span>
           </Link>
           <Link
             href="/neotech"

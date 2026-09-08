@@ -87,10 +87,10 @@ function payload() {
 }
 
 function render(locale) {
-  return renderToStaticMarkup(React.createElement(H1SignalBoard, { data: payload(), locale, unlocked: true, mode: "history" }));
+  return renderToStaticMarkup(React.createElement(H1SignalBoard, { data: payload(), locale, unlocked: true }));
 }
 
-test("H1 history renders one custom calendar trigger with newest date and coverage", () => {
+test("unified H1 renders one compact history calendar trigger with newest date and coverage", () => {
   const en = render("EN");
   const vn = render("VN");
   assert.match(en, /7 trading days/);
@@ -101,9 +101,30 @@ test("H1 history renders one custom calendar trigger with newest date and covera
   assert.match(en, /03 \/ 02 \/ 2026/);
   assert.match(vn, /03 \/ 02 \/ 2026/);
   assert.match(en, /aria-haspopup="dialog"/);
+  assert.doesNotMatch(en, /oak-h1-calendar-grid/);
   assert.doesNotMatch(en, /type="date"/);
   assert.doesNotMatch(en, />All<|>Mon<|>Tue<|>Wed<|>Thu<|>Fri<|Lọc theo thứ|Filter by weekday/);
   assert.doesNotMatch(vn, />Tất cả<|Lọc theo thứ/);
+});
+
+test("unified H1 keeps the calendar month grid out of the normal closed DOM", () => {
+  const markup = render("EN");
+  assert.match(markup, /oak-h1-calendar-trigger/);
+  assert.match(markup, /aria-expanded="false"/);
+  assert.doesNotMatch(markup, /oak-h1-calendar-popover|oak-h1-calendar-grid/);
+  assert.doesNotMatch(h1SignalBoardSource, /embedded|data-embedded/);
+});
+
+test("XAUUSD H3 and H14 cells highlight together when H3 entry is H4", () => {
+  const data = payload();
+  data.days["2026-02-03"].symbols.XAUUSD.alerts = [alert(3, 4, "BUY"), alert(14, 15, "SELL")];
+  const highlighted = renderToStaticMarkup(React.createElement(H1SignalBoard, { data, locale: "VN", unlocked: true }));
+  assert.equal((highlighted.match(/data-xau-h4-highlight="true"/g) || []).length, 2);
+  assert.match(highlighted, /data-xau-h4-highlight="true"[^>]*title="XAUUSD/);
+
+  data.days["2026-02-03"].symbols.XAUUSD.alerts = [alert(3, 5, "BUY"), alert(14, 15, "SELL")];
+  const normal = renderToStaticMarkup(React.createElement(H1SignalBoard, { data, locale: "VN", unlocked: true }));
+  assert.doesNotMatch(normal, /data-xau-h4-highlight="true"/);
 });
 
 test("local pattern entry hour and BUY/SELL render in the matching H1 table cell", () => {
@@ -117,18 +138,8 @@ test("local pattern entry hour and BUY/SELL render in the matching H1 table cell
   assert.doesNotMatch(markup, />ĐẢO<\/small>|>INVERT<\/small>/);
 });
 
-test("H1 empty live state stays current-day only without history calendar", () => {
-  const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data: null, degraded: true, locale: "VN", unlocked: true, mode: "live" }));
-  assert.match(markup, /data-mode="live"/);
-  assert.match(markup, /ngày hiện tại/);
-  assert.doesNotMatch(markup, /oak-h1-history/);
-  assert.doesNotMatch(markup, /oak-h1-calendar-trigger/);
-  assert.doesNotMatch(markup, /calendar dự phòng/);
-});
-
-test("H1 empty history state keeps the fallback calendar interactive", () => {
-  const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data: null, degraded: true, locale: "VN", unlocked: true, mode: "history" }));
-  assert.match(markup, /data-mode="history"/);
+test("unified H1 empty state keeps the fallback calendar interactive", () => {
+  const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data: null, degraded: true, locale: "VN", unlocked: true }));
   assert.match(markup, /oak-h1-history/);
   assert.match(markup, /oak-h1-calendar-trigger/);
   assert.match(markup, /aria-haspopup="dialog"/);
@@ -137,10 +148,11 @@ test("H1 empty history state keeps the fallback calendar interactive", () => {
   assert.doesNotMatch(markup, /oak-h1-calendar-trigger[^>]*disabled/);
 });
 
-test("live pins latest broker date while history preserves selected-date navigation", () => {
-  assert.match(h1SignalBoardSource, /const date = data \? \(historyMode \? selectHistoryDate\(data\.days, "all", selectedDate\) : latestDate\) : selectedDate;/);
-  assert.match(h1SignalBoardSource, /if \(!historyMode \|\| !data \|\| selectedDate === date\) return;/);
-  assert.match(h1SignalBoardSource, /\{historyMode && <div className="oak-h1-history"/);
+test("unified H1 defaults to the newest retained broker date and preserves selected-date navigation", () => {
+  assert.match(h1SignalBoardSource, /const date = data \? selectHistoryDate\(data\.days, "all", selectedDate\) : selectedDate;/);
+  assert.match(h1SignalBoardSource, /if \(!data \|\| selectedDate === date\) return;/);
+  assert.match(h1SignalBoardSource, /<div className="oak-h1-history"/);
+  assert.doesNotMatch(h1SignalBoardSource, /historyMode|H1BoardMode/);
 });
 
 test("historical cTrader trendbars use DST-aware broker dates and hours", () => {

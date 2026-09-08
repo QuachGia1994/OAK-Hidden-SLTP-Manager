@@ -16,7 +16,7 @@ import {
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 84;
+export const H1_SIGNAL_RULE_VERSION = 85;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
@@ -84,7 +84,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 84;
+  signalRuleVersion: 85;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -128,7 +128,7 @@ export function h1TargetBaseFromSymbol(value: unknown): H1TargetBase | null {
 export function scheduledSignalSlotForBrokerHour(base: H1TargetBase, brokerDate: string, brokerHour: number): number | null {
   if (!isValidBrokerDateKey(brokerDate) || !Number.isInteger(brokerHour) || brokerHour < 0 || brokerHour > 23) return null;
   const eligible = activeH1ScanHoursForBrokerDate(brokerDate)
-    .filter((hour) => hour !== 16 && hour <= brokerHour && (targetsForBlockHour(hour) as readonly H1TargetBase[]).includes(base));
+    .filter((hour) => hour !== 16 && hour <= brokerHour && targetEnabledForDate(base, brokerDate, hour));
   return eligible.at(-1) ?? null;
 }
 
@@ -174,7 +174,7 @@ export function scheduledSignalSlotForVietnamWall(
     .filter(({ slotHour, appointmentHour, appointmentMinute: anchorMinute }) => (
       appointmentHour * 60 + anchorMinute <= appointmentMinute
       && isH1SlotActiveForBrokerDate(vietnamDate, slotHour)
-      && (targetsForBlockHour(slotHour) as readonly H1TargetBase[]).includes(base)
+      && targetEnabledForDate(base, vietnamDate, slotHour)
     ));
   return eligible.at(-1)?.slotHour ?? null;
 }
@@ -352,7 +352,7 @@ type H1SlotPolicy = {
 };
 
 // Exact special-Thursday month table, ordered as:
-// [H3/H4, H6, H9, H12, H14]. H16 is entry-time-only in rule v84 and is excluded from the signal phase.
+// [H3/H4, H6, H9, H12, H14]. H16 is entry-time-only in rule v85 and is excluded from the signal phase.
 const SPECIAL_MONTH_WEEK_TABLE: Record<H1Weekday, H1PhaseRow> = {
   1: ["C", "N", "N", "C", "C"], // Mon
   2: ["N", "C", "N", "C", "N"], // Tue
@@ -540,7 +540,7 @@ export function evaluateH1SignalsForTarget(
     if (slotHour > throughHour) continue;
     if (slotHour === 16) continue;
     if (!isH1SlotActiveForBrokerDate(brokerDate, slotHour)) continue;
-    if (!(targetsForBlockHour(slotHour) as readonly string[]).includes(base)) continue;
+    if (!targetEnabledForDate(base, brokerDate, slotHour)) continue;
     const baseBar = byHour.get(slotHour);
     if (!baseBar) continue;
     alerts.push(buildStoredAlert({ base, brokerSymbol: base, baseBar, slotHour, brokerDate }));
@@ -662,6 +662,7 @@ export function parseCloudState(raw: unknown): H1CloudState {
           : isValidAlertShape(alert as H1StoredAlert) ? alert as H1StoredAlert : null;
         if (!migratedAlert) throw new Error("Invalid H1 cloud alert state");
         if (!isH1SlotActiveForBrokerDate(dateKey, migratedAlert.slotHour)) continue;
+        if (!targetEnabledForDate(base as H1TargetBase, dateKey, migratedAlert.slotHour)) continue;
         if (migratedAlert.slotHour === 16) {
           migratedAlert.baseH1Signal = null;
           migratedAlert.baseDirection = "";
@@ -734,6 +735,7 @@ export function parsePublicFeedCloudState(raw: unknown): H1CloudState | null {
           || typeof row.postSignalInverted !== "boolean" || !isPostSignalRule(row.postSignalRule)
         ) continue;
         if (!isH1SlotActiveForBrokerDate(dateKey, row.slotHour)) continue;
+        if (!targetEnabledForDate(base, dateKey, row.slotHour)) continue;
         const decision = cycleDecisionFor(base, dateKey, row.slotHour);
         const localPattern = Number.isInteger(row.entryHour) && (row.patternGroup === "SW" || row.patternGroup === "BT");
         const entryOnly = row.slotHour === 16;
@@ -807,7 +809,7 @@ export function buildPublicFeed(state: H1CloudState, publishedAt = new Date().to
       if (!source) continue;
       symbols[base] = {
         alerts: [...source.alerts]
-          .filter((alert) => isH1SlotActiveForBrokerDate(dateKey, alert.slotHour))
+          .filter((alert) => isH1SlotActiveForBrokerDate(dateKey, alert.slotHour) && targetEnabledForDate(base, dateKey, alert.slotHour))
           .sort((left, right) => left.slotHour - right.slotHour)
           .map((alert) => {
             const decision = cycleDecisionFor(base, dateKey, alert.slotHour);

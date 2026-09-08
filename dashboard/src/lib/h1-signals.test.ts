@@ -55,9 +55,11 @@ const licenseSource = readFileSync(new URL("../../../LICENSE", import.meta.url),
 const localStatusRouteSource = readFileSync(new URL("../app/api/telegram/local-status/route.ts", import.meta.url), "utf8");
 const androidGradlePropertiesSource = readFileSync(new URL("../../../android-native/gradle.properties", import.meta.url), "utf8");
 
-test("H1 Live and web History are reopened as primary trading navigation", () => {
+test("web keeps one primary H1 navigation surface while legacy History redirects", () => {
   assert.match(navBarSource, /<span>H1 Live<\/span>/);
-  assert.match(navBarSource, /href="\/history"/);
+  assert.doesNotMatch(navBarSource, /href="\/history"/);
+  assert.match(historyPageSource, /redirect\("\/engine"\)/);
+  assert.doesNotMatch(historyPageSource, /readLatestH1Signals|HistoryClient/);
   assert.match(navBarSource, /<Link href="\/engine" className="oak-brand"/);
   assert.match(navBarSource, /src="\/oak-app-icon\.png"/);
   assert.doesNotMatch(navBarSource, /favicon\.ico/);
@@ -89,7 +91,7 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 rows and block set match the local ICMarkets v84 six-block contract", () => {
+test("H1 rows and block set match the local ICMarkets v85 six-block contract", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14, 16\]/);
@@ -99,7 +101,7 @@ test("H1 rows and block set match the local ICMarkets v84 six-block contract", (
   assert.match(expoCalendarSource, /FALLBACK_SYMBOLS = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.doesNotMatch(expoCalendarSource + expoSignalsSource, /TEMP_HIDDEN_H1_ROWS/);
   assert.match(nativeSignalsSource, /visibleSymbols = \["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
-  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 84/);
+  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 85/);
   assert.match(scannerSource, /hour === 3 \|\| hour === 6[^\n]*\["XAUUSD", "GBPAUD", "GBPCAD", "GBPJPY"\]/);
   assert.match(localMarketRouteSource, /evaluateLocalH1PatternsForTarget/);
   assert.doesNotMatch(scannerSource, /h14SignalForH16|repairLegacyH16AdvisorySignals/);
@@ -177,6 +179,8 @@ test("H1 cells render entry hour plus final rule-derived BUY/SELL", () => {
   assert.doesNotMatch(boardSource, /data-post-signal-inverted/);
   assert.match(redesignCss, /\.oak-h1-cell-entry small\[data-signal="BUY"\]/);
   assert.match(redesignCss, /\.oak-h1-cell-entry small\[data-signal="SELL"\]/);
+  assert.match(boardSource, /data-xau-h4-highlight/);
+  assert.match(redesignCss, /\[data-xau-h4-highlight="true"\]/);
   assert.doesNotMatch(boardSource, /isEntryReferenceCell|data-entry-reference/);
   assert.doesNotMatch(redesignCss, /data-entry-reference/);
   assert.doesNotMatch(nativeH1BoardSource, /entryReference|isReference\(symbol:/);
@@ -290,7 +294,7 @@ test("H1 board omits the separate Entry Focus panel", () => {
   assert.doesNotMatch(redesignCss, /\.oak-entry-focus/);
 });
 
-test("H1 Live and History temporarily expose every entry cell as free access", () => {
+test("unified H1 web surface temporarily exposes every entry cell as free access", () => {
   assert.match(vipSource, /VIP_FREE_ACCESS = true/);
   assert.match(boardSource, /FREE ACCESS/);
   assert.match(boardSource, /All H1 entry-time cells unlocked/);
@@ -301,7 +305,7 @@ test("H1 Live and History temporarily expose every entry cell as free access", (
   assert.doesNotMatch(historyPageSource, /redactH1Signals|getVipAccessState/);
 });
 
-test("H1 history uses a deterministic Sunday-first calendar without weekday filter controls", () => {
+test("unified H1 uses a deterministic Sunday-first history calendar without weekday filter controls", () => {
   assert.match(boardSource, /function SundayCalendarPicker/);
   assert.match(boardSource, /\[\"CN\", \"T2\", \"T3\", \"T4\", \"T5\", \"T6\", \"T7\"\]/);
   assert.match(boardSource, /getUTCDay\(\)/);
@@ -455,6 +459,7 @@ test("engine web surface is local-H1-only with the compact command header", () =
   assert.doesNotMatch(enginePageSource, /getLatestPattern5|filterActivePattern5|maskFuturePattern5|redactPattern5Signals/);
   assert.doesNotMatch(engineBoardSource, /Pattern5Payload|Pattern5Table|ENGINE 05|Pattern Matrix|Trạng thái tín hiệu hiện tại|<small>PROFILE<\/small>|h1Data\?\.profile/);
   assert.match(engineBoardSource, /<WorkspaceHeading workspace="live"/);
+  assert.doesNotMatch(engineBoardSource, /mode="live"|mode="history"/);
   assert.match(boardSource, /MT5 ICMarkets · M15/);
   assert.doesNotMatch(engineBoardSource, /UNLOCK SIGNALS/);
 });

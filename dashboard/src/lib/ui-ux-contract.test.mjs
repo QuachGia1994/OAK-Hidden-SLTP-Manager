@@ -17,12 +17,11 @@ const layoutSource = readFileSync(new URL("../app/layout.tsx", import.meta.url),
 const spatialSource = readFileSync(new URL("../components/SpatialHudCanvas.tsx", import.meta.url), "utf8");
 const breadcrumbSource = readFileSync(new URL("../components/RouteBreadcrumbs.tsx", import.meta.url), "utf8");
 const historyPageSource = readFileSync(new URL("../app/history/page.tsx", import.meta.url), "utf8");
-const historyClientSource = readFileSync(new URL("../app/history/HistoryClient.tsx", import.meta.url), "utf8");
 const toolsPageSource = readFileSync(new URL("../app/tools/page.tsx", import.meta.url), "utf8");
 const toolsClientSource = readFileSync(new URL("../app/tools/ToolsClient.tsx", import.meta.url), "utf8");
 const tarotSource = readFileSync(new URL("../components/tarot/TarotExperience.tsx", import.meta.url), "utf8");
 
-test("mobile keeps locale reachable and exposes four direct navigation tabs", () => {
+test("mobile keeps locale reachable and exposes three direct navigation tabs", () => {
   assert.ok(navSource.includes("oak-locale-switch"));
   assert.ok(navSource.includes("setLocaleMode(item)"));
   assert.ok(navSource.includes("router.refresh()"));
@@ -30,7 +29,7 @@ test("mobile keeps locale reachable and exposes four direct navigation tabs", ()
   assert.ok(navSource.includes('href="/tools" className="oak-nav-link oak-tools-mobile-link"'));
   assert.doesNotMatch(navSource, /mobileOpen|oak-mobile-nav-toggle|data-mobile-open/);
   assert.ok(oakCss.includes(".oak-tools-mobile-link { display: inline-flex; }"));
-  assert.ok(oakCss.includes("grid-template-columns: repeat(4,minmax(0,1fr))"));
+  assert.ok(oakCss.includes("grid-template-columns: repeat(3,minmax(0,1fr))"));
   assert.ok(oakCss.includes(".oak-tools-menu > .oak-tools-directory-link { display: flex;"));
 });
 
@@ -50,33 +49,26 @@ test("provider account UI follows the global EN/VN locale", () => {
   assert.doesNotMatch(accountSource, /<p>Đăng nhập bằng Dashboard API key/);
 });
 
-test("H1 live stays latest-day only while History owns Sunday-first date navigation", () => {
+test("one H1 surface owns both latest-day and Sunday-first retained-date navigation", () => {
   assert.match(h1EngineSource, /useLocale\(\)/);
   assert.match(h1EngineSource, /locale: serverLocale/);
   assert.match(h1EngineSource, /const \{ locale: liveLocale \} = useLocale\(\)/);
   assert.match(h1EngineSource, /<WorkspaceHeading workspace="live" locale=\{locale\} \/>/);
-  assert.match(h1EngineSource, /<H1SignalBoard data=\{h1Data\} degraded=\{degraded\} locale=\{locale\} mode="live" \/>/);
+  assert.match(h1EngineSource, /<H1SignalBoard data=\{h1Data\} degraded=\{degraded\} locale=\{locale\} \/>/);
+  assert.doesNotMatch(h1EngineSource, /mode="live"|mode="history"/);
   assert.match(h1SignalSource, /function SundayCalendarPicker/);
   assert.match(h1SignalSource, /\[\"SUN\", \"MON\", \"TUE\", \"WED\", \"THU\", \"FRI\", \"SAT\"\]/);
   assert.match(h1SignalSource, /\[\"CN\", \"T2\", \"T3\", \"T4\", \"T5\", \"T6\", \"T7\"\]/);
   assert.match(h1SignalSource, /historyDatesForWeekday\(data\.days, \"all\"\)/);
-  assert.match(h1SignalSource, /historyMode \? selectHistoryDate\(data\.days, "all", selectedDate\) : latestDate/);
-  assert.match(h1SignalSource, /\{historyMode && <div className="oak-h1-history"/);
-  assert.match(h1EngineSource, /mode="live"/);
-  assert.match(historyPageSource, /<HistoryClient/);
-  assert.match(historyClientSource, /mode="history"/);
+  assert.match(h1SignalSource, /const date = data \? selectHistoryDate\(data\.days, "all", selectedDate\) : selectedDate/);
+  assert.match(h1SignalSource, /<div className="oak-h1-history"/);
+  assert.match(historyPageSource, /redirect\("\/engine"\)/);
+  assert.doesNotMatch(historyPageSource, /readLatestH1Signals|HistoryClient/);
   assert.doesNotMatch(h1SignalSource, /type=\"date\"|HISTORY_FILTERS|weekdayFilter|oak-h1-history-options|Lọc theo thứ|Filter by weekday/);
   assert.doesNotMatch(enginePageSource, /DashboardAutoRefresh|router\.refresh/);
 });
 
-test("primary History and Tools tabs follow LocaleProvider immediately without waiting for F5", () => {
-  assert.match(historyClientSource, /useLocale\(\)/);
-  assert.match(historyClientSource, /locale: serverLocale/);
-  assert.match(historyClientSource, /const \{ locale: liveLocale \} = useLocale\(\)/);
-  assert.match(historyClientSource, /<WorkspaceHeading workspace="history" locale=\{locale\} \/>/);
-  assert.match(historyClientSource, /<H1SignalBoard data=\{data\} degraded=\{degraded\} locale=\{locale\} mode="history" \/>/);
-  assert.match(historyPageSource, /<HistoryClient data=\{read\.ok \? read\.data : null\} degraded=\{read\.ok === false\} locale=\{locale\} \/>/);
-
+test("primary Tools tab follows LocaleProvider immediately without waiting for F5", () => {
   assert.match(toolsClientSource, /useLocale\(\)/);
   assert.match(toolsClientSource, /locale: serverLocale/);
   assert.match(toolsClientSource, /const \{ locale: liveLocale \} = useLocale\(\)/);
@@ -155,11 +147,10 @@ test("desktop spatial grid uses a stronger two-scale perspective plane without r
   assert.match(oakCss, /@media \(max-width: 899px\), \(pointer: coarse\)[\s\S]*\.oak-spatial-stage \{ display: none !important; \}/);
 });
 
-test("history route is restored to primary navigation and nested routes keep skip/breadcrumb context", () => {
-  assert.match(navSource, /href="\/history"/);
-  assert.match(historyPageSource, /readLatestH1Signals/);
-  assert.match(historyPageSource, /<HistoryClient/);
-  assert.match(historyClientSource, /<H1SignalBoard/);
+test("legacy history route redirects to unified H1 while nested routes keep skip/breadcrumb context", () => {
+  assert.doesNotMatch(navSource, /href="\/history"/);
+  assert.match(historyPageSource, /redirect\("\/engine"\)/);
+  assert.doesNotMatch(historyPageSource, /readLatestH1Signals|HistoryClient/);
   assert.match(layoutSource, /oak-skip-link/);
   assert.match(layoutSource, /id="main-content"/);
   assert.match(layoutSource, /<RouteBreadcrumbs \/>/);

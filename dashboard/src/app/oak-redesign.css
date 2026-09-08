@@ -238,6 +238,11 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-h1-table thead th[data-post-signal-inverted="true"],
 .oak-h1-table tbody td[data-post-signal-inverted="true"] { background: color-mix(in srgb, var(--oak-status-warning) 12%, var(--oak-bg-surface)); }
 .oak-h1-table thead th[data-post-signal-inverted="true"] { color: var(--oak-status-warning); box-shadow: inset 0 -3px 0 var(--oak-status-warning); }
+.oak-h1-table tbody td[data-xau-h4-highlight="true"] {
+  background: color-mix(in srgb, var(--oak-status-warning) 18%, var(--oak-bg-surface));
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--oak-status-warning) 72%, transparent), inset 0 0 20px color-mix(in srgb, var(--oak-status-warning) 10%, transparent);
+}
+.oak-h1-table tbody td[data-xau-h4-highlight="true"] .oak-h1-cell-entry b { color: var(--oak-status-warning); }
 .oak-h1-table thead th[data-month-end-bridge="true"],
 .oak-h1-table tbody td[data-month-end-bridge="true"] {
   background:
@@ -970,6 +975,10 @@ body.oak-body {
 :root:not(.dark):not(.contrast) .oak-h1-symbol-sticky { background: #eef3f8 !important; color: var(--oak-fg-primary) !important; }
 :root:not(.dark):not(.contrast) .oak-h1-table thead th { color: #344054; background: #eef3f8; border-color: #b8c2cf; }
 :root:not(.dark):not(.contrast) .oak-h1-table tbody td { color: var(--oak-fg-primary); background: rgba(255,255,255,.98); border-color: #c3ccd7; }
+:root:not(.dark):not(.contrast) .oak-h1-table tbody td[data-xau-h4-highlight="true"] {
+  background: color-mix(in srgb, var(--oak-status-warning) 22%, #fff);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--oak-status-warning) 78%, transparent);
+}
 :root:not(.dark):not(.contrast) .oak-h1-history,
 :root:not(.dark):not(.contrast) .oak-h1-calendar-picker { color: var(--oak-fg-primary); }
 :root:not(.dark):not(.contrast) .oak-h1-calendar-picker { background: #f8fafc; border-color: #aeb9c6; }
@@ -1769,20 +1778,6 @@ body.oak-body:has(.oak-workspace-heading) { background: radial-gradient(ellipse 
 .oak-h1-cell-evidence { width: 100%; min-height: 3.25rem; border: 0; cursor: pointer; background: transparent; }
 .oak-h1-table thead th { height: 2.25rem; color: var(--oak-fg-primary); background: var(--oak-bg-raised); font: 800 var(--oak-text-meta) var(--font-mono); }
 .oak-h1-cell-entry small { display: inline-flex; justify-self: center; color: var(--oak-fg-muted); font: 800 var(--oak-text-meta)/1.2 var(--font-mono); border: 0; background: transparent; border-radius: 0; padding: 0; }
-.oak-h1-calendar-picker[data-embedded="true"] { display: block; width: 100%; padding: 0; border: 0; background: transparent; }
-.oak-h1-calendar-picker[data-embedded="true"] > .oak-h1-calendar-trigger, .oak-h1-calendar-picker[data-embedded="true"] > small { display: none; }
-.oak-h1-calendar-picker[data-embedded="true"] .oak-h1-calendar-popover { position: static; inset: auto; display: block; width: 100%; max-width: none; height: auto; max-height: none; margin: 0; padding: 0; transform: none; box-shadow: none; border: 0; }
-.oak-h1-calendar-picker[data-embedded="true"] .oak-h1-calendar-popover > header { justify-content: center; gap: 1rem; margin: 0 0 .5rem; }
-.oak-h1-calendar-picker[data-embedded="true"] .oak-h1-calendar-popover > footer { display: none; }
-.oak-h1-calendar-picker[data-embedded="true"] :is(.oak-h1-calendar-grid, .oak-h1-calendar-weekdays) { grid-template-columns: repeat(7,minmax(0,1fr)); gap: 0; width: 100%; border-left: 1px solid var(--oak-border-subtle); }
-.oak-h1-calendar-picker[data-embedded="true"] .oak-h1-calendar-weekdays { border-top: 1px solid var(--oak-border-subtle); }
-.oak-h1-calendar-picker[data-embedded="true"] :is(.oak-h1-calendar-grid button, .oak-h1-calendar-weekdays span) { width: 100%; max-width: none; height: auto; aspect-ratio: auto; margin: 0; border: 0; border-right: 1px solid var(--oak-border-subtle); border-bottom: 1px solid var(--oak-border-subtle); border-radius: 0; background: var(--oak-bg-raised); }
-.oak-h1-calendar-picker[data-embedded="true"] .oak-h1-calendar-grid button { min-height: var(--oak-touch-min); font-size: var(--oak-text-meta); }
-.oak-h1-calendar-picker[data-embedded="true"] .oak-h1-calendar-grid button:disabled { opacity: 1; color: color-mix(in srgb, var(--oak-fg-muted) 60%, var(--oak-bg-surface)); background: var(--oak-bg-surface); }
-.oak-h1-calendar-picker[data-embedded="true"] .oak-h1-calendar-grid button[data-selected="true"] { color: var(--oak-fg-primary); background: color-mix(in srgb, var(--oak-accent-command) 45%, var(--oak-bg-raised)); box-shadow: inset 0 0 0 1px var(--oak-accent-command); }
-.oak-h1-history-row:has([data-embedded="true"]) { grid-template-columns: minmax(0,1fr); }
-.oak-h1-history-row:has([data-embedded="true"]) > .oak-h1-history-label { display: none; }
-.oak-h1-history:has([data-embedded="true"]) { padding: .75rem; }
 .oak-h1-evidence-inline .oak-h1-evidence-panel { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); width: 100%; max-height: none; overflow: visible; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-strong)); background: var(--oak-bg-surface); box-shadow: none; }
 .oak-h1-evidence-inline .oak-h1-evidence-head { grid-column: 1 / -1; position: static; padding: .6rem .75rem; background: transparent; }
 .oak-h1-evidence-inline .oak-h1-evidence-head :is(.oak-eyebrow,p) { display: none; }
@@ -1802,7 +1797,7 @@ body.oak-body:has(.oak-workspace-heading) { background: radial-gradient(ellipse 
   .oak-nav-layout { grid-template-columns: minmax(0,1fr) auto; gap: 0 .25rem; padding-block: .25rem 0; }
   .oak-brand-copy strong { font-size: .875rem; }
   .oak-brand-icon { width: 1.75rem; height: 1.75rem; }
-  .oak-nav-workspace { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 0; }
+  .oak-nav-workspace { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 0; }
   .oak-nav-controls { grid-column: 2; grid-row: 1; }
   .oak-nav-link { padding: .5rem .2rem; gap: .25rem; font-size: var(--oak-text-meta); }
   .oak-tools { display: none; }

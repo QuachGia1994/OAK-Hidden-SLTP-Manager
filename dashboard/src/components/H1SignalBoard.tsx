@@ -8,7 +8,6 @@ import { deliverPngBlob, type PngDeliveryResult } from "@/lib/png-delivery";
 import type { H1SignalAlert, H1SignalPayload } from "@/lib/h1-signals";
 
 type Locale = "EN" | "VN";
-type H1BoardMode = "live" | "history";
 type ShareArtifact = { date: string; blob: Blob };
 
 const H1_SHARE_SCALE = 2;
@@ -34,6 +33,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
 
   const hours = activeH1ScanHoursForBrokerDate(date, data.hours);
   const visibleSymbols = visibleH1Symbols(data.symbols);
+  const xauH3EntryIsH4 = Boolean(day.symbols?.XAUUSD?.alerts?.some((alert) => alert.slotHour === 3 && alert.entryHour === 4));
   const padding = 40;
   const titleHeight = 128;
   const headerHeight = 54;
@@ -58,6 +58,8 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     accent: "#4b8cff",
     buy: "#39d98a",
     sell: "#ff6b6b",
+    highlight: "#d9a441",
+    highlightBg: "#2b2518",
   };
 
   ctx.fillStyle = colors.bg;
@@ -121,6 +123,16 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     hours.forEach((hour, hourIndex) => {
       const x = tableX + H1_SHARE_SYMBOL_WIDTH + hourIndex * H1_SHARE_HOUR_WIDTH;
       const alert = byHour.get(hour);
+      const xauH4Highlight = base === "XAUUSD" && xauH3EntryIsH4 && (hour === 3 || hour === 14);
+      if (xauH4Highlight) {
+        ctx.fillStyle = colors.highlightBg;
+        ctx.fillRect(x, y, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT);
+        ctx.strokeStyle = colors.highlight;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 1, y + 1, H1_SHARE_HOUR_WIDTH - 2, H1_SHARE_ROW_HEIGHT - 2);
+        ctx.strokeStyle = colors.border;
+        ctx.lineWidth = 1;
+      }
       if (Number.isInteger(alert?.entryHour)) {
         drawCentered(`H${String(alert?.entryHour).padStart(2, "0")}`, x, y + 5, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT / 2, colors.text, `950 14px ${H1_SHARE_FONT}`);
         drawCentered(alert?.signal || "—", x, y + H1_SHARE_ROW_HEIGHT / 2 - 5, H1_SHARE_HOUR_WIDTH, H1_SHARE_ROW_HEIGHT / 2, alert?.signal === "BUY" ? colors.buy : alert?.signal === "SELL" ? colors.sell : colors.muted, `950 13px ${H1_SHARE_FONT}`);
@@ -194,7 +206,6 @@ function SundayCalendarPicker({
   max,
   allowedDates,
   disabled = false,
-  embedded = false,
   locale,
   label,
   meta,
@@ -205,7 +216,6 @@ function SundayCalendarPicker({
   max: string;
   allowedDates?: string[];
   disabled?: boolean;
-  embedded?: boolean;
   locale: Locale;
   label: string;
   meta: string;
@@ -248,11 +258,10 @@ function SundayCalendarPicker({
   };
 
   return (
-    <div className="oak-h1-calendar-picker" data-embedded={embedded ? "true" : undefined} data-open={open ? "true" : undefined}>
+    <div className="oak-h1-calendar-picker" data-open={open ? "true" : undefined}>
       <button
         type="button"
         className="oak-h1-calendar-trigger"
-        hidden={embedded}
         onClick={() => setOpen((current) => disabled ? false : !current)}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -264,8 +273,8 @@ function SundayCalendarPicker({
         <span className="oak-h1-calendar-chevron" aria-hidden="true">⌄</span>
       </button>
       <small>{meta}</small>
-      {(embedded || open) && (
-        <div className="oak-h1-calendar-popover" role={embedded ? "region" : "dialog"} aria-label={label} onKeyDown={(event) => {
+      {open && (
+        <div className="oak-h1-calendar-popover" role="dialog" aria-label={label} onKeyDown={(event) => {
           if (event.key === "Escape") setOpen(false);
         }}>
           <header>
@@ -302,15 +311,14 @@ function SundayCalendarPicker({
               );
             })}
           </div>
-          <footer hidden={embedded}><button type="button" onClick={() => setOpen(false)}>{locale === "EN" ? "Close" : "Đóng"}</button></footer>
+          <footer><button type="button" onClick={() => setOpen(false)}>{locale === "EN" ? "Close" : "Đóng"}</button></footer>
         </div>
       )}
     </div>
   );
 }
 
-export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data: H1SignalPayload | null; degraded?: boolean; locale: Locale; mode?: H1BoardMode }) {
-  const historyMode = mode === "history";
+export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayload | null; degraded?: boolean; locale: Locale }) {
   const [selectedDate, setSelectedDate] = useState(() => data ? selectHistoryDate(data.days, "all", "") : "");
   const [evidenceSelection, setEvidenceSelection] = useState<H1EvidenceSelection | null>(null);
   const [shareArtifact, setShareArtifact] = useState<ShareArtifact | null>(null);
@@ -321,12 +329,12 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
   const allDates = data ? historyDatesForWeekday(data.days, "all") : [];
   const earliestDate = allDates.at(-1) || "";
   const latestDate = allDates[0] || "";
-  const date = data ? (historyMode ? selectHistoryDate(data.days, "all", selectedDate) : latestDate) : selectedDate;
+  const date = data ? selectHistoryDate(data.days, "all", selectedDate) : selectedDate;
   const day = date && data ? data.days[date] : undefined;
   const copy = locale === "EN"
     ? {
-        title: historyMode ? "H1 History" : "H1 Live",
-        sub: historyMode ? "Retained local M15 pattern entries · choose a broker date to review" : "Current broker day · local ICMarkets M15 pattern entries",
+        title: "H1 Live + History",
+        sub: "MT5 ICMarkets · M15 · latest + retained broker days",
         awaiting: "Awaiting local H1 feed",
         freeAccess: "All H1 entry-time cells unlocked",
         dateGroup: "Broker date",
@@ -334,8 +342,8 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
         coverage: `${allDates.length} trading days · ${earliestDate || "—"} → ${latestDate || "—"}`,
       }
     : {
-        title: historyMode ? "Lịch sử H1" : "H1 Live",
-        sub: historyMode ? "Entry pattern M15 local đã lưu · chọn ngày broker để xem lại" : "Ngày broker hiện tại · entry pattern M15 ICMarkets local",
+        title: "H1 Live + Lịch sử",
+        sub: "MT5 ICMarkets · M15 · ngày broker mới nhất + lịch sử đã lưu",
         awaiting: "Đang chờ feed H1 local",
         freeAccess: "Tất cả ô entry-time H1 đã được mở",
         dateGroup: "Ngày broker",
@@ -344,9 +352,9 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
       };
 
   useEffect(() => {
-    if (!historyMode || !data || selectedDate === date) return;
+    if (!data || selectedDate === date) return;
     setSelectedDate(date);
-  }, [historyMode, data, date, selectedDate]);
+  }, [data, date, selectedDate]);
 
   useEffect(() => {
     if (!date) return;
@@ -370,7 +378,7 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
   }, [data, date, locale]);
 
   const chooseDate = (nextDate: string) => {
-    if (!historyMode || !nextDate || nextDate === selectedDate) return;
+    if (!nextDate || nextDate === selectedDate) return;
     setSelectedDate(nextDate);
   };
 
@@ -394,9 +402,8 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
   };
 
   if (!data) {
-    // History keeps a usable fallback calendar while storage recovers. Live is
-    // intentionally date-less: it stays pinned to the current broker day and
-    // never becomes a second history navigator.
+    // Keep the unified date picker usable while storage recovers so the H1
+    // surface never needs a second History route just to navigate broker days.
     const today = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Ho_Chi_Minh",
       year: "numeric",
@@ -404,24 +411,23 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
       day: "2-digit",
     }).format(new Date());
     const fallbackMinDate = addIsoCalendarDays(today, -89);
-    const fallbackDate = historyMode && selectedDate && selectedDate >= fallbackMinDate && selectedDate <= today ? selectedDate : today;
+    const fallbackDate = selectedDate && selectedDate >= fallbackMinDate && selectedDate <= today ? selectedDate : today;
     const fallbackHours = activeH1ScanHoursForBrokerDate(fallbackDate, H1_SCAN_HOURS);
     return (
-      <section className="oak-h1-board" data-mode={mode}>
+      <section className="oak-h1-board">
         <header className="oak-h1-board-head">
-          <div><h2>{copy.title}</h2><p>{historyMode ? copy.sub : "MT5 ICMarkets · M15"}</p></div>
+          <div><h2>{copy.title}</h2><p>{copy.sub}</p></div>
           <div className="oak-h1-meta">
             <span className="oak-access-pill" title={copy.freeAccess}>FREE ACCESS</span>
             <span><small>{locale === "EN" ? "BROKER DAY" : "NGÀY BROKER"}</small><b>{fallbackDate}</b></span>
-            <span><small>{historyMode ? (locale === "EN" ? "PHASE BASIS" : "CƠ SỞ PHA") : "STATUS"}</small><b>{historyMode ? (locale === "EN" ? "selected date" : "ngày đang chọn") : (locale === "EN" ? "current day" : "ngày hiện tại")}</b></span>
+            <span><small>STATUS</small><b>{locale === "EN" ? "feed recovery" : "đang phục hồi feed"}</b></span>
           </div>
         </header>
 
-        {historyMode && <div className="oak-h1-history" data-empty="true">
+        <div className="oak-h1-history" data-empty="true">
           <div className="oak-h1-history-row">
             <span className="oak-h1-history-label">{copy.dateGroup}</span>
             <SundayCalendarPicker
-              embedded
               value={fallbackDate}
               min={fallbackMinDate}
               max={today}
@@ -432,11 +438,9 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
             />
           </div>
           <p className="oak-h1-history-coverage">{copy.coverage}</p>
-        </div>}
+        </div>
         {degraded
-          ? <p className="oak-h1-degraded" role="alert">{historyMode
-            ? (locale === "EN" ? "History storage is temporarily unavailable. Calendar stays available while recovery runs automatically…" : "Kho lịch sử tạm không khả dụng. Calendar vẫn bấm được trong khi hệ thống tự phục hồi…")
-            : (locale === "EN" ? "Live storage is temporarily unavailable. Waiting for the current broker-day feed to recover…" : "Kho live tạm không khả dụng. Đang chờ feed ngày broker hiện tại tự phục hồi…")}</p>
+          ? <p className="oak-h1-degraded" role="alert">{locale === "EN" ? "H1 storage is temporarily unavailable. Calendar stays available while recovery runs automatically…" : "Kho H1 tạm không khả dụng. Calendar vẫn bấm được trong khi hệ thống tự phục hồi…"}</p>
           : <p className="oak-h1-awaiting">{copy.awaiting}</p>}
         <p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe if the table extends beyond the screen" : "Vuốt ngang nếu bảng rộng hơn màn hình"}</p>
         <div ref={tableScrollRef} className="oak-h1-table-scroll lux-scroll">
@@ -454,16 +458,17 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
   }
 
   const activeHours = date ? activeH1ScanHoursForBrokerDate(date, data.hours) : data.hours;
+  const xauH3EntryIsH4 = Boolean(day?.symbols?.XAUUSD?.alerts?.some((alert) => alert.slotHour === 3 && alert.entryHour === 4));
 
   return (
     <>
-      <section className="oak-h1-board" data-mode={mode}>
+      <section className="oak-h1-board">
         <header className="oak-h1-board-head">
-          <div><h2>{copy.title}</h2><p>{historyMode ? copy.sub : "MT5 ICMarkets · M15"}</p></div>
+          <div><h2>{copy.title}</h2><p>{copy.sub}</p></div>
           <div className="oak-h1-meta">
             <span className="oak-access-pill" title={copy.freeAccess}>FREE ACCESS</span>
             <span><small>{locale === "EN" ? "BROKER DAY" : "NGÀY BROKER"}</small><b>{date || "—"}</b></span>
-            <span><small>{locale === "EN" ? "UPDATED" : "CẬP NHẬT"}</small><b>{formatPublished(data.publishedAt, locale)} {!historyMode && " · ↻ 20s"}</b></span>
+            <span><small>{locale === "EN" ? "UPDATED" : "CẬP NHẬT"}</small><b>{formatPublished(data.publishedAt, locale)} · ↻ 20s</b></span>
             <button type="button" className="oak-h1-share-png" onClick={() => void copyScannerPng()} disabled={!shareArtifact || shareBusy} aria-label={locale === "EN" ? "Copy or share H1 scanner PNG" : "Copy hoặc chia sẻ ảnh PNG bảng H1"} title={locale === "EN" ? "Copy PNG; on unsupported Android browsers open the native share sheet" : "Copy PNG; nếu browser Android không hỗ trợ sẽ mở bảng chia sẻ hệ thống"} data-copied={shareOutcome === "copied" ? "true" : undefined} data-failed={shareOutcome === "failed" ? "true" : undefined}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h9a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm-3 9H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2" /></svg>
               <b>{shareBusy ? "..." : shareOutcome === "copied" ? "COPIED" : shareOutcome === "shared" ? "SHARED" : shareOutcome === "downloaded" ? "SAVED" : shareOutcome === "cancelled" ? "CANCELLED" : shareOutcome === "failed" ? "FAILED" : "COPY PNG"}</b>
@@ -471,11 +476,10 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
           </div>
         </header>
 
-        {historyMode && <div className="oak-h1-history">
+        <div className="oak-h1-history">
           <div className="oak-h1-history-row">
             <span className="oak-h1-history-label">{copy.dateGroup}</span>
             <SundayCalendarPicker
-              embedded
               value={date}
               min={earliestDate}
               max={latestDate}
@@ -488,7 +492,7 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
             />
           </div>
           <p className="oak-h1-history-coverage">{copy.coverage}</p>
-        </div>}
+        </div>
         {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : <><p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe if the table extends beyond the screen" : "Vuốt ngang nếu bảng rộng hơn màn hình"}</p><div ref={tableScrollRef} className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
             <thead><tr><th id="h1-symbol-header" scope="col" className="oak-h1-symbol-sticky">SYMBOL</th>{activeHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour}><span>H{String(hour).padStart(2, "0")}</span></th>)}</tr></thead>
@@ -497,8 +501,9 @@ export function H1SignalBoard({ data, degraded, locale, mode = "live" }: { data:
               const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
               return <tr key={base}><th id={`h1-symbol-${base}`} scope="row" className="oak-h1-symbol-sticky"><b>{base}</b></th>{activeHours.map((hour) => {
                 const alert = byHour.get(hour);
-                if (!Number.isInteger(alert?.entryHour)) return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`}><span className="oak-h1-cell-empty">—</span></td>;
-                return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-pattern-group={alert?.patternGroup || undefined} title={`${alert?.scannerSource || base} · ${alert?.pattern || ""} · ${alert?.patternGroup || ""}`}><button type="button" className="oak-h1-cell-entry oak-h1-cell-evidence" onClick={() => setEvidenceSelection({ base, brokerDate: date, alert: alert! })} aria-label={`${base} H${hour}: ${locale === "EN" ? "view pattern evidence" : "xem pattern evidence"}`}><b>H{String(alert?.entryHour).padStart(2, "0")}</b><small data-signal={alert?.signal || undefined}>{alert?.signal || "—"}</small></button></td>;
+                const xauH4Highlight = base === "XAUUSD" && xauH3EntryIsH4 && (hour === 3 || hour === 14);
+                if (!Number.isInteger(alert?.entryHour)) return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-xau-h4-highlight={xauH4Highlight ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>;
+                return <td key={hour} headers={`h1-symbol-${base} h1-hour-${hour}`} data-xau-h4-highlight={xauH4Highlight ? "true" : undefined} data-pattern-group={alert?.patternGroup || undefined} title={`${alert?.scannerSource || base} · ${alert?.pattern || ""} · ${alert?.patternGroup || ""}`}><button type="button" className="oak-h1-cell-entry oak-h1-cell-evidence" onClick={() => setEvidenceSelection({ base, brokerDate: date, alert: alert! })} aria-label={`${base} H${hour}: ${locale === "EN" ? "view pattern evidence" : "xem pattern evidence"}`}><b>H{String(alert?.entryHour).padStart(2, "0")}</b><small data-signal={alert?.signal || undefined}>{alert?.signal || "—"}</small></button></td>;
               })}</tr>;
             })}</tbody>
           </table>

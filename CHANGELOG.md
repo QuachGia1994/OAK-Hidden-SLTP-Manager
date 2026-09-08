@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Advanced H1 to v85: Monday no longer calculates GBPAUD, GBPCAD or GBPJPY on any H1 block; XAUUSD keeps normal Monday calculation and GBPUSD/EURUSD retain H9/H12/H14/H16 eligibility. Retained/public state filters stale Monday GBP-cross rows under the same schema 18/state v56 contract. On Web, when XAUUSD H3 resolves to entry H4, the XAUUSD H3 and H14 cells are highlighted together without changing H14 calculation or signal.
+
+- Unified the Web H1 Live and History workspaces into one H1 surface. `/engine` still opens the newest retained broker day by default, while the same board now exposes a compact broker-date calendar popover for 90-day retained history without a tab switch; legacy `/history` links redirect to `/engine`. The separate History navigation item and its always-embedded calendar DOM are removed, while H1 scanner/signal/history data contracts remain otherwise unchanged.
+
 - Fixed PC-local scheduled-entry stale conflicts after an `uncertain` terminal outcome. `uncertain` intents remain durably retained and eligible for late exact-position reconciliation, but they are no longer counted/listed as pending and no longer block a new same-account/same-symbol schedule. `/del` now reports terminal intents as already finished instead of `cannot cancel`, while an actually `executing` conflict no longer suggests the impossible `/del` action.
 
 - Advanced H1 to v84: GBPCAD and GBPJPY now calculate the same full weekday block set as GBPAUD (`H3/H6/H9/H12/H14/H16`) while retaining their dedicated USDCAD/USDJPY scanners; all three GBP crosses keep previous-broker-day GBPUSD at `H(entry-2)` as the final BUY/SELL base on H3-H14. H16 returns for every row as pattern/evidence + entry-time only: no base direction, scheduled side or BUY/SELL is computed/published there. GBPUSD/EURUSD keep XAUUSD synchronization on H9/H12/H14 only, while H16 uses local entry calculation with no signal. Public schema 18/state v56 remain stable.

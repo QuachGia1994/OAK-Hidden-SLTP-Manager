@@ -68,13 +68,11 @@ test("GBP crosses use dedicated AUDUSD USDCAD USDJPY scanner sources", () => {
   }
 });
 
-test("Monday uses the same symbol and block eligibility as normal weekdays", () => {
+test("Monday excludes GBP crosses while XAUUSD GBPUSD EURUSD keep their existing eligibility", () => {
   const monday = "2026-09-07";
   const tuesday = "2026-09-08";
-  for (const target of H1_LOCAL_TARGETS) {
-    for (const hour of H1_LOCAL_SCAN_HOURS) {
-      assert.equal(targetEnabledForDate(target, monday, hour), targetEnabledForDate(target, tuesday, hour));
-    }
+  for (const hour of H1_LOCAL_SCAN_HOURS) {
+    assert.equal(targetEnabledForDate("XAUUSD", monday, hour), targetEnabledForDate("XAUUSD", tuesday, hour));
   }
   for (const fx of ["GBPUSD", "EURUSD"] as const) {
     assert.equal(targetEnabledForDate(fx, monday, 3), false);
@@ -82,11 +80,14 @@ test("Monday uses the same symbol and block eligibility as normal weekdays", () 
     for (const hour of [9, 12, 14, 16]) assert.equal(targetEnabledForDate(fx, monday, hour), true);
   }
   for (const cross of ["GBPAUD", "GBPCAD", "GBPJPY"] as const) {
-    for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(targetEnabledForDate(cross, monday, hour), true);
+    for (const hour of H1_LOCAL_SCAN_HOURS) {
+      assert.equal(targetEnabledForDate(cross, monday, hour), false);
+      assert.equal(targetEnabledForDate(cross, tuesday, hour), true);
+    }
   }
 });
 
-test("rule v84 has no weekday inversion badges", () => {
+test("rule v85 has no weekday inversion badges", () => {
   const tue = "2026-09-08";
   const thu = "2026-09-03";
   const fri = "2026-09-04";

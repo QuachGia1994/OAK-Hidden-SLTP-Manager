@@ -12,7 +12,7 @@ export function HistoryClient({ data, degraded, locale: serverLocale }: { data: 
   return (
     <div className="page-shell terminal-page oak-history-page">
       <WorkspaceHeading workspace="history" locale={locale} />
-      <H1SignalBoard data={data} degraded={degraded} locale={locale} mode="history" />
+      <H1SignalBoard data={data} degraded={degraded} locale={locale} />
     </div>
   );
 }
