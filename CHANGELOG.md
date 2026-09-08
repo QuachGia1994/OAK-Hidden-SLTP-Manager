@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Updated app/H1 loading screens to the shared workspace palette with localized loading states. Added a public NeoTech Compliance EA v1.07 download with installation guidance, SHA-256 verification and explicit local Telegram controller requirements.
+
 - Redesigned all OAK workspaces with a shared graphite/mint palette: H1 Live gains a geometric core and explicit feed status; NeoTech gains a compact connection entry and readable criteria; Tools, Fact Check, Tarot and Discover gain illustrated layouts and clearer controls. Preserved signal logic, account access, AI requests, tool drafts and actual result rendering; refined mobile layouts and EN/VN, Light/Dark/Contrast presentation.
 
 - Simplified the web H1 Live/History matrix to the shared XAUUSD-owned entry-time surface: one `ENTRY TIME` row replaces the repeated XAUUSD/FX symbol rows, H3/H6/H9/H12/H14/H16 cells show only the entry hour with no BUY/SELL badge, H12/H14 are always highlighted, and the previous retained broker day's H3 entry hour is shown as a reference (Monday therefore resolves Friday). PNG export mirrors the same layout. This is presentation-only: H1 rule v88, schema 18/state v56, scanner signal computation and Telegram/execution logic are unchanged.

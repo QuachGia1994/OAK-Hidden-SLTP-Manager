@@ -11,7 +11,7 @@ The repository was intentionally trimmed on 2026-08-22 to remove the legacy desk
 - `services/media-forensics/` — optional web-side media-forensics service used by Fact Check when configured.
 - `mobile/` — Expo SDK 57 / React Native native shell for Android and iOS. Uses the Vercel admin APIs as its source of truth and stores only the Dashboard API key in device SecureStore.
 - `mt5/OAK_Cloud_Manager_EA.mq5` — standalone MQL5 execution/account-management runtime attached directly to each controlled MT5 terminal.
-- `mt5/OAK_NeoTech_Compliance_EA.mq5` — separate, advisory/read-only NeoTech compliance auditor. It reads MT5 account history, owns the compliance formulas in MQL5, uploads immutable reports, and is isolated from trading/execution surfaces.
+- `mt5/OAK_NeoTech_Compliance_EA.mq5` — optional, read-only C5 reminder and `/look` helper for the OAK Local Telegram controller. The 14-rule assessment belongs to the separate ReadOnly Connector and dashboard. The compiled EA and installation guide are available on `/neotech`.
 - `.github/workflows/` — web CI, mobile Android/iOS builds, plus H1/Telegram cloud fallback schedulers.
 
 ## Runtime flow

@@ -79,6 +79,12 @@ The connector receives one revocable 256-bit ingest token after pairing and stor
 
 The 14-rule NeoTech table is owned by `OAK_NeoTech_ReadOnly_Connector.mq5` plus the dashboard NeoTech engine. Do not add report formulas, FDD reconstruction, `/check`, direct Telegram polling or other compliance analytics back into this EA.
 
+### Public download
+
+The `/neotech` page offers `dashboard/public/downloads/OAK_NeoTech_Compliance_EA.ex5`, a bilingual installation guide and a SHA-256 checksum. Version 1.07 was compiled from the unchanged EA and `neotech/NeoTechC5Reminder.mqh` at commit `94e0868` on 2026-09-08: MetaEditor reported 0 errors, 0 warnings, X64 Regular. The public binary is not attached to a terminal during web verification. Rebuild and update the checksum/guide together when the source changes.
+
+The download requires the existing OAK Local Telegram controller on the same PC, bound to the same MT5 login/server. Website connector pairing alone does not configure this controller.
+
 ### Runtime flow
 
 ```text

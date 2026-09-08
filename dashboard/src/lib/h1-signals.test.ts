@@ -443,8 +443,9 @@ test("native Android is hardened for Google Play February 2027 memory and DEX re
   assert.match(androidMainSource, /R\.drawable\.oak_app_icon_exact/);
   assert.match(nativeAppSource, /OAKLaunchLoadingView/);
   assert.match(nativeAppSource, /Image\("OAKLogo"\)/);
-  assert.match(webLoadingSource, /oak-app-icon\.png/);
-  assert.match(webLoadingSource, /oak-loading-spinner/);
+  assert.match(webLoadingSource, /oak-loading-ring-inner/);
+  assert.match(webLoadingSource, /oak-loading-core-dot/);
+  assert.doesNotMatch(webLoadingSource, /oak-app-icon\.png|oak-loading-spinner/);
   assert.match(brandSyncSource, /AppIcon\.appiconset/);
   assert.match(brandSyncSource, /oak_app_icon_exact\.png/);
   assert.match(brandSyncSource, /oak_launcher_foreground\.png/);

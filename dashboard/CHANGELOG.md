@@ -6,11 +6,15 @@ All notable changes to the dashboard are recorded here.
 
 ### Changed
 
+- Refreshed the shared loading splash to match the workspace palette and follow EN/VN and reduced-motion preferences.
+
 - Unified H1 Live, NeoTech and all tool workspaces with theme-aware graphite/mint surfaces, stronger typography, responsive layouts and existing illustrated assets.
 - Added a localized H1 engine core with honest retained-feed metadata and a direct NeoTech connection entry. Unconnected NeoTech profiles now show a waiting state, and narrow screens use readable criterion rows.
 - Redesigned the Tools directory, Fact Check text/image workbench, Tarot question and deck layout, and Discover's five experiences while preserving their existing data, drafts, request handlers and results.
 
 ### Added
+
+- Added a visible NeoTech Compliance EA v1.07 download, checksum and bilingual installation guide. The optional EA provides C5 reminders and `/look` through an existing account-bound local Telegram controller.
 
 - Expanded Tarot reflection with five question topics (relationship, career, personal, money and study). The selected topic is validated server-side, included in Gemini context, and shown with visible three-card position detail while legacy requests safely default to personal reflection.
 - Made Image Authenticity's multi-signal method explicit before and after analysis. The UI now surfaces C2PA/provenance, metadata/container, Gemini visual analysis and specialist-detector layers, and states that no single detector proves an image real or AI-generated.

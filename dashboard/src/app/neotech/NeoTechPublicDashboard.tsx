@@ -551,7 +551,25 @@ export function NeoTechPublicDashboard() {
         </div>
       </section>
 
-
+      <section className={styles.downloadPanel} aria-labelledby="neotech-ea-download-title">
+        <div className={styles.downloadCopy}>
+          <div className={styles.downloadEyebrow}>{tr("OPTIONAL MT5 HELPER · VERSION 1.07", "TIỆN ÍCH MT5 TÙY CHỌN · PHIÊN BẢN 1.07")}</div>
+          <h2 id="neotech-ea-download-title">{tr("NeoTech Compliance EA", "EA NeoTech Compliance")}</h2>
+          <p>{tr("Read-only helper for the optional C5 session reminder and Telegram /look snapshot. It does not place, modify, or close trades.", "Nhắc thời điểm vào lại lệnh theo phiên C5 và xem các mã trong phiên qua Telegram /look. EA chỉ đọc dữ liệu, không đặt, sửa hoặc đóng lệnh.")}</p>
+          <p className={styles.downloadRequirement}>{tr("Requires the existing OAK Local Telegram controller running on the same PC and bound to the same account. Not a standalone 14-rule auditor.", "Cần OAK Local Telegram controller chạy trên cùng máy và đã liên kết đúng tài khoản MT5. Bảng đánh giá 14 tiêu chí dùng Connector riêng.")}</p>
+          <div className={styles.downloadActions}>
+            <a className={styles.primaryButton} href="/downloads/OAK_NeoTech_Compliance_EA.ex5" download>{tr("Download EA · .ex5", "Tải EA · .ex5")}</a>
+            <a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_Compliance_EA-README.txt" target="_blank" rel="noreferrer">{tr("Install guide", "Hướng dẫn cài đặt")}</a>
+            <a className={styles.downloadChecksum} href="/downloads/OAK_NeoTech_Compliance_EA.sha256.txt" target="_blank" rel="noreferrer">SHA-256</a>
+          </div>
+        </div>
+        <div className={styles.downloadInstall}>
+          <b>{tr("Install", "Cài đặt")}</b>
+          <span>{tr("File → Open Data Folder → MQL5/Experts", "File → Open Data Folder → MQL5/Experts")}</span>
+          <span>{tr("Refresh Navigator, attach on a separate chart, set InpExpectedLogin to the exact MT5 login.", "Làm mới Navigator, gắn EA trên biểu đồ riêng và đặt InpExpectedLogin đúng số tài khoản MT5.")}</span>
+          <span>{tr("Keep MT5 and the controller online.", "Giữ MT5 và controller hoạt động.")}</span>
+        </div>
+      </section>
 
       <section id="neotech-ruleset" className={styles.rulesetV2}>
         <div className={styles.rulesetV2Header}>

@@ -76,11 +76,18 @@ transform: none; background: var(--oak-accent-command-strong); box-shadow: none;
 }
 .oak-empty-state > span { color: var(--terminal-accent); font: 900 1.25rem "Cascadia Mono", Consolas, monospace; }
 
-.oak-loading-splash { min-height: min(72vh, 38rem); display: grid; place-items: center; align-content: center; gap: .8rem; text-align: center; color: var(--oak-fg-primary); }
-.oak-loading-logo { width: 6.5rem; height: 6.5rem; border-radius: 1.55rem; object-fit: cover; box-shadow: 0 12px 32px color-mix(in srgb, var(--oak-accent-command) 14%, transparent); }
-.oak-loading-splash > b { font: 900 .82rem "Cascadia Mono", Consolas, monospace; letter-spacing: .12em; }
-.oak-loading-splash > small { color: var(--oak-fg-muted); font: 700 .62rem "Cascadia Mono", Consolas, monospace; }
-.oak-loading-spinner { width: 1.45rem; height: 1.45rem; border: 2px solid color-mix(in srgb, var(--oak-accent-command) 24%, var(--oak-border-subtle)); border-top-color: var(--oak-accent-command); border-radius: 50%; animation: oak-spin .8s linear infinite; }
+.oak-loading-splash { min-height: clamp(16rem, 42vh, 28rem); display: grid; place-items: center; padding: 1rem; color: var(--oak-fg-primary); }
+.oak-loading-card { box-sizing: border-box; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .9rem; width: min(100%, 24rem); padding: .9rem 1rem; border: 1px solid var(--engine-line); border-radius: var(--oak-radius-md); background: color-mix(in srgb, var(--engine-surface) 92%, transparent); box-shadow: var(--engine-shadow); }
+.oak-loading-mark { position: relative; display: grid; width: 4.25rem; height: 4.25rem; place-items: center; flex: 0 0 auto; }
+.oak-loading-ring { position: absolute; border: 1px solid color-mix(in srgb, var(--engine-accent) 50%, transparent); border-radius: 50%; }
+.oak-loading-ring-outer { inset: .05rem; opacity: .7; transform: rotateX(62deg) rotateZ(-22deg); }
+.oak-loading-ring-inner { inset: .52rem; border-style: dashed; opacity: .75; transform: rotateX(62deg) rotateZ(34deg); animation: oak-spin 3.2s linear infinite; }
+.oak-loading-core { position: relative; z-index: 1; display: grid; width: 2.15rem; height: 2.15rem; place-items: center; border: 1px solid var(--engine-accent); border-radius: 50%; background: color-mix(in srgb, var(--engine-surface) 88%, transparent); box-shadow: 0 0 1rem var(--engine-glow), inset 0 0 .7rem var(--engine-glow); }
+.oak-loading-core-dot { width: .62rem; height: .62rem; border-radius: 50%; background: var(--engine-accent); box-shadow: 0 0 .8rem var(--engine-glow); }
+.oak-loading-copy { display: grid; min-width: 0; gap: .24rem; }
+.oak-loading-eyebrow { color: var(--engine-accent); font: 800 .75rem/1.2 var(--font-mono); letter-spacing: .1em; }
+.oak-loading-copy > b { overflow-wrap: anywhere; color: var(--engine-fg); font: 850 .85rem/1.2 var(--font-sans); letter-spacing: .05em; }
+.oak-loading-copy > small { color: var(--engine-muted); font: 650 .75rem/1.4 var(--font-mono); }
 
 /* H1 cloud trading workspace */
 .oak-engine-screen {
@@ -1871,7 +1878,7 @@ body.oak-body:has(.oak-workspace-heading) { background: radial-gradient(ellipse 
 }
 
 /* Primary workspaces share the command palette; individual routes own their layout. */
-.oak-body:has(:is(.engine-route-shell, .neotech-route-shell, .tools-route-shell, .factcheck-route-shell, .tarot-route-shell, .discover-route-shell)) {
+.oak-body:has(:is(.engine-route-shell, .neotech-route-shell, .tools-route-shell, .factcheck-route-shell, .tarot-route-shell, .discover-route-shell, .oak-loading-route)) {
   --oak-bg-canvas: var(--engine-canvas);
   --oak-bg-surface: var(--engine-surface);
   --oak-bg-raised: var(--engine-raised);
@@ -1885,7 +1892,7 @@ body.oak-body:has(.oak-workspace-heading) { background: radial-gradient(ellipse 
   --foreground: var(--engine-fg);
   background: var(--engine-canvas);
 }
-.oak-body:has(:is(.engine-route-shell, .neotech-route-shell, .tools-route-shell, .factcheck-route-shell, .tarot-route-shell, .discover-route-shell)) .oak-spatial-stage { display: none; }
+.oak-body:has(:is(.engine-route-shell, .neotech-route-shell, .tools-route-shell, .factcheck-route-shell, .tarot-route-shell, .discover-route-shell, .oak-loading-route)) .oak-spatial-stage { display: none; }
 .engine-route-shell {
   max-width: 88rem;
   padding-top: 1.5rem;
