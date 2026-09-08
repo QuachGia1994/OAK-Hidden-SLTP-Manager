@@ -82,7 +82,7 @@ data class H1SignalPayload(
             patternSource = sourceAlert.scannerSource ?: sourceAlert.symbol,
             rawBase = rawBase,
             signalSource = "",
-            rule = if (sourceAlert.slotHour == 16) "ENTRY ONLY" else if (previousBase) "PREV H(entry-1)" else "OWN H(entry-1)",
+            rule = if (sourceAlert.slotHour == 16) "ENTRY ONLY" else if (previousBase) "PREV H(entry-2)" else "OWN H(entry-2)",
             finalSignal = sourceAlert.signal?.name ?: "—",
         )
     }

@@ -285,7 +285,7 @@ extension H1SignalPayload {
             patternSource: sourceAlert.scannerSource ?? sourceAlert.symbol,
             rawBase: rawBase,
             signalSource: "",
-            rule: sourceAlert.slotHour == 16 ? "ENTRY ONLY" : previousBase ? "PREV H(entry-1)" : "OWN H(entry-1)",
+            rule: sourceAlert.slotHour == 16 ? "ENTRY ONLY" : previousBase ? "PREV H(entry-2)" : "OWN H(entry-2)",
             finalSignal: sourceAlert.signal?.rawValue ?? "—"
         )
     }

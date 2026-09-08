@@ -44,7 +44,7 @@ function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload)
     patternSource: alert.scannerSource || base,
     rawBase,
     signalSource: "",
-    rule: alert.slotHour === 16 ? "ENTRY ONLY" : previousBase ? "PREV H(entry-1)" : "OWN H(entry-1)",
+    rule: alert.slotHour === 16 ? "ENTRY ONLY" : previousBase ? "PREV H(entry-2)" : "OWN H(entry-2)",
     finalSignal: alert.signal ?? "—",
   };
 }

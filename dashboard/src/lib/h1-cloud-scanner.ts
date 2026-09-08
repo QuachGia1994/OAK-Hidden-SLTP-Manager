@@ -14,7 +14,7 @@ import {
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 87;
+export const H1_SIGNAL_RULE_VERSION = 88;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
@@ -82,7 +82,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 87;
+  signalRuleVersion: 88;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -336,7 +336,7 @@ type H1SlotPolicy = {
 };
 
 // Exact special-Thursday month table, ordered as:
-// [H3/H4, H6, H9, H12, H14]. H16 is entry-time-only in rule v87 and is excluded from the signal phase.
+// [H3/H4, H6, H9, H12, H14]. H16 is entry-time-only in rule v88 and is excluded from the signal phase.
 const SPECIAL_MONTH_WEEK_TABLE: Record<H1Weekday, H1PhaseRow> = {
   1: ["C", "N", "N", "C", "C"], // Mon
   2: ["N", "C", "N", "C", "N"], // Tue
@@ -469,11 +469,11 @@ export function evaluateLocalH1PatternsForTarget(
     const match = evaluateLocalH1Pattern({ target: "XAUUSD", brokerDate, slotHour, bars: market.XAUUSD.bars });
     if (!match) continue;
     const entryHour = match.entryHour;
-    const baseHour = entryHour - 1;
+    const baseHour = entryHour - 2;
     const entryOnly = slotHour === 16;
     const baseSymbol = signalBaseSourceForTarget(base);
     const previousBrokerDay = signalBaseUsesPreviousBrokerDay(base);
-    const signalReady = previousBrokerDay || throughHour >= entryHour;
+    const signalReady = previousBrokerDay || throughHour >= entryHour - 1;
     const reference = entryOnly || !signalReady
       ? null
       : previousBrokerDay
@@ -578,11 +578,11 @@ function hasLocalPatternMetadata(alert: H1StoredAlert): boolean {
   return Number.isInteger(alert.entryHour) && (alert.patternGroup === "SW" || alert.patternGroup === "BT");
 }
 
-function matchesV87LocalPatternContract(base: H1TargetBase, alert: H1StoredAlert): boolean {
+function matchesV88LocalPatternContract(base: H1TargetBase, alert: H1StoredAlert): boolean {
   if (!hasLocalPatternMetadata(alert)) return true;
   return alert.scannerSource === "XAUUSD"
     && alert.baseSymbol === signalBaseSourceForTarget(base)
-    && alert.baseHour === Number(alert.entryHour) - 1;
+    && alert.baseHour === Number(alert.entryHour) - 2;
 }
 
 function preserveScheduledSignalOnly(base: H1TargetBase, alert: H1StoredAlert): H1StoredAlert | null {
@@ -675,7 +675,7 @@ export function parseCloudState(raw: unknown): H1CloudState {
         if (!migratedAlert) throw new Error("Invalid H1 cloud alert state");
         if (!isH1SlotActiveForBrokerDate(dateKey, migratedAlert.slotHour)) continue;
         if (!targetEnabledForDate(base as H1TargetBase, dateKey, migratedAlert.slotHour)) continue;
-        if (!matchesV87LocalPatternContract(base as H1TargetBase, migratedAlert)) {
+        if (!matchesV88LocalPatternContract(base as H1TargetBase, migratedAlert)) {
           const scheduledOnly = preserveScheduledSignalOnly(base as H1TargetBase, migratedAlert);
           if (scheduledOnly) alerts.push(scheduledOnly);
           continue;
@@ -758,7 +758,7 @@ export function parsePublicFeedCloudState(raw: unknown): H1CloudState | null {
         if (localPattern && (
           row.scannerSource !== "XAUUSD"
           || String(row.baseSymbol || base) !== signalBaseSourceForTarget(base)
-          || baseHour !== Number(row.entryHour) - 1
+          || baseHour !== Number(row.entryHour) - 2
         )) continue;
         const entryOnly = row.slotHour === 16;
         alerts.push({
@@ -834,7 +834,7 @@ export function buildPublicFeed(state: H1CloudState, publishedAt = new Date().to
           .filter((alert) => (
             isH1SlotActiveForBrokerDate(dateKey, alert.slotHour)
             && targetEnabledForDate(base, dateKey, alert.slotHour)
-            && matchesV87LocalPatternContract(base, alert)
+            && matchesV88LocalPatternContract(base, alert)
           ))
           .sort((left, right) => left.slotHour - right.slotHour)
           .map((alert) => {

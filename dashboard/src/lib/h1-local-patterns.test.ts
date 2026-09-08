@@ -54,7 +54,7 @@ function h3Bars(sequence: string, family: "ALT" | "SAME", date = "2026-09-02", s
   return barsFor(date, rows);
 }
 
-test("v87 H1 scanner exposes six active blocks, five rows and three hidden signal-base sources", () => {
+test("v88 H1 scanner exposes six active blocks, five rows and three hidden signal-base sources", () => {
   const targets = ["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"];
   assert.deepEqual(H1_LOCAL_SCAN_HOURS, [3, 6, 9, 12, 14, 16]);
   assert.deepEqual(H1_LOCAL_TARGETS, targets);
@@ -78,7 +78,7 @@ test("Monday through Friday calculate every H1 row and block while weekends stay
   }
 });
 
-test("rule v87 has no weekday inversion badges", () => {
+test("rule v88 has no weekday inversion badges", () => {
   const tue = "2026-09-08";
   const thu = "2026-09-03";
   for (const hour of H1_LOCAL_SCAN_HOURS) {
