@@ -62,7 +62,7 @@ test("public MT5 connector remains structurally non-trading even when Master acc
   assert.match(source, /WebRequest\(/);
 });
 
-test("NeoTech web/connector own the 14-rule contract while the auxiliary EA stays C5-reminder-only", () => {
+test("NeoTech web/connector own the 14-rule contract while the auxiliary EA stays C5-only", () => {
   const complianceDomain = readFileSync(path.join(dashboardRoot, "src", "lib", "neotech-compliance-domain.ts"), "utf8");
   const reminderEa = readFileSync(path.join(repoRoot, "mt5", "OAK_NeoTech_Compliance_EA.mq5"), "utf8");
   const reminderCore = readFileSync(path.join(repoRoot, "mt5", "neotech", "NeoTechC5Reminder.mqh"), "utf8");
@@ -70,10 +70,12 @@ test("NeoTech web/connector own the 14-rule contract while the auxiliary EA stay
   assert.match(complianceDomain, /NEOTECH_SCHEMA_VERSION = "oak-neotech-compliance-report-v3"/);
   assert.match(reminderEa, /NeoTechC5Reminder\.mqh/);
   assert.match(reminderEa, /neotech_c5_reentry/);
+  assert.match(reminderEa, /neotech_c5_look/);
   assert.match(reminderCore, /NC5AssignSession/);
+  assert.match(reminderCore, /NC5CurrentSessionWindow/);
   assert.match(reminderCore, /NC5NextReentry/);
   for (const removed of ["ArrayResize(criteria,14)", "NTBuildReport", "getUpdates", "InpTelegramBotToken", "InpHistoryLookbackDays", "NTAdvanceFddJob", "WebRequest("]) {
-    assert.equal(reminderEa.includes(removed), false, `C5 reminder EA must not retain legacy auditor surface ${removed}`);
+    assert.equal(reminderEa.includes(removed), false, `C5-only EA must not retain legacy auditor surface ${removed}`);
   }
   assert.doesNotMatch(connector, /kind=amount>=0\.0 \? "DEPOSIT" : "WITHDRAWAL"/);
   assert.match(connector, /deposit|fund|topup|top up/i);

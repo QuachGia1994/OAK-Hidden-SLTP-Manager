@@ -75,7 +75,7 @@ The connector receives one revocable 256-bit ingest token after pairing and stor
 
 ## NeoTech C5 reminder EA - auxiliary, read-only
 
-`OAK_NeoTech_Compliance_EA.mq5` keeps its legacy filename so existing MT5 installation paths remain stable, but it is no longer a standalone compliance auditor. Its only responsibility is the C5 discipline reminder: when a new eligible Forex/XAUUSD opening episode is observed, it calculates the current effective NeoTech session and the earliest next session/time that the same canonical symbol may be entered again, then forwards one `neotech_c5_reentry` event to the existing OAK Local Telegram controller.
+`OAK_NeoTech_Compliance_EA.mq5` keeps its legacy filename so existing MT5 installation paths remain stable, but it is no longer a standalone compliance auditor. It is limited to C5 discipline helpers: when a new eligible Forex/XAUUSD opening episode is observed, it calculates the current effective NeoTech session and the earliest next session/time that the same canonical symbol may be entered again, forwards one `neotech_c5_reentry` event, and publishes a tiny current-session `/look` snapshot for the existing OAK Local Telegram controller.
 
 The 14-rule NeoTech table is owned by `OAK_NeoTech_ReadOnly_Connector.mq5` plus the dashboard NeoTech engine. Do not add report formulas, FDD reconstruction, `/check`, direct Telegram polling or other compliance analytics back into this EA.
 
@@ -83,11 +83,17 @@ The 14-rule NeoTech table is owned by `OAK_NeoTech_ReadOnly_Connector.mq5` plus 
 
 ```text
 New eligible MT5 opening episode
--> reminder-only EA
+-> C5-only EA
 -> NeoTech session/next-entry calculation
--> account-fenced FILE_COMMON event
+-> account-fenced FILE_COMMON reminder event
 -> existing OAK Local Telegram controller
 -> Telegram reminder
+
+Every timer tick
+-> same C5-only EA
+-> current NeoTech session window + unique opening-episode symbols
+-> account-fenced FILE_COMMON look snapshot
+-> Telegram /look
 ```
 
 The EA remains broker-read-only. It reads deal/position metadata and local controller heartbeat files only. It contains no `OrderSend`, `CTrade`, close, modify, delete, approve or schedule path.
@@ -116,8 +122,10 @@ The EA matches the current MT5 login/server against a fresh `OAKLocalFailover/st
 
 Event IDs are deal-scoped (`neotech_c5:<deal-ticket>`). Duplicate MT5 callbacks are suppressed in-memory, while controller delivery remains durable across EA/controller restarts. If the local identity heartbeat is temporarily unavailable, the reminder stays queued and retries on the next timer tick instead of being discarded.
 
+For `/look`, the EA rewrites `look_<profile>_<login>.json` every timer tick with `session`, Vietnam session start/end and the unique canonical symbols whose opening episode began inside that active session. The local controller accepts only a fresh snapshot whose profile/provider/login/server still matches the fresh MT5 heartbeat. A closed trade remains listed until the session ends; same-position scale-ins/partial fills do not create a new opening occurrence. Outside Asia/Europe/US the snapshot explicitly reports `OUTSIDE_SESSION`.
+
 ### Verification
 
-`tests/NeoTechC5ReminderSyntheticTests.mq5` covers summer/winter session transitions, US -> next-day Asia, outside-session refusal, Vietnam-time conversion, C5-only wording and local heartbeat JSON parsing. Compile both the EA and this script with MetaEditor and require `0 errors, 0 warnings`.
+`tests/NeoTechC5ReminderSyntheticTests.mq5` covers summer/winter session transitions, current-session windows, US -> next-day Asia, outside-session refusal, Vietnam-time conversion, C5-only wording and local heartbeat JSON parsing. Compile both the EA and this script with MetaEditor and require `0 errors, 0 warnings`.
 
 The former MQL5 14-rule compliance core/JSON modules and 59-fixture auditor suite were intentionally removed. Public NeoTech analytics tests now assert that the connector/dashboard keep the 14-rule contract while this auxiliary EA stays C5-reminder-only.

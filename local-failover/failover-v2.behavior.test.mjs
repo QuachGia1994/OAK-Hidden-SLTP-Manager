@@ -362,6 +362,86 @@ async function writeTradeEvent(h, event) {
   await writeLedgerJson(tradeEventPath(h, value.eventId, value.profile, value.login), value);
 }
 
+async function writeLookSnapshot(h, overrides = {}) {
+  const value = {
+    version: 1,
+    snapshotType: "neotech_c5_look",
+    profile: ACCOUNT_A.bridgeProfile,
+    providerAccountId: LOCAL_PRIMARY_PROVIDER_ACCOUNT_ID,
+    login: ACCOUNT_A.login,
+    server: ACCOUNT_A.server,
+    at: h.now,
+    session: "EUROPE",
+    sessionStartServerEpoch: 1,
+    sessionEndServerEpoch: 2,
+    sessionStartVietnam: "2026-08-24 15:00:00",
+    sessionEndVietnam: "2026-08-24 22:00:00",
+    symbols: ["EURUSD", "GBPUSD"],
+    ...overrides,
+  };
+  const key = String(value.profile).trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "_");
+  await writeLedgerJson(path.join(h.paths.commonDir, `look_${key}_${value.login}.json`), value);
+}
+
+test("NeoTech /look lists symbols already opened in the current C5 session without broker execution", { concurrency: false }, async () => {
+  const h = await createHarness("look-current", { controlMode: "local-primary", statuses: [localPrimaryStatusFor()] });
+  try {
+    await writeLookSnapshot(h);
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 9011, message: { chat: { id: 123 }, text: "/look" } }, statuses);
+    assert.equal(parseLocalTelegramCommand("/look").type, "look");
+    assert.equal(parseLocalTelegramCommand("/look @acct-a").requested, "acct-a");
+    assert.match(state.commands["9011:0"].outcome, /phiên ÂU/);
+    assert.match(state.commands["9011:0"].outcome, /15:00–22:00/);
+    assert.match(state.commands["9011:0"].outcome, /EURUSD, GBPUSD/);
+    assert.match(state.commands["9011:0"].outcome, /kể cả lệnh trước đã đóng/);
+    assert.equal(h.eaExecutions, 0);
+  } finally { await h.cleanup(); }
+});
+
+test("NeoTech /look fails closed for stale snapshots and outside-session snapshots", { concurrency: false }, async () => {
+  const stale = await createHarness("look-stale", { controlMode: "local-primary", statuses: [localPrimaryStatusFor()] });
+  try {
+    await writeLookSnapshot(stale, { at: stale.now - 16_000 });
+    const state = stale.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await stale.runtime.loadEaStatuses();
+    await stale.runtime.processTelegramUpdate(stale.config, state, { update_id: 9012, message: { chat: { id: 123 }, text: "/look" } }, statuses);
+    assert.match(state.commands["9012:0"].outcome, /quá cũ/);
+  } finally { await stale.cleanup(); }
+
+  const outside = await createHarness("look-outside", { controlMode: "local-primary", statuses: [localPrimaryStatusFor()] });
+  try {
+    await writeLookSnapshot(outside, { session: "OUTSIDE_SESSION", sessionStartVietnam: "", sessionEndVietnam: "", symbols: [] });
+    const state = outside.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await outside.runtime.loadEaStatuses();
+    await outside.runtime.processTelegramUpdate(outside.config, state, { update_id: 9013, message: { chat: { id: 123 }, text: "/look" } }, statuses);
+    assert.match(state.commands["9013:0"].outcome, /NGOÀI PHIÊN C5/);
+    assert.doesNotMatch(state.commands["9013:0"].outcome, /Đã vào \(/);
+  } finally { await outside.cleanup(); }
+});
+
+test("NeoTech /look requires @ACCOUNT when multiple look snapshots are fresh and targets the requested account", { concurrency: false }, async () => {
+  const providerB = "mt5:localtest02";
+  const h = await createHarness("look-target", {
+    controlMode: "local-primary",
+    accounts: [{ ...ACCOUNT_A }, { ...ACCOUNT_B }],
+    statuses: [localPrimaryStatusFor(), localPrimaryStatusFor(ACCOUNT_B, { providerAccountId: providerB })],
+  });
+  try {
+    await writeLookSnapshot(h, { symbols: ["EURUSD"] });
+    await writeLookSnapshot(h, { profile: ACCOUNT_B.bridgeProfile, providerAccountId: providerB, login: ACCOUNT_B.login, server: ACCOUNT_B.server, symbols: ["USDJPY"] });
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 9014, message: { chat: { id: 123 }, text: "/look" } }, statuses);
+    assert.match(state.commands["9014:0"].outcome, /nhiều NeoTech account/);
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 9015, message: { chat: { id: 123 }, text: "/look @acct-b" } }, statuses);
+    assert.match(state.commands["9015:0"].outcome, /@acct-b/);
+    assert.match(state.commands["9015:0"].outcome, /USDJPY/);
+    assert.doesNotMatch(state.commands["9015:0"].outcome, /EURUSD/);
+  } finally { await h.cleanup(); }
+});
+
 test("01 healthy standby does not hand off or poll", { concurrency: false }, async () => {
   const h = await createHarness("01", { statuses: [statusFor(ACCOUNT_A, { cloudOk: true, cloudFailureStreak: 0, cloudSuccessStreak: 3 })] });
   try {
@@ -572,6 +652,7 @@ test("15 local canonical IDs stay namespaced while short numeric operator IDs re
     assert.match(id, /^L-\d+-1$/);
     assert.equal(parseLocalTelegramCommand("/approve 1").type, "approve-local");
     assert.equal(parseLocalTelegramCommand("/del 1").type, "delete-local");
+    assert.equal(parseLocalTelegramCommand("/look").type, "look");
     assert.match(state.commands["151:0"].outcome, /intent #1 saved/);
     assert.match(state.commands["151:0"].outcome, /Entry: BUY/);
     assert.match(state.commands["151:0"].outcome, /Symbol: EURUSD/);

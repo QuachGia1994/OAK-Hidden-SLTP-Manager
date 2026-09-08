@@ -1,6 +1,6 @@
 #property strict
-#property version   "1.06"
-#property description "OAK NeoTech C5 re-entry reminder only. Read-only; never sends, modifies or closes trades."
+#property version   "1.07"
+#property description "OAK NeoTech C5 discipline helper: re-entry reminder + /look snapshot. Read-only."
 
 #include "neotech\\NeoTechC5Reminder.mqh"
 
@@ -62,6 +62,17 @@ bool NC5WriteCommonAtomic(const string final_path,const string text)
    const bool moved=FileMove(temp_path,FILE_COMMON,final_path,FILE_COMMON);
    if(!moved) NC5DeleteCommon(temp_path);
    return moved || FileIsExist(final_path,FILE_COMMON);
+  }
+
+bool NC5ReplaceCommonAtomic(const string final_path,const string text)
+  {
+   const string temp_path=final_path+".tmp."+IntegerToString((long)GetTickCount64())+"."+IntegerToString((long)MathRand());
+   if(!NC5WriteCommonText(temp_path,text)) return false;
+   NC5DeleteCommon(final_path);
+   ResetLastError();
+   const bool moved=FileMove(temp_path,FILE_COMMON,final_path,FILE_COMMON);
+   if(!moved) NC5DeleteCommon(temp_path);
+   return moved;
   }
 
 string NC5NormalizeServerIdentity(string value)
@@ -151,6 +162,98 @@ bool NC5EmitReminder(const ulong deal_ticket,const string canonical_symbol,const
    if(NC5WriteCommonAtomic(path,json)) return true;
    PrintFormat("[NEOTECH-C5] local reminder persistence failed deal=%I64u",deal_ticket);
    return false;
+  }
+
+bool NC5SymbolListed(const string &symbols[],const string symbol)
+  {
+   for(int i=0;i<ArraySize(symbols);i++) if(symbols[i]==symbol) return true;
+   return false;
+  }
+
+void NC5AppendUniqueSymbol(string &symbols[],const string symbol)
+  {
+   if(symbol=="" || NC5SymbolListed(symbols,symbol)) return;
+   const int n=ArraySize(symbols);
+   ArrayResize(symbols,n+1);
+   symbols[n]=symbol;
+  }
+
+string NC5SymbolsJson(const string &symbols[])
+  {
+   string out="[";
+   for(int i=0;i<ArraySize(symbols);i++)
+     {
+      if(i>0) out+=",";
+      out+=NC5JsonQuote(symbols[i]);
+     }
+   return out+"]";
+  }
+
+int NC5CollectCurrentSessionSymbols(const long start_server_seconds,const long end_server_seconds,string &symbols[])
+  {
+   ArrayResize(symbols,0);
+   const long now_server=((long)TimeTradeServer()>0 ? (long)TimeTradeServer() : (long)TimeCurrent());
+   const long select_end=MathMin(now_server,end_server_seconds-1);
+   if(start_server_seconds<=0 || select_end<start_server_seconds || !HistorySelect((datetime)start_server_seconds,(datetime)select_end)) return 0;
+   ulong candidates[];
+   ArrayResize(candidates,0);
+   const int total=HistoryDealsTotal();
+   for(int i=0;i<total;i++)
+     {
+      const ulong ticket=HistoryDealGetTicket(i);
+      if(ticket==0) continue;
+      const int type=(int)HistoryDealGetInteger(ticket,DEAL_TYPE);
+      const int entry=(int)HistoryDealGetInteger(ticket,DEAL_ENTRY);
+      if((type!=DEAL_TYPE_BUY && type!=DEAL_TYPE_SELL) || (entry!=DEAL_ENTRY_IN && entry!=DEAL_ENTRY_INOUT)) continue;
+      const long time_seconds=(long)HistoryDealGetInteger(ticket,DEAL_TIME_MSC)/1000L;
+      if(time_seconds<start_server_seconds || time_seconds>=end_server_seconds) continue;
+      const int n=ArraySize(candidates);
+      ArrayResize(candidates,n+1);
+      candidates[n]=ticket;
+     }
+   for(int i=0;i<ArraySize(candidates);i++)
+     {
+      const ulong ticket=candidates[i];
+      if(!HistoryDealSelect(ticket)) continue;
+      const ulong position_id=(ulong)HistoryDealGetInteger(ticket,DEAL_POSITION_ID);
+      ulong episode_ticket=0;
+      string broker_symbol="";
+      long opened_server_seconds=0;
+      if(!NC5PositionEpisodeOpening(position_id,episode_ticket,broker_symbol,opened_server_seconds) || episode_ticket!=ticket) continue;
+      if(opened_server_seconds<start_server_seconds || opened_server_seconds>=end_server_seconds) continue;
+      string canonical="";
+      if(NC5ResolveEligibleProduct(broker_symbol,canonical)) NC5AppendUniqueSymbol(symbols,canonical);
+     }
+   return ArraySize(symbols);
+  }
+
+bool NC5PublishLookSnapshot()
+  {
+   string profile="",provider_account_id="";
+   if(!NC5LocalForwardIdentity(profile,provider_account_id)) return false;
+   const long login=(long)AccountInfoInteger(ACCOUNT_LOGIN);
+   const long now_server=((long)TimeTradeServer()>0 ? (long)TimeTradeServer() : (long)TimeCurrent());
+   NC5Session session=NC5_OUTSIDE_SESSION;
+   long session_start=0,session_end=0;
+   const bool active=NC5CurrentSessionWindow(now_server,session,session_start,session_end);
+   string symbols[];
+   ArrayResize(symbols,0);
+   if(active) NC5CollectCurrentSessionSymbols(session_start,session_end,symbols);
+   const string path=NC5_LOCAL_FORWARD_DIR+"look_"+NC5LocalProfileKey(profile)+"_"+IntegerToString(login)+".json";
+   const string json="{\"version\":1"
+      +",\"snapshotType\":\"neotech_c5_look\""
+      +",\"profile\":"+NC5JsonQuote(profile)
+      +",\"providerAccountId\":"+NC5JsonQuote(provider_account_id)
+      +",\"login\":"+IntegerToString(login)
+      +",\"server\":"+NC5JsonQuote(AccountInfoString(ACCOUNT_SERVER))
+      +",\"at\":"+IntegerToString((long)TimeGMT()*1000L)
+      +",\"session\":"+NC5JsonQuote(NC5SessionName(session))
+      +",\"sessionStartServerEpoch\":"+IntegerToString(session_start)
+      +",\"sessionEndServerEpoch\":"+IntegerToString(session_end)
+      +",\"sessionStartVietnam\":"+NC5JsonQuote(active?NC5VietnamTimeText(session_start):"")
+      +",\"sessionEndVietnam\":"+NC5JsonQuote(active?NC5VietnamTimeText(session_end):"")
+      +",\"symbols\":"+NC5SymbolsJson(symbols)+"}";
+   return NC5ReplaceCommonAtomic(path,json);
   }
 
 bool NC5DealSeen(const ulong deal_ticket)
@@ -303,8 +406,9 @@ int OnInit()
      }
    FolderCreate(NC5_LOCAL_FORWARD_DIR,FILE_COMMON);
    NC5QueueRecentOpenPositions();
+   NC5PublishLookSnapshot();
    if(!EventSetTimer(InpTimerSeconds)) return INIT_FAILED;
-   PrintFormat("[NEOTECH-C5] Reminder-only EA initialized login=%I64d timer=%ds catchup=%dm",current_login,InpTimerSeconds,InpStartupCatchupMinutes);
+   PrintFormat("[NEOTECH-C5] C5-only helper initialized login=%I64d timer=%ds catchup=%dm",current_login,InpTimerSeconds,InpStartupCatchupMinutes);
    return INIT_SUCCEEDED;
   }
 
@@ -315,6 +419,7 @@ void OnDeinit(const int reason)
 
 void OnTimer()
   {
+   NC5PublishLookSnapshot();
    NC5FlushReminders();
   }
 

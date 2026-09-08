@@ -28,6 +28,20 @@ void OnStart()
    NC5Session current=NC5_OUTSIDE_SESSION;
    NC5Session next=NC5_OUTSIDE_SESSION;
    long start=0;
+   long end=0;
+
+   Expect(NC5CurrentSessionWindow(T("2026-08-03 12:46:15"),current,start,end)
+      && current==NC5_EUROPE
+      && NC5DateTimeText(start)=="2026-08-03 11:00:00"
+      && NC5DateTimeText(end)=="2026-08-03 18:00:00","summer Europe current-session window");
+
+   Expect(NC5CurrentSessionWindow(T("2026-11-02 20:30:00"),current,start,end)
+      && current==NC5_US
+      && NC5DateTimeText(start)=="2026-11-02 19:00:00"
+      && NC5DateTimeText(end)=="2026-11-03 00:00:00","winter US current-session window");
+
+   Expect(!NC5CurrentSessionWindow(T("2026-08-03 01:30:00"),current,start,end)
+      && current==NC5_OUTSIDE_SESSION && start==0 && end==0,"outside has no current-session window");
 
    Expect(NC5NextReentry(T("2026-08-03 10:10:00"),current,next,start)
       && current==NC5_ASIA && next==NC5_EUROPE

@@ -157,6 +157,12 @@ export function parseLocalTelegramCommand(text, nowMs = Date.now()) {
   const tokens = raw.split(/\s+/).filter(Boolean);
   const command = String(tokens[0] || "").toLowerCase().split("@")[0];
   const args = tokens.slice(1);
+  if (command === "/look" || command === "look") {
+    if (args.length > 1 || (args.length === 1 && !/^@[A-Za-z0-9_-]+$/.test(args[0]))) {
+      return { type: "unknown", reason: "Use /look or /look @ACCOUNT." };
+    }
+    return { type: "look", requested: args.length ? args[0].slice(1) : "" };
+  }
   if (command === "/approve" || command === "approve") {
     if (!args.length || args.some((id) => !isLocalIntentReference(id))) {
       return { type: "unknown", reason: "Local /approve requires a local intent ID, e.g. /approve 1." };

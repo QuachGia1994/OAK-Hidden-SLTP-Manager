@@ -134,6 +134,29 @@ NC5Session NC5AssignSession(const long server_seconds)
    return NC5_OUTSIDE_SESSION;
   }
 
+bool NC5CurrentSessionWindow(const long server_seconds,NC5Session &session,long &start_server_seconds,long &end_server_seconds)
+  {
+   session=NC5AssignSession(server_seconds);
+   start_server_seconds=0;
+   end_server_seconds=0;
+   if(server_seconds<=0 || session==NC5_OUTSIDE_SESSION) return false;
+   const long minute_start=server_seconds-(server_seconds%60);
+   long cursor=minute_start;
+   const long lower_limit=minute_start-NC5_DAY_SECONDS;
+   while(cursor>lower_limit)
+     {
+      const long previous=cursor-60;
+      if(NC5AssignSession(previous)!=session) break;
+      cursor=previous;
+     }
+   start_server_seconds=cursor;
+   cursor=minute_start+60;
+   const long upper_limit=minute_start+NC5_DAY_SECONDS;
+   while(cursor<=upper_limit && NC5AssignSession(cursor)==session) cursor+=60;
+   end_server_seconds=cursor;
+   return start_server_seconds>0 && end_server_seconds>start_server_seconds;
+  }
+
 bool NC5NextReentry(const long opened_server_seconds,NC5Session &current_session,NC5Session &next_session,long &next_start_server_seconds)
   {
    current_session=NC5AssignSession(opened_server_seconds);
@@ -170,6 +193,14 @@ long NC5VietnamSecondsFromServer(const long server_seconds)
 string NC5VietnamTimeText(const long server_seconds)
   {
    return NC5DateTimeText(NC5VietnamSecondsFromServer(server_seconds));
+  }
+
+string NC5SessionName(const NC5Session session)
+  {
+   if(session==NC5_ASIA) return "ASIA";
+   if(session==NC5_EUROPE) return "EUROPE";
+   if(session==NC5_US) return "US";
+   return "OUTSIDE_SESSION";
   }
 
 string NC5SessionVi(const NC5Session session)

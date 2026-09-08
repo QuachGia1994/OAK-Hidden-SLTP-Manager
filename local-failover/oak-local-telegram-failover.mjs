@@ -40,6 +40,7 @@ const APP_LOCAL = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData",
 const APP_ROAMING = process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
 const UPDATE_FENCE_TTL_SECONDS = 7 * 24 * 3600;
 const STATUS_FRESH_MS = 60_000;
+const LOOK_SNAPSHOT_FRESH_MS = 15_000;
 const DEFAULT_CLOUD_FAILURE_THRESHOLD = 3;
 const DEFAULT_WRITE_FAILURE_THRESHOLD = 3;
 const DEFAULT_CLOUD_RECOVERY_THRESHOLD = 3;
@@ -978,7 +979,7 @@ export function createLocalFailoverRuntime(options = {}) {
       localPrimary
         ? "• PC local owns Telegram timing and MT5 execution; cloud is not on the broker-mutation path."
         : "• Cloud remains primary; local activates only after EA failures + repeated independent Redis write failures.",
-      "• /status · /profiles · /positions [@ACCOUNT] · /pending",
+      "• /status · /profiles · /positions [@ACCOUNT] · /look [@ACCOUNT] · /pending",
       "• /buy, /sell, /close, /closeall, /modify, /partial",
       "• Entry: /buy|/sell SYMBOL LOT [TIME] [SL] [TP] [@ACCOUNT]; SL TP may also appear before TIME. Bare FXCE/Vantage aliases are accepted.",
       "• Timed entry/close intents auto-arm when saved; immediate mutations still require /approve ID.",
@@ -1090,6 +1091,69 @@ export function createLocalFailoverRuntime(options = {}) {
       `📊 @${account.label} · ${rows.length} position(s)`,
       ...rows.slice(0, 20).map((row) => `• #${row.ticket} ${row.side} ${row.symbol} ${Number(row.lots).toFixed(2)} lot · P/L ${Number(row.profit).toFixed(2)} · SL ${row.sl || 0} · TP ${row.tp || 0}`),
     ].join("\n");
+  }
+
+  function lookSessionVi(value) {
+    if (value === "ASIA") return "Á";
+    if (value === "EUROPE") return "ÂU";
+    if (value === "US") return "MỸ";
+    return "NGOÀI PHIÊN";
+  }
+
+  function lookVietnamClock(value) {
+    const text = String(value || "");
+    return text.length >= 16 ? text.slice(11, 16) : "?";
+  }
+
+  async function loadLookSnapshots(config, statuses) {
+    const names = await fs.readdir(paths.commonDir).catch(() => []);
+    const byAccount = new Map();
+    for (const name of names) {
+      if (!/^look_[a-z0-9_-]+_\d+\.json$/i.test(name)) continue;
+      const snapshot = await readJson(path.join(paths.commonDir, name), null);
+      if (!snapshot || Number(snapshot.version) !== 1 || snapshot.snapshotType !== "neotech_c5_look") continue;
+      const at = Number(snapshot.at || 0);
+      if (!Number.isFinite(at) || at <= 0 || clock() - at > LOOK_SNAPSHOT_FRESH_MS || at - clock() > 5_000) continue;
+      if (!["ASIA", "EUROPE", "US", "OUTSIDE_SESSION"].includes(String(snapshot.session || ""))) continue;
+      if (!Array.isArray(snapshot.symbols) || snapshot.symbols.some((symbol) => !/^[A-Z0-9._-]{3,24}$/.test(String(symbol)))) continue;
+      const account = accountForTradeEvent(config, statuses, snapshot);
+      if (!account) continue;
+      const key = String(snapshot.providerAccountId || "");
+      const prior = byAccount.get(key);
+      if (!prior || Number(prior.snapshot.at) < at) byAccount.set(key, { snapshot, account });
+    }
+    return [...byAccount.values()];
+  }
+
+  function renderLook(snapshot, account) {
+    const session = String(snapshot.session || "OUTSIDE_SESSION");
+    const sessionVi = lookSessionVi(session);
+    if (session === "OUTSIDE_SESSION") {
+      return [
+        `👀 NeoTech /look @${account.label}`,
+        "• Hiện tại: NGOÀI PHIÊN C5",
+        "• Không suy đoán overlap ngoài phiên.",
+      ].join("\n");
+    }
+    const symbols = [...new Set(snapshot.symbols.map((symbol) => String(symbol).toUpperCase()))].slice(0, 30);
+    return [
+      `👀 NeoTech /look @${account.label} · phiên ${sessionVi}`,
+      `• Khung VN: ${lookVietnamClock(snapshot.sessionStartVietnam)}–${lookVietnamClock(snapshot.sessionEndVietnam)}`,
+      symbols.length ? `• Đã vào (${symbols.length}): ${symbols.join(", ")}` : "• Đã vào: chưa có cặp nào",
+      symbols.length ? "• C5: tránh vào lại các symbol trên trong phiên này, kể cả lệnh trước đã đóng." : "• C5: chưa có symbol nào bị trùng phiên.",
+    ].join("\n");
+  }
+
+  async function handleLook(config, statuses, parsed) {
+    const rows = await loadLookSnapshots(config, statuses);
+    const requested = String(parsed.requested || "").trim().toLowerCase();
+    const matches = requested
+      ? rows.filter(({ snapshot, account }) => [account.label, account.bridgeProfile, account.providerAccountId, snapshot.profile]
+        .some((value) => String(value || "").trim().toLowerCase() === requested))
+      : rows;
+    if (!matches.length) return "⚠️ /look: snapshot NeoTech C5 chưa có hoặc đã quá cũ; không tự suy đoán.";
+    if (matches.length > 1) return "⚠️ /look: có nhiều NeoTech account; dùng /look @ACCOUNT.";
+    return renderLook(matches[0].snapshot, matches[0].account);
   }
 
   function scheduleWebSignalSync(state, intent) {
@@ -1658,6 +1722,7 @@ export function createLocalFailoverRuntime(options = {}) {
     if (parsed.type === "status") return renderStatus(state, config, statuses);
     if (parsed.type === "profiles") return renderProfiles(config, statuses);
     if (parsed.type === "positions") return handlePositions(config, statuses, raw);
+    if (parsed.type === "look") return handleLook(config, statuses, parsed);
     if (parsed.type === "pending") return renderPending(state);
     if (parsed.type === "approve-local") return approveLocal(config, state, parsed.ids, statuses);
     if (parsed.type === "delete-local") return deleteLocal(state, parsed);
