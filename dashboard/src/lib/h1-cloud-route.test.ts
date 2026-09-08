@@ -57,12 +57,13 @@ test("local ICMarkets reader uses M15 only and does not double-shift MT5 server-
   assert.match(reader, /datetime\.fromtimestamp\(epoch_seconds, timezone\.utc\)/);
   assert.doesNotMatch(reader, /icmarkets_offset_seconds|timedelta|ZoneInfo/);
   assert.match(reader, /broker_wall_parts/);
-  assert.match(reader, /"XAUUSD", "AUDUSD", "USDCAD", "USDJPY", "GBPUSD", "EURUSD"/);
+  assert.match(reader, /"XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"/);
+  assert.doesNotMatch(reader, /"AUDUSD"|"USDCAD"|"USDJPY"/);
   assert.match(reader, /"icmarkets" not in server\.lower\(\)/);
   assert.doesNotMatch(reader, /order_send|positions_get|TRADE_ACTION|ORDER_TYPE_BUY|ORDER_TYPE_SELL/);
 });
 
-test("local publisher keeps current-day scanner bars plus previous-broker-day signal bases and supports bounded 90-day history backfill", () => {
+test("local publisher sends only same-day displayed-symbol bars and supports bounded 90-day history backfill", () => {
   assert.match(publisher, /MAX_BACKFILL_DAYS = 90/);
   assert.match(publisher, /HISTORICAL_READER_TIMEOUT_MS = 180_000/);
   assert.match(publisher, /HISTORICAL_READER_MAX_BUFFER = 32_000_000/);
@@ -77,11 +78,8 @@ test("local publisher keeps current-day scanner bars plus previous-broker-day si
   assert.match(publisher, /days > 4 \? HISTORICAL_READER_MAX_BUFFER : LIVE_READER_MAX_BUFFER/);
   assert.match(publisher, /--backfill/);
   assert.match(publisher, /currentDaySnapshot/);
-  assert.match(publisher, /"XAUUSD", "AUDUSD", "USDCAD", "USDJPY", "GBPUSD", "EURUSD"/);
-  assert.match(publisher, /PREVIOUS_DAY_BASE_SOURCES = new Set\(\["AUDUSD", "USDCAD", "USDJPY", "GBPUSD"\]\)/);
-  assert.match(publisher, /snapshotBarsForSource/);
-  assert.match(publisher, /previousAvailableDate/);
-  assert.match(publisher, /PREVIOUS_DAY_BASE_SOURCES\.has\(source\)/);
+  assert.match(publisher, /"XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"/);
+  assert.doesNotMatch(publisher, /PREVIOUS_DAY_BASE_SOURCES|snapshotBarsForSource|previousAvailableDate/);
   assert.match(publisher, /dateSnapshots/);
   assert.match(publisher, /source: "local-mt5-icmarkets"|local-market/);
   assert.match(publisher, /x-telegram-bot-api-secret-token/);

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced H1 to v86: XAUUSD is the single entry-time pattern owner for the five-row H1 matrix (`XAUUSD`, `GBPUSD`, `GBPAUD`, `GBPCAD`, `GBPJPY`). All five rows now calculate every `H3/H6/H9/H12/H14/H16` block Monday-Friday; weekends remain off and EURUSD is retired from H1 only. Once XAUUSD resolves an entry hour, every row copies it, then derives its own BUY/SELL from its own same-broker-day H(entry-1) candle after all four M15 quarters close; for example entry H4 reads that row's H3 candle. GBPUSD is fully independent for final direction, H16 remains entry/evidence only, schema 18/state v56 stay stable, stale v85 rows are not relabeled, and retained History is rebuilt from local source M15 bars after deployment.
+
 - Advanced H1 to v85: Monday no longer calculates GBPAUD, GBPCAD or GBPJPY on any H1 block; XAUUSD keeps normal Monday calculation and GBPUSD/EURUSD retain H9/H12/H14/H16 eligibility. Retained/public state filters stale Monday GBP-cross rows under the same schema 18/state v56 contract. On Web, when XAUUSD H3 resolves to entry H4, the XAUUSD H3 and H14 cells are highlighted together without changing H14 calculation or signal.
 
 - Unified the Web H1 Live and History workspaces into one H1 surface. `/engine` still opens the newest retained broker day by default, while the same board now exposes a compact broker-date calendar popover for 90-day retained history without a tab switch; legacy `/history` links redirect to `/engine`. The separate History navigation item and its always-embedded calendar DOM are removed, while H1 scanner/signal/history data contracts remain otherwise unchanged.

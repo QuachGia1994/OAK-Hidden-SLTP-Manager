@@ -13,8 +13,7 @@ const LOG_PATH = path.join(APP_LOCAL, "OAK Gatekeeper", "h1-scanner.log");
 const PYTHON = process.env.OAK_PYTHON || "python";
 const READER = path.join(HERE, "mt5-h1-market-reader.py");
 const DEFAULT_ENDPOINT = "https://www.oakgatekeeper.uk/api/h1-scanner/local-market";
-const SOURCE_KEYS = ["XAUUSD", "AUDUSD", "USDCAD", "USDJPY", "GBPUSD", "EURUSD"];
-const PREVIOUS_DAY_BASE_SOURCES = new Set(["AUDUSD", "USDCAD", "USDJPY", "GBPUSD"]);
+const SOURCE_KEYS = ["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"];
 const MAX_BACKFILL_DAYS = 90;
 const LIVE_READER_TIMEOUT_MS = 30_000;
 const HISTORICAL_READER_TIMEOUT_MS = 180_000;
@@ -100,26 +99,12 @@ function addCalendarDays(dateKey, days) {
   return value.toISOString().slice(0, 10);
 }
 
-function previousAvailableDate(rows, brokerDate) {
-  const dates = [...new Set(rows.map((bar) => bar.brokerDate).filter((date) => date < brokerDate))].sort();
-  return dates.at(-1) || null;
-}
-
-function snapshotBarsForSource(payload, source, brokerDate) {
-  const rows = payload.symbols?.[source]?.bars || [];
-  const current = rows.filter((bar) => bar.brokerDate === brokerDate);
-  if (!PREVIOUS_DAY_BASE_SOURCES.has(source)) return current;
-  const previousDate = previousAvailableDate(rows, brokerDate);
-  if (!previousDate) return current;
-  return [...rows.filter((bar) => bar.brokerDate === previousDate), ...current];
-}
-
 function currentDaySnapshot(payload) {
   return {
     ...payload,
     symbols: Object.fromEntries(SOURCE_KEYS.map((source) => [source, {
       displayName: payload.symbols?.[source]?.displayName || source,
-      bars: snapshotBarsForSource(payload, source, payload.brokerDate),
+      bars: (payload.symbols?.[source]?.bars || []).filter((bar) => bar.brokerDate === payload.brokerDate),
     }])),
   };
 }
@@ -138,7 +123,7 @@ function dateSnapshots(payload, days) {
       if (currentBars.length < 8) return [];
       symbols[source] = {
         displayName: payload.symbols[source].displayName || source,
-        bars: snapshotBarsForSource(payload, source, brokerDate),
+        bars: currentBars,
       };
     }
     const currentDay = brokerDate === payload.brokerDate;

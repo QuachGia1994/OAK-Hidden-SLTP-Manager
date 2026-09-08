@@ -63,7 +63,7 @@ import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlin.math.max
 
-private val VisibleSymbols = listOf("XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY")
+private val VisibleSymbols = listOf("XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY")
 
 @Composable
 fun UnlockScreen(state: OAKAppState) {

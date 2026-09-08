@@ -7,7 +7,7 @@ const legacyBackfillRoute = readFileSync(new URL("../app/api/h1-scanner/backfill
 const publisher = readFileSync(new URL("../../../local-failover/oak-local-h1-scanner.mjs", import.meta.url), "utf8");
 const reader = readFileSync(new URL("../../../local-failover/mt5-h1-market-reader.py", import.meta.url), "utf8");
 
-test("rule v85 history is rebuilt from local ICMarkets M15 snapshots, not legacy cTrader H1 reconstruction", () => {
+test("rule v86 history is rebuilt from local ICMarkets M15 snapshots, not legacy cTrader H1 reconstruction", () => {
   assert.match(legacyBackfillRoute, /local-mt5-history-only/);
   assert.doesNotMatch(legacyBackfillRoute, /reconstructHistoricalDays|fetchHistoricalBrokerH1/);
   assert.match(localRoute, /evaluateLocalH1PatternsForTarget/);
@@ -15,11 +15,9 @@ test("rule v85 history is rebuilt from local ICMarkets M15 snapshots, not legacy
   assert.match(localRoute, /publishH1CloudState/);
 });
 
-test("local history publisher is bounded to 90 calendar days and carries every previous broker-day signal base", () => {
+test("local history publisher is bounded to 90 calendar days and uses same-day displayed-symbol bars only", () => {
   assert.match(publisher, /MAX_BACKFILL_DAYS = 90/);
-  assert.match(publisher, /previousAvailableDate/);
-  assert.match(publisher, /PREVIOUS_DAY_BASE_SOURCES\.has\(source\)/);
-  assert.match(publisher, /snapshotBarsForSource/);
+  assert.doesNotMatch(publisher, /previousAvailableDate|PREVIOUS_DAY_BASE_SOURCES|snapshotBarsForSource/);
   assert.match(localRoute, /MAX_BARS_PER_SOURCE = 220/);
   assert.match(publisher, /dateSnapshots/);
   assert.match(publisher, /brokerHour: currentDay \? payload\.brokerHour : 23/);

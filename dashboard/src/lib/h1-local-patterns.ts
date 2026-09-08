@@ -1,8 +1,8 @@
 import { brokerDateWeekdayIndex, isValidBrokerDateKey } from "./h1-broker-date.ts";
 
 export const H1_LOCAL_SCAN_HOURS = [3, 6, 9, 12, 14, 16] as const;
-export const H1_LOCAL_TARGETS = ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"] as const;
-export const H1_LOCAL_SOURCES = ["XAUUSD", "AUDUSD", "USDCAD", "USDJPY", "GBPUSD", "EURUSD"] as const;
+export const H1_LOCAL_TARGETS = ["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"] as const;
+export const H1_LOCAL_SOURCES = H1_LOCAL_TARGETS;
 
 export type H1LocalTarget = typeof H1_LOCAL_TARGETS[number];
 export type H1LocalSource = typeof H1_LOCAL_SOURCES[number];
@@ -69,23 +69,15 @@ function barAt(bars: H1M15Bar[], brokerDate: string, totalMinutes: number): H1M1
 }
 
 export function scannerSourceForTarget(target: H1LocalTarget, slotHour: number): H1LocalSource {
+  void target;
   void slotHour;
-  if (target === "XAUUSD") return "XAUUSD";
-  if (target === "GBPUSD") return "GBPUSD";
-  if (target === "EURUSD") return "EURUSD";
-  if (target === "GBPAUD") return "AUDUSD";
-  if (target === "GBPCAD") return "USDCAD";
-  if (target === "GBPJPY") return "USDJPY";
-  return "GBPUSD";
+  return "XAUUSD";
 }
 
 export function targetEnabledForDate(target: H1LocalTarget, brokerDate: string, slotHour: number): boolean {
   if (!isValidBrokerDateKey(brokerDate) || !(H1_LOCAL_SCAN_HOURS as readonly number[]).includes(slotHour)) return false;
   const weekday = brokerDateWeekdayIndex(brokerDate);
-  if (weekday === 0 || weekday === 6) return false;
-  if (weekday === 1 && (target === "GBPAUD" || target === "GBPCAD" || target === "GBPJPY")) return false;
-  if ((target === "GBPUSD" || target === "EURUSD") && (slotHour === 3 || slotHour === 6)) return false;
-  return true;
+  return weekday >= 1 && weekday <= 5;
 }
 
 export function weekdayInversionBadge(target: H1LocalTarget, brokerDate: string, slotHour: number): boolean {

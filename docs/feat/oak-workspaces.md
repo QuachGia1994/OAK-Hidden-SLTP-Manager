@@ -1,10 +1,10 @@
 # OAK workspaces
-> updated 2026-09-05 · v4.1.0
+> updated 2026-09-08 · v4.1.0
 
 The six-screen concept defines visual hierarchy; live prices, dates, cards and AI results always come from the existing product.
 
 ## Routes and contracts
-- /engine: unified Live + retained-history broker-day matrix for H3/H6/H9/H12/H14/H16, single compact board header, FREE ACCESS, 20s refresh and broker-date calendar popover. Click a cell to open inline evidence with pattern source, base/final source, chronological OHLC chart and expandable bar details. In rule v85 Monday omits GBPAUD/GBPCAD/GBPJPY, H16 publishes pattern + entry-time evidence only with blank signal/base-direction fields, and XAUUSD H3/H14 are highlighted together when XAUUSD H3 entry is H4.
+- /engine: unified Live + retained-history broker-day matrix for the five H1 rows XAUUSD/GBPUSD/GBPAUD/GBPCAD/GBPJPY across H3/H6/H9/H12/H14/H16, with a single compact board header, FREE ACCESS, 20s refresh and broker-date calendar popover. Click a cell to open inline evidence with XAUUSD pattern source, that row's own same-day H(entry-1) base candle, chronological OHLC chart and expandable pattern bars. In rule v86 every row calculates all six blocks Monday-Friday, XAUUSD owns entry time, each row owns its BUY/SELL direction, EURUSD is retired from H1, H16 publishes entry/evidence only, and XAUUSD H3/H14 are highlighted together when XAUUSD H3 entry is H4.
 - /history: compatibility route only; redirects to `/engine`, where the same Sunday-first retained-date calendar is available as a compact popover.
 - /tools: three horizontal illustrated banners, backed by the shared OAK_TOOLS catalog.
 - /factcheck: text/link and image drafts survive mode switches. OCR returns editable text; image analysis preserves origin, generation, manipulation and completeness. Public sharing and backend handlers are unchanged.

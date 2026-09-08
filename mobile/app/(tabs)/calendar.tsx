@@ -6,12 +6,8 @@ import { h1Hours, latestH1Date, signalFor } from "@/lib/h1";
 import { radius, spacing, useOakTheme } from "@/lib/theme";
 import { useOakData } from "@/state/data";
 
-const FALLBACK_SYMBOLS = ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"];
+const FALLBACK_SYMBOLS = ["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"];
 
-function isEntryReferenceCell(symbol: string, hour: number) {
-  return (symbol === "XAUUSD" && (hour === 3 || hour === 6))
-    || (symbol === "GBPUSD" && [9, 12, 14].includes(hour));
-}
 
 function isoDaysAgo(days: number) {
   const value = new Date();
@@ -98,20 +94,13 @@ export default function CalendarScreen() {
               {hours.map((hour) => {
                 const alert = signalFor(h1, selectedDate, symbol, hour);
                 const signal = alert?.signal;
-                const entryReference = isEntryReferenceCell(symbol, hour);
                 const tone = signal === "SELL" ? "sell" : signal === "BUY" ? "buy" : "muted";
                 return (
                   <View key={hour} style={[
                     styles.cell,
                     {
                       borderLeftColor: theme.border,
-                      borderColor: entryReference ? theme.cyan : undefined,
-                      borderWidth: entryReference ? 1.5 : undefined,
-                      backgroundColor: entryReference
-                        ? `${theme.cyan}18`
-                        : alert?.postSignalInverted
-                          ? `${theme.warning}20`
-                          : "transparent",
+                      backgroundColor: alert?.postSignalInverted ? `${theme.warning}20` : "transparent",
                     },
                   ]}>
                     {signal ? <Pill label={signal} tone={tone} /> : <Text style={[styles.empty, { color: theme.muted }]}>–</Text>}

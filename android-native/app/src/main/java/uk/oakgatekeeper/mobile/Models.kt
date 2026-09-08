@@ -74,24 +74,14 @@ data class H1SignalPayload(
         val rawBase = if (sourceAlert.baseDirection.isBlank()) {
             "—"
         } else {
-            "${sourceAlert.baseSymbol.ifBlank { "—" }} PREV $baseHour · ${sourceAlert.baseDirection} → $baseSignal"
-        }
-        var signalSource = ""
-        var rule = "DIRECT BASE"
-
-        if (sourceAlert.slotHour == 16) {
-            rule = "ENTRY ONLY"
-        } else if ((sourceAlert.symbol == "GBPUSD" || sourceAlert.symbol == "EURUSD") && sourceAlert.slotHour in listOf(9, 12, 14)) {
-            val xau = alert(date, "XAUUSD", sourceAlert.slotHour)
-            signalSource = "XAUUSD H${sourceAlert.slotHour.toString().padStart(2, '0')} · ${xau?.signal?.name ?: "—"}"
-            rule = "SYNC XAUUSD"
+            "${sourceAlert.baseSymbol.ifBlank { "—" }} $baseHour · ${sourceAlert.baseDirection} → $baseSignal"
         }
 
         return H1EvidenceFacts(
             patternSource = sourceAlert.scannerSource ?: sourceAlert.symbol,
             rawBase = rawBase,
-            signalSource = signalSource,
-            rule = rule,
+            signalSource = "",
+            rule = if (sourceAlert.slotHour == 16) "ENTRY ONLY" else "OWN H(entry-1)",
             finalSignal = sourceAlert.signal?.name ?: "—",
         )
     }

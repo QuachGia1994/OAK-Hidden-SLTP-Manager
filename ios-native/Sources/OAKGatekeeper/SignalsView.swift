@@ -13,7 +13,7 @@ struct SignalsView: View {
         var id: String { rawValue }
     }
 
-    private let visibleSymbols = ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"]
+    private let visibleSymbols = ["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"]
 
     var body: some View {
         ScrollView {

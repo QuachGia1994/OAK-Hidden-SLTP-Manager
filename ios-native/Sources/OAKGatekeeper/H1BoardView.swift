@@ -18,7 +18,7 @@ struct H1BoardScreen: View {
     @State private var scheduleShare: OAKShareItem?
     @State private var imageTransferFailed = false
 
-    private let visibleSymbols = ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"]
+    private let visibleSymbols = ["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"]
 
     var body: some View {
         ScrollView {

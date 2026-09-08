@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   H1_LOCAL_SCAN_HOURS,
+  H1_LOCAL_SOURCES,
   H1_LOCAL_TARGETS,
   classifyPattern,
   evaluateLocalH1Pattern,
@@ -30,7 +31,7 @@ function barsFor(date: string, pairs: Array<[number, number, "T" | "G"]>): H1M15
   });
 }
 
-function h3Bars(sequence: string, family: "ALT" | "SAME", date = "2026-09-02", source = "AUDUSD"): H1M15Bar[] {
+function h3Bars(sequence: string, family: "ALT" | "SAME", date = "2026-09-02", source = "GBPUSD"): H1M15Bar[] {
   const rows: Array<[number, number, "T" | "G"]> = [];
   if (family === "ALT") {
     rows.push([2, 45, "T"], [2, 30, "G"]);
@@ -53,54 +54,42 @@ function h3Bars(sequence: string, family: "ALT" | "SAME", date = "2026-09-02", s
   return barsFor(date, rows);
 }
 
-test("new H1 scanner exposes six active blocks and six display rows", () => {
+test("v86 H1 scanner exposes six active blocks and reads the five displayed symbols directly", () => {
+  const symbols = ["XAUUSD", "GBPUSD", "GBPAUD", "GBPCAD", "GBPJPY"];
   assert.deepEqual(H1_LOCAL_SCAN_HOURS, [3, 6, 9, 12, 14, 16]);
-  assert.deepEqual(H1_LOCAL_TARGETS, ["XAUUSD", "GBPUSD", "EURUSD", "GBPAUD", "GBPCAD", "GBPJPY"]);
+  assert.deepEqual(H1_LOCAL_TARGETS, symbols);
+  assert.deepEqual(H1_LOCAL_SOURCES, symbols);
 });
 
-test("GBP crosses use dedicated AUDUSD USDCAD USDJPY scanner sources", () => {
-  assert.equal(scannerSourceForTarget("XAUUSD", 3), "XAUUSD");
-  assert.equal(scannerSourceForTarget("GBPUSD", 9), "GBPUSD");
-  assert.equal(scannerSourceForTarget("EURUSD", 9), "EURUSD");
-  const sources = [["GBPAUD", "AUDUSD"], ["GBPCAD", "USDCAD"], ["GBPJPY", "USDJPY"]] as const;
-  for (const [cross, source] of sources) {
-    for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(scannerSourceForTarget(cross, hour), source);
+test("XAUUSD is the single pattern and entry-time source for every symbol", () => {
+  for (const target of H1_LOCAL_TARGETS) {
+    for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(scannerSourceForTarget(target, hour), "XAUUSD");
   }
 });
 
-test("Monday excludes GBP crosses while XAUUSD GBPUSD EURUSD keep their existing eligibility", () => {
-  const monday = "2026-09-07";
-  const tuesday = "2026-09-08";
-  for (const hour of H1_LOCAL_SCAN_HOURS) {
-    assert.equal(targetEnabledForDate("XAUUSD", monday, hour), targetEnabledForDate("XAUUSD", tuesday, hour));
-  }
-  for (const fx of ["GBPUSD", "EURUSD"] as const) {
-    assert.equal(targetEnabledForDate(fx, monday, 3), false);
-    assert.equal(targetEnabledForDate(fx, monday, 6), false);
-    for (const hour of [9, 12, 14, 16]) assert.equal(targetEnabledForDate(fx, monday, hour), true);
-  }
-  for (const cross of ["GBPAUD", "GBPCAD", "GBPJPY"] as const) {
+test("Monday through Friday calculate every H1 row and block while weekends stay off", () => {
+  const weekdays = ["2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11"];
+  const weekends = ["2026-09-12", "2026-09-13"];
+  for (const target of H1_LOCAL_TARGETS) {
     for (const hour of H1_LOCAL_SCAN_HOURS) {
-      assert.equal(targetEnabledForDate(cross, monday, hour), false);
-      assert.equal(targetEnabledForDate(cross, tuesday, hour), true);
+      for (const date of weekdays) assert.equal(targetEnabledForDate(target, date, hour), true);
+      for (const date of weekends) assert.equal(targetEnabledForDate(target, date, hour), false);
     }
   }
 });
 
-test("rule v85 has no weekday inversion badges", () => {
+test("rule v86 has no weekday inversion badges", () => {
   const tue = "2026-09-08";
   const thu = "2026-09-03";
-  const fri = "2026-09-04";
-  for (const hour of H1_LOCAL_SCAN_HOURS) assert.equal(weekdayInversionBadge("GBPAUD", tue, hour), false);
-  for (const hour of [9, 12, 14, 16]) {
+  for (const hour of H1_LOCAL_SCAN_HOURS) {
+    assert.equal(weekdayInversionBadge("GBPAUD", tue, hour), false);
     assert.equal(weekdayInversionBadge("GBPUSD", thu, hour), false);
-    assert.equal(weekdayInversionBadge("EURUSD", fri, hour), false);
   }
 });
 
 test("ALT family skips two newest bars and XAUUSD excludes H-2:00", () => {
   const date = "2026-09-02";
-  const fx = patternWindowForSlot(h3Bars("TGTGTG", "ALT", date), date, 3, "AUDUSD");
+  const fx = patternWindowForSlot(h3Bars("TGTGTG", "ALT", date), date, 3, "GBPUSD");
   assert.equal(fx?.family, "ALT");
   assert.equal(fx?.sequence, "TGTGTG");
   assert.equal(fx?.sampleBars.length, 6);
@@ -116,7 +105,7 @@ test("ALT family skips two newest bars and XAUUSD excludes H-2:00", () => {
 
 test("SAME family uses H-0:30 through H-1:45 newest to oldest", () => {
   const date = "2026-09-02";
-  const same = patternWindowForSlot(h3Bars("TGTGTT", "SAME", date), date, 3, "AUDUSD");
+  const same = patternWindowForSlot(h3Bars("TGTGTT", "SAME", date), date, 3, "GBPUSD");
   assert.equal(same?.family, "SAME");
   assert.equal(same?.sequence, "TGTGTT");
   assert.equal(same?.sampleBars.length, 6);

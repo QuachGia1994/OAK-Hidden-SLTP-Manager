@@ -278,23 +278,13 @@ extension H1SignalPayload {
         let baseSignal = sourceAlert.baseSignal?.rawValue ?? "—"
         let rawBase = sourceAlert.baseDirection.isEmpty
             ? "—"
-            : "\(sourceAlert.baseSymbol.isEmpty ? "—" : sourceAlert.baseSymbol) PREV \(baseHour) · \(sourceAlert.baseDirection) → \(baseSignal)"
-        var signalSource = ""
-        var rule = "DIRECT BASE"
-
-        if sourceAlert.slotHour == 16 {
-            rule = "ENTRY ONLY"
-        } else if (sourceAlert.symbol == "GBPUSD" || sourceAlert.symbol == "EURUSD") && [9, 12, 14].contains(sourceAlert.slotHour) {
-            let xau = alert(date: date, symbol: "XAUUSD", hour: sourceAlert.slotHour)
-            signalSource = "XAUUSD H\(String(format: "%02d", sourceAlert.slotHour)) · \(xau?.signal?.rawValue ?? "—")"
-            rule = "SYNC XAUUSD"
-        }
+            : "\(sourceAlert.baseSymbol.isEmpty ? "—" : sourceAlert.baseSymbol) \(baseHour) · \(sourceAlert.baseDirection) → \(baseSignal)"
 
         return H1EvidenceFacts(
             patternSource: sourceAlert.scannerSource ?? sourceAlert.symbol,
             rawBase: rawBase,
-            signalSource: signalSource,
-            rule: rule,
+            signalSource: "",
+            rule: sourceAlert.slotHour == 16 ? "ENTRY ONLY" : "OWN H(entry-1)",
             finalSignal: sourceAlert.signal?.rawValue ?? "—"
         )
     }
