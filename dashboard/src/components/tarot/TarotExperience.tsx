@@ -2,11 +2,11 @@
 
 import { FormEvent, useState } from "react";
 import { useLocale } from "@/components/LocaleProvider";
-import { WorkspaceHeading } from "@/components/WorkspaceHeading";
 import { ToolArtwork } from "@/components/ToolArtwork";
 import { TarotCard } from "@/components/tarot/TarotCard";
 import { TAROT_COPY } from "@/lib/tarot/locale-copy";
 import { TAROT_DOMAINS, type TarotApiResponse, type TarotCardDraw, type TarotDomain, type TarotInterpretation, type TarotSpread } from "@/lib/tarot/types";
+import styles from "./tarot-workspace.module.css";
 
 interface DisplayResult {
   cards: TarotCardDraw[];
@@ -67,150 +67,164 @@ export function TarotExperience() {
   };
 
   return (
-    <div className="page-shell terminal-page tarot-screen">
-      <WorkspaceHeading workspace="tarot" locale={locale} />
-      <section className="tarot-hero">
-        <h2>{copy.title}</h2>
+    <div className={`page-shell terminal-page tarot-screen tarot-route-shell ${styles.shell}`}>
+      <header className={styles.heading}>
+        <div className={styles.headingMeta}>
+          <span>{locale === "EN" ? "05 / REFLECTION" : "05 / CHIÊM NGHIỆM"}</span>
+        </div>
+        <h1>Tarot</h1>
+        <p>{copy.intro}</p>
+      </header>
 
-        <form className="tarot-form" onSubmit={submitReading}>
-          <label className="sr-only" htmlFor="tarot-question">{copy.questionLabel}</label>
-          <textarea
-            id="tarot-question"
-            value={question}
-            onChange={(event) => setQuestion(event.target.value)}
-            placeholder={copy.questionPlaceholder}
-            maxLength={500}
-            rows={2}
-            disabled={loading}
-          />
-          <div className="tarot-question-meta">
-            <span>{questionLength}/500</span>
+      <div className={styles.workspace}>
+        <section className="tarot-hero">
+          <div className={styles.formIntro}>
+            <span>{locale === "EN" ? "Set your focus" : "Đặt trọng tâm"}</span>
+            <h2>{copy.questionLabel}</h2>
           </div>
 
-          <fieldset className="tarot-domain-fieldset">
-            <legend>{copy.domainLabel}</legend>
-            <div className="tarot-domain-options">
-              {TAROT_DOMAINS.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  aria-pressed={domain === option}
-                  onClick={() => setDomain(option)}
-                  disabled={loading}
-                >
-                  {copy.domain[option]}
-                </button>
+          <form className="tarot-form" onSubmit={submitReading}>
+            <label className="sr-only" htmlFor="tarot-question">{copy.questionLabel}</label>
+            <textarea
+              id="tarot-question"
+              value={question}
+              onChange={(event) => setQuestion(event.target.value)}
+              placeholder={copy.questionPlaceholder}
+              maxLength={500}
+              rows={2}
+              disabled={loading}
+            />
+            <div className="tarot-question-meta">
+              <span>{questionLength}/500</span>
+            </div>
+
+            <fieldset className="tarot-domain-fieldset">
+              <legend>{copy.domainLabel}</legend>
+              <div className="tarot-domain-options">
+                {TAROT_DOMAINS.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    aria-pressed={domain === option}
+                    onClick={() => setDomain(option)}
+                    disabled={loading}
+                  >
+                    {copy.domain[option]}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+
+            <fieldset className="tarot-spread-fieldset">
+              <legend>{copy.spreadLabel}</legend>
+              <div className="tarot-spread-options">
+                {(["one", "three"] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    aria-pressed={spread === option}
+                    onClick={() => setSpread(option)}
+                    disabled={loading}
+                  >
+                    <b>{copy.spread[option].title}</b>
+                    <span className="tarot-option-detail">{copy.spread[option].detail}</span>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+
+            <button className="tarot-draw-button" type="submit" disabled={!canSubmit}>
+              {loading ? (
+                <>
+                  <span className="tarot-spinner" aria-hidden="true" />
+                  {copy.drawing}
+                </>
+              ) : (
+                <>
+                  <span aria-hidden="true">✦</span>
+                  {copy.draw}
+                </>
+              )}
+            </button>
+          </form>
+        </section>
+
+      <div className={styles.deckColumn}>
+        <div className="tarot-status" aria-live="polite">
+          {errorCode && (
+            <div className="tarot-error" role="alert">
+              <b>{copy.errors[errorCode] || copy.errors.AI_RESPONSE_ERROR}</b>
+            </div>
+          )}
+        </div>
+
+        {loading ? (
+          <section className="tarot-placeholder" data-count={spread === "one" ? 1 : 3} aria-label={copy.drawing}>
+            {[0, 1, 2].slice(0, spread === "one" ? 1 : 3).map((item) => (
+              <div className="tarot-card-back tarot-card-loading" key={item} aria-hidden="true"><ToolArtwork kind="card" /></div>
+            ))}
+          </section>
+        ) : result ? (
+          <section className="tarot-result">
+            <header>
+              <div>
+                <p className="terminal-kicker">{copy.resultTitle}</p>
+                <h2>{copy.domain[result.domain]} · {copy.spread[result.spread].detail}</h2>
+              </div>
+              <button type="button" onClick={resetReading}>{copy.newReading}</button>
+            </header>
+
+            <div className="tarot-card-grid" data-count={result.cards.length}>
+              {result.cards.map((card, index) => (
+                <TarotCard key={card.id} card={card} index={index} locale={locale} copy={copy} />
               ))}
             </div>
-          </fieldset>
 
-          <fieldset className="tarot-spread-fieldset">
-            <legend>{copy.spreadLabel}</legend>
-            <div className="tarot-spread-options">
-              {(["one", "three"] as const).map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  aria-pressed={spread === option}
-                  onClick={() => setSpread(option)}
-                  disabled={loading}
-                >
-                  <b>{copy.spread[option].title}</b>
-                  <span className="tarot-option-detail">{copy.spread[option].detail}</span>
-                </button>
-              ))}
-            </div>
-          </fieldset>
+            {result.reading ? (
+              <div className="tarot-reading">
+                <section>
+                  <p className="terminal-kicker">{copy.overview}</p>
+                  <p>{result.reading.summary}</p>
+                </section>
 
-          <button className="tarot-draw-button" type="submit" disabled={!canSubmit}>
-            {loading ? (
-              <>
-                <span className="tarot-spinner" aria-hidden="true" />
-                {copy.drawing}
-              </>
+                <section>
+                  <p className="terminal-kicker">{copy.cardInsights}</p>
+                  <div className="tarot-insights">
+                    {result.reading.cardReadings.map((item) => (
+                      <article key={item.position}>
+                        <h3>{copy.position[item.position]}</h3>
+                        <p>{item.interpretation}</p>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+
+                <section>
+                  <p className="terminal-kicker">{copy.guidance}</p>
+                  <ul>
+                    {result.reading.guidance.map((item) => <li key={item}>{item}</li>)}
+                  </ul>
+                </section>
+
+                <section className="tarot-reflection">
+                  <p className="terminal-kicker">{copy.reflection}</p>
+                  <blockquote>{result.reading.reflectionQuestion}</blockquote>
+                </section>
+              </div>
             ) : (
-              <>
-                <span aria-hidden="true">✦</span>
-                {copy.draw}
-              </>
+              <div className="tarot-error"><b>{copy.interpretationUnavailable}</b></div>
             )}
-          </button>
-        </form>
-      </section>
-
-      <div className="tarot-status" aria-live="polite">
-        {errorCode && (
-          <div className="tarot-error" role="alert">
-            <b>{copy.errors[errorCode] || copy.errors.AI_RESPONSE_ERROR}</b>
-          </div>
+          </section>
+        ) : (
+          <section className="tarot-placeholder" data-count={spread === "one" ? 1 : 3} aria-label={copy.idle}>
+            {[0, 1, 2].slice(0, spread === "one" ? 1 : 3).map((item) => (
+              <div className="tarot-card-back" key={item} aria-hidden="true"><ToolArtwork kind="card" /></div>
+            ))}
+            <p>{copy.idle}</p>
+          </section>
         )}
       </div>
-
-      {loading ? (
-        <section className="tarot-placeholder" aria-label={copy.drawing}>
-          {[0, 1, 2].slice(0, spread === "one" ? 1 : 3).map((item) => (
-            <div className="tarot-card-back tarot-card-loading" key={item} aria-hidden="true"><ToolArtwork kind="card" /></div>
-          ))}
-        </section>
-      ) : result ? (
-        <section className="tarot-result">
-          <header>
-            <div>
-              <p className="terminal-kicker">{copy.resultTitle}</p>
-              <h2>{copy.domain[result.domain]} · {copy.spread[result.spread].detail}</h2>
-            </div>
-            <button type="button" onClick={resetReading}>{copy.newReading}</button>
-          </header>
-
-          <div className="tarot-card-grid" data-count={result.cards.length}>
-            {result.cards.map((card, index) => (
-              <TarotCard key={card.id} card={card} index={index} locale={locale} copy={copy} />
-            ))}
-          </div>
-
-          {result.reading ? (
-            <div className="tarot-reading">
-              <section>
-                <p className="terminal-kicker">{copy.overview}</p>
-                <p>{result.reading.summary}</p>
-              </section>
-
-              <section>
-                <p className="terminal-kicker">{copy.cardInsights}</p>
-                <div className="tarot-insights">
-                  {result.reading.cardReadings.map((item) => (
-                    <article key={item.position}>
-                      <h3>{copy.position[item.position]}</h3>
-                      <p>{item.interpretation}</p>
-                    </article>
-                  ))}
-                </div>
-              </section>
-
-              <section>
-                <p className="terminal-kicker">{copy.guidance}</p>
-                <ul>
-                  {result.reading.guidance.map((item) => <li key={item}>{item}</li>)}
-                </ul>
-              </section>
-
-              <section className="tarot-reflection">
-                <p className="terminal-kicker">{copy.reflection}</p>
-                <blockquote>{result.reading.reflectionQuestion}</blockquote>
-              </section>
-            </div>
-          ) : (
-            <div className="tarot-error"><b>{copy.interpretationUnavailable}</b></div>
-          )}
-        </section>
-      ) : (
-        <section className="tarot-placeholder" aria-label={copy.idle}>
-          {[0, 1, 2].slice(0, spread === "one" ? 1 : 3).map((item) => (
-            <div className="tarot-card-back" key={item} aria-hidden="true"><ToolArtwork kind="card" /></div>
-          ))}
-          <p>{copy.idle}</p>
-        </section>
-      )}
+      </div>
 
       <p className="tarot-disclaimer">{copy.disclaimer}</p>
     </div>

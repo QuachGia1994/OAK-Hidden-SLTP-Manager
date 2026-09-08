@@ -130,8 +130,6 @@ test("NeoTech Rule Ver 2 visual contract keeps concept hierarchy without changin
   assert.match(ui, /RULE_CONCEPTS\.slice\(0, 5\)/);
   assert.match(ui, /RULE_CONCEPTS\.slice\(5, 12\)/);
   assert.match(ui, /RULE_CONCEPTS\.slice\(12\)/);
-  assert.match(css, /ruleConceptEligibility[\s\S]*repeat\(5/);
-  assert.match(css, /ruleConceptConsistency[\s\S]*repeat\(7/);
   assert.match(css, /data-risk="fdd"|ruleConceptCard\[data-risk="fdd"\]/);
   assert.match(ui, /DEMO PREVIEW · SAMPLE DATA/);
   assert.match(ui, /12 PASS/);

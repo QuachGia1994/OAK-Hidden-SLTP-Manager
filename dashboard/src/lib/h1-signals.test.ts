@@ -456,7 +456,7 @@ test("native Android is hardened for Google Play February 2027 memory and DEX re
 test("engine web surface is local-H1-only with the compact command header", () => {
   assert.doesNotMatch(enginePageSource, /getLatestPattern5|filterActivePattern5|maskFuturePattern5|redactPattern5Signals/);
   assert.doesNotMatch(engineBoardSource, /Pattern5Payload|Pattern5Table|ENGINE 05|Pattern Matrix|Trạng thái tín hiệu hiện tại|<small>PROFILE<\/small>|h1Data\?\.profile/);
-  assert.match(engineBoardSource, /<WorkspaceHeading workspace="live"/);
+  assert.match(engineBoardSource, /<EngineCore data=\{h1Data\}/);
   assert.doesNotMatch(engineBoardSource, /mode="live"|mode="history"/);
   assert.match(boardSource, /MT5 ICMarkets · M15/);
   assert.doesNotMatch(engineBoardSource, /UNLOCK SIGNALS/);

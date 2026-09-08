@@ -53,7 +53,7 @@ test("one H1 surface owns both latest-day and Sunday-first retained-date navigat
   assert.match(h1EngineSource, /useLocale\(\)/);
   assert.match(h1EngineSource, /locale: serverLocale/);
   assert.match(h1EngineSource, /const \{ locale: liveLocale \} = useLocale\(\)/);
-  assert.match(h1EngineSource, /<WorkspaceHeading workspace="live" locale=\{locale\} \/>/);
+  assert.match(h1EngineSource, /<EngineCore data=\{h1Data\} degraded=\{degraded\} locale=\{locale\} \/>/);
   assert.match(h1EngineSource, /<H1SignalBoard data=\{h1Data\} degraded=\{degraded\} locale=\{locale\} \/>/);
   assert.doesNotMatch(h1EngineSource, /mode="live"|mode="history"/);
   assert.match(h1SignalSource, /function SundayCalendarPicker/);
@@ -72,7 +72,6 @@ test("primary Tools tab follows LocaleProvider immediately without waiting for F
   assert.match(toolsClientSource, /useLocale\(\)/);
   assert.match(toolsClientSource, /locale: serverLocale/);
   assert.match(toolsClientSource, /const \{ locale: liveLocale \} = useLocale\(\)/);
-  assert.match(toolsClientSource, /<WorkspaceHeading workspace="tools" locale=\{locale\} \/>/);
   assert.match(toolsClientSource, /tool\.name\[locale\]/);
   assert.match(toolsClientSource, /tool\.detail\[locale\]/);
   assert.match(toolsPageSource, /generateMetadata/);
@@ -244,7 +243,7 @@ test("NeoTech consumes the global semantic theme tokens instead of fixed dark an
   assert.match(neoCss, /--nt-text: var\(--oak-fg-primary\)/);
   assert.match(neoCss, /--nt-muted: var\(--oak-fg-muted\)/);
   assert.match(neoCss, /--nt-blue: var\(--oak-accent-command\)/);
-  assert.match(neoCss, /\.heroV2 \{[^}]*border: 1px solid var\(--nt-border\);[^}]*background: var\(--nt-surface\)/);
+  assert.match(neoCss, /\.heroV2 \{[^}]*border: 1px solid var\(--nt-border\);[^}]*background:[^;}]*var\(--nt-surface\)/);
   assert.match(neoCss, /\.rulesetV2 \{[^}]*background: var\(--nt-surface\)/);
   assert.match(neoCss, /\.ruleConceptCard \{[^}]*background: var\(--nt-raised\)/);
   assert.match(neoCss, /\.demoCard \{[^}]*background: var\(--oak-bg-surface\);[^}]*color: var\(--oak-fg-primary\)/);

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Redesigned all OAK workspaces with a shared graphite/mint palette: H1 Live gains a geometric core and explicit feed status; NeoTech gains a compact connection entry and readable criteria; Tools, Fact Check, Tarot and Discover gain illustrated layouts and clearer controls. Preserved signal logic, account access, AI requests, tool drafts and actual result rendering; refined mobile layouts and EN/VN, Light/Dark/Contrast presentation.
+
 - Simplified the web H1 Live/History matrix to the shared XAUUSD-owned entry-time surface: one `ENTRY TIME` row replaces the repeated XAUUSD/FX symbol rows, H3/H6/H9/H12/H14/H16 cells show only the entry hour with no BUY/SELL badge, H12/H14 are always highlighted, and the previous retained broker day's H3 entry hour is shown as a reference (Monday therefore resolves Friday). PNG export mirrors the same layout. This is presentation-only: H1 rule v88, schema 18/state v56, scanner signal computation and Telegram/execution logic are unchanged.
 
 - Added NeoTech `/look` to the PC-local Telegram controller. The C5-only EA now publishes a fresh account-fenced current-session snapshot containing the effective NeoTech session, Vietnam session window and unique eligible Forex/XAUUSD symbols that already had an opening episode in that session; `/look` (or `/look @ACCOUNT`) renders that list and fails closed on stale/mismatched/outside-session evidence. Closed trades still count for the current session, while scale-in/partial fills do not create a fresh symbol occurrence.

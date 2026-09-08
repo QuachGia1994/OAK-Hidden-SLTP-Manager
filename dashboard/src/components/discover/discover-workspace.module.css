@@ -1,0 +1,457 @@
+.screen {
+  display: grid;
+  gap: 1rem;
+  width: 100%;
+  max-width: 76rem;
+  margin-inline: auto;
+  padding-bottom: 1rem;
+}
+
+.screen :global(.oak-workspace-heading) {
+  margin-bottom: 0;
+  padding: 0.25rem 0;
+}
+
+.screen :global(.oak-workspace-heading h1) {
+  max-width: 12ch;
+  color: var(--oak-fg-primary);
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  letter-spacing: -0.055em;
+}
+
+.screen :global(.oak-workspace-heading p) {
+  max-width: 34rem;
+  color: var(--oak-fg-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.error {
+  margin: 0;
+}
+
+.experienceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 1rem;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0.9rem;
+  overflow: hidden;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--oak-accent-command) 34%, var(--oak-border-strong));
+  border-radius: var(--oak-radius-md);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--oak-accent-command) 8%, var(--oak-bg-surface)), var(--oak-bg-canvas));
+  box-shadow: 0 0.75rem 2.5rem color-mix(in srgb, var(--oak-bg-canvas) 55%, transparent);
+  scroll-margin-top: 7rem;
+}
+
+.card::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8rem;
+  height: 8rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--oak-accent-command) 12%, transparent), transparent 68%);
+  content: "";
+  pointer-events: none;
+}
+
+.featureHeader {
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.8rem;
+  margin: 0;
+}
+
+.featureHeader[data-art="none"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.featureHeader > :global(.oak-tool-art) {
+  width: 5rem;
+  aspect-ratio: 1;
+  border-radius: 1rem;
+  opacity: 0.9;
+}
+
+.featureHeader > div {
+  min-width: 0;
+}
+
+.featureHeader h2 {
+  display: block;
+  color: var(--oak-fg-primary);
+  font-size: clamp(1.2rem, 2vw, 1.55rem);
+  letter-spacing: -0.035em;
+}
+
+.featureSubtitle {
+  margin-top: 0.3rem;
+  color: var(--oak-fg-muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.daily {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.88fr);
+  align-items: center;
+  gap: 0.75rem 1.4rem;
+  min-height: 14rem;
+  padding: 1.25rem;
+  border-color: color-mix(in srgb, var(--oak-accent-command) 58%, var(--oak-border-strong));
+  background: radial-gradient(circle at 15% 15%, color-mix(in srgb, var(--oak-accent-command) 16%, transparent), transparent 38%), linear-gradient(135deg, color-mix(in srgb, var(--oak-accent-command) 11%, var(--oak-bg-surface)), var(--oak-bg-canvas));
+}
+
+.daily .featureHeader {
+  grid-row: 1 / 3;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  margin: 0;
+}
+
+.daily .featureHeader > :global(.oak-tool-art) {
+  width: 6.5rem;
+  border-radius: 1.25rem;
+}
+
+.daily :global(.discover-streak) {
+  z-index: 1;
+  justify-self: end;
+  color: var(--oak-access-vip);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.daily :global(.discover-reveal) {
+  z-index: 1;
+  display: inline-flex;
+  width: 100%;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--oak-accent-command);
+  border-radius: var(--oak-radius-sm);
+  color: var(--oak-fg-primary);
+  background: color-mix(in srgb, var(--oak-accent-command) 18%, var(--oak-bg-raised));
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.daily :global(.discover-reveal) span,
+.daily :global(.discover-reveal) i {
+  color: var(--oak-accent-command);
+  font-style: normal;
+  font-size: 1.15rem;
+}
+
+.daily :global(.discover-daily-result) {
+  z-index: 1;
+  display: grid;
+  grid-column: 2;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.daily :global(.discover-daily-result) article,
+.daily :global(.discover-daily-result) blockquote {
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--oak-accent-command) 22%, var(--oak-border-subtle));
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, var(--oak-bg-raised) 72%, transparent);
+}
+
+.daily :global(.discover-daily-result) blockquote {
+  grid-column: 1 / -1;
+  margin: 0;
+  border-left: 2px solid var(--oak-accent-command);
+  color: var(--oak-fg-primary);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.daily :global(.discover-complete) {
+  grid-column: 1 / -1;
+  color: var(--oak-access-vip);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.card :global(.discover-form),
+.card :global(.mood-note) {
+  z-index: 1;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.card :global(.discover-form) :is(input, textarea),
+.card :global(.mood-note) input {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.8rem;
+  box-sizing: border-box;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--oak-accent-command) 28%, var(--oak-border-strong));
+  border-radius: 0.65rem;
+  color: var(--oak-fg-primary);
+  background: color-mix(in srgb, var(--oak-bg-raised) 80%, transparent);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.card :global(.discover-form) textarea {
+  min-height: 6.5rem;
+  resize: vertical;
+}
+
+.card :global(.discover-form) :is(input, textarea):focus,
+.card :global(.mood-note) input:focus {
+  outline: 2px solid var(--oak-accent-command);
+  outline-offset: 1px;
+}
+
+.card :global(.discover-form-foot) {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.card :global(.discover-form) button,
+.card :global(.mood-note) button {
+  min-height: 2.8rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--oak-accent-command);
+  border-radius: 0.65rem;
+  color: var(--oak-fg-primary);
+  background: color-mix(in srgb, var(--oak-accent-command) 20%, var(--oak-bg-raised));
+  font: 800 0.78rem/1.2 var(--font-sans);
+}
+
+.card :global(.discover-form) button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.card :global(.discover-extra) {
+  z-index: 1;
+  border-top: 1px solid var(--oak-border-subtle);
+}
+
+.card :global(.discover-extra) summary {
+  min-height: 2.8rem;
+  display: flex;
+  align-items: center;
+  color: var(--oak-fg-muted);
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.card :global(.compat-names) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.6rem;
+}
+
+.card :global(.mood-picker) {
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+
+.card :global(.mood-picker) button {
+  display: grid;
+  min-height: 4.3rem;
+  justify-items: center;
+  align-content: center;
+  gap: 0.25rem;
+  padding: 0.4rem 0.15rem;
+  border: 1px solid transparent;
+  border-radius: 0.65rem;
+  color: var(--oak-accent-command);
+}
+
+.card :global(.mood-picker) button[aria-pressed="true"] {
+  border-color: currentColor;
+  background: color-mix(in srgb, var(--oak-accent-command) 12%, var(--oak-bg-raised));
+}
+
+.card :global(.mood-picker) svg {
+  width: 2rem;
+  height: 2rem;
+}
+
+.card :global(.mood-picker) span {
+  color: var(--oak-fg-muted);
+  font-size: 0.68rem;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.card :global(.mood-note) {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.card :global(.mood-history) {
+  z-index: 1;
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--oak-border-subtle);
+}
+
+.card :global(.mood-history) > small {
+  color: var(--oak-fg-muted);
+  font-size: 0.7rem;
+}
+
+.card :global(.mood-history) > div {
+  height: 3.5rem;
+}
+
+.card :global(.discover-ai-result),
+.card :global(.oracle-result) {
+  z-index: 1;
+  margin-top: 0.15rem;
+}
+
+.card :global(.discover-summary) {
+  color: var(--oak-fg-primary);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.card :global(.discover-symbols),
+.card :global(.compat-metrics),
+.card :global(.compat-lists) {
+  gap: 0.5rem;
+}
+
+.card :global(.discover-symbols) article,
+.card :global(.discover-result-strip),
+.card :global(.compat-lists) article,
+.card :global(.discover-metric) {
+  border-color: color-mix(in srgb, var(--oak-accent-command) 20%, var(--oak-border-subtle));
+  background: color-mix(in srgb, var(--oak-bg-raised) 72%, transparent);
+}
+
+.card :global(.oracle-result) {
+  padding: 0.3rem 0 0;
+}
+
+.card :global(.oracle-ring) {
+  width: 7rem;
+  height: 7rem;
+}
+
+.localNote,
+.disclaimer {
+  margin: 0;
+  color: var(--oak-fg-muted);
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
+.disclaimer {
+  opacity: 0.78;
+}
+
+@media (max-width: 760px) {
+  .screen {
+    gap: 0.75rem;
+  }
+
+  .experienceGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  .daily {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+    padding: 1rem;
+  }
+
+  .daily .featureHeader {
+    grid-row: auto;
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+  }
+
+  .daily .featureHeader > :global(.oak-tool-art) {
+    width: 4.5rem;
+  }
+
+  .daily :global(.discover-streak),
+  .daily :global(.discover-reveal),
+  .daily :global(.discover-daily-result) {
+    grid-column: 1;
+  }
+
+  .daily :global(.discover-streak) {
+    justify-self: start;
+  }
+
+  .daily :global(.discover-reveal) {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .card,
+  .daily {
+    padding: 0.8rem;
+  }
+
+  .featureHeader,
+  .daily .featureHeader {
+    grid-template-columns: 3.75rem minmax(0, 1fr);
+    gap: 0.6rem;
+  }
+
+  .featureHeader > :global(.oak-tool-art),
+  .daily .featureHeader > :global(.oak-tool-art) {
+    width: 3.75rem;
+    border-radius: 0.8rem;
+  }
+
+  .featureHeader h2 {
+    font-size: 1.15rem;
+  }
+
+  .featureSubtitle {
+    font-size: 0.76rem;
+  }
+
+  .card :global(.mood-note) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .card :global(.mood-note) button {
+    width: 100%;
+  }
+
+  .daily :global(.discover-daily-result) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .daily :global(.discover-daily-result) blockquote,
+  .daily :global(.discover-complete) {
+    grid-column: 1;
+  }
+}

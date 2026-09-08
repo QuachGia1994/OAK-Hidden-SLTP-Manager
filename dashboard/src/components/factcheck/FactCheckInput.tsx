@@ -6,6 +6,7 @@ import { TEXT } from "@/lib/factcheck/locale-copy";
 import { detectInputKind, extractHostnameLabel } from "@/lib/factcheck/input-detect";
 import { mediaClientStatus, normalizeClientImageMime } from "@/lib/factcheck/media-client";
 import { useImageOcr } from "@/hooks/useImageOcr";
+import styles from "./factcheck-workspace.module.css";
 
 export function FactCheckInput({
   text,
@@ -96,29 +97,41 @@ export function FactCheckInput({
     : t.submit;
 
   return (
-    <section className="oak-fact-input-panel">
-      <header className="oak-fact-input-header">
-        <div>
-          <h2>{locale === "EN" ? "Check news & images" : "Xác thực tin & ảnh"}</h2>
+    <section className={`${styles.inputPanel} oak-fact-input-panel`} aria-labelledby="factcheck-input-title">
+      <header className={`${styles.inputHeader} oak-fact-input-header`}>
+        <div className={styles.inputHeading}>
+          <span className={styles.sectionEyebrow}>{t.input}</span>
+          <h2 id="factcheck-input-title">{locale === "EN" ? "What would you like to check?" : "Bạn muốn kiểm tra điều gì?"}</h2>
+          <p>{locale === "EN" ? "Paste text or a link, or choose an image to begin. Your draft stays when you switch modes." : "Dán nội dung, liên kết hoặc chọn ảnh để bắt đầu. Bản nháp được giữ khi đổi chế độ."}</p>
         </div>
-        <span className="oak-char-meter">{text.length.toLocaleString()}/12,000</span>
+        <span className={`${styles.charMeter} oak-char-meter`} aria-live="polite">{text.length.toLocaleString()}/12,000</span>
       </header>
 
-      <div className="oak-input-modes" role="group" aria-label={locale === "EN" ? "Input type" : "Loại nội dung"}>
-        <button type="button" aria-pressed={inputMode === "text"} onClick={() => setInputMode("text")} disabled={busy}>{locale === "EN" ? "News / Link" : "Tin / Link"}</button>
-        <button type="button" aria-pressed={inputMode === "image"} onClick={() => setInputMode("image")} disabled={busy}>{locale === "EN" ? "Image" : "Ảnh"}</button>
+      <div className={`${styles.modeControls} oak-input-modes`} role="group" aria-label={locale === "EN" ? "Input type" : "Loại nội dung"}>
+        <button className={styles.modeButton} type="button" aria-pressed={inputMode === "text"} onClick={() => setInputMode("text")} disabled={busy}>
+          <span className={styles.modeIndex}>01</span>
+          <span>{locale === "EN" ? "News / link" : "Tin / link"}</span>
+        </button>
+        <button className={styles.modeButton} type="button" aria-pressed={inputMode === "image"} onClick={() => setInputMode("image")} disabled={busy}>
+          <span className={styles.modeIndex}>02</span>
+          <span>{locale === "EN" ? "Image" : "Ảnh"}</span>
+        </button>
       </div>
       <div hidden={inputMode !== "text"}>
       <div
-        className="oak-claim-editor"
+        className={`${styles.editor} oak-claim-editor`}
         data-dragging={dragging ? "true" : undefined}
         onDragEnter={(event) => { event.preventDefault(); setDragging(true); }}
         onDragOver={(event) => event.preventDefault()}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
       >
-        <div className="oak-editor-rail" aria-hidden="true"><span>01</span><span>02</span><span>03</span><span>04</span><span>05</span></div>
+        <div className={styles.editorBar}>
+          <span>{locale === "EN" ? "Your content" : "Nội dung cần kiểm tra"}</span>
+          <span>{locale === "EN" ? "Text, link, or pasted excerpt" : "Văn bản, liên kết hoặc đoạn trích"}</span>
+        </div>
         <textarea
+          className={styles.textarea}
           aria-label={t.textOrImage}
           rows={4}
           value={text}
@@ -128,15 +141,15 @@ export function FactCheckInput({
           maxLength={12000}
         />
         {ocrLoading && (
-          <div className="oak-ocr-overlay">
-            <span className="oak-ocr-spinner" />
+          <div className={`${styles.ocrOverlay} oak-ocr-overlay`}>
+            <span className={`${styles.spinner} oak-ocr-spinner`} />
             <b>{t.detectText}</b>
           </div>
         )}
       </div>
 
       {isUrl && urlHost && (
-        <div className="oak-url-chip" role="status">
+        <div className={`${styles.urlChip} oak-url-chip`} role="status">
           <span className="oak-eyebrow">{t.urlDetected}</span>
           <b>{urlHost}</b>
         </div>
@@ -144,15 +157,15 @@ export function FactCheckInput({
 
       </div>
       <div hidden={inputMode !== "image"}>
-      {!selectedImage && <button type="button" className="oak-image-dropzone" disabled={busy} onClick={() => fileInputRef.current?.click()} onDragOver={event => event.preventDefault()} onDrop={handleDrop}>
+      {!selectedImage && <button type="button" className={`${styles.imageDropzone} oak-image-dropzone`} disabled={busy} onClick={() => fileInputRef.current?.click()} onDragOver={event => event.preventDefault()} onDrop={handleDrop}>
         <ToolArtwork kind="factcheck" /><b>{t.uploadImage}</b><small>{locale === "EN" ? "Analyze image evidence or extract text to fact-check" : "Phân tích bằng chứng ảnh hoặc trích chữ để kiểm tra tin"}</small>
       </button>}
       {selectedImage && (
-        <div className="oak-image-intent" role="group" aria-label={t.imageSelected} aria-busy={mediaLoading}>
+        <div className={`${styles.imageIntent} oak-image-intent`} role="group" aria-label={t.imageSelected} aria-busy={mediaLoading}>
           <div className="oak-image-intent-summary">
-            {previewUrl ? <img className="oak-image-intent-preview" src={previewUrl} alt="" /> : null}
-            <div className="oak-image-intent-copy">
-              <span className="oak-eyebrow">{t.imageSelected}</span>
+            {previewUrl ? <img className={`${styles.imagePreview} oak-image-intent-preview`} src={previewUrl} alt="" /> : null}
+            <div className={`${styles.imageCopy} oak-image-intent-copy`}>
+              <span className={styles.sectionEyebrow}>{t.imageSelected}</span>
               <b title={selectedImage.name}>{selectedImage.name}</b>
               <small>
                 {(selectedImage.size / 1024).toFixed(0)} KB · {selectedMediaStatus === "too_large"
@@ -161,15 +174,15 @@ export function FactCheckInput({
                     ? t.imageAuthenticityHint
                     : t.imageUnsupportedClient}
               </small>
-              <div className="oak-image-selection-actions">
+              <div className={`${styles.inlineActions} oak-image-selection-actions`}>
                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={busy}>{t.imageChange}</button>
                 <button type="button" onClick={clearSelectedImage} disabled={busy}>{t.imageRemove}</button>
               </div>
             </div>
           </div>
-          <p className="oak-image-auth-disclosure">{t.imageAuthenticityDisclosure}</p>
-          {mediaLoading ? <p className="oak-image-analysis-status" role="status" aria-live="polite">{t.mediaAnalyzing}</p> : null}
-          <div className="oak-image-intent-actions">
+          <p className={`${styles.disclosure} oak-image-auth-disclosure`}>{t.imageAuthenticityDisclosure}</p>
+          {mediaLoading ? <p className={`${styles.analysisStatus} oak-image-analysis-status`} role="status" aria-live="polite">{t.mediaAnalyzing}</p> : null}
+          <div className={`${styles.imageActions} oak-image-intent-actions`}>
             <button type="button" onClick={runImageOcr} disabled={busy}>{t.imageClaims}</button>
             <button type="button" className="oak-image-auth-action" onClick={() => onMediaSubmit(selectedImage)} disabled={busy || !mediaSupported}>
               {mediaLoading ? t.mediaAnalyzing : t.imageAuthenticity}
@@ -178,16 +191,16 @@ export function FactCheckInput({
         </div>
       )}
 
-      <aside className="oak-image-evidence-method" aria-label={t.imageEvidenceLayers}>
+      <aside className={`${styles.evidenceMethod} oak-image-evidence-method`} aria-label={t.imageEvidenceLayers}>
         <small>{t.imageEvidenceLayers}</small>
         <div className="oak-image-evidence-list">{t.imageEvidenceItems.map((item) => <span key={item}>{item}</span>)}</div>
         <p>{t.imageAuthenticityCaution}</p>
       </aside>
       </div>
-      {(ocrError || imageError) && <p className="oak-form-error">{ocrError || imageError}</p>}
+      {(ocrError || imageError) && <p className={`${styles.formError} oak-form-error`} role="alert">{ocrError || imageError}</p>}
 
-      <div className="oak-fact-actions" data-mode={inputMode}>
-        <button type="button" className="oak-upload-action" hidden={inputMode === "image"} onClick={() => fileInputRef.current?.click()} disabled={busy}>
+      <div className={`${styles.actionBar} oak-fact-actions`} data-mode={inputMode}>
+        <button type="button" className={`${styles.secondaryAction} oak-upload-action`} hidden={inputMode === "image"} onClick={() => fileInputRef.current?.click()} disabled={busy}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z" /><path d="m6.5 16 4-4 2.5 2.5 2-2 2.5 3.5M9 9h.01" /></svg>
           <span>{t.uploadImage}</span>
           <small>{t.dragDrop}</small>
@@ -202,12 +215,12 @@ export function FactCheckInput({
 
         <button
           type="button"
-          className="oak-primary-action oak-fact-submit"
+          className={`${styles.primaryAction} oak-primary-action oak-fact-submit`}
           hidden={inputMode !== "text"}
           onClick={onSubmit}
           disabled={busy || !text.trim()}
         >
-          {loading ? <><span className="oak-button-spinner" /> <b>{loadingLabel}</b></> : <><b>{t.submit}</b><i>→</i></>}
+          {loading ? <><span className={`${styles.spinner} oak-button-spinner`} /> <b>{loadingLabel}</b></> : <><b>{t.submit}</b><i>→</i></>}
         </button>
       </div>
     </section>

@@ -1,0 +1,656 @@
+/* Route palette and presentation. The fact-check lab owns this scope so the shared shell stays untouched. */
+.routeShell {
+  --fact-canvas: var(--engine-canvas, var(--oak-bg-canvas));
+  --fact-surface: var(--engine-surface, var(--oak-bg-surface));
+  --fact-raised: var(--engine-raised, var(--oak-bg-raised));
+  --fact-ink: var(--engine-fg, var(--oak-fg-primary));
+  --fact-muted: var(--engine-muted, var(--oak-fg-muted));
+  --fact-line: var(--engine-line, var(--oak-border-subtle));
+  --fact-line-strong: color-mix(in srgb, var(--fact-mint) 58%, var(--fact-line));
+  --fact-mint: var(--engine-accent, var(--oak-accent-command));
+  --fact-mint-strong: var(--engine-accent-strong, var(--oak-accent-command-strong));
+  --fact-mint-soft: color-mix(in srgb, var(--fact-mint) 16%, var(--fact-surface));
+  --fact-danger: var(--oak-status-danger, var(--terminal-danger));
+  --background: var(--fact-canvas);
+  --foreground: var(--fact-ink);
+  --surface: var(--fact-surface);
+  --surface-raised: var(--fact-raised);
+  --panel-border: var(--fact-line);
+  --muted: var(--fact-muted);
+  --terminal-accent: var(--fact-mint);
+  --terminal-accent-strong: var(--fact-mint-strong);
+  --terminal-danger: var(--fact-danger);
+  --oak-bg-canvas: var(--fact-canvas);
+  --oak-bg-surface: var(--fact-surface);
+  --oak-bg-raised: var(--fact-raised);
+  --oak-fg-primary: var(--fact-ink);
+  --oak-fg-muted: var(--fact-muted);
+  --oak-accent-command: var(--fact-mint);
+  --oak-accent-command-strong: var(--fact-mint-strong);
+  --oak-border-subtle: var(--fact-line);
+  --oak-border-strong: var(--fact-line-strong);
+  width: min(100%, 78rem);
+  color: var(--fact-ink);
+  background: var(--fact-canvas);
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, 16rem);
+  gap: clamp(1.25rem, 5vw, 5rem);
+  align-items: center;
+  min-height: 17rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid var(--fact-line);
+  border-radius: 1.35rem;
+  background:
+    linear-gradient(120deg, color-mix(in srgb, var(--fact-mint) 8%, var(--fact-surface)), var(--fact-surface) 68%),
+    var(--fact-surface);
+  box-shadow: 0 1.2rem 3rem color-mix(in srgb, var(--fact-ink) 9%, transparent);
+}
+
+.heroCopy {
+  min-width: 0;
+  max-width: 42rem;
+}
+
+.heroEyebrow,
+.sectionEyebrow {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  color: var(--fact-muted);
+  font: 800 .7rem/1.2 "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.heroIndex {
+  display: inline-grid;
+  min-width: 2rem;
+  min-height: 1.65rem;
+  place-items: center;
+  border-bottom: 2px solid var(--fact-mint);
+  color: var(--fact-mint);
+  font-size: .8rem;
+}
+
+.heroRule {
+  width: 2.5rem;
+  height: 1px;
+  background: var(--fact-line-strong);
+}
+
+.heroTitle {
+  max-width: 14ch;
+  margin: 1rem 0 0;
+  color: var(--fact-ink);
+  font-size: clamp(2.1rem, 5.4vw, 4.6rem);
+  font-weight: 850;
+  letter-spacing: -.065em;
+  line-height: .98;
+}
+
+.heroText {
+  max-width: 38rem;
+  margin: 1rem 0 0;
+  color: var(--fact-muted);
+  font-size: clamp(.95rem, 1.5vw, 1.08rem);
+  line-height: 1.6;
+}
+
+.heroSignals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem .85rem;
+  margin-top: 1.2rem;
+  color: var(--fact-mint);
+  font: 800 .75rem/1.4 "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.heroSignals span + span {
+  padding-left: .85rem;
+  border-left: 1px solid var(--fact-line-strong);
+  color: var(--fact-muted);
+}
+
+.heroVisual {
+  display: grid;
+  justify-items: center;
+  gap: .55rem;
+  min-width: 0;
+  color: var(--fact-muted);
+}
+
+.heroVisualFrame {
+  width: min(100%, 13rem);
+  aspect-ratio: 1;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--fact-mint) 38%, var(--fact-line));
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--fact-mint-soft) 76%, var(--fact-surface));
+  box-shadow: inset 0 0 0 1rem color-mix(in srgb, var(--fact-surface) 34%, transparent);
+  opacity: .9;
+}
+
+.heroVisualFrame > span {
+  width: 100%;
+  height: 100%;
+}
+
+.heroVisualCaption {
+  font: 750 .75rem/1.4 "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.workbench {
+  display: grid;
+  gap: 1rem;
+  margin-top: .25rem;
+}
+
+.inputPanel {
+  min-width: 0;
+  padding: clamp(1rem, 3vw, 2rem);
+  border: 1px solid color-mix(in srgb, var(--fact-mint) 44%, var(--fact-line));
+  border-radius: 1.15rem;
+  background: var(--fact-surface);
+  box-shadow: 0 .8rem 2rem color-mix(in srgb, var(--fact-ink) 7%, transparent);
+}
+
+.inputHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.inputHeading {
+  min-width: 0;
+}
+
+.inputHeading h2 {
+  margin: .4rem 0 0;
+  color: var(--fact-ink);
+  font-size: clamp(1.35rem, 2.5vw, 1.9rem);
+  font-weight: 820;
+  letter-spacing: -.04em;
+}
+
+.inputHeading p {
+  max-width: 42rem;
+  margin: .4rem 0 0;
+  color: var(--fact-muted);
+  font-size: .82rem;
+  line-height: 1.5;
+}
+
+.charMeter {
+  flex: 0 0 auto;
+  padding-top: .25rem;
+  color: var(--fact-muted);
+  font: 750 .7rem/1.2 "Cascadia Mono", Consolas, monospace;
+}
+
+.modeControls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 13rem));
+  gap: .5rem;
+  margin-bottom: .8rem;
+}
+
+.modeButton,
+.secondaryAction,
+.cancelAction,
+.imageActions button,
+.inlineActions button {
+  min-height: 2.75rem;
+  border: 1px solid var(--fact-line);
+  border-radius: .65rem;
+  color: var(--fact-ink);
+  background: var(--fact-raised);
+  cursor: pointer;
+  font: 750 .78rem/1.25 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.modeButton {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: .7rem;
+  padding: .55rem .75rem;
+  text-align: left;
+}
+
+.modeButton[aria-pressed="true"] {
+  border-color: var(--fact-mint);
+  color: var(--fact-mint);
+  background: var(--fact-mint-soft);
+}
+
+.modeIndex {
+  color: var(--fact-muted);
+  font: 800 .65rem/1 "Cascadia Mono", Consolas, monospace;
+}
+
+.modeButton[aria-pressed="true"] .modeIndex {
+  color: var(--fact-mint);
+}
+
+.editor {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--fact-line);
+  border-radius: .9rem;
+  background: var(--fact-raised);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.editor:focus-within,
+.editor[data-dragging="true"] {
+  border-color: var(--fact-mint);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--fact-mint) 14%, transparent);
+}
+
+.editor[data-dragging="true"] {
+  border-style: dashed;
+}
+
+.editorBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .65rem .85rem;
+  border-bottom: 1px solid var(--fact-line);
+  color: var(--fact-muted);
+  font: 750 .62rem/1.3 "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.editorBar span:last-child {
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.textarea {
+  display: block;
+  width: 100%;
+  min-height: 13rem;
+  resize: vertical;
+  padding: 1rem;
+  border: 0;
+  outline: 0;
+  color: var(--fact-ink);
+  background: transparent;
+  font: 500 1rem/1.65 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+}
+
+.textarea::placeholder {
+  color: color-mix(in srgb, var(--fact-muted) 82%, transparent);
+}
+
+.ocrOverlay {
+  position: absolute;
+  inset: 2.5rem 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .65rem;
+  color: var(--fact-mint);
+  background: color-mix(in srgb, var(--fact-surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  font-size: .78rem;
+}
+
+.ocrOverlay b {
+  font: 800 .7rem/1.3 "Cascadia Mono", Consolas, monospace;
+}
+
+.spinner {
+  width: .85rem;
+  height: .85rem;
+  border: 2px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 900ms linear infinite;
+}
+
+.urlChip {
+  margin-top: .65rem;
+}
+
+.actionBar {
+  display: flex;
+  align-items: stretch;
+  gap: .65rem;
+  margin-top: .8rem;
+}
+
+.secondaryAction {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: .65rem;
+  padding: .6rem .8rem;
+  text-align: left;
+}
+
+.secondaryAction svg {
+  grid-row: 1 / 3;
+  width: 1.2rem;
+  height: 1.2rem;
+  fill: none;
+  stroke: var(--fact-mint);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+}
+
+.secondaryAction span {
+  font-weight: 800;
+}
+
+.secondaryAction small {
+  color: var(--fact-muted);
+  font-size: .65rem;
+}
+
+.primaryAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .75rem;
+  min-width: 10.5rem;
+  min-height: 2.75rem;
+  padding: .6rem .9rem;
+  border: 1px solid var(--fact-mint);
+  border-radius: .65rem;
+  color: #092117;
+  background: var(--fact-mint);
+  cursor: pointer;
+  font-size: .78rem;
+}
+
+.primaryAction i {
+  font-size: 1rem;
+  font-style: normal;
+}
+
+.cancelAction {
+  flex: 0 0 auto;
+  padding-inline: 1rem;
+  color: var(--fact-danger);
+  border-color: color-mix(in srgb, var(--fact-danger) 52%, var(--fact-line));
+  background: transparent;
+}
+
+.modeButton:hover:not(:disabled),
+.secondaryAction:hover:not(:disabled),
+.cancelAction:hover:not(:disabled),
+.imageActions button:hover:not(:disabled),
+.inlineActions button:hover:not(:disabled) {
+  border-color: var(--fact-mint);
+  transform: translateY(-1px);
+}
+
+.modeButton:disabled,
+.secondaryAction:disabled,
+.primaryAction:disabled,
+.cancelAction:disabled,
+.imageActions button:disabled,
+.inlineActions button:disabled {
+  cursor: not-allowed;
+  opacity: .52;
+}
+
+.globalError {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .85rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--fact-danger) 58%, var(--fact-line));
+  border-radius: .8rem;
+  color: var(--fact-danger);
+  background: color-mix(in srgb, var(--fact-danger) 8%, var(--fact-surface));
+}
+
+.globalError > span {
+  display: grid;
+  width: 1.6rem;
+  height: 1.6rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-weight: 850;
+}
+
+.globalError p {
+  margin: 0;
+  font-size: .78rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.imageDropzone {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: .3rem .9rem;
+  width: 100%;
+  min-height: 12rem;
+  padding: 1rem;
+  border: 1px dashed var(--fact-line-strong);
+  border-radius: .9rem;
+  color: var(--fact-ink);
+  background: var(--fact-raised);
+  text-align: left;
+  cursor: pointer;
+}
+
+.imageDropzone > :global(.oak-tool-art) {
+  grid-row: 1 / 3;
+  width: 6rem;
+}
+
+.imageDropzone b {
+  font-size: 1rem;
+}
+
+.imageDropzone small {
+  color: var(--fact-muted);
+  font-size: .78rem;
+  line-height: 1.45;
+}
+
+.imageIntent {
+  margin-top: .8rem;
+  border-color: color-mix(in srgb, var(--fact-mint) 40%, var(--fact-line));
+  background: color-mix(in srgb, var(--fact-mint-soft) 72%, var(--fact-surface));
+}
+
+.imagePreview {
+  border-color: var(--fact-line);
+  background: var(--fact-surface);
+}
+
+.imageCopy b {
+  color: var(--fact-ink);
+}
+
+.imageCopy small,
+.disclosure,
+.analysisStatus,
+.evidenceMethod > small,
+.evidenceMethod > p {
+  color: var(--fact-muted);
+}
+
+.imageActions button {
+  color: var(--fact-ink);
+  background: var(--fact-surface);
+}
+
+.imageActions :global(.oak-image-auth-action) {
+  border-color: var(--fact-mint);
+  color: var(--fact-mint);
+  background: var(--fact-mint-soft);
+}
+
+.evidenceMethod {
+  border-color: var(--fact-line);
+  background: var(--fact-raised);
+}
+
+.evidenceMethod > small {
+  font-size: .65rem;
+}
+
+.formError {
+  color: var(--fact-danger);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 720px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr) 7rem;
+    gap: 1rem;
+    padding: 1.25rem;
+  }
+
+  .heroTitle {
+    font-size: clamp(2rem, 8vw, 3rem);
+  }
+
+  .heroVisualFrame {
+    width: 7rem;
+    padding: .55rem;
+  }
+
+  .heroVisualCaption {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .heroVisual {
+    display: none;
+  }
+
+  .inputHeader {
+    display: grid;
+    gap: .5rem;
+  }
+
+  .charMeter {
+    padding-top: 0;
+  }
+
+  .modeControls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .actionBar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .primaryAction,
+  .cancelAction {
+    width: 100%;
+  }
+
+  .imageDropzone {
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+  }
+
+  .imageDropzone > :global(.oak-tool-art) {
+    width: 4.25rem;
+  }
+}
+
+@media (max-width: 359px) {
+  .routeShell {
+    padding-inline: .65rem;
+  }
+
+  .hero {
+    padding: 1rem;
+    border-radius: 1rem;
+  }
+
+  .heroEyebrow {
+    gap: .35rem;
+    font-size: .58rem;
+  }
+
+  .heroRule {
+    width: 1rem;
+  }
+
+  .heroSignals {
+    display: grid;
+    gap: .35rem;
+  }
+
+  .heroSignals span + span {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .inputPanel {
+    padding: .8rem;
+  }
+
+  .modeButton {
+    gap: .4rem;
+    padding-inline: .55rem;
+    font-size: .7rem;
+  }
+
+  .editorBar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: .25rem;
+  }
+
+  .editorBar span:last-child {
+    text-align: left;
+  }
+
+  .textarea {
+    min-height: 11rem;
+    padding: .8rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .routeShell *,
+  .routeShell *::before,
+  .routeShell *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+}

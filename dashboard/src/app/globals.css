@@ -44,6 +44,16 @@
   --hud-spotlight-glow: color-mix(in srgb, var(--oak-accent-command) 7%, transparent);
   --hud-grid-accent: color-mix(in srgb, var(--oak-accent-command) 20%, transparent);
   --hud-bracket-color: var(--oak-accent-command);
+  --engine-canvas: #eef3f0;
+  --engine-surface: #f8fbf9;
+  --engine-raised: #e3ece8;
+  --engine-fg: #10211d;
+  --engine-muted: #557069;
+  --engine-accent: #087f62;
+  --engine-accent-strong: #045642;
+  --engine-line: #bfd1c9;
+  --engine-glow: rgba(8, 127, 98, .16);
+  --engine-shadow: 0 18px 42px rgba(15, 45, 36, .12);
 
   /* Compatibility aliases for existing secondary-tool components. */
   --background: var(--oak-bg-canvas);
@@ -88,6 +98,16 @@
   --hud-glass-blur: blur(20px) saturate(180%);
   --hud-spotlight-glow: rgba(77, 159, 255, .16);
   --hud-grid-accent: rgba(77, 159, 255, .22);
+  --engine-canvas: #0d1313;
+  --engine-surface: #121b1a;
+  --engine-raised: #172624;
+  --engine-fg: #eef8f3;
+  --engine-muted: #9ab8ad;
+  --engine-accent: #84e5c2;
+  --engine-accent-strong: #b0f7d9;
+  --engine-line: #2e4941;
+  --engine-glow: rgba(132, 229, 194, .14);
+  --engine-shadow: 0 22px 56px rgba(0, 0, 0, .3);
 }
 
 .contrast {
@@ -115,6 +135,16 @@
   --hud-glass-border: rgba(255, 209, 102, .14);
   --hud-spotlight-glow: rgba(240, 180, 41, .15);
   --hud-grid-accent: rgba(240, 180, 41, .20);
+  --engine-canvas: #080a09;
+  --engine-surface: #101410;
+  --engine-raised: #1b211a;
+  --engine-fg: #f4f8e8;
+  --engine-muted: #b9c6a2;
+  --engine-accent: #d9ef83;
+  --engine-accent-strong: #efffae;
+  --engine-line: #536244;
+  --engine-glow: rgba(217, 239, 131, .16);
+  --engine-shadow: 0 22px 56px rgba(0, 0, 0, .42);
 }
 
 @theme inline {

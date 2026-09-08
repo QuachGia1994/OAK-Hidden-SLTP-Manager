@@ -280,6 +280,7 @@ export function NeoTechPublicDashboard() {
   const pairingDialogRef = useDialogFocusTrap<HTMLDivElement>(Boolean(pairing), () => setPairing(null));
   const masterConsentDialogRef = useDialogFocusTrap<HTMLDivElement>(masterConsentOpen, () => setMasterConsentOpen(false));
   const shareDialogRef = useDialogFocusTrap<HTMLDivElement>(shareOpen, () => setShareOpen(false));
+  const connectionToolsRef = useRef<HTMLDetailsElement>(null);
   const selectedRef = useRef(selectedId);
   selectedRef.current = selectedId;
 
@@ -510,6 +511,15 @@ export function NeoTechPublicDashboard() {
     }
     window.setTimeout(() => setToast(null), 2200);
   };
+  const openConnectionTools = () => {
+    const details = connectionToolsRef.current;
+    if (!details) return;
+    details.open = true;
+    const summary = details.querySelector("summary");
+    summary?.focus({ preventScroll: true });
+    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+    window.requestAnimationFrame(() => details.scrollIntoView({ behavior, block: "start" }));
+  };
   const secondsLeft = pairing ? Math.max(0, Math.floor((pairing.expiresAt - nowMs) / 1000)) : 0;
   const toastPortal = toast && typeof document !== "undefined" ? createPortal(
     <div className={styles.toast} data-kind={toast.kind} role="status" aria-live="polite"><b>{toast.kind === "success" ? "✓" : "!"}</b><span>{toast.message}</span></div>,
@@ -517,52 +527,46 @@ export function NeoTechPublicDashboard() {
   ) : null;
 
   return (
-    <div className={styles.page}>
+    <div className={`${styles.page} neotech-route-shell`}>
       <section className={styles.heroV2}>
         <div className={styles.brandRail}>
-          <div className={styles.neoBrand} aria-label="NeoTech Rule Ver 2">
-            <NeoTechMark />
-            <span><b>NeoTech</b><small>TRADERS EMPOWER TRADERS</small></span>
-          </div>
-          <span className={styles.heroMotto}>DISCIPLINE · TRANSPARENCY · LONG-TERM GROWTH</span>
+          <span className={styles.heroRailLabel} aria-label="NeoTech Rule Ver 2"><b>02</b><span>NEOTECH</span></span>
           <span className={styles.rulesetBadge}><b>RULESET v2</b><small>2024-10-03</small></span>
         </div>
         <div className={styles.heroV2Grid}>
           <div className={styles.heroCopyV2}>
-            <span className={styles.heroKicker}>Same Rules. Stronger Clarity.</span>
-            <h1>NeoTech <span>Rule Ver 2</span></h1>
-            <h2>{tr("Standardized · Transparent · Observable", "Chuẩn hóa · Minh bạch · Dễ theo dõi")}</h2>
-            <p>{tr("The NeoTech signal-provider rules, implemented in ROBOT SLTP with automatic checks, transparent reports and visual account tracking.", "Bộ quy tắc dành cho Nhà cung cấp tín hiệu NeoTech, được triển khai trên ROBOT SLTP với kiểm tra tự động, báo cáo minh bạch và hiển thị trực quan.")}</p>
-            <div className={styles.heroFeatureRow}>
-              <span><i><FeatureIcon kind="discipline" /></i>{tr("Automatic checks", "Tự động kiểm tra")}</span>
-              <span><i><FeatureIcon kind="audit" /></i>{tr("Official thresholds", "Bám sát rule chính thức")}</span>
-              <span><i><FeatureIcon kind="community" /></i>{tr("Evidence first", "Evidence minh bạch")}</span>
-              <span><i><FeatureIcon kind="platform" /></i>{tr("Web · MT5 · Telegram", "Web · MT5 · Telegram")}</span>
+            <h1>NeoTech</h1>
+            <h2>{tr("Trade with discipline.", "Giao dịch có kỷ luật.")}</h2>
+            <p>{tr("Track your MT5 account against 14 NeoTech criteria, with clear results and supporting evidence.", "Theo dõi tài khoản MT5 theo 14 tiêu chí NeoTech, với kết quả và bằng chứng kiểm tra rõ ràng.")}</p>
+            <div className={styles.heroActions}>
+              <button type="button" className={styles.primaryButton} onClick={openConnectionTools}>{tr("Connect MT5", "Kết nối MT5")}</button>
+              <a className={styles.secondaryButton} href="#neotech-ruleset">{tr("Explore 14 rules", "Xem 14 tiêu chí")}</a>
             </div>
 
           </div>
           <div className={styles.heroVisualV2} aria-hidden="true">
             <Image src="/neotech-hero-v3.webp" alt="" fill sizes="(max-width: 760px) 100vw, 760px" preload className={styles.heroArtwork} />
-            <span className={styles.heroQuote}>TRADE<br />DISCIPLINE<br />BUILD<br />OPPORTUNITY</span>
-            <span className={styles.heroSignature}>Trade Smarter<br />Grow Together</span>
-            <span className={styles.heroProgram}>SIGNAL PROVIDER<br />SPECIAL PROGRAM<small>MORE THAN A TRADER<br />A PARTNER</small></span>
+            <span className={styles.heroVisualLabel}>NEOTECH / RULESET v2</span>
           </div>
         </div>
       </section>
 
 
 
-      <section className={styles.rulesetV2}>
+      <section id="neotech-ruleset" className={styles.rulesetV2}>
         <div className={styles.rulesetV2Header}>
           <div><h2>{tr("14 evaluation criteria", "14 tiêu chí đánh giá")}</h2><p>NeoTech · 2024-10-03 · Rule Ver 2</p></div>
-          <div className={styles.rulesLiveBadge} data-live="true"><span>✓</span><div><b>{profile ? tr("LIVE PROFILE", "PROFILE LIVE") : "LIVE READY"}</b><small>{profile ? `${profile.counts.pass} PASS · ${profile.counts.fail} FAIL` : tr("14 rules · Ready to connect", "14 tiêu chí · Sẵn sàng kết nối")}</small></div></div>
+          <div className={styles.rulesLiveBadge} data-live={profile ? "true" : "false"}><span>{profile ? "✓" : "·"}</span><div><b>{profile ? tr("LIVE PROFILE", "PROFILE LIVE") : tr("WAITING FOR CONNECTION", "ĐANG CHỜ KẾT NỐI")}</b><small>{profile ? `${profile.counts.pass} PASS · ${profile.counts.fail} FAIL` : tr("Connect MT5 to load a live profile", "Kết nối MT5 để tải profile live")}</small></div></div>
         </div>
+        <div className={styles.ruleGroupLabel}><span>{tr("Eligibility", "Điều kiện")}</span><small>{tr("Account entry conditions", "Điều kiện tham gia tài khoản")}</small></div>
         <div className={`${styles.ruleConceptGrid} ${styles.ruleConceptEligibility}`}>
           {RULE_CONCEPTS.slice(0, 5).map((item) => <RuleConceptCard key={item.code} item={item} liveRule={ruleByCode.get(item.code)} locale={locale} />)}
         </div>
+        <div className={styles.ruleGroupLabel}><span>{tr("Consistency", "Tính nhất quán")}</span><small>{tr("Trading behavior and execution rules", "Quy tắc hành vi và vận hành giao dịch")}</small></div>
         <div className={`${styles.ruleConceptGrid} ${styles.ruleConceptConsistency}`}>
           {RULE_CONCEPTS.slice(5, 12).map((item) => <RuleConceptCard key={item.code} item={item} liveRule={ruleByCode.get(item.code)} locale={locale} />)}
         </div>
+        <div className={styles.ruleGroupLabel}><span>{tr("Additional checks", "Kiểm tra bổ sung")}</span><small>{tr("Copy and funding safeguards", "Kiểm tra copy và dòng tiền")}</small></div>
         <div className={styles.ruleConceptBottomRow}>
           <div className={styles.ruleConceptTailGrid}>
             {RULE_CONCEPTS.slice(12).map((item) => <RuleConceptCard key={item.code} item={item} liveRule={ruleByCode.get(item.code)} locale={locale} />)}
@@ -688,7 +692,7 @@ export function NeoTechPublicDashboard() {
         </footer>
       </section>
 
-      <details className={styles.connectionTools}>
+      <details id="neotech-connect" ref={connectionToolsRef} className={styles.connectionTools}>
         <summary>{tr("Connect MT5 · Connector downloads & account access", "Kết nối MT5 · Tải connector và quyền truy cập")}</summary>
       <section className={styles.securityStripV2} aria-label="NeoTech Rule Ver 2 capabilities">
         <div className={styles.securityItemV2} data-good="true"><small>{tr("MT5 credential", "Credential MT5")}</small><b>{tr("Stays inside terminal", "Không rời terminal")}</b></div>

@@ -9,6 +9,7 @@ import { FactCheckInput } from "@/components/factcheck/FactCheckInput";
 import { FactCheckResult } from "@/components/factcheck/FactCheckResult";
 import { FactCheckMediaResult } from "@/components/factcheck/FactCheckMediaResult";
 import { trackFactCheckEvent } from "@/lib/factcheck/analytics";
+import styles from "@/components/factcheck/factcheck-workspace.module.css";
 
 export default function FactCheckPage() {
   const { locale } = useLocale();
@@ -101,9 +102,9 @@ export default function FactCheckPage() {
   };
 
   return (
-    <div className="page-shell oak-fact-screen">
+    <div className={`${styles.routeShell} factcheck-route-shell page-shell oak-fact-screen`}>
       <FactCheckHero locale={locale} />
-      <div className="oak-fact-workbench">
+      <div className={`${styles.workbench} oak-fact-workbench`}>
         <FactCheckInput
           text={text}
           setText={setText}
@@ -116,8 +117,8 @@ export default function FactCheckPage() {
       </div>
 
       {error && (
-        <div className="oak-global-error" role="alert">
-          <span>!</span><p>{error}</p>
+        <div className={`${styles.globalError} oak-global-error`} role="alert">
+          <span aria-hidden="true">!</span><p>{error}</p>
         </div>
       )}
 

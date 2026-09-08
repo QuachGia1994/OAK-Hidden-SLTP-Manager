@@ -4,6 +4,12 @@ All notable changes to the dashboard are recorded here.
 
 ## [Unreleased]
 
+### Changed
+
+- Unified H1 Live, NeoTech and all tool workspaces with theme-aware graphite/mint surfaces, stronger typography, responsive layouts and existing illustrated assets.
+- Added a localized H1 engine core with honest retained-feed metadata and a direct NeoTech connection entry. Unconnected NeoTech profiles now show a waiting state, and narrow screens use readable criterion rows.
+- Redesigned the Tools directory, Fact Check text/image workbench, Tarot question and deck layout, and Discover's five experiences while preserving their existing data, drafts, request handlers and results.
+
 ### Added
 
 - Expanded Tarot reflection with five question topics (relationship, career, personal, money and study). The selected topic is validated server-side, included in Gemini context, and shown with visible three-card position detail while legacy requests safely default to personal reflection.

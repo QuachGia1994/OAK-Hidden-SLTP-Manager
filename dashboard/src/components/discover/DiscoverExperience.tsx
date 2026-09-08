@@ -5,6 +5,7 @@ import { WorkspaceHeading } from "@/components/WorkspaceHeading";
 import { ToolArtwork, type ToolArtworkKind } from "@/components/ToolArtwork";
 import { useLocale } from "@/components/LocaleProvider";
 import type { CompatibilityReading, DreamReading } from "@/lib/discover/gemini";
+import styles from "./discover-workspace.module.css";
 
 type MoodEntry = { date: string; score: number; label: string; note: string };
 type DailyState = { date: string; streak: number; lastDate: string; message: DailyMessage };
@@ -94,7 +95,7 @@ function dailyMessage(locale: "EN" | "VN", key: string): DailyMessage {
 
 function FeatureHeader({ index, title, subtitle }: { index: string; title: string; subtitle: string; glyph: string }) {
   const artwork: Record<string, ToolArtworkKind> = { "01": "daily", "02": "dream", "03": "oracle", "04": "mood", "05": "compatibility" };
-  return <header className="discover-card-head" data-art={index === "04" ? "none" : undefined}>{index !== "04" && <ToolArtwork kind={artwork[index]} />}<div><h2>{title}</h2>{(index === "02" || index === "05") && <small className="discover-ai-badge">AI</small>}<p className={index === "01" ? undefined : "sr-only"}>{subtitle}</p></div></header>;
+  return <header className={`discover-card-head ${styles.featureHeader}`} data-art={index === "04" ? "none" : undefined}>{index !== "04" && <ToolArtwork kind={artwork[index]} />}<div><h2>{title}</h2>{(index === "02" || index === "05") && <small className="discover-ai-badge">AI</small>}<p className={styles.featureSubtitle}>{subtitle}</p></div></header>;
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
@@ -185,13 +186,13 @@ export function DiscoverExperience() {
   const streak = daily?.streak || 0;
   const activeDailyMessage = daily?.date === today ? dailyMessage(locale, today) : null;
   return (
-    <div className="page-shell discover-screen">
+    <div className={`${styles.screen} page-shell discover-screen discover-route-shell`}>
       <WorkspaceHeading workspace="discover" locale={locale} />
 
-      {error && <div className="oak-global-error" role="alert"><span>!</span><p>{error}</p></div>}
+      {error && <div className={`oak-global-error ${styles.error}`} role="alert"><span>!</span><p>{error}</p></div>}
 
-      <div className="discover-grid">
-        <section id="daily" className="discover-card discover-daily">
+      <div className={`${styles.experienceGrid} discover-grid`}>
+        <section id="daily" className={`${styles.card} ${styles.daily} discover-card discover-daily`}>
           <FeatureHeader index="01" title={copy.daily.title} subtitle={copy.daily.subtitle} glyph="DAILY RITUAL" />
           <span className="discover-streak" title={copy.streak}>✦ {streak} {locale === "EN" ? "days" : "ngày"}</span>
           {daily?.date === today && activeDailyMessage ? (
@@ -207,7 +208,7 @@ export function DiscoverExperience() {
           )}
         </section>
 
-        <section id="dream" className="discover-card discover-dream">
+        <section id="dream" className={`${styles.card} discover-card discover-dream`}>
           <FeatureHeader index="02" title={copy.dream.title} subtitle={copy.dream.subtitle} glyph="GEMINI REFLECTION" />
           <form className="discover-form" onSubmit={submitDream}>
             <textarea aria-label={copy.dream.title} value={dream} onChange={(event) => setDream(event.target.value)} placeholder={copy.dream.placeholder} maxLength={3000} rows={2} disabled={dreamLoading} />
@@ -216,20 +217,20 @@ export function DiscoverExperience() {
           {dreamReading && <div className="discover-ai-result"><p className="discover-summary">{dreamReading.summary}</p><div className="discover-symbols">{dreamReading.symbols.map((item) => <article key={item.symbol}><b>{item.symbol}</b><p>{item.interpretation}</p></article>)}</div><article className="discover-result-strip"><small>{copy.dream.theme}</small><p>{dreamReading.emotional_theme}</p></article><article className="discover-result-strip"><small>{copy.dream.reflection}</small><p>{dreamReading.reflection}</p></article><article className="discover-result-strip accent"><small>{copy.dream.next}</small><p>{dreamReading.next_step}</p></article></div>}
         </section>
 
-        <section id="oracle" className="discover-card discover-oracle">
+        <section id="oracle" className={`${styles.card} discover-card discover-oracle`}>
           <FeatureHeader index="03" title={copy.oracle.title} subtitle={copy.oracle.subtitle} glyph="QUICK ORACLE" />
           <form className="discover-form discover-oracle-form" onSubmit={askOracle}><input aria-label={copy.oracle.placeholder} value={oracleQuestion} onChange={(event) => setOracleQuestion(event.target.value)} placeholder={copy.oracle.placeholder} maxLength={220} /><button type="submit">{copy.oracle.action}</button></form>
           {oracleResult && <div className="oracle-result"><span className="oracle-ring"><i /><b>{oracleResult.answer}</b></span><p>{oracleResult.detail}</p><small>“{oracleResult.question}”</small></div>}
         </section>
 
-        <section id="mood" className="discover-card">
+        <section id="mood" className={`${styles.card} discover-card`}>
           <FeatureHeader index="04" title={copy.mood.title} subtitle={copy.mood.subtitle} glyph="LOCAL CHECK-IN" />
           <div className="mood-picker">{copy.mood.labels.map((label, index) => <button type="button" key={label} aria-label={label} aria-pressed={moodScore === index + 1} data-active={moodScore === index + 1 ? "true" : undefined} onClick={() => setMoodScore(index + 1)}><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" /><circle cx="11" cy="12" r="1" /><circle cx="21" cy="12" r="1" /><path d={["M9 23Q16 12 23 23", "M10 22Q16 16 22 22", "M10 21H22", "M10 19Q16 26 22 19", "M9 18Q16 29 23 18"][index]} /></svg><span>{label}</span></button>)}</div>
           <div className="mood-note"><input aria-label={copy.mood.note} value={moodNote} onChange={(event) => setMoodNote(event.target.value)} placeholder={copy.mood.note} maxLength={240} /><button type="button" onClick={saveMood}>{copy.mood.save}</button></div>
           <div className="mood-history"><small>{copy.mood.history}</small><div>{moods.length ? moods.map((entry) => <article key={entry.date} title={entry.note || entry.label}><i style={{ height: `${18 + entry.score * 14}%` }} /><b>{entry.score}</b><span>{entry.date.slice(5).replace("-", "/")}</span></article>) : <p>—</p>}</div></div>
         </section>
 
-        <section id="compatibility" className="discover-card discover-compatibility">
+        <section id="compatibility" className={`${styles.card} discover-card discover-compatibility`}>
           <FeatureHeader index="05" title={copy.compatibility.title} subtitle={copy.compatibility.subtitle} glyph="GEMINI PLAY" />
           <form className="discover-form" onSubmit={submitCompatibility}>
             <div className="compat-names"><input aria-label={copy.compatibility.a} value={compatA} onChange={(event) => setCompatA(event.target.value)} placeholder={copy.compatibility.a} maxLength={80} /><span>×</span><input aria-label={copy.compatibility.b} value={compatB} onChange={(event) => setCompatB(event.target.value)} placeholder={copy.compatibility.b} maxLength={80} /></div>
@@ -240,8 +241,8 @@ export function DiscoverExperience() {
         </section>
       </div>
 
-      <p className="discover-local-note">{copy.localNote}</p>
-      <p className="discover-disclaimer">{locale === "EN" ? "Discover experiences are for entertainment and reflection, not professional or predictive advice." : "Các mục Khám phá phục vụ giải trí và chiêm nghiệm, không phải tư vấn chuyên môn hay dự đoán chắc chắn."}</p>
+      <p className={`${styles.localNote} discover-local-note`}>{copy.localNote}</p>
+      <p className={`${styles.disclaimer} discover-disclaimer`}>{locale === "EN" ? "Discover experiences are for entertainment and reflection, not professional or predictive advice." : "Các mục Khám phá phục vụ giải trí và chiêm nghiệm, không phải tư vấn chuyên môn hay dự đoán chắc chắn."}</p>
     </div>
   );
 }

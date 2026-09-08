@@ -1,0 +1,263 @@
+.shell {
+  --tools-canvas: var(--engine-canvas, var(--oak-bg-canvas));
+  --tools-surface: var(--engine-surface, var(--oak-bg-surface));
+  --tools-raised: var(--engine-raised, var(--oak-bg-raised));
+  --tools-ink: var(--engine-fg, var(--oak-fg-primary));
+  --tools-muted: var(--engine-muted, var(--oak-fg-muted));
+  --tools-accent: var(--engine-accent, var(--oak-accent-command));
+  --tools-accent-strong: var(--engine-accent-strong, var(--oak-accent-command-strong));
+  --tools-line: var(--engine-line, var(--oak-border-subtle));
+  --tools-glow: var(--engine-glow, color-mix(in srgb, var(--oak-accent-command) 14%, transparent));
+  --tools-shadow: var(--engine-shadow, var(--oak-shadow-2));
+  max-width: 76rem;
+  padding-block: clamp(1.5rem, 4vw, 3.5rem) clamp(2.5rem, 6vw, 5rem);
+  color: var(--tools-ink);
+}
+
+.heading {
+  display: grid;
+  gap: .8rem;
+  max-width: 46rem;
+  padding: clamp(.75rem, 2vw, 1.25rem) 0 clamp(1.75rem, 4vw, 3rem);
+}
+
+.headingMeta {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  color: var(--tools-accent);
+  font: 800 .78rem/1.2 "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .14em;
+}
+
+.headingRule {
+  width: 3.5rem;
+  height: 1px;
+  background: var(--tools-line);
+}
+
+.headingMark {
+  color: var(--tools-accent-strong);
+  font-size: 1rem;
+}
+
+.heading h1 {
+  margin: 0;
+  color: var(--tools-ink);
+  font-size: clamp(3.4rem, 9vw, 7.5rem);
+  font-weight: 850;
+  letter-spacing: -.085em;
+  line-height: .88;
+}
+
+.heading p {
+  max-width: 34rem;
+  margin: 0;
+  color: var(--tools-muted);
+  font-size: clamp(1rem, 1.8vw, 1.2rem);
+  line-height: 1.5;
+}
+
+.directory {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(.8rem, 2vw, 1.35rem);
+}
+
+.shell .card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(11rem, 1fr) auto auto;
+  gap: 1rem;
+  min-height: 30rem;
+  padding: clamp(1rem, 2vw, 1.35rem);
+  overflow: hidden;
+  border: 1px solid var(--tools-line);
+  border-radius: 1.1rem;
+  color: var(--tools-ink);
+  background: linear-gradient(155deg, var(--tools-surface), color-mix(in srgb, var(--tools-raised) 80%, var(--tools-canvas)));
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--tools-accent) 16%, transparent), var(--tools-shadow);
+  text-decoration: none;
+  transition: border-color var(--oak-motion-base) var(--oak-ease), transform var(--oak-motion-base) var(--oak-ease), box-shadow var(--oak-motion-base) var(--oak-ease);
+}
+
+.shell .card::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: radial-gradient(circle at 90% 7%, var(--tools-glow), transparent 38%);
+  pointer-events: none;
+}
+
+.shell .card[data-kind="tarot"] {
+  background: linear-gradient(155deg, var(--tools-surface), color-mix(in srgb, var(--tools-accent) 9%, var(--tools-canvas)));
+}
+
+.shell .card:hover {
+  border-color: var(--tools-accent);
+  box-shadow: 0 1rem 2.5rem color-mix(in srgb, var(--tools-accent) 15%, transparent), var(--tools-shadow);
+  transform: translateY(-.3rem);
+}
+
+.shell .card:focus-visible {
+  outline: 3px solid var(--tools-accent-strong);
+  outline-offset: 4px;
+}
+
+.cardTop,
+.cardBody,
+.openAction,
+.artworkFrame {
+  position: relative;
+  z-index: 1;
+}
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  color: var(--tools-muted);
+  font: 800 .78rem/1.2 "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .12em;
+}
+
+.index {
+  color: var(--tools-accent);
+}
+
+.category {
+  text-align: right;
+}
+
+.artworkFrame {
+  display: grid;
+  min-height: 11rem;
+  place-items: center;
+  overflow: hidden;
+  border-radius: .75rem;
+  background: color-mix(in srgb, var(--tools-canvas) 48%, transparent);
+}
+
+.artworkFrame :global(.oak-tool-art) {
+  width: min(100%, 15rem);
+  height: auto;
+  min-height: 0;
+  aspect-ratio: 1;
+  background-size: 300% 300%;
+  transform: scale(1.12);
+  transition: transform var(--oak-motion-base) var(--oak-ease);
+}
+
+.shell .card:hover .artworkFrame :global(.oak-tool-art) {
+  transform: scale(1.18);
+}
+
+.cardBody {
+  display: grid;
+  gap: .4rem;
+}
+
+.cardBody h2 {
+  margin: 0;
+  color: var(--tools-ink);
+  font-size: clamp(1.65rem, 3vw, 2.25rem);
+  font-weight: 850;
+  letter-spacing: -.055em;
+  line-height: 1;
+}
+
+.cardBody p {
+  margin: 0;
+  color: var(--tools-muted);
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.openAction {
+  display: flex;
+  min-height: var(--oak-touch-min);
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: .9rem;
+  border-top: 1px solid var(--tools-line);
+  color: var(--tools-accent-strong);
+  font-size: .9rem;
+  font-weight: 800;
+}
+
+.openAction span {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+@media (max-width: 800px) {
+  .directory {
+    grid-template-columns: 1fr;
+  }
+
+  .shell .card {
+    grid-template-columns: minmax(0, 1fr) minmax(9rem, 34%);
+    grid-template-rows: auto 1fr auto;
+    min-height: 15rem;
+    gap: .85rem 1rem;
+  }
+
+  .cardTop {
+    grid-column: 1 / -1;
+  }
+
+  .artworkFrame {
+    grid-column: 2;
+    grid-row: 2 / span 2;
+    min-height: 10rem;
+  }
+
+  .artworkFrame :global(.oak-tool-art) {
+    max-width: 11rem;
+  }
+
+  .cardBody {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: end;
+  }
+
+  .openAction {
+    grid-column: 1;
+    grid-row: 3;
+  }
+}
+
+@media (max-width: 480px) {
+  .shell {
+    padding-top: 1rem;
+  }
+
+  .heading h1 {
+    font-size: clamp(3.1rem, 19vw, 5rem);
+  }
+
+  .shell .card {
+    grid-template-columns: minmax(0, 1fr) minmax(7.5rem, 34%);
+    min-height: 14rem;
+    padding: 1rem;
+  }
+
+  .artworkFrame {
+    min-height: 8rem;
+  }
+
+  .cardBody h2 {
+    font-size: 1.55rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell .card,
+  .artworkFrame :global(.oak-tool-art) {
+    transition: none;
+  }
+}
