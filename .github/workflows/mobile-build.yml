@@ -72,7 +72,7 @@ jobs:
           grep -n '@color/oak_launcher_mask_bg' app/src/main/res/mipmap-anydpi/ic_launcher.xml
           grep -n '@drawable/oak_launcher_foreground' app/src/main/res/mipmap-anydpi/ic_launcher.xml
           grep -n '@drawable/oak_launcher_monochrome' app/src/main/res/mipmap-anydpi/ic_launcher.xml
-          grep -n '<color name="oak_launcher_mask_bg">#08111F</color>' app/src/main/res/values/colors.xml
+          grep -n '<color name="oak_launcher_mask_bg">#07110F</color>' app/src/main/res/values/colors.xml
 
       - name: Build release APK first
         working-directory: android-native
