@@ -1404,9 +1404,35 @@ test("39 untargeted close fans out atomically to every enabled MT5 account", { c
     assert.ok(fanout.every((intent) => intent.kind === "close" && intent.status === "scheduled"));
     assert.ok(fanout.every((intent) => intent.payload.scope === "XAUUSD"));
     assert.equal(new Set(fanout.map((intent) => intent.originKey)).size, 2);
-    assert.match(state.commands["391:0"].outcome, /acct-a/);
-    assert.match(state.commands["391:0"].outcome, /acct-b/);
+    const closeOutcome = state.commands["391:0"].outcome;
+    assert.match(closeOutcome, /acct-a/);
+    assert.match(closeOutcome, /acct-b/);
+    assert.equal((closeOutcome.match(/Close: XAUUSD/g) || []).length, 2);
+    for (const intent of fanout) {
+      const shortId = intent.id.split("-").at(-1);
+      assert.match(closeOutcome, new RegExp(`ID: ${shortId}\\b`));
+      assert.match(closeOutcome, new RegExp(`Cancel: \\/del ${shortId}\\b`));
+    }
     assert.equal(h.eaExecutions, 0);
+
+    await h.runtime.processTelegramUpdate(h.config, state, {
+      update_id: 393,
+      message: {
+        chat: { id: 123 },
+        text: "Đóng USDCAD 18h49\nBuy gbpusd 0.04 18H49 acct-a\nBuy gbpusd 0.01 18H49 @acct-b",
+      },
+    }, statuses);
+    const multilineOutcome = state.pendingReplies["393"].text;
+    const multilineClose = Object.values(state.intents).filter((intent) => intent.sourceUpdateId === 393 && intent.kind === "close");
+    assert.equal(multilineClose.length, 2);
+    assert.equal((multilineOutcome.match(/Close: USDCAD/g) || []).length, 2);
+    assert.match(multilineOutcome, /Entry: BUY/);
+    for (const intent of multilineClose) {
+      const shortId = intent.id.split("-").at(-1);
+      assert.match(multilineOutcome, new RegExp(`Profile: ${intent.accountLabel}`));
+      assert.match(multilineOutcome, new RegExp(`ID: ${shortId}\\b`));
+      assert.match(multilineOutcome, new RegExp(`Cancel: \\/del ${shortId}\\b`));
+    }
 
     await h.runtime.processTelegramUpdate(h.config, state, { update_id: 392, message: { chat: { id: 123 }, text: "Đóng all lúc 23h59 @acct-b" } }, statuses);
     const targeted = Object.values(state.intents).filter((intent) => intent.sourceUpdateId === 392);

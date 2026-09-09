@@ -1528,6 +1528,33 @@ export function createLocalFailoverRuntime(options = {}) {
         ...(status === "scheduled" ? ["• Auto: armed; executes at due time without /approve"] : [`• Confirm: /approve ${shortId}`]),
       ].join("\n");
     }
+    if (parsed.kind === "close") {
+      const scope = String(payload.scope || "ALL").toUpperCase();
+      return [
+        `✅ ${config.controlMode === LOCAL_PRIMARY_MODE ? "Local" : "Local failover"} close intent #${shortId} saved`,
+        `• Close: ${scope}`,
+        `• Profile: ${account.label}`,
+        `• Time: ${localIntentTimeText(intent)}`,
+        `• Status: ${status}`,
+        `• ID: ${shortId}`,
+        `• Cancel: /del ${shortId}`,
+        ...(status === "scheduled" ? ["• Auto: armed; executes at due time without /approve"] : [`• Confirm: /approve ${shortId}`]),
+      ].join("\n");
+    }
+    if (parsed.kind === "close") {
+      const scope = String(intent.payload?.scope || parsed.payload?.scope || "ALL").toUpperCase();
+      return [
+        `✅ Close ${scope} @${account.label} · #${shortId} saved`,
+        `• Close: ${scope}`,
+        `• Profile: ${account.label}`,
+        `• Time: ${localIntentTimeText(intent)}`,
+        `• Status: ${status}`,
+        `• ID: ${shortId}`,
+        `• Cancel: /del ${shortId}`,
+        `/del ${shortId}`,
+        ...(status === "scheduled" ? ["• Auto: armed; executes at due time without /approve"] : [`• Confirm: /approve ${shortId}`]),
+      ].join("\n");
+    }
     return [
       `✅ ${config.controlMode === LOCAL_PRIMARY_MODE ? "Local" : "Local failover"} intent #${shortId} saved`,
       `• Action: ${parsed.kind}`,
