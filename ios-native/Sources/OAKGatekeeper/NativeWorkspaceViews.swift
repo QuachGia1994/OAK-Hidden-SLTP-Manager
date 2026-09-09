@@ -138,21 +138,21 @@ struct NativeToolsView: View {
                     title: state.text(vn: "Tín hiệu", en: "Signals"),
                     detail: state.text(vn: "Radar BUY/SELL + drill-down evidence M15", en: "BUY/SELL radar + M15 evidence drill-down"),
                     symbol: "waveform.path.ecg",
-                    destination: SignalsView()
+                    route: AppState.ToolsRoute.signals
                 )
 
                 nativeToolLink(
                     title: state.text(vn: "Báo cáo", en: "Reports"),
                     detail: state.text(vn: "Tóm tắt dữ liệu H1 đã lưu", en: "Summary of retained H1 data"),
                     symbol: "chart.bar.xaxis",
-                    destination: ReportsView()
+                    route: AppState.ToolsRoute.reports
                 )
 
                 nativeToolLink(
                     title: state.text(vn: "Hệ thống & tài khoản", en: "System & Accounts"),
                     detail: state.text(vn: "Theme, locale, provider heartbeat và account toggle", en: "Theme, locale, provider heartbeat and account toggles"),
                     symbol: "slider.horizontal.3",
-                    destination: MoreView()
+                    route: AppState.ToolsRoute.system
                 )
 
                 OAKCard {
@@ -173,8 +173,8 @@ struct NativeToolsView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private func nativeToolLink<Destination: View>(title: String, detail: String, symbol: String, destination: Destination) -> some View {
-        NavigationLink(destination: destination) {
+    private func nativeToolLink(title: String, detail: String, symbol: String, route: AppState.ToolsRoute) -> some View {
+        NavigationLink(value: route) {
             OAKCard {
                 HStack(spacing: 13) {
                     Image(systemName: symbol)

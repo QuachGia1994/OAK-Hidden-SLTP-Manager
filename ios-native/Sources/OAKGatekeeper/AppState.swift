@@ -8,7 +8,12 @@ final class AppState {
         case live, neotech, tools
     }
 
+    enum ToolsRoute: Hashable, Sendable {
+        case signals, reports, system
+    }
+
     var selectedTab: Tab = .live
+    var toolsPath: [ToolsRoute] = []
     var apiKey: String
     var payload: MobileAppPayload?
     var isLoading = false
@@ -57,6 +62,7 @@ final class AppState {
         apiKey = ""
         payload = nil
         selectedTab = .live
+        toolsPath.removeAll()
     }
 
     func refresh(forceLoading: Bool = false) async {

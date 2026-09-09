@@ -16,7 +16,16 @@ struct MainTabView: View {
             }
 
             Tab(state.text(vn: "Công cụ", en: "Tools"), systemImage: "slider.horizontal.3", value: AppState.Tab.tools) {
-                NavigationStack { NativeToolsView() }
+                NavigationStack(path: $state.toolsPath) {
+                    NativeToolsView()
+                        .navigationDestination(for: AppState.ToolsRoute.self) { route in
+                            switch route {
+                            case .signals: SignalsView()
+                            case .reports: ReportsView()
+                            case .system: MoreView()
+                            }
+                        }
+                }
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)

@@ -363,6 +363,11 @@ test("native iOS and Android mirror the web three-tab hierarchy with animated H1
   assert.match(nativeH1BoardSource, /rotation3DEffect/);
   assert.match(nativeWorkspaceSource, /struct NeoTechNativeView/);
   assert.match(nativeWorkspaceSource, /struct NativeToolsView/);
+  assert.match(nativeAppStateSource, /enum ToolsRoute: Hashable, Sendable/);
+  assert.match(nativeAppStateSource, /var toolsPath: \[ToolsRoute\] = \[\]/);
+  assert.match(nativeMainTabSource, /NavigationStack\(path: \$state\.toolsPath\)/);
+  assert.match(nativeWorkspaceSource, /route: AppState\.ToolsRoute\.system/);
+  assert.match(nativeWorkspaceSource, /NavigationLink\(value: route\)/);
 
   assert.match(androidMainSource, /OAKTab\.LIVE/);
   assert.match(androidMainSource, /OAKTab\.NEOTECH/);
@@ -377,6 +382,7 @@ test("native iOS and Android mirror the web three-tab hierarchy with animated H1
   assert.match(androidScreensSource, /rotationY = 72f; rotationX = vertical/);
   assert.match(androidScreensSource, /fun NeoTechScreen/);
   assert.match(androidScreensSource, /fun ToolsScreen/);
+  assert.match(androidScreensSource, /BackHandler\(enabled = panel != NativeToolPanel\.DIRECTORY\)/);
   assert.doesNotMatch(androidScreensSource + androidMainSource, /VIP UNLOCKED|HỆ THỐNG ONLINE|DashboardScreen|OAK SLTP/);
 });
 

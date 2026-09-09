@@ -5,6 +5,7 @@ package uk.oakgatekeeper.mobile
 import android.content.Intent
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -717,6 +718,9 @@ private enum class NativeToolPanel { DIRECTORY, SIGNALS, REPORTS, SYSTEM }
 @Composable
 fun ToolsScreen(state: OAKAppState) {
     var panel by remember { mutableStateOf(NativeToolPanel.DIRECTORY) }
+    BackHandler(enabled = panel != NativeToolPanel.DIRECTORY) {
+        panel = NativeToolPanel.DIRECTORY
+    }
     when (panel) {
         NativeToolPanel.SIGNALS -> {
             SignalsScreen(state) { panel = NativeToolPanel.DIRECTORY }
