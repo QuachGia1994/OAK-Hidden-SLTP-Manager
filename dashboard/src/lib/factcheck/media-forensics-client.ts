@@ -166,7 +166,10 @@ export async function collectMediaForensics(args: {
         "Content-Length": String(args.buffer.byteLength),
       },
       body: new Uint8Array(args.buffer),
-      signal: AbortSignal.timeout(6_000),
+      // The sidecar runs C2PA and its detector concurrently with a 5s maximum
+      // internal deadline. Leave transport/validation headroom without nearing
+      // the route's 60s serverless budget.
+      signal: AbortSignal.timeout(8_000),
     });
     if (!response.ok) throw new Error(`forensics HTTP ${response.status}`);
     const payload = await response.json() as RawForensicsResponse;
@@ -190,8 +193,8 @@ export async function collectMediaForensics(args: {
   } catch (error) {
     const timeout = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
     const note = args.locale === "VN"
-      ? (timeout ? "Detector/forensics vượt quá giới hạn 6 giây." : "Dịch vụ detector/forensics thất bại trong lần kiểm tra này.")
-      : (timeout ? "The detector/forensics service exceeded its 6-second budget." : "The detector/forensics service failed for this analysis.");
+      ? (timeout ? "Detector/forensics vượt quá giới hạn 8 giây." : "Dịch vụ detector/forensics thất bại trong lần kiểm tra này.")
+      : (timeout ? "The detector/forensics service exceeded its 8-second budget." : "The detector/forensics service failed for this analysis.");
     const detectors = normalizeSpecialistDetectorResults(undefined, args.locale);
     return {
       ok: false,

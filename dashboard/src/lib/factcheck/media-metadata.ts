@@ -61,35 +61,155 @@ function readIfdAscii(tiff: Buffer, tagWanted: number): string | undefined {
   return undefined;
 }
 
+interface TextMetadataEntry {
+  key: string;
+  value: string;
+}
+
+function cleanMetadataText(value: Buffer | string, max = 8_192): string | undefined {
+  const decoded = Buffer.isBuffer(value) ? value.toString("utf8") : value;
+  return cleanAscii(decoded, max);
+}
+
+function pngTextEntries(buffer: Buffer): TextMetadataEntry[] {
+  if (buffer.length < 12 || !buffer.subarray(0, 8).equals(Buffer.from("89504e470d0a1a0a", "hex"))) return [];
+  const entries: TextMetadataEntry[] = [];
+  let offset = 8;
+  while (offset + 12 <= buffer.length) {
+    const length = buffer.readUInt32BE(offset);
+    const type = buffer.toString("ascii", offset + 4, offset + 8);
+    const start = offset + 8;
+    const end = start + length;
+    if (length > 1_000_000 || end + 4 > buffer.length) break;
+    const data = buffer.subarray(start, end);
+    if (type === "tEXt") {
+      const separator = data.indexOf(0);
+      if (separator > 0) {
+        const key = cleanAscii(data.subarray(0, separator).toString("latin1"), 80);
+        const value = cleanMetadataText(data.subarray(separator + 1));
+        if (key && value) entries.push({ key, value });
+      }
+    } else if (type === "iTXt") {
+      const keywordEnd = data.indexOf(0);
+      if (keywordEnd > 0 && keywordEnd + 3 <= data.length && data[keywordEnd + 1] === 0) {
+        const languageEnd = data.indexOf(0, keywordEnd + 3);
+        const translatedEnd = languageEnd < 0 ? -1 : data.indexOf(0, languageEnd + 1);
+        if (translatedEnd >= 0) {
+          const key = cleanAscii(data.subarray(0, keywordEnd).toString("latin1"), 80);
+          const value = cleanMetadataText(data.subarray(translatedEnd + 1));
+          if (key && value) entries.push({ key, value });
+        }
+      }
+    }
+    offset = end + 4;
+    if (type === "IEND") break;
+  }
+  return entries.slice(0, 32);
+}
+
+function jpegMetadata(buffer: Buffer): { tiff: Buffer | null; text: TextMetadataEntry[] } {
+  if (buffer.length < 4 || buffer[0] !== 0xff || buffer[1] !== 0xd8) return { tiff: null, text: [] };
+  let offset = 2;
+  let tiff: Buffer | null = null;
+  const text: TextMetadataEntry[] = [];
+  while (offset + 4 <= buffer.length && buffer[offset] === 0xff) {
+    const marker = buffer[offset + 1];
+    offset += 2;
+    if (marker === 0xda || marker === 0xd9) break;
+    const length = buffer.readUInt16BE(offset);
+    if (length < 2 || offset + length > buffer.length) break;
+    const payload = buffer.subarray(offset + 2, offset + length);
+    if (marker === 0xe1 && payload.subarray(0, 6).toString("ascii") === "Exif\u0000\u0000") {
+      tiff ||= payload.subarray(6);
+    } else if (marker === 0xe1 && payload.subarray(0, 29).toString("ascii") === "http://ns.adobe.com/xap/1.0/\u0000") {
+      const value = cleanMetadataText(payload.subarray(29));
+      if (value) text.push({ key: "xmp", value });
+    }
+    offset += length;
+  }
+  return { tiff, text };
+}
+
+function webpMetadata(buffer: Buffer): { tiff: Buffer | null; text: TextMetadataEntry[] } {
+  if (buffer.length < 12 || buffer.toString("ascii", 0, 4) !== "RIFF" || buffer.toString("ascii", 8, 12) !== "WEBP") return { tiff: null, text: [] };
+  let offset = 12;
+  let tiff: Buffer | null = null;
+  const text: TextMetadataEntry[] = [];
+  while (offset + 8 <= buffer.length) {
+    const type = buffer.toString("ascii", offset, offset + 4);
+    const length = buffer.readUInt32LE(offset + 4);
+    const start = offset + 8;
+    const end = start + length;
+    if (length > 2_000_000 || end > buffer.length) break;
+    const payload = buffer.subarray(start, end);
+    if (type === "EXIF") tiff ||= payload.subarray(0, 6).toString("ascii") === "Exif\u0000\u0000" ? payload.subarray(6) : payload;
+    if (type === "XMP ") {
+      const value = cleanMetadataText(payload);
+      if (value) text.push({ key: "xmp", value });
+    }
+    offset = end + (length % 2);
+  }
+  return { tiff, text };
+}
+
+const GENERATOR_PATTERNS = [
+  /\bmidjourney\b/i,
+  /\bstable[\s_-]+diffusion\b/i,
+  /\bautomatic\s*1111\b/i,
+  /\bcomfyui\b/i,
+  /\badobe\s+firefly\b/i,
+  /\bdall(?:[-\s]?e)(?:\s*[23])?\b/i,
+  /\b(?:invokeai|fooocus|novelai)\b/i,
+  /\b(?:black[\s-]+forest[\s-]+labs|flux\.(?:1|2)|flux1)\b/i,
+];
+const EDITOR_PATTERNS = [
+  /\badobe\s+photoshop\b/i,
+  /\badobe\s+lightroom\b/i,
+  /\bgimp(?:\s+\d+(?:\.\d+)*)?\b/i,
+  /\baffinity\s+(?:photo|designer)\b/i,
+  /\bpixelmator(?:\s+pro)?\b/i,
+  /\bcapture\s+one\b/i,
+];
+
+function matchingMetadataValue(entries: TextMetadataEntry[], patterns: RegExp[]): string | undefined {
+  for (const entry of entries) {
+    const key = entry.key.toLowerCase();
+    const fields = key === "xmp"
+      ? entry.value.match(/(?:CreatorTool|Software|Generator|Model|parameters)=["']([^"']{1,300})["']/gi)?.map((value) => value.replace(/^[^=]+=["']|["']$/g, "")) || []
+      : /^(?:software|generator|parameters|workflow|source)$/i.test(key) ? [entry.value] : [];
+    for (const field of fields) {
+      if (patterns.some((pattern) => pattern.test(field))) return cleanAscii(field, 160);
+    }
+  }
+  return undefined;
+}
+
 function scanC2paMarker(buffer: Buffer): boolean {
   // Presence only. This is deliberately NOT signature verification.
-  const haystack = buffer.subarray(0, Math.min(buffer.length, 2_000_000)).toString("latin1").toLowerCase();
-  return haystack.includes("c2pa") || haystack.includes("content credentials");
+  return pngTextEntries(buffer).some((entry) => /(?:^|[.:_-])c2pa(?:$|[.:_-])/i.test(entry.key))
+    || buffer.includes(Buffer.from("c2pa.claim"))
+    || buffer.includes(Buffer.from("application/c2pa"));
 }
 
 export function extractPrivateImageMetadata(buffer: Buffer): PrivateImageMetadata {
-  const tiff = findExifPayload(buffer);
+  const jpeg = jpegMetadata(buffer);
+  const webp = webpMetadata(buffer);
+  const tiff = jpeg.tiff || webp.tiff || findExifPayload(buffer);
+  const textEntries = [...pngTextEntries(buffer), ...jpeg.text, ...webp.text];
+  const exifSoftware = cleanAscii(tiff ? readIfdAscii(tiff, 0x0131) : undefined);
+  if (exifSoftware) textEntries.unshift({ key: "Software", value: exifSoftware });
+  const generatorSoftware = matchingMetadataValue(textEntries, GENERATOR_PATTERNS);
+  const editorSoftware = matchingMetadataValue(textEntries, EDITOR_PATTERNS);
   return {
-    software: cleanAscii(tiff ? readIfdAscii(tiff, 0x0131) : undefined),
+    software: exifSoftware || generatorSoftware || editorSoftware,
+    generatorSoftware,
+    editorSoftware,
     cameraMake: cleanAscii(tiff ? readIfdAscii(tiff, 0x010f) : undefined),
     cameraModel: cleanAscii(tiff ? readIfdAscii(tiff, 0x0110) : undefined),
     capturedAt: cleanAscii(tiff ? readIfdAscii(tiff, 0x0132) : undefined, 80),
     c2paMarkerPresent: scanC2paMarker(buffer),
   };
 }
-
-const GENERATOR_MARKERS = [
-  "midjourney",
-  "stable diffusion",
-  "automatic1111",
-  "comfyui",
-  "adobe firefly",
-  "dall-e",
-  "openai",
-  "flux",
-];
-
-const EDITOR_MARKERS = ["photoshop", "lightroom", "gimp", "affinity", "pixelmator", "capture one"];
 
 export function buildDeterministicMediaFindings(
   technical: ImagePublicTechnicalFacts,
@@ -102,27 +222,28 @@ export function buildDeterministicMediaFindings(
   privatePromptMetadata: Record<string, string | boolean | number | undefined>;
 } {
   const software = cleanAscii(metadata.software, 120);
-  const normalizedSoftware = software?.toLowerCase() || "";
+  const generatorSoftware = cleanAscii(metadata.generatorSoftware, 120);
+  const editorSoftware = cleanAscii(metadata.editorSoftware, 120);
   const signals: ImageAuthenticitySignal[] = [];
 
-  if (software && GENERATOR_MARKERS.some((marker) => normalizedSoftware.includes(marker))) {
+  if (generatorSoftware) {
     signals.push({
       source: "metadata",
       kind: "generator_software_tag",
       label: locale === "VN" ? "Dấu vết phần mềm tạo ảnh" : "Generator software tag",
       finding: locale === "VN"
-        ? `Metadata khai báo phần mềm "${software}". Đây là dấu hiệu nguồn gốc, nhưng metadata có thể bị sửa hoặc xóa.`
-        : `Metadata names "${software}". This is an origin signal, but metadata can be changed or stripped.`,
+        ? `Metadata khai báo phần mềm "${generatorSoftware}". Đây là dấu hiệu nguồn gốc, nhưng metadata có thể bị sửa hoặc xóa.`
+        : `Metadata names "${generatorSoftware}". This is an origin signal, but metadata can be changed or stripped.`,
       strength: "moderate",
     });
-  } else if (software && EDITOR_MARKERS.some((marker) => normalizedSoftware.includes(marker))) {
+  } else if (editorSoftware) {
     signals.push({
       source: "metadata",
       kind: "editor_software_tag",
       label: locale === "VN" ? "Dấu vết phần mềm chỉnh sửa" : "Editing software tag",
       finding: locale === "VN"
-        ? `Metadata khai báo phần mềm "${software}". Điều này cho thấy file đã đi qua công cụ chỉnh sửa, không chứng minh có chỉnh sửa gian dối.`
-        : `Metadata names "${software}". This shows the file passed through an editor; it does not prove deceptive manipulation.`,
+        ? `Metadata khai báo phần mềm "${editorSoftware}". Điều này cho thấy file đã đi qua công cụ chỉnh sửa, không chứng minh có chỉnh sửa gian dối.`
+        : `Metadata names "${editorSoftware}". This shows the file passed through an editor; it does not prove deceptive manipulation.`,
       strength: "weak",
     });
   }

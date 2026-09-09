@@ -19,6 +19,8 @@ venv/
 .mimocode/
 .opencode/
 .pxswift/
+.postman/
+postman/
 scratch/
 
 # Secrets / machine-local config

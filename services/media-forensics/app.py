@@ -299,8 +299,10 @@ def analyze(image_bytes: bytes, mime: str) -> dict[str, Any]:
         for detector_id, detector_fn in _enabled_detector_functions()
     ]
 
+    c2pa_deadline = time.monotonic() + C2PA_TIMEOUT_SECONDS
+    detector_deadline = time.monotonic() + DETECTOR_TIMEOUT_SECONDS
     try:
-        c2pa_result = c2pa_future.result(timeout=C2PA_TIMEOUT_SECONDS)
+        c2pa_result = c2pa_future.result(timeout=max(0.0, c2pa_deadline - time.monotonic()))
     except FutureTimeoutError:
         c2pa_result = {
             "state": "verification_error",
@@ -313,7 +315,9 @@ def analyze(image_bytes: bytes, mime: str) -> dict[str, Any]:
     detector_results: list[dict[str, Any]] = []
     for detector_id, future in detector_futures:
         try:
-            detector_results.append(future.result(timeout=DETECTOR_TIMEOUT_SECONDS))
+            # Detector and C2PA work started together. Use one absolute detector
+            # deadline so waiting for provenance never adds to the request budget.
+            detector_results.append(future.result(timeout=max(0.0, detector_deadline - time.monotonic())))
         except FutureTimeoutError:
             detector_results.append({
                 "detector_id": detector_id,

@@ -103,6 +103,8 @@ export interface ImageAuthenticityResult {
 
 export interface PrivateImageMetadata {
   software?: string;
+  generatorSoftware?: string;
+  editorSoftware?: string;
   cameraMake?: string;
   cameraModel?: string;
   capturedAt?: string;

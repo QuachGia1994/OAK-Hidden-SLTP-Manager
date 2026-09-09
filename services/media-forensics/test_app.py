@@ -151,6 +151,23 @@ class MediaForensicsTests(unittest.TestCase):
         self.assertEqual(result["detectors"][0]["status"], "failed")
         self.assertEqual(result["detectors"][0]["reason"], "detector_timeout")
 
+    def test_slow_detector_does_not_discard_completed_provenance_or_add_timeouts(self):
+        def slow_detector(_image):
+            time.sleep(0.12)
+            return {"detector_id": "slow", "version": "1", "status": "ok", "raw_score": 0.9}
+
+        def provenance(_image, _mime):
+            time.sleep(0.02)
+            return {"state": "verified", "trust_chain": "trusted"}
+
+        with patch.object(app, "DETECTOR_REGISTRY", {"slow": slow_detector}), patch.object(app, "ENABLED_DETECTOR_IDS", ("slow",)), patch.object(app, "DETECTOR_TIMEOUT_SECONDS", 0.05), patch.object(app, "C2PA_TIMEOUT_SECONDS", 0.04), patch.object(app, "_c2pa_bounded", provenance):
+            started = time.monotonic()
+            result = app.analyze(PNG_1X1, "image/png")
+        elapsed = time.monotonic() - started
+        self.assertLess(elapsed, 0.09)
+        self.assertEqual(result["c2pa"]["state"], "verified")
+        self.assertEqual(result["detectors"][0]["reason"], "detector_timeout")
+
     def test_health_and_version_startup_smoke(self):
         server, thread = self.start_server()
         try:

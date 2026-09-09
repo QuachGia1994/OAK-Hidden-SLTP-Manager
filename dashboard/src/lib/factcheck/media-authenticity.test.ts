@@ -49,6 +49,44 @@ function jpegWithSoftware(software: string): Buffer {
   return Buffer.concat([Buffer.from([0xff, 0xd8]), app1, exif, Buffer.from([0xff, 0xd9])]);
 }
 
+function pngChunk(type: string, data: Buffer): Buffer {
+  const chunk = Buffer.alloc(12 + data.length);
+  chunk.writeUInt32BE(data.length, 0);
+  chunk.write(type, 4, "ascii");
+  data.copy(chunk, 8);
+  return chunk;
+}
+
+function pngWithText(type: "tEXt" | "iTXt", key: string, value: string): Buffer {
+  const base = pngHeader();
+  const iendOffset = base.length - 12;
+  const data = type === "tEXt"
+    ? Buffer.from(`${key}\0${value}`, "utf8")
+    : Buffer.from(`${key}\0\0\0\0\0${value}`, "utf8");
+  return Buffer.concat([base.subarray(0, iendOffset), pngChunk(type, data), base.subarray(iendOffset)]);
+}
+
+function jpegWithXmp(value: string): Buffer {
+  const payload = Buffer.concat([Buffer.from("http://ns.adobe.com/xap/1.0/\0", "ascii"), Buffer.from(value, "utf8")]);
+  const app1 = Buffer.alloc(4);
+  app1[0] = 0xff;
+  app1[1] = 0xe1;
+  app1.writeUInt16BE(payload.length + 2, 2);
+  return Buffer.concat([Buffer.from([0xff, 0xd8]), app1, payload, Buffer.from([0xff, 0xd9])]);
+}
+
+function webpWithChunk(type: "XMP " | "EXIF", data: Buffer): Buffer {
+  const chunk = Buffer.alloc(8 + data.length + (data.length % 2));
+  chunk.write(type, 0, "ascii");
+  chunk.writeUInt32LE(data.length, 4);
+  data.copy(chunk, 8);
+  const riff = Buffer.alloc(12);
+  riff.write("RIFF", 0, "ascii");
+  riff.writeUInt32LE(4 + chunk.length, 4);
+  riff.write("WEBP", 8, "ascii");
+  return Buffer.concat([riff, chunk]);
+}
+
 function technical() {
   return { format: "png" as const, mime: "image/png", width: 100, height: 100, bytes: 1000, cameraMetadataPresent: false };
 }
@@ -158,8 +196,27 @@ test("metadata observations stay bounded and non-cryptographic", () => {
   assert.equal(generationFindings.signals[0]?.strength, "moderate");
 });
 
-test("C2PA marker presence is never promoted to verified provenance", () => {
-  const buffer = Buffer.concat([pngHeader(20, 20), Buffer.from("random c2pa content credentials marker")]);
+test("PNG text/iTXt and JPEG/WebP XMP expose precise generator traces", () => {
+  const pngText = extractPrivateImageMetadata(pngWithText("tEXt", "Software", "ComfyUI"));
+  const pngItxt = extractPrivateImageMetadata(pngWithText("iTXt", "parameters", "model=Stable Diffusion XL"));
+  const jpegXmp = extractPrivateImageMetadata(jpegWithXmp('<rdf:Description xmp:CreatorTool="Adobe Firefly"/>'));
+  const webpXmp = extractPrivateImageMetadata(webpWithChunk("XMP ", Buffer.from('<rdf:Description xmp:CreatorTool="Midjourney"/>')));
+  assert.match(pngText.generatorSoftware || "", /ComfyUI/i);
+  assert.match(pngItxt.generatorSoftware || "", /Stable Diffusion/i);
+  assert.match(jpegXmp.generatorSoftware || "", /Adobe Firefly/i);
+  assert.match(webpXmp.generatorSoftware || "", /Midjourney/i);
+});
+
+test("generator matching rejects broad substrings and unstructured commentary", () => {
+  assert.equal(extractPrivateImageMetadata(jpegWithSoftware("OpenAI Camera Utility")).generatorSoftware, undefined);
+  assert.equal(extractPrivateImageMetadata(jpegWithSoftware("Flux Capacitor Photo Tool")).generatorSoftware, undefined);
+  assert.equal(extractPrivateImageMetadata(pngWithText("tEXt", "Comment", "edited after using ComfyUI tutorial")).generatorSoftware, undefined);
+});
+
+test("C2PA marker presence requires a structural marker and is never promoted to verified provenance", () => {
+  const incidental = pngWithText("tEXt", "Comment", "random c2pa content credentials words");
+  assert.equal(extractPrivateImageMetadata(incidental).c2paMarkerPresent, false);
+  const buffer = pngWithText("iTXt", "c2pa.manifest", "embedded claim reference");
   const findings = buildDeterministicMediaFindings({ ...technical(), width: 20, height: 20, bytes: buffer.length }, extractPrivateImageMetadata(buffer), "EN");
   assert.equal(findings.provenance.status, "present_unverified");
   assert.equal(findings.provenance.trustChain, "not_configured");
