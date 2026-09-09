@@ -237,6 +237,59 @@ string NC5ReminderText(const string canonical_symbol,const long opened_server_se
       +"\nServer: "+NC5DateTimeText(next_start_server_seconds)+" · "+NC5UtcOffsetText(NC5ServerUtcOffsetMinutes(next_start_server_seconds));
   }
 
+string NC5VietnamClockText(const long server_seconds)
+  {
+   const long vietnam_seconds=NC5VietnamSecondsFromServer(server_seconds);
+   if(vietnam_seconds<=0) return "—";
+   MqlDateTime dt;
+   TimeToStruct((datetime)vietnam_seconds,dt);
+   return StringFormat("%02d:%02d",dt.hour,dt.min);
+  }
+
+string NC5JoinSymbols(const string &symbols[])
+  {
+   string out="";
+   for(int i=0;i<ArraySize(symbols);i++)
+     {
+      if(i>0) out+=", ";
+      out+=symbols[i];
+     }
+   return out;
+  }
+
+string NC5LocalReminderText(const string canonical_symbol,const long opened_server_seconds)
+  {
+   const NC5Session opened_session=NC5AssignSession(opened_server_seconds);
+   if(opened_session==NC5_OUTSIDE_SESSION)
+      return "NeoTech C5 | "+canonical_symbol
+         +"\nLệnh được mở ngoài phiên C5."
+         +"\nHãy kiểm tra thủ công trước khi vào lại."
+         +"\nBấm C5 LOOK để xem phiên hiện tại.";
+   NC5Session current_session=NC5_OUTSIDE_SESSION;
+   NC5Session next_session=NC5_OUTSIDE_SESSION;
+   long next_start_server_seconds=0;
+   if(!NC5NextReentry(opened_server_seconds,current_session,next_session,next_start_server_seconds))
+      return "NeoTech C5 | "+canonical_symbol
+         +"\nChưa xác định được mốc vào lại."
+         +"\nBấm C5 LOOK để kiểm tra thủ công.";
+   return "NeoTech C5 | "+canonical_symbol
+      +"\nĐã dùng trong phiên "+NC5SessionVi(current_session)+"."
+      +"\nVào lại sớm nhất: phiên "+NC5SessionVi(next_session)+" | "+NC5VietnamClockText(next_start_server_seconds)+" VN."
+      +"\nBấm C5 LOOK để xem các cặp đã dùng.";
+  }
+
+string NC5LocalLookText(const NC5Session session,const string &symbols[],const long session_end_server_seconds)
+  {
+   if(session==NC5_OUTSIDE_SESSION)
+      return "NeoTech C5 LOOK\nHiện đang ngoài phiên C5.\nKhông tự coi là được vào lại nếu chưa kiểm tra.";
+   const string used=ArraySize(symbols)>0 ? NC5JoinSymbols(symbols) : "Chưa có";
+   return "NeoTech C5 LOOK"
+      +"\nPhiên hiện tại: "+NC5SessionVi(session)
+      +"\nĐã vào: "+used
+      +"\nKết thúc phiên: "+NC5VietnamClockText(session_end_server_seconds)+" VN"
+      +"\nC5: không vào lại các cặp trên trong cùng phiên.";
+  }
+
 bool NC5ResolveEligibleProduct(const string broker_symbol,string &canonical)
   {
    canonical="";

@@ -70,7 +70,7 @@ test("NeoTech web/connector own the 14-rule contract while the auxiliary EA stay
   const publicUi = readFileSync(path.join(dashboardRoot, "src", "app", "neotech", "NeoTechPublicDashboard.tsx"), "utf8");
   assert.match(complianceDomain, /NEOTECH_SCHEMA_VERSION = "oak-neotech-compliance-report-v3"/);
   assert.match(reminderEa, /NeoTechC5Reminder\.mqh/);
-  assert.match(reminderEa, /#property version\s+"1\.08"/);
+  assert.match(reminderEa, /#property version\s+"1\.09"/);
   assert.match(reminderEa, /neotech_c5_reentry/);
   assert.match(reminderEa, /neotech_c5_look/);
   assert.doesNotMatch(reminderEa, /InpExpectedLogin/);
@@ -79,13 +79,28 @@ test("NeoTech web/connector own the 14-rule contract while the auxiliary EA stay
   assert.match(reminderEa, /AccountInfoString\(ACCOUNT_SERVER\)/);
   assert.match(reminderEa, /ArrayResize\(g_reminder_queue,0\)/);
   assert.match(reminderEa, /ArrayResize\(g_seen_deals,0\)/);
-  assert.match(publicUi, /VERSION 1\.08/);
-  assert.match(publicUi, /telegram-failover-config\.json/);
-  assert.match(publicUi, /Controller setup/);
+  assert.match(reminderEa, /InpLocalPopup\s*=\s*true/);
+  assert.match(reminderEa, /InpLookButton\s*=\s*true/);
+  assert.match(reminderEa, /OBJ_BUTTON/);
+  assert.match(reminderEa, /C5 LOOK/);
+  assert.match(reminderEa, /OnChartEvent/);
+  assert.match(reminderEa, /NC5LocalReminderText/);
+  assert.match(reminderEa, /NC5LocalLookText/);
+  assert.match(publicUi, /VERSION 1\.09/);
+  assert.match(publicUi, /OAK-NeoTech-C5-Setup\.exe/);
+  assert.match(publicUi, /Works standalone|Chạy độc lập/);
+  assert.match(publicUi, /Telegram optional|Telegram tùy chọn/);
+  assert.match(publicUi, /Advanced|Nâng cao/);
   assert.doesNotMatch(publicUi, /set InpExpectedLogin/);
   assert.match(reminderCore, /NC5AssignSession/);
   assert.match(reminderCore, /NC5CurrentSessionWindow/);
   assert.match(reminderCore, /NC5NextReentry/);
+  const installer = readFileSync(path.join(repoRoot, "tools", "Install-NeoTechC5.ps1"), "utf8");
+  assert.match(installer, /MetaQuotes\\Terminal/);
+  assert.match(installer, /MQL5\\Experts/);
+  assert.match(installer, /Get-FileHash/);
+  assert.match(installer, /OAK_NeoTech_Compliance_EA\.ex5/);
+  assert.doesNotMatch(installer, /ScheduledTask|telegram|Upstash|bootstrap-local-failover/i);
   for (const removed of ["ArrayResize(criteria,14)", "NTBuildReport", "getUpdates", "InpTelegramBotToken", "InpHistoryLookbackDays", "NTAdvanceFddJob", "WebRequest("]) {
     assert.equal(reminderEa.includes(removed), false, `C5-only EA must not retain legacy auditor surface ${removed}`);
   }

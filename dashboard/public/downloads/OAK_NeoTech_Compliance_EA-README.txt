@@ -1,86 +1,105 @@
-OAK NeoTech Compliance EA v1.08
-MT5 desktop · C5 reminder and /look helper · Read-only
+OAK NeoTech C5 Helper v1.09
+MT5 desktop · C5 reminder + C5 LOOK · Read-only · Works standalone
 
 TIẾNG VIỆT
 
-Chức năng
-EA nhắc thời điểm có thể vào lại cùng mã theo phiên C5 và cung cấp danh sách mã trong phiên qua Telegram /look. EA không đặt, đóng hay sửa lệnh. Bảng đánh giá đủ 14 tiêu chí nằm trên trang NeoTech và dùng ReadOnly Connector riêng.
+MỤC ĐÍCH
+EA này chỉ hỗ trợ kỷ luật NeoTech C5:
+- Sau khi bạn mở Forex/XAUUSD, EA nhắc phiên sớm nhất có thể vào lại cùng symbol.
+- Nút C5 LOOK trên chart cho biết những symbol đã được dùng trong phiên hiện tại.
+- EA không đặt, đóng, sửa lệnh và không quản lý SL/TP.
+- Bảng đánh giá đủ 14 tiêu chí NeoTech vẫn dùng ReadOnly Connector riêng trên website.
 
-Auto-bind tài khoản v1.08
-Không còn InpExpectedLogin. EA đọc login/server của MT5 đang hoạt động, tự bind vào heartbeat controller tương ứng và tự chuyển theo khi đổi account. Khi phát hiện account đổi, EA xoá state reminder/dedupe tạm của account cũ rồi khôi phục vị thế gần đây của account mới theo InpStartupCatchupMinutes. Nếu heartbeat controller của account mới chưa xuất hiện, reminder giữ hàng đợi và thử lại; /look không đoán dữ liệu.
+CÁCH CÀI DỄ NHẤT — 1 CLICK
+1. Tải và chạy OAK-NeoTech-C5-Setup.exe.
+2. Setup tự tìm các MT5 Data Folder trên Windows, kiểm tra SHA-256 và chép EA vào MQL5\Experts.
+3. Trong MT5: Navigator → Expert Advisors → Refresh.
+4. Gắn OAK_NeoTech_Compliance_EA lên một chart riêng.
+5. Xong. Popup C5 và nút C5 LOOK hoạt động ngay, không cần Telegram.
 
-Máy ĐÃ có OAK Local Telegram controller
-1. Trong MT5 chọn File → Open Data Folder → MQL5 → Experts và chép OAK_NeoTech_Compliance_EA.ex5 vào đó.
-2. Refresh Navigator, mở một chart riêng và gắn EA.
-3. Không cần nhập login, bot token, chat ID, mật khẩu broker hay WebRequest URL.
-4. Giữ MT5 và OAK Local Telegram controller online. Dùng /look trên bot đã cấu hình; dùng /look @ACCOUNT khi có nhiều account.
-5. Controller lấy identity từ heartbeat OAK local của terminal. EA NeoTech chỉ đọc heartbeat này để chọn đúng profile/providerAccountId.
+Nếu EA phiên bản cũ đang chạy trên chart, hãy restart MT5 một lần sau khi Setup hoàn tất.
 
-Máy MỚI / chưa có controller
-OAK Local Telegram controller không nằm bên trong EX5. Đây là tiến trình Node chạy trên Windows và dùng FILE_COMMON để nối MT5 với Telegram.
+CÀI EX5 THỦ CÔNG
+1. MT5 → File → Open Data Folder.
+2. Mở MQL5 → Experts.
+3. Chép OAK_NeoTech_Compliance_EA.ex5 vào đó.
+4. Navigator → Expert Advisors → Refresh, rồi gắn EA lên một chart riêng.
 
-1. Checkout repo OAK-Hidden-SLTP-Manager trên máy Windows và chuẩn bị OAK local MT5 heartbeat/controller stack.
-2. Với OAK operator đã có Telegram/Upstash config trong dashboard/.env.local, chạy:
-   node .\local-failover\bootstrap-local-failover.mjs --local-primary
-3. Bootstrap tạo config được bảo vệ cho user Windows tại:
-   %LOCALAPPDATA%\OAK Gatekeeper\telegram-failover-config.json
-   Config chứa telegramToken, telegramChatId, controlMode và snapshot account. Không commit hoặc chia sẻ file này.
-4. Kiểm tra trước khi cài Scheduled Task:
-   powershell -ExecutionPolicy Bypass -File .\local-failover\install-local-failover-task.ps1 -Action Doctor -DryRun
-5. Cài controller chạy theo Windows user hiện tại:
-   powershell -ExecutionPolicy Bypass -File .\local-failover\install-local-failover-task.ps1 -Action Install
-6. Trên Telegram dùng /status. Trạng thái local-primary / LOCAL_ACTIVE và heartbeat MT5 fresh là điều kiện để reminder và /look được chuyển tiếp.
+CHẠY ĐỘC LẬP
+Không cần:
+- Node.js
+- câu lệnh PowerShell/bootstrap
+- Telegram bot token/chat ID
+- số tài khoản MT5
+- mật khẩu broker
+- WebRequest URL
 
-Lưu ý: bootstrap hiện dùng cấu hình Telegram/Upstash của OAK operator. Nếu không có credential để provision controller, EX5 vẫn chạy read-only trong MT5 nhưng sẽ không thể gửi reminder hoặc /look qua Telegram. Không nhập bot token vào EA.
+EA v1.09 tự đọc login/server đang hoạt động và tự theo khi đổi account. Khi đổi account, state reminder tạm của account cũ được xóa và EA catch-up các vị thế mới gần đây theo InpStartupCatchupMinutes.
 
-Inputs
-InpTimerSeconds mặc định 2 giây (1–60).
-InpStartupCatchupMinutes mặc định 30 phút (0–120), dùng để khôi phục các vị thế gần đây còn mở khi EA khởi động hoặc đổi account.
+POPUP C5
+Nếu máy không có OAK Local Telegram controller, sau khi phát hiện opening episode hợp lệ EA sẽ hiện popup local một lần, ví dụ:
+NeoTech C5 | EURUSD
+Đã dùng trong phiên ÂU.
+Vào lại sớm nhất: phiên MỸ | 22:00 VN.
+Bấm C5 LOOK để xem các cặp đã dùng.
+
+C5 LOOK
+Bấm nút C5 LOOK ở góc phải trên chart để xem:
+- phiên hiện tại
+- những Forex/XAUUSD đã có opening episode trong phiên
+- giờ kết thúc phiên theo giờ Việt Nam
+Các lệnh đã đóng vẫn được tính trong phiên cho tới khi phiên kết thúc. Scale-in/partial của cùng position episode không tạo thêm một lần C5 mới.
+
+TELEGRAM — TÙY CHỌN
+Telegram không phải điều kiện để dùng EA.
+Nếu máy đã chạy OAK Local Telegram controller, v1.09 tự nhận heartbeat đúng login/server và tiếp tục gửi reminder + snapshot /look qua controller hiện có. Không nhập bot token vào EA.
+
+Việc cài mới full OAK Local Telegram controller là chức năng Advanced/Operator vì controller đó còn quản lý hạ tầng điều khiển trading. Nó không nằm trong flow C5 cơ bản. Hướng dẫn operator:
+https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/blob/main/local-failover/README.md
+
+INPUTS
+InpTimerSeconds = 2 mặc định (1–60 giây).
+InpStartupCatchupMinutes = 30 mặc định (0–120 phút).
+InpLocalPopup = true mặc định.
+InpLookButton = true mặc định.
 
 ENGLISH
 
-Purpose
-The EA provides C5 same-symbol re-entry reminders and current-session symbols through Telegram /look. It does not open, close or modify trades. The complete 14-criterion dashboard uses the separate ReadOnly Connector.
+PURPOSE
+This read-only EA only assists with NeoTech C5 discipline:
+- After a Forex/XAUUSD opening episode it shows the earliest next session for re-entry of the same symbol.
+- The C5 LOOK chart button lists symbols already used in the current session.
+- It never opens, closes or modifies trades and does not manage SL/TP.
+- The full 14-rule NeoTech assessment remains a separate ReadOnly Connector/web feature.
 
-Account auto-bind in v1.08
-InpExpectedLogin has been removed. The EA reads the active MT5 login/server, binds to the matching controller heartbeat and follows account switches automatically. On a switch it clears transient reminder/dedupe state from the previous account and catch-up scans recent open positions on the new account. If the new controller heartbeat is not fresh yet, reminders remain queued and /look fails closed instead of guessing.
+EASIEST INSTALL — ONE CLICK
+1. Download and run OAK-NeoTech-C5-Setup.exe.
+2. Setup finds MT5 data folders, verifies the EX5 SHA-256 and copies it into MQL5\Experts.
+3. In MT5: Navigator → Expert Advisors → Refresh.
+4. Attach OAK_NeoTech_Compliance_EA to one separate chart.
+5. Done. Local C5 popup and C5 LOOK work immediately without Telegram.
 
-PC ALREADY running OAK Local Telegram controller
-1. In MT5 open File → Open Data Folder → MQL5 → Experts and copy OAK_NeoTech_Compliance_EA.ex5 there.
-2. Refresh Navigator, open a separate chart and attach the EA.
-3. No login, bot token, chat ID, broker password or WebRequest URL is entered in this EA.
-4. Keep MT5 and the OAK Local Telegram controller online. Send /look to the configured bot, or /look @ACCOUNT when multiple accounts are enabled.
-5. Controller identity comes from the terminal's OAK local heartbeat. The NeoTech EA only reads that heartbeat to choose the matching profile/providerAccountId.
+If an older EA version is already attached, restart MT5 once after Setup completes.
 
-NEW PC / no controller yet
-The OAK Local Telegram controller is not embedded in the EX5. It is a Windows Node process that bridges Telegram and MT5 through FILE_COMMON.
+DIRECT EX5 INSTALL
+MT5 → File → Open Data Folder → MQL5 → Experts → copy the EX5 → Refresh Navigator → attach it to a chart.
 
-1. Check out OAK-Hidden-SLTP-Manager on the Windows PC and prepare the OAK local MT5 heartbeat/controller stack.
-2. An OAK operator with the Telegram/Upstash settings in dashboard/.env.local runs:
-   node .\local-failover\bootstrap-local-failover.mjs --local-primary
-3. Bootstrap writes the user-protected config to:
-   %LOCALAPPDATA%\OAK Gatekeeper\telegram-failover-config.json
-   It contains telegramToken, telegramChatId, controlMode and the account snapshot. Never commit or share this file.
-4. Verify before installation:
-   powershell -ExecutionPolicy Bypass -File .\local-failover\install-local-failover-task.ps1 -Action Doctor -DryRun
-5. Install the controller Scheduled Task:
-   powershell -ExecutionPolicy Bypass -File .\local-failover\install-local-failover-task.ps1 -Action Install
-6. Use /status in Telegram. A local-primary / LOCAL_ACTIVE state with fresh MT5 heartbeat evidence is required for reminder and /look delivery.
+STANDALONE MODE
+No Node.js, PowerShell/bootstrap command, Telegram token/chat ID, MT5 login input, broker password or WebRequest URL is required for local C5 alerts.
 
-Note: the current bootstrap path uses OAK operator Telegram/Upstash credentials. Without credentials to provision the controller, the EX5 remains read-only inside MT5 but cannot deliver Telegram reminders or /look. Do not put the bot token in the EA.
+v1.09 automatically follows the active MT5 login/server and clears transient account-scoped reminder state on an account switch.
 
-Inputs
-InpTimerSeconds defaults to 2 seconds (1–60).
-InpStartupCatchupMinutes defaults to 30 minutes (0–120) and recovers recent open positions after EA startup or an account switch.
+TELEGRAM OPTIONAL
+If this PC already runs the OAK Local Telegram controller, v1.09 automatically uses the matching fresh heartbeat to forward C5 reminders and Telegram /look. Do not enter a bot token into this EA.
+New full-controller provisioning is kept under Advanced/Operator because that controller also owns trading-control infrastructure.
 
-BUILD AND SOURCE
-Built 2026-09-08 from OAK NeoTech Compliance EA v1.08 source.
-MetaEditor result: 0 errors, 0 warnings; X64 Regular.
-Public EX5 size: 53126 bytes.
-SHA-256: 42df9d177311ff8261a9da2a51588500b50b2725a6e871e33128064e418bb093
-Compare the downloaded file with OAK_NeoTech_Compliance_EA.sha256.txt.
+BUILD
+Built 2026-09-09 from OAK NeoTech C5 Helper v1.09 source.
+MetaEditor: 0 errors, 0 warnings · X64 Regular.
+Public EX5 size: 62440 bytes.
+EX5 SHA-256: 04418c2e74714c696159276c052acf682463e2ce5e264cfdbfe933ba2ba7b798
+One-click Setup size: 71680 bytes.
+Setup SHA-256: 5513a3442bb9b13b3cb6fad6b36d48cbb3a72358c0f658c17dec927c59e2f414
 
-Source and controller setup:
+Source:
 https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/blob/main/mt5/OAK_NeoTech_Compliance_EA.mq5
-https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/blob/main/mt5/neotech/NeoTechC5Reminder.mqh
-https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/blob/main/local-failover/README.md

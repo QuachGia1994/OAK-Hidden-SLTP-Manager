@@ -71,6 +71,22 @@ void OnStart()
    const string outside=NC5ReminderText("EURUSD",T("2026-08-03 01:30:00"));
    Expect(StringFind(outside,"KHÔNG XÁC MINH")>=0 && StringFind(outside,"Được vào lại")<0,"outside-session fail closed wording");
 
+   const string local_message=NC5LocalReminderText("EURUSD",T("2026-08-03 14:30:00"));
+   Expect(StringFind(local_message,"NeoTech C5 | EURUSD")>=0
+      && StringFind(local_message,"phiên ÂU")>=0
+      && StringFind(local_message,"phiên MỸ")>=0
+      && StringFind(local_message,"22:00 VN")>=0
+      && StringFind(local_message,"C5 LOOK")>=0,"standalone local reminder wording");
+
+   string used[];
+   ArrayResize(used,2);
+   used[0]="EURUSD";
+   used[1]="GBPUSD";
+   const string look=NC5LocalLookText(NC5_EUROPE,used,T("2026-08-03 18:00:00"));
+   Expect(StringFind(look,"NeoTech C5 LOOK")>=0
+      && StringFind(look,"EURUSD, GBPUSD")>=0
+      && StringFind(look,"22:00 VN")>=0,"standalone local C5 LOOK wording");
+
    const string json="{\"login\":182001,\"server\":\"NeotechFinancialServices-Demo\",\"profile\":\"FXCE\"}";
    long login=0;
    string server="",profile="";

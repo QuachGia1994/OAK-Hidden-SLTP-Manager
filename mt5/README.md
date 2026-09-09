@@ -75,15 +75,15 @@ The connector receives one revocable 256-bit ingest token after pairing and stor
 
 ## NeoTech C5 reminder EA - auxiliary, read-only
 
-`OAK_NeoTech_Compliance_EA.mq5` keeps its legacy filename so existing MT5 installation paths remain stable, but it is no longer a standalone compliance auditor. It is limited to C5 discipline helpers: when a new eligible Forex/XAUUSD opening episode is observed, it calculates the current effective NeoTech session and the earliest next session/time that the same canonical symbol may be entered again, forwards one `neotech_c5_reentry` event, and publishes a tiny current-session `/look` snapshot for the existing OAK Local Telegram controller.
+`OAK_NeoTech_Compliance_EA.mq5` keeps its legacy filename so existing MT5 installation paths remain stable, but it is no longer a standalone compliance auditor. It is limited to C5 discipline helpers. v1.09 works standalone: after a new eligible Forex/XAUUSD opening episode, it calculates the current effective NeoTech session and earliest next session/time, shows one simple local reminder when no matching Telegram controller is available, and exposes a chart `C5 LOOK` button that lists unique canonical symbols already opened in the current session. If an existing OAK Local Telegram controller heartbeat matches the active account, the EA forwards the same C5 reminder and publishes the tiny `/look` snapshot through the retained FILE_COMMON path.
 
 The 14-rule NeoTech table is owned by `OAK_NeoTech_ReadOnly_Connector.mq5` plus the dashboard NeoTech engine. Do not add report formulas, FDD reconstruction, `/check`, direct Telegram polling or other compliance analytics back into this EA.
 
 ### Public download
 
-The `/neotech` page offers `dashboard/public/downloads/OAK_NeoTech_Compliance_EA.ex5`, a bilingual installation/controller guide and a SHA-256 checksum. Version 1.08 was compiled on 2026-09-08 from the current EA plus `neotech/NeoTechC5Reminder.mqh`: MetaEditor reported 0 errors, 0 warnings, X64 Regular for both the EA and `tests/NeoTechC5ReminderSyntheticTests.mq5`. The public EX5 is 53,126 bytes with SHA-256 `42df9d177311ff8261a9da2a51588500b50b2725a6e871e33128064e418bb093`. Rebuild and update the checksum/guide together whenever this source changes.
+The `/neotech` page offers `dashboard/public/downloads/OAK-NeoTech-C5-Setup.exe` as the default one-click Windows path plus the direct `OAK_NeoTech_Compliance_EA.ex5`, bilingual guide and SHA-256 manifests. Setup is a small .NET Framework Windows executable that embeds the verified EX5, scans `%APPDATA%\MetaQuotes\Terminal\*` data folders, installs only `MQL5\Experts\OAK_NeoTech_Compliance_EA.ex5`, and verifies the written hash. It does not install Node, Scheduled Tasks, Telegram credentials, WebRequest settings or trading-control components. Version 1.09 was compiled on 2026-09-09 from the current EA plus `neotech/NeoTechC5Reminder.mqh`: MetaEditor reported 0 errors, 0 warnings, X64 Regular for both the EA and `tests/NeoTechC5ReminderSyntheticTests.mq5`. The public EX5 is 62,440 bytes with SHA-256 `04418c2e74714c696159276c052acf682463e2ce5e264cfdbfe933ba2ba7b798`. The current Setup EXE is 71,680 bytes with SHA-256 `5513a3442bb9b13b3cb6fad6b36d48cbb3a72358c0f658c17dec927c59e2f414`. Rebuild the EX5, Setup and both manifests together whenever this source changes.
 
-Telegram delivery still requires the OAK Local Telegram controller on the same PC; the EA itself never stores a bot token or chat ID. v1.08 removes `InpExpectedLogin`: it reads the active MT5 login/server on every timer cycle and automatically follows account switches. Controller bootstrap writes its protected configuration to `%LOCALAPPDATA%\OAK Gatekeeper\telegram-failover-config.json`; the repo's `local-failover/README.md` owns bootstrap/Doctor/Scheduled Task setup. Website Connector pairing alone does not configure this controller.
+Telegram is optional. Local popup + chart `C5 LOOK` require only the EA and do not depend on a controller, bot token, Node, PowerShell command, WebRequest allow-list or bootstrap. v1.09 continues to read the active MT5 login/server on every timer cycle and automatically follows account switches. When an already-provisioned OAK Local Telegram controller on the same PC exposes a fresh matching heartbeat, the EA uses the retained FILE_COMMON event/snapshot channel automatically. New controller provisioning remains an Advanced/Operator workflow documented by `local-failover/README.md`; it is not part of public C5 setup.
 
 ### Runtime flow
 
@@ -91,13 +91,16 @@ Telegram delivery still requires the OAK Local Telegram controller on the same P
 New eligible MT5 opening episode
 -> C5-only EA
 -> NeoTech session/next-entry calculation
--> account-fenced FILE_COMMON reminder event
--> existing OAK Local Telegram controller
--> Telegram reminder
+-> matching Telegram controller present? FILE_COMMON event -> Telegram reminder
+-> otherwise local MT5 popup
 
-Every timer tick
+Trader clicks C5 LOOK
 -> same C5-only EA
 -> current NeoTech session window + unique opening-episode symbols
+-> local MT5 popup
+
+Every timer tick, when a matching Telegram controller is present
+-> current session snapshot
 -> account-fenced FILE_COMMON look snapshot
 -> Telegram /look
 ```
@@ -106,10 +109,12 @@ The EA remains broker-read-only. It reads deal/position metadata and local contr
 
 ### Inputs
 
-1. `InpTimerSeconds` - local relay retry interval, default 2 seconds, valid 1-60.
+1. `InpTimerSeconds` - helper timer interval, default 2 seconds, valid 1-60.
 2. `InpStartupCatchupMinutes` - optional recent-open-position recovery after attach/restart or an account switch, default 30 minutes, valid 0-120.
+3. `InpLocalPopup` - standalone C5 popup fallback when no matching Telegram controller is available, default `true`.
+4. `InpLookButton` - show the chart `C5 LOOK` button, default `true`.
 
-No account/login input is required. v1.08 keeps the active normalized login/server as its runtime identity; when either changes it clears account-scoped reminder/dedupe memory, catch-up scans the new account and then resolves the matching fresh controller heartbeat. No Telegram bot token, chat/user ACL, webhook setting, WebRequest allow-list, profile slug, history lookback, FDD or SL/TP audit input is required. The local Telegram controller remains the sole bot owner and keeps the token outside MT5.
+No account/login input is required. v1.09 keeps the active normalized login/server as its runtime identity; when either changes it clears account-scoped reminder/dedupe memory and catch-up scans the new account. No Telegram bot token, chat/user ACL, webhook setting, WebRequest allow-list, profile slug, history lookback, FDD or SL/TP audit input is required. If Telegram is used, the local controller remains the sole bot owner and keeps its token outside MT5.
 
 ### C5 semantics
 
@@ -123,14 +128,14 @@ No account/login input is required. v1.08 keeps the active normalized login/serv
 
 ### Delivery and dedupe
 
-The EA matches the current MT5 login/server against a fresh `OAKLocalFailover/status_*.json` heartbeat and reuses that heartbeat's `profile` and `providerAccountId`. On an MT5 account switch it automatically resets the previous account's transient queue/dedupe state and rebinds to the new login/server without re-entering Properties. It persists an immutable `neotech_c5_reentry` event under MT5 `FILE_COMMON`; the local controller validates the same account identity and delivers the text through its existing durable notification ledger.
+For optional Telegram delivery, the EA matches the current MT5 login/server against a fresh `OAKLocalFailover/status_*.json` heartbeat and reuses that heartbeat's `profile` and `providerAccountId`. On an MT5 account switch it automatically resets the previous account's transient queue/dedupe state and rebinds to the new login/server without re-entering Properties. When that heartbeat is present, it persists an immutable `neotech_c5_reentry` event under MT5 `FILE_COMMON`; the local controller validates the same account identity and delivers the text through its existing durable notification ledger. When no matching controller is present, v1.09 delivers the reminder locally instead of withholding C5 functionality.
 
-Event IDs are deal-scoped (`neotech_c5:<deal-ticket>`). Duplicate MT5 callbacks are suppressed in-memory, while controller delivery remains durable across EA/controller restarts. If the local identity heartbeat is temporarily unavailable, the reminder stays queued and retries on the next timer tick instead of being discarded.
+Event IDs are deal-scoped (`neotech_c5:<deal-ticket>`). Duplicate MT5 callbacks are suppressed in-memory. Local standalone reminders are emitted once per observed opening episode; Telegram delivery uses the existing controller ledger when the controller is available.
 
 For `/look`, the EA rewrites `look_<profile>_<login>.json` every timer tick with `session`, Vietnam session start/end and the unique canonical symbols whose opening episode began inside that active session. The local controller accepts only a fresh snapshot whose profile/provider/login/server still matches the fresh MT5 heartbeat. A closed trade remains listed until the session ends; same-position scale-ins/partial fills do not create a new opening occurrence. Outside Asia/Europe/US the snapshot explicitly reports `OUTSIDE_SESSION`.
 
 ### Verification
 
-`tests/NeoTechC5ReminderSyntheticTests.mq5` covers summer/winter session transitions, current-session windows, US -> next-day Asia, outside-session refusal, Vietnam-time conversion, C5-only wording and local heartbeat JSON parsing. Compile both the EA and this script with MetaEditor and require `0 errors, 0 warnings`.
+`tests/NeoTechC5ReminderSyntheticTests.mq5` covers summer/winter session transitions, current-session windows, US -> next-day Asia, outside-session refusal, Vietnam-time conversion, Telegram wording, standalone local reminder wording, local `C5 LOOK` wording and heartbeat JSON parsing. Compile both the EA and this script with MetaEditor and require `0 errors, 0 warnings`. `OAK-NeoTech-C5-Setup.exe --dry-run --quiet` is the non-mutating installer smoke check; it must validate the embedded EX5 checksum and discover at least one MT5 data folder on the test PC.
 
 The former MQL5 14-rule compliance core/JSON modules and 59-fixture auditor suite were intentionally removed. Public NeoTech analytics tests now assert that the connector/dashboard keep the 14-rule contract while this auxiliary EA stays C5-reminder-only.

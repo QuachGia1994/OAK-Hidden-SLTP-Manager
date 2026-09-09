@@ -1,14 +1,17 @@
 #property strict
-#property version   "1.08"
-#property description "OAK NeoTech C5 discipline helper: re-entry reminder + /look snapshot. Read-only."
+#property version   "1.09"
+#property description "OAK NeoTech C5 discipline helper: standalone popup + C5 LOOK + optional Telegram. Read-only."
 
 #include "neotech\\NeoTechC5Reminder.mqh"
 
 input group "1. NHAC C5"
-input int  InpTimerSeconds              = 2;  // Chu ky day reminder qua local Telegram controller
-input int  InpStartupCatchupMinutes     = 30; // Phuc hoi lenh dang mo gan day sau attach/restart
+input int  InpTimerSeconds              = 2;    // Chu ky helper
+input int  InpStartupCatchupMinutes     = 30;   // Phuc hoi lenh dang mo gan day sau attach/restart
+input bool InpLocalPopup                = true; // Popup C5 khi khong co Telegram controller
+input bool InpLookButton                = true; // Nut C5 LOOK tren chart
 
 #define NC5_LOCAL_FORWARD_DIR "OAKLocalFailover\\"
+#define NC5_LOOK_BUTTON_NAME "OAK_NC5_C5_LOOK"
 #define NC5_MAX_SEEN_DEALS 256
 
 struct NC5Reminder
@@ -16,6 +19,7 @@ struct NC5Reminder
    ulong deal_ticket;
    string symbol;
    string text;
+   string local_text;
   };
 
 NC5Reminder g_reminder_queue[];
@@ -284,6 +288,7 @@ void NC5QueueReminder(const ulong deal_ticket,const string canonical_symbol,cons
    g_reminder_queue[n].deal_ticket=deal_ticket;
    g_reminder_queue[n].symbol=canonical_symbol;
    g_reminder_queue[n].text=text;
+   g_reminder_queue[n].local_text=NC5LocalReminderText(canonical_symbol,opened_server_seconds);
   }
 
 bool NC5PositionEpisodeOpening(const ulong position_id,ulong &deal_ticket,string &broker_symbol,long &opened_server_seconds)
@@ -385,9 +390,50 @@ void NC5FlushReminders()
   {
    while(ArraySize(g_reminder_queue)>0)
      {
-      if(!NC5EmitReminder(g_reminder_queue[0].deal_ticket,g_reminder_queue[0].symbol,g_reminder_queue[0].text)) return;
+      string profile="",provider_account_id="";
+      if(NC5LocalForwardIdentity(profile,provider_account_id))
+        {
+         if(!NC5EmitReminder(g_reminder_queue[0].deal_ticket,g_reminder_queue[0].symbol,g_reminder_queue[0].text)) return;
+         NC5RemoveFirstReminder();
+         continue;
+        }
+      if(InpLocalPopup && g_reminder_queue[0].local_text!="") Alert(g_reminder_queue[0].local_text);
+      Print("[NEOTECH-C5] standalone reminder: "+g_reminder_queue[0].local_text);
       NC5RemoveFirstReminder();
      }
+  }
+
+string NC5BuildLocalLookText()
+  {
+   const long now_server=((long)TimeTradeServer()>0 ? (long)TimeTradeServer() : (long)TimeCurrent());
+   NC5Session session=NC5_OUTSIDE_SESSION;
+   long session_start=0,session_end=0;
+   string symbols[];
+   ArrayResize(symbols,0);
+   if(NC5CurrentSessionWindow(now_server,session,session_start,session_end))
+      NC5CollectCurrentSessionSymbols(session_start,session_end,symbols);
+   return NC5LocalLookText(session,symbols,session_end);
+  }
+
+bool NC5EnsureLookButton()
+  {
+   if(!InpLookButton) return true;
+   if(ObjectFind(0,NC5_LOOK_BUTTON_NAME)>=0) return true;
+   if(!ObjectCreate(0,NC5_LOOK_BUTTON_NAME,OBJ_BUTTON,0,0,0)) return false;
+   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_XDISTANCE,14);
+   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_YDISTANCE,36);
+   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_XSIZE,92);
+   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_YSIZE,28);
+   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_BGCOLOR,C'22,38,35');
+   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_BORDER_COLOR,C'57,170,132');
+   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_COLOR,clrWhite);
+   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_FONTSIZE,9);
+   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_HIDDEN,false);
+   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_SELECTABLE,false);
+   ObjectSetString(0,NC5_LOOK_BUTTON_NAME,OBJPROP_TEXT,"C5 LOOK");
+   ChartRedraw(0);
+   return true;
   }
 
 bool NC5RefreshAccountIdentity(const bool force=false)
@@ -416,14 +462,26 @@ int OnInit()
    FolderCreate(NC5_LOCAL_FORWARD_DIR,FILE_COMMON);
    NC5RefreshAccountIdentity(true);
    NC5PublishLookSnapshot();
+   NC5EnsureLookButton();
    if(!EventSetTimer(InpTimerSeconds)) return INIT_FAILED;
-   PrintFormat("[NEOTECH-C5] C5-only helper initialized auto-bind=true login=%I64d timer=%ds catchup=%dm",(long)AccountInfoInteger(ACCOUNT_LOGIN),InpTimerSeconds,InpStartupCatchupMinutes);
+   PrintFormat("[NEOTECH-C5] C5-only helper initialized auto-bind=true standalone=true login=%I64d timer=%ds catchup=%dm",(long)AccountInfoInteger(ACCOUNT_LOGIN),InpTimerSeconds,InpStartupCatchupMinutes);
    return INIT_SUCCEEDED;
   }
 
 void OnDeinit(const int reason)
   {
    EventKillTimer();
+   ObjectDelete(0,NC5_LOOK_BUTTON_NAME);
+  }
+
+void OnChartEvent(const int id,const long &lparam,const double &dparam,const string &sparam)
+  {
+   if(id!=CHARTEVENT_OBJECT_CLICK || sparam!=NC5_LOOK_BUTTON_NAME) return;
+   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_STATE,false);
+   const string text=NC5BuildLocalLookText();
+   Alert(text);
+   Print("[NEOTECH-C5] "+text);
+   ChartRedraw(0);
   }
 
 void OnTimer()
