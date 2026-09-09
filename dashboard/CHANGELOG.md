@@ -6,6 +6,8 @@ All notable changes to the dashboard are recorded here.
 
 ### Changed
 
+- Published NeoTech C5 Helper v1.10 across the web and native NeoTech surfaces. The download panel now cache-busts Setup/EX5/guide/checksum URLs with `?v=1.10`, and the rebuilt one-click Setup embeds the matching v1.10 EX5/checksum artifact set.
+
 - Synchronized public FactCheck share pages with the current OAK workspace theme. Shared `/factcheck/[id]` now applies the same graphite/mint route-shell tokens as the main FactCheck tool across Light/Dark/Contrast, which also removes the unrelated spatial HUD on shared results. Public text results now normalize heading/source-card typography, add a compact confidence + claim/source metrics rail, show a two-column source grid on desktop with a one-column mobile fallback, and clean retained `&nbsp;`/zero-width display artifacts without altering evidence records.
 
 - Hardened the local MT5 scheduled-entry boundary for EA v1.12. Reversal preparation now preflights projected post-net exposure, carries net-mutation/current-exposure evidence through the no-mouse UI adapter, and emits a dedicated Telegram `REVERSAL INCOMPLETE` warning when opposite exposure changed but the replacement entry cannot safely reach submit. The controller requires EA v1.12+ for scheduled UI entry and preserves the existing no-auto-replay/UNCERTAIN boundary after an ambiguous submit.

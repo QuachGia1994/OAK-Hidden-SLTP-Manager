@@ -646,7 +646,7 @@ fun NeoTechScreen(state: OAKAppState) {
                             Text("C5", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
                         }
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            OAKEyebrow("VERSION 1.09 · STANDALONE")
+                            OAKEyebrow("VERSION 1.10 · STANDALONE")
                             Text(state.text("Cài một lần, chạy độc lập", "Install once, run standalone"), color = p.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                             Text(
                                 state.text(

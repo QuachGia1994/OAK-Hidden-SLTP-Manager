@@ -92,8 +92,8 @@ test("NeoTech web/connector own the 14-rule contract while the auxiliary EA stay
   assert.match(reminderEa, /OnChartEvent/);
   assert.match(reminderEa, /NC5LocalReminderText/);
   assert.match(reminderEa, /NC5LocalLookText/);
-  assert.match(publicUi, /VERSION 1\.09/);
-  assert.match(publicUi, /OAK-NeoTech-C5-Setup\.exe/);
+  assert.match(publicUi, /VERSION 1\.10/);
+  assert.match(publicUi, /OAK-NeoTech-C5-Setup\.exe\?v=1\.10/);
   assert.match(publicUi, /Works standalone|Chạy độc lập/);
   assert.match(publicUi, /Telegram optional|Telegram tùy chọn/);
   assert.match(publicUi, /Advanced|Nâng cao/);
@@ -106,6 +106,9 @@ test("NeoTech web/connector own the 14-rule contract while the auxiliary EA stay
   assert.match(installer, /MQL5\\Experts/);
   assert.match(installer, /Get-FileHash/);
   assert.match(installer, /OAK_NeoTech_Compliance_EA\.ex5/);
+  const publicGuide = readFileSync(path.join(repoRoot, "dashboard", "public", "downloads", "OAK_NeoTech_Compliance_EA-README.txt"), "utf8");
+  assert.match(publicGuide, /OAK NeoTech C5 Helper v1\.10/);
+  assert.match(publicGuide, /góc trái trên chart|upper-left/i);
   assert.doesNotMatch(installer, /ScheduledTask|telegram|Upstash|bootstrap-local-failover/i);
   for (const removed of ["ArrayResize(criteria,14)", "NTBuildReport", "getUpdates", "InpTelegramBotToken", "InpHistoryLookbackDays", "NTAdvanceFddJob", "WebRequest("]) {
     assert.equal(reminderEa.includes(removed), false, `C5-only EA must not retain legacy auditor surface ${removed}`);

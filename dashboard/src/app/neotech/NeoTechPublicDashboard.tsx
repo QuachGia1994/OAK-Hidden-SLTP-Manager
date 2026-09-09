@@ -553,16 +553,16 @@ export function NeoTechPublicDashboard() {
 
       <section className={styles.downloadPanel} aria-labelledby="neotech-ea-download-title">
         <div className={styles.downloadCopy}>
-          <div className={styles.downloadEyebrow}>{tr("MT5 C5 HELPER · VERSION 1.09 · WORKS STANDALONE", "TIỆN ÍCH C5 MT5 · PHIÊN BẢN 1.09 · CHẠY ĐỘC LẬP")}</div>
+          <div className={styles.downloadEyebrow}>{tr("MT5 C5 HELPER · VERSION 1.10 · WORKS STANDALONE", "TIỆN ÍCH C5 MT5 · PHIÊN BẢN 1.10 · CHẠY ĐỘC LẬP")}</div>
           <h2 id="neotech-ea-download-title">{tr("NeoTech C5 Helper", "NeoTech C5 Helper")}</h2>
           <p>{tr("A read-only C5 helper for normal traders: after you open a Forex or XAUUSD position it shows a simple local reminder for the next allowed session, and the C5 LOOK button lists symbols already used in the current session. No Telegram is required.", "Tiện ích C5 chỉ đọc dành cho trader: sau khi bạn mở Forex hoặc XAUUSD, EA hiện popup đơn giản nhắc phiên được vào lại; nút C5 LOOK trên chart cho biết những cặp đã dùng trong phiên hiện tại. Không cần Telegram.")}</p>
           <p className={styles.downloadRequirement}>{tr("Telegram optional: if this PC already runs the OAK Local Telegram controller, the same reminder and /look are forwarded automatically. The EA needs no bot token, no login input and follows MT5 account switches. The 14-rule assessment still uses the separate Connector.", "Telegram tùy chọn: nếu máy đã có OAK Local Telegram controller, reminder và /look được chuyển tiếp tự động. EA không cần bot token, không cần nhập login và tự theo khi đổi tài khoản MT5. Bảng đánh giá 14 tiêu chí vẫn dùng Connector riêng.")}</p>
           <div className={styles.downloadActions}>
-            <a className={styles.primaryButton} href="/downloads/OAK-NeoTech-C5-Setup.exe" download>{tr("1-click Setup · Windows", "Cài 1 click · Windows")}</a>
-            <a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_Compliance_EA.ex5" download>{tr("Direct EX5", "Tải EX5 trực tiếp")}</a>
-            <a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_Compliance_EA-README.txt" target="_blank" rel="noreferrer">{tr("Install guide", "Hướng dẫn")}</a>
-            <a className={styles.downloadChecksum} href="/downloads/OAK-NeoTech-C5-Setup.sha256.txt" target="_blank" rel="noreferrer">SETUP SHA-256</a>
-            <a className={styles.downloadChecksum} href="/downloads/OAK_NeoTech_Compliance_EA.sha256.txt" target="_blank" rel="noreferrer">EA SHA-256</a>
+            <a className={styles.primaryButton} href="/downloads/OAK-NeoTech-C5-Setup.exe?v=1.10" download>{tr("1-click Setup · Windows", "Cài 1 click · Windows")}</a>
+            <a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_Compliance_EA.ex5?v=1.10" download>{tr("Direct EX5", "Tải EX5 trực tiếp")}</a>
+            <a className={styles.secondaryButton} href="/downloads/OAK_NeoTech_Compliance_EA-README.txt?v=1.10" target="_blank" rel="noreferrer">{tr("Install guide", "Hướng dẫn")}</a>
+            <a className={styles.downloadChecksum} href="/downloads/OAK-NeoTech-C5-Setup.sha256.txt?v=1.10" target="_blank" rel="noreferrer">SETUP SHA-256</a>
+            <a className={styles.downloadChecksum} href="/downloads/OAK_NeoTech_Compliance_EA.sha256.txt?v=1.10" target="_blank" rel="noreferrer">EA SHA-256</a>
           </div>
         </div>
         <div className={styles.downloadInstall}>
@@ -572,7 +572,7 @@ export function NeoTechPublicDashboard() {
           <span>{tr("Works standalone. No Node, PowerShell command, bootstrap, Telegram token, account number or WebRequest setup is required for local C5 alerts.", "Chạy độc lập. Không cần Node, câu lệnh PowerShell, bootstrap, Telegram token, số tài khoản hay WebRequest để dùng cảnh báo C5 local.")}</span>
           <details>
             <summary>{tr("Telegram optional / Advanced", "Telegram tùy chọn / Nâng cao")}</summary>
-            <span>{tr("Already using the OAK Local Telegram controller? Keep it running and v1.09 will automatically forward C5 reminders and Telegram /look for the matching MT5 account.", "Nếu máy đã dùng OAK Local Telegram controller, cứ để controller chạy; v1.09 tự chuyển reminder C5 và Telegram /look cho đúng tài khoản MT5.")}</span>
+            <span>{tr("Already using the OAK Local Telegram controller? Keep it running and v1.10 will automatically forward C5 reminders and Telegram /look for the matching MT5 account.", "Nếu máy đã dùng OAK Local Telegram controller, cứ để controller chạy; v1.10 tự chuyển reminder C5 và Telegram /look cho đúng tài khoản MT5.")}</span>
             <span>{tr("The full local controller is an operator feature because it also owns trading-control infrastructure. New controller provisioning is intentionally kept out of the basic C5 setup.", "Full local controller là tính năng dành cho operator vì nó còn quản lý hạ tầng điều khiển trading. Việc provision controller mới được tách khỏi luồng cài C5 cơ bản.")}</span>
             <a className={styles.secondaryButton} href="https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/blob/main/local-failover/README.md" target="_blank" rel="noreferrer">{tr("Advanced controller guide", "Hướng dẫn controller nâng cao")}</a>
           </details>

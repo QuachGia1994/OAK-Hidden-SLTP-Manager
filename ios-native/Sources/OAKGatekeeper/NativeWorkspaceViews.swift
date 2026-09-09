@@ -30,7 +30,7 @@ struct NeoTechNativeView: View {
                             .frame(width: 68, height: 68)
 
                             VStack(alignment: .leading, spacing: 5) {
-                                OAKEyebrow(text: "VERSION 1.09 · STANDALONE")
+                                OAKEyebrow(text: "VERSION 1.10 · STANDALONE")
                                 Text(state.text(vn: "Cài một lần, chạy độc lập", en: "Install once, run standalone"))
                                     .font(.title2.bold())
                                     .foregroundStyle(OAKColor.text)
