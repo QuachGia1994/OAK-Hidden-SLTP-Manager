@@ -85,7 +85,6 @@ def main():
     icon.save(SOURCE, "PNG", optimize=True)
 
     exact_targets = [
-        ROOT / "android-native/app/src/main/res/drawable-nodpi/oak_app_icon_exact.png",
         ROOT / "dashboard/public/oak-app-icon.png",
         ROOT / "ios-native/Resources/Assets.xcassets/OAKLogo.imageset/OAKLogo.png",
     ]
