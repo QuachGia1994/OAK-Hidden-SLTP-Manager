@@ -1,6 +1,7 @@
 "use client";
 
 import { useLocale } from "@/components/LocaleProvider";
+import { OrbitBrandMark } from "@/components/OrbitBrandMark";
 
 type LoadingScope = "app" | "engine" | "history";
 
@@ -27,11 +28,7 @@ export function OAKLoadingSplash({ scope = "app" }: { scope?: LoadingScope }) {
     <section className="oak-loading-splash" role="status" aria-live="polite" aria-busy="true" aria-label={copy.status}>
       <div className="oak-loading-card">
         <div className="oak-loading-mark" aria-hidden="true">
-          <span className="oak-loading-ring oak-loading-ring-outer" />
-          <span className="oak-loading-ring oak-loading-ring-inner" />
-          <span className="oak-loading-core">
-            <span className="oak-loading-core-dot" />
-          </span>
+          <OrbitBrandMark label="OAK" />
         </div>
         <div className="oak-loading-copy">
           <span className="oak-loading-eyebrow">OAK GATEKEEPER</span>

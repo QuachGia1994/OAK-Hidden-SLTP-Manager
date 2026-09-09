@@ -2,13 +2,13 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "OAK Gatekeeper · ROBOT SLTP Pro",
+    name: "OAK Gatekeeper",
     short_name: "OAK Gatekeeper",
-    description: "OAK Gatekeeper trading command system for ROBOT SLTP Pro.",
+    description: "OAK Gatekeeper Orbit 3D trading command system.",
     start_url: "/engine",
     display: "standalone",
-    background_color: "#F2F6FA",
-    theme_color: "#08111F",
+    background_color: "#07110F",
+    theme_color: "#07110F",
     icons: [
       {
         src: "/oak-app-icon-192.png",

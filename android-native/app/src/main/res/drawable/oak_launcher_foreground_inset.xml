@@ -6,7 +6,7 @@
         android:right="18dp"
         android:bottom="18dp">
         <bitmap
-            android:src="@drawable/oak_app_icon_exact"
+            android:src="@drawable/oak_launcher_foreground"
             android:gravity="fill" />
     </item>
 </layer-list>

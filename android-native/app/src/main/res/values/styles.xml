@@ -12,6 +12,8 @@
     <style name="Theme.OAKGatekeeper.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/oak_launcher_bg</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/oak_launcher_foreground_inset</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
         <item name="postSplashScreenTheme">@style/Theme.OAKGatekeeper</item>
     </style>
 </resources>

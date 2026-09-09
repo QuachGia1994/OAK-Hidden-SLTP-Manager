@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Unified OAK branding around the animated Orbit 3D identity across web, iOS and Android. The H1 hero and all in-app loading states now share horizontal, vertical and diagonal orbit motion; the vertical plane rotates independently instead of appearing static. Native OS launch surfaces use the same graphite Orbit artwork before handing off to the animated loading card. The canonical Orbit artwork now also drives iOS AppIcon/OAKLogo, Android adaptive/monochrome/splash icons, web header/favicon/PWA icons and a new Orbit-branded OpenGraph/Twitter preview card.
+
 - Redesigned the native iOS and Android workspaces to match the current web hierarchy: three primary tabs (`H1 Live`, `NeoTech`, `Công cụ/Tools`), unified Live + retained History navigation, the web-style H1 command hero and metadata strip, a lightweight animated 3D orbit that respects system reduced-motion/animation settings, and the shared `ENTRY TIME + 5 signal rows` v90 matrix with H12/H14 emphasis. NeoTech now has a native standalone C5 overview, while Signals/Reports/System remain available as Tools drill-downs. Feed, evidence, account, and broker-execution contracts are unchanged.
 
 - Fixed mobile H1 geometric-core motion and NeoTech setup-card flow: iPhone/Android coarse-pointer browsers now keep lightweight transform-only orbit/sphere animation unless the OS requests reduced motion, while the expanded NeoTech Advanced setup content stays in normal document flow and its CTA/text wrap without overlap.

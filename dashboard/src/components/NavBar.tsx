@@ -97,7 +97,7 @@ export function NavBar() {
     <nav className="oak-nav sticky top-0 z-50">
       <div className="nav-shell oak-nav-layout">
         <Link href="/engine" className="oak-brand" aria-label="OAK Gatekeeper">
-          <span className="oak-brand-icon"><img src="/oak-app-icon.png" alt="" aria-hidden="true" /></span>
+          <span className="oak-brand-icon"><img src="/oak-app-icon.png?v=orbit-20260909" alt="" aria-hidden="true" /></span>
           <span className="oak-brand-copy">
             <strong>OAK GATEKEEPER</strong>
           </span>

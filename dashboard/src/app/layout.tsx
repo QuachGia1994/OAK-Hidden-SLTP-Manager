@@ -31,9 +31,9 @@ export const metadata: Metadata = {
   },
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/oak-app-icon.png?v=brand-20260905",
-    shortcut: "/oak-app-icon.png?v=brand-20260905",
-    apple: "/oak-app-icon.png?v=brand-20260905",
+    icon: "/oak-app-icon.png?v=orbit-20260909",
+    shortcut: "/oak-app-icon.png?v=orbit-20260909",
+    apple: "/oak-app-icon.png?v=orbit-20260909",
   },
 };
 

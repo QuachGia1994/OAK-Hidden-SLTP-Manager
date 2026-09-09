@@ -6,7 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,9 +16,9 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.annotation.DrawableRes
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -67,16 +67,26 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun OAKLaunchLoading(state: OAKAppState) {
     val p = LocalOAKPalette.current
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Image(
-                painter = painterResource(R.drawable.oak_app_icon_exact),
-                contentDescription = "OAK Gatekeeper",
-                modifier = Modifier.size(104.dp),
-            )
-            Text("OAK GATEKEEPER", color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
-            CircularProgressIndicator(color = p.accent, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
-            Text(state.text("Đang đồng bộ H1 local…", "Syncing local H1…"), color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+    Box(Modifier.fillMaxSize().background(p.canvas), contentAlignment = Alignment.Center) {
+        Surface(
+            modifier = Modifier.padding(horizontal = 26.dp),
+            shape = RoundedCornerShape(20.dp),
+            color = p.surface.copy(alpha = .96f),
+            border = androidx.compose.foundation.BorderStroke(1.dp, p.border.copy(alpha = .8f)),
+            shadowElevation = 8.dp,
+        ) {
+            androidx.compose.foundation.layout.Row(
+                modifier = Modifier.padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                OAKOrbitCore(Modifier.size(118.dp), label = "OAK")
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text("OAK GATEKEEPER", color = p.accent, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, letterSpacing = 1.2.sp)
+                    Text(state.text("Đang mở OAK", "Preparing OAK"), color = p.text, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                    Text(state.text("Đang tải dữ liệu…", "Loading data…"), color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace)
+                }
+            }
         }
     }
 }

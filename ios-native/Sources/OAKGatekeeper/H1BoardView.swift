@@ -314,53 +314,65 @@ private struct H1NativeMetadataStrip: View {
 }
 
 @MainActor
-private struct OAKNativeOrbitCore: View {
+struct OAKNativeOrbitCore: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var label: String = "H1"
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion)) { context in
             let phase = context.date.timeIntervalSinceReferenceDate
-            let orbitAngle = Angle.degrees(phase * 30)
-            let reverseOrbitAngle = Angle.degrees(-phase * 30)
-            let sphereAngle = Angle.degrees(phase * 13)
+            let horizontal = Angle.degrees(phase * 36)
+            let vertical = Angle.degrees(phase * 45)
+            let diagonal = Angle.degrees(-phase * 27)
+            let sphere = Angle.degrees(phase * 13)
 
             ZStack {
-                Circle()
-                    .stroke(OAKColor.accent.opacity(0.35), lineWidth: 1)
-                    .frame(width: 108, height: 108)
-                    .rotation3DEffect(.degrees(66), axis: (x: 1, y: 0, z: 0))
-                    .rotationEffect(orbitAngle)
+                orbitRing(size: 108, opacity: 0.42, angle: horizontal)
+                    .rotation3DEffect(.degrees(66), axis: (x: 1, y: 0, z: 0), perspective: 0.72)
 
-                Circle()
-                    .stroke(OAKColor.accent.opacity(0.55), style: StrokeStyle(lineWidth: 1, dash: [5, 5]))
-                    .frame(width: 92, height: 92)
-                    .rotation3DEffect(.degrees(66), axis: (x: 1, y: 0, z: 0))
-                    .rotationEffect(reverseOrbitAngle)
+                orbitRing(size: 101, opacity: 0.62, angle: vertical)
+                    .rotation3DEffect(.degrees(72), axis: (x: 0, y: 1, z: 0), perspective: 0.72)
+                    .rotation3DEffect(vertical, axis: (x: 1, y: 0, z: 0), perspective: 0.72)
+
+                orbitRing(size: 98, opacity: 0.34, angle: diagonal)
+                    .rotation3DEffect(.degrees(56), axis: (x: 1, y: 1, z: 0), perspective: 0.72)
 
                 ZStack {
                     ForEach(0..<6, id: \.self) { index in
                         Circle()
-                            .stroke(OAKColor.accent.opacity(0.62), lineWidth: 0.9)
+                            .stroke(OAKColor.accent.opacity(0.58), lineWidth: 0.9)
                             .frame(width: 64, height: 64)
-                            .rotation3DEffect(.degrees(Double(index) * 30), axis: (x: 0, y: 1, z: 0))
+                            .rotation3DEffect(.degrees(Double(index) * 30 + sphere.degrees), axis: (x: 0, y: 1, z: 0), perspective: 0.7)
                     }
                     Circle()
-                        .stroke(OAKColor.accent.opacity(0.7), lineWidth: 1)
+                        .stroke(OAKColor.accent.opacity(0.68), lineWidth: 1)
                         .frame(width: 64, height: 64)
-                        .rotation3DEffect(.degrees(90), axis: (x: 1, y: 0, z: 0))
+                        .rotation3DEffect(.degrees(90), axis: (x: 1, y: 0, z: 0), perspective: 0.7)
                 }
-                .rotation3DEffect(.degrees(-18), axis: (x: 1, y: 0, z: 0))
-                .rotationEffect(sphereAngle)
+                .rotation3DEffect(.degrees(-18), axis: (x: 1, y: 0, z: 0), perspective: 0.7)
 
-                Text("H1")
-                    .font(.system(size: 15, weight: .black, design: .monospaced))
+                Text(label)
+                    .font(.system(size: label.count > 2 ? 11 : 15, weight: .black, design: .monospaced))
                     .foregroundStyle(OAKColor.text)
                     .frame(width: 42, height: 42)
                     .background(OAKColor.surface.opacity(0.92), in: Circle())
                     .overlay { Circle().stroke(OAKColor.accent, lineWidth: 1) }
             }
-            .shadow(color: OAKColor.accent.opacity(0.18), radius: 12)
+            .shadow(color: OAKColor.accent.opacity(0.22), radius: 14)
         }
+    }
+
+    private func orbitRing(size: CGFloat, opacity: Double, angle: Angle) -> some View {
+        ZStack {
+            Circle().stroke(OAKColor.accent.opacity(opacity), lineWidth: 1)
+            Circle()
+                .fill(OAKColor.accent)
+                .frame(width: 6, height: 6)
+                .offset(y: -size / 2)
+                .rotationEffect(angle)
+                .shadow(color: OAKColor.accent.opacity(0.85), radius: 5)
+        }
+        .frame(width: size, height: size)
     }
 }
 

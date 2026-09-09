@@ -1,5 +1,6 @@
 import type { H1SignalPayload } from "@/lib/h1-signals";
 import { H1_SCAN_HOURS } from "@/lib/h1-cloud-scanner";
+import { OrbitBrandMark } from "@/components/OrbitBrandMark";
 
 type Locale = "EN" | "VN";
 
@@ -69,17 +70,8 @@ export function EngineCore({ data, degraded = false, locale }: { data: H1SignalP
             {data?.publishedAt && <time dateTime={data.publishedAt}>{formatPublished(data.publishedAt, locale)} ICT</time>}
           </div>
         </div>
-        <div className="engine-core-visual" data-state={state} aria-hidden="true">
-          <div className="engine-core-grid" />
-          <div className="engine-core-ring engine-core-ring-outer" />
-          <div className="engine-core-ring engine-core-ring-mid" />
-          <div className="engine-core-ring engine-core-ring-inner" />
-          <div className="engine-core-orbit"><span /><span /><span /></div>
-          <div className="engine-core-sphere">
-            {[0, 1, 2, 3, 4, 5].map((meridian) => <span className="engine-core-meridian" key={meridian} />)}
-            <span className="engine-core-equator" />
-          </div>
-          <div className="engine-core-center"><b>H1</b></div>
+        <div className="engine-core-hero-mark" data-state={state} aria-hidden="true">
+          <OrbitBrandMark label="H1" showGrid />
           <span className="engine-core-caption">{copy.core} / {copy.local}</span>
         </div>
       </section>

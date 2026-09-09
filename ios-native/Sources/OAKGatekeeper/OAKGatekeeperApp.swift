@@ -43,23 +43,31 @@ private struct RootView: View {
 @MainActor
 private struct OAKLaunchLoadingView: View {
     var body: some View {
-        VStack(spacing: 14) {
-            Image("OAKLogo")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 104, height: 104)
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            Text("OAK GATEKEEPER")
-                .font(.system(size: 15, weight: .black, design: .monospaced))
-                .foregroundStyle(OAKColor.text)
-            ProgressView()
-                .controlSize(.regular)
-                .tint(OAKColor.accent)
-            Text("Loading local H1…")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundStyle(OAKColor.muted)
+        VStack {
+            HStack(spacing: 18) {
+                OAKNativeOrbitCore(label: "OAK")
+                    .frame(width: 118, height: 118)
+
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("OAK GATEKEEPER")
+                        .font(.system(size: 13, weight: .black, design: .monospaced))
+                        .tracking(1.2)
+                        .foregroundStyle(OAKColor.accent)
+                    Text("Đang mở OAK")
+                        .font(.system(size: 20, weight: .black, design: .rounded))
+                        .foregroundStyle(OAKColor.text)
+                    Text("Đang tải dữ liệu…")
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(OAKColor.muted)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(18)
+            .background(OAKColor.surface.opacity(0.96), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(OAKColor.border.opacity(0.8), lineWidth: 1) }
+            .padding(.horizontal, 26)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(OAKColor.canvas)
+        .background(OAKColor.canvas.ignoresSafeArea())
     }
 }

@@ -139,12 +139,15 @@ test("spatial HUD layer stays below DOM UI and respects performance guards", () 
   assert.match(oakCss, /body\.oak-body \{ background: var\(--oak-bg-canvas\) !important; \}/);
 });
 
-test("mobile engine geometry keeps lightweight motion while NeoTech advanced setup content cannot overlap", () => {
-  assert.match(oakCss, /\.engine-core-orbit \{[^}]*animation: engine-orbit 12s linear infinite/);
+test("mobile engine geometry keeps horizontal, vertical and diagonal Orbit 3D motion while NeoTech advanced setup content cannot overlap", () => {
+  assert.match(oakCss, /\.engine-core-orbit-horizontal \{ animation: engine-orbit-horizontal 10s linear infinite/);
+  assert.match(oakCss, /\.engine-core-orbit-vertical \{[^}]*animation: engine-orbit-vertical 8s linear infinite/);
+  assert.match(oakCss, /\.engine-core-orbit-diagonal \{[^}]*animation: engine-orbit-diagonal 13s linear infinite reverse/);
+  assert.match(oakCss, /@keyframes engine-orbit-vertical/);
+  assert.match(oakCss, /rotateY\(68deg\) rotateX\(360deg\)/);
   assert.match(oakCss, /\.engine-core-sphere \{[^}]*animation: engine-sphere-drift 18s ease-in-out infinite alternate/);
-  assert.match(oakCss, /@keyframes engine-sphere-drift/);
   assert.doesNotMatch(oakCss, /prefers-reduced-motion: reduce\), \(max-width: 759px\), \(pointer: coarse\)[^}]*engine-core-orbit[^}]*animation: none/);
-  assert.match(oakCss, /@media \(prefers-reduced-motion: reduce\) \{\s*\.engine-core-orbit, \.engine-core-sphere \{ animation: none; \}/);
+  assert.match(oakCss, /@media \(prefers-reduced-motion: reduce\) \{\s*\.engine-core-orbit-horizontal, \.engine-core-orbit-vertical, \.engine-core-orbit-diagonal, \.engine-core-sphere \{ animation: none; \}/);
   assert.match(neotechCss, /\.downloadInstall details \{[^}]*min-width: 0;[^}]*overflow: visible/);
   assert.match(neotechCss, /\.downloadInstall details a \{[^}]*display: inline-flex;[^}]*max-width: 100%;[^}]*white-space: normal/);
   assert.match(neotechCss, /@media \(max-width: 760px\) \{[\s\S]*\.downloadInstall \{ align-content: start; \}/);

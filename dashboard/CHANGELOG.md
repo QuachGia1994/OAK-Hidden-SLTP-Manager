@@ -6,6 +6,8 @@ All notable changes to the dashboard are recorded here.
 
 ### Changed
 
+- Replaced the legacy loading/logo treatment with the shared Orbit 3D brand system. H1 hero and loading card now reuse the same horizontal/vertical/diagonal orbit markup; the vertical orbit has an independent 8s 3D rotation, mobile keeps motion unless Reduce Motion is requested, and favicon/header/PWA icons are regenerated from the same canonical Orbit artwork. OpenGraph/Twitter preview now uses the new `oak-share-v4.png` Orbit card.
+
 - Restored lightweight H1 geometric-core motion on iPhone/Android mobile browsers by removing the mobile/coarse-pointer animation kill switch; only `prefers-reduced-motion` disables it. Also fixed NeoTech Advanced setup content/CTA wrapping so expanded mobile copy no longer overlaps.
 
 - Fixed H1 export fidelity. The board PNG now has balanced column/row proportions, split v90 metadata that stays inside the canvas and subtler H12/H14 shading. The evidence chart export now separates the XAUUSD Entry-pattern chart from the selected row's own-symbol M15 signal base, states plot order vs pattern-match read order, includes intrinsic KEEP/INVERT, a dated human H3 selector, base OHLC and final side, and no longer exposes a raw `h3-prev-*`/`h3-today-*` slug in the copied image.

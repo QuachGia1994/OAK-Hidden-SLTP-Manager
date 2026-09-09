@@ -327,18 +327,30 @@ private fun H1MetaCell(label: String, value: String, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun OAKOrbitCore(modifier: Modifier = Modifier) {
+fun OAKOrbitCore(modifier: Modifier = Modifier, label: String = "H1") {
     val p = LocalOAKPalette.current
     val context = LocalContext.current
     val motionEnabled = remember(context) {
         Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f
     }
-    val transition = rememberInfiniteTransition(label = "h1-orbit")
-    val orbitAngle by transition.animateFloat(
+    val transition = rememberInfiniteTransition(label = "oak-orbit")
+    val horizontalAngle by transition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(tween(durationMillis = 10_000), RepeatMode.Restart),
-        label = "orbit-angle",
+        label = "orbit-horizontal",
+    )
+    val verticalAngle by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(durationMillis = 8_000), RepeatMode.Restart),
+        label = "orbit-vertical",
+    )
+    val diagonalAngle by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = -360f,
+        animationSpec = infiniteRepeatable(tween(durationMillis = 13_000), RepeatMode.Restart),
+        label = "orbit-diagonal",
     )
     val sphereAngle by transition.animateFloat(
         initialValue = -18f,
@@ -346,27 +358,32 @@ private fun OAKOrbitCore(modifier: Modifier = Modifier) {
         animationSpec = infiniteRepeatable(tween(durationMillis = 14_000), RepeatMode.Reverse),
         label = "sphere-angle",
     )
-    val safeOrbit = if (motionEnabled) orbitAngle else 12f
-    val safeSphere = if (motionEnabled) sphereAngle else -18f
+    val horizontal = if (motionEnabled) horizontalAngle else 12f
+    val vertical = if (motionEnabled) verticalAngle else 22f
+    val diagonal = if (motionEnabled) diagonalAngle else -18f
+    val sphere = if (motionEnabled) sphereAngle else -18f
 
     Box(modifier, contentAlignment = Alignment.Center) {
-        Box(
-            Modifier
-                .size(108.dp)
-                .graphicsLayer { rotationX = 66f; rotationZ = safeOrbit }
-                .border(1.dp, p.accent.copy(alpha = .34f), RoundedCornerShape(999.dp)),
+        OrbitRing(
+            size = 108,
+            alpha = .42f,
+            modifier = Modifier.graphicsLayer { rotationX = 66f; rotationZ = horizontal },
         )
-        Box(
-            Modifier
-                .size(92.dp)
-                .graphicsLayer { rotationX = 66f; rotationZ = -safeOrbit }
-                .border(1.dp, p.accent.copy(alpha = .54f), RoundedCornerShape(999.dp)),
+        OrbitRing(
+            size = 101,
+            alpha = .62f,
+            modifier = Modifier.graphicsLayer { rotationY = 72f; rotationX = vertical; rotationZ = -16f },
+        )
+        OrbitRing(
+            size = 98,
+            alpha = .34f,
+            modifier = Modifier.graphicsLayer { rotationX = 56f; rotationY = 42f; rotationZ = diagonal },
         )
         listOf(0f, 30f, 60f, 90f, 120f, 150f).forEach { meridian ->
             Box(
                 Modifier
                     .size(64.dp)
-                    .graphicsLayer { rotationY = meridian + safeSphere; rotationX = -18f }
+                    .graphicsLayer { rotationY = meridian + sphere; rotationX = -18f }
                     .border(1.dp, p.accent.copy(alpha = .58f), RoundedCornerShape(999.dp)),
             )
         }
@@ -377,8 +394,25 @@ private fun OAKOrbitCore(modifier: Modifier = Modifier) {
                 .border(1.dp, p.accent, RoundedCornerShape(999.dp)),
             contentAlignment = Alignment.Center,
         ) {
-            Text("H1", color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+            Text(label, color = p.text, fontSize = if (label.length > 2) 11.sp else 15.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
         }
+    }
+}
+
+@Composable
+private fun OrbitRing(size: Int, alpha: Float, modifier: Modifier = Modifier) {
+    val p = LocalOAKPalette.current
+    Box(
+        modifier
+            .size(size.dp)
+            .border(1.dp, p.accent.copy(alpha = alpha), RoundedCornerShape(999.dp)),
+    ) {
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .size(6.dp)
+                .background(p.accent, RoundedCornerShape(999.dp)),
+        )
     }
 }
 
