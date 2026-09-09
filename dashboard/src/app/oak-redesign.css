@@ -241,7 +241,7 @@ min-height: 2rem; padding: .35rem .6rem;
   .oak-h1-table th, .oak-h1-table td { width: auto; min-width: 0; }
   .oak-h1-symbol-sticky { width: clamp(8rem, 10vw, 11rem) !important; min-width: clamp(8rem, 10vw, 11rem); }
 }
-.oak-h1-table tbody .oak-h1-symbol-sticky b { color: var(--oak-fg-primary); font: 900 .67rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-table tbody .oak-h1-symbol-sticky b { color: var(--oak-fg-primary); font: 900 .67rem "Cascadia Mono", Consolas, monospace; white-space: nowrap; }
 .oak-h1-table tbody .oak-h1-symbol-sticky small { display: block; margin-top: .22rem; color: var(--oak-fg-muted); font: 800 .43rem/1.25 "Cascadia Mono", Consolas, monospace; letter-spacing: .02em; white-space: nowrap; }
 .oak-h1-table thead th[data-post-signal-inverted="true"],
 .oak-h1-table tbody td[data-post-signal-inverted="true"] { background: color-mix(in srgb, var(--oak-status-warning) 12%, var(--oak-bg-surface)); }
@@ -842,8 +842,8 @@ min-height: 7rem;
   .oak-h1-scroll-hint { display: block; }
   .oak-h1-calendar-picker { width: 100%; }
   .oak-h1-calendar-picker small { display: none; }
-  .oak-h1-table th, .oak-h1-table td { width: 2.75rem; min-width: 2.75rem; }
-  .oak-h1-symbol-sticky { width: 4.5rem !important; min-width: 4.5rem; padding-inline: .3rem; }
+  .oak-h1-table th, .oak-h1-table td { width: auto; min-width: 0; }
+  .oak-h1-symbol-sticky { width: 5.5rem !important; min-width: 5.5rem; padding-inline: .4rem; }
   .oak-h1-cell-empty, .oak-h1-cell-locked, .oak-h1-cell-signal { min-height: 2.75rem; }
   .oak-fact-hero-main h1 { font-size: 1.8rem; }
 }
@@ -1224,11 +1224,12 @@ body.oak-body {
 .oak-h1-table tbody .oak-h1-symbol-sticky b { font-size: var(--oak-text-meta); }
 
 .oak-h1-cell-signal {
-  width: fit-content;
-  min-width: 3.4rem;
+  box-sizing: border-box;
+  width: min(3.4rem, calc(100% - .4rem));
+  min-width: 0;
   min-height: 1.95rem;
   margin-inline: auto;
-  padding: .35rem .6rem;
+  padding: .35rem .25rem;
   border: 1px solid currentColor;
   border-radius: 999px;
   font-size: var(--oak-text-secondary);
@@ -1308,7 +1309,8 @@ body.oak-body {
   }
   .oak-h1-table-scroll .oak-h1-table {
     width: 100%;
-    min-width: 21rem;
+    min-width: 100%;
+    table-layout: fixed;
   }
 
   .oak-h1-calendar-popover {

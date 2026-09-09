@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Tightened the mobile H1 table after H16 retirement: the five hour columns now share the remaining viewport width evenly, the sticky label column is wide enough to keep `ENTRY TIME` on one line, BUY/SELL pills are box-sized so they cannot spill into adjacent cells, and the redundant `M15 E-2:15 · H3 RULE` subtitle was removed from every symbol row. Signal/evidence logic is unchanged.
+
 - Advanced H1 to v90 and removed H16 entirely. The active matrix is now H3/H6/H9/H12/H14 across `XAUUSD`, `GBPUSD`, `AUDUSD`, `USDCAD`, `USDJPY`. Each row still reads its own same-broker-day M15 candle at `entry time - 2h15`; XAUUSD/GBPUSD/AUDUSD keep that base direction while USDCAD/USDJPY invert it first. A second final-signal layer is driven by XAUUSD H3 Entry time: H3/H6/H9 use the previous available broker day's H3 Entry (`H4` = keep, `H5` = invert), while H12/H14 use today's H3 Entry with the same H4/H5 rule. Missing selector evidence fails closed. Local snapshots carry the previous XAUUSD broker day only as selector context; signal bases remain own-symbol/same-day. Evidence/PNG/native clients expose the same rule, stale v89 local-pattern rows are rejected, schema 18/state v56 remain stable, and broker execution remains independent.
 
 - Updated app/H1 loading screens to the shared workspace palette with localized loading states. Published NeoTech Compliance EA v1.08 with automatic current-login/server binding across MT5 account switches, no fixed-login input, refreshed SHA-256 verification, and explicit existing-controller vs new-PC Telegram setup guidance.

@@ -151,7 +151,7 @@ test("web and native clients expose shared Entry time plus the same five v90 sig
   assert.match(boardSource, /<b>ENTRY TIME<\/b>/);
   assert.match(boardSource, /entryByHour = new Map\(\(day\?\.symbols\?\.XAUUSD\?\.alerts/);
   assert.match(boardSource, /H1_SIGNAL_ROWS = \["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"\]/);
-  assert.match(boardSource, /M15 E-2:15/);
+  assert.doesNotMatch(boardSource, /M15 E-2:15 · H3 RULE/);
   assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"\)/);
   assert.match(nativeH1BoardSource, /visibleSymbols = \["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"\]/);
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
@@ -317,7 +317,7 @@ test("legacy weekday and CẦU presentation stays hidden while v90 H3 selector r
   assert.doesNotMatch(boardSource, /inversionBadge|data-post-signal-inverted|ĐẢO/);
   assert.doesNotMatch(boardSource, /isMonthEndBridgeCell|oak-h1-bridge-badge|data-month-end-bridge|CẦU/);
   assert.doesNotMatch(evidencePanelSource, /Weekday:|WEEKDAY|ĐẢO|GIỮ/);
-  assert.match(boardSource, /M15 E-2:15 · H3 RULE/);
+  assert.doesNotMatch(boardSource, /M15 E-2:15 · H3 RULE/);
   assert.match(evidencePanelSource, /M15 entry-2h15 · BASE/);
   assert.match(evidencePanelSource, /h3-prev-h5-invert/);
   assert.match(evidencePanelSource, /h3-today-h5-invert/);

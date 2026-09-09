@@ -6,6 +6,8 @@ All notable changes to the dashboard are recorded here.
 
 ### Changed
 
+- Fixed the mobile H1 table proportions after v90: the label column now keeps `ENTRY TIME` on one line, H03/H06/H09/H12/H14 share the remaining width consistently, BUY/SELL pills cannot overflow their cells, and symbol rows no longer repeat the `M15 E-2:15 · H3 RULE` subtitle.
+
 - Advanced H1 to v90: H16 is removed and the active table is H3/H6/H9/H12/H14. Each of the five signal rows keeps the v89 own-symbol M15 `entry - 2h15` base; USDCAD/USDJPY invert that intrinsic base first. Final BUY/SELL then follows XAUUSD H3 Entry: H3/H6/H9 use the previous available broker day's H3 Entry (`H4` keep, `H5` invert), while H12/H14 use today's H3 Entry with the same selector. Missing selector evidence fails closed. Evidence/export/native surfaces carry the same rule, stale v89 rows are rejected, and Telegram/broker execution remains independent.
 
 - Refreshed the shared loading splash to match the workspace palette and follow EN/VN and reduced-motion preferences.

@@ -78,7 +78,7 @@ test("primary Tools tab follows LocaleProvider immediately without waiting for F
   assert.match(toolsPageSource, /<ToolsClient locale=\{locale\} \/>/);
 });
 
-test("H1 entry cells stay centered, expose mobile scroll affordance and table header relationships", () => {
+test("H1 entry cells stay centered, signal pills stay inside columns, and table headers remain aligned", () => {
   assert.match(h1SignalSource, /oak-h1-cell-entry/);
   assert.match(h1SignalSource, /scope="col"/);
   assert.match(h1SignalSource, /scope="row"/);
@@ -89,6 +89,8 @@ test("H1 entry cells stay centered, expose mobile scroll affordance and table he
   assert.match(oakCss, /\.oak-h1-cell-entry[\s\S]*display: grid/);
   assert.match(oakCss, /\.oak-h1-cell-entry[\s\S]*text-align: center/);
   assert.match(oakCss, /\.oak-h1-scroll-hint \{ display: block; color: var\(--oak-fg-muted\); font-size: \.625rem; \}/);
+  assert.doesNotMatch(h1SignalSource, /M15 E-2:15 · H3 RULE/);
+  assert.match(oakCss, /\.oak-h1-cell-signal \{[\s\S]*box-sizing: border-box;[\s\S]*width: min\(3\.4rem, calc\(100% - \.4rem\)\);[\s\S]*min-width: 0;/);
 });
 
 test("all custom trading and NeoTech dialogs use the shared keyboard focus trap", () => {
@@ -190,7 +192,8 @@ test("mobile controls and calendar expose 44px-class touch targets", () => {
 test("iPhone H1 surface stays inside the visual viewport and keeps native horizontal pan", () => {
   assert.match(oakCss, /iPhone\/Safari containment/);
   assert.match(oakCss, /\.oak-h1-table-scroll \{[\s\S]*overflow-x: scroll !important;[\s\S]*touch-action: pan-x pan-y;[\s\S]*-webkit-overflow-scrolling: touch/);
-  assert.match(oakCss, /\.oak-h1-table-scroll \.oak-h1-table \{[\s\S]*width: 100%;[\s\S]*min-width: 21rem/);
+  assert.match(oakCss, /\.oak-h1-table-scroll \.oak-h1-table \{[\s\S]*width: 100%;[\s\S]*min-width: 100%;[\s\S]*table-layout: fixed/);
+  assert.match(oakCss, /\.oak-h1-symbol-sticky \{ width: 5\.5rem !important; min-width: 5\.5rem; padding-inline: \.4rem; \}/);
   assert.match(oakCss, /\.oak-h1-calendar-popover \{[\s\S]*position: fixed;[\s\S]*right: max\(\.55rem, env\(safe-area-inset-right\)\);[\s\S]*left: max\(\.55rem, env\(safe-area-inset-left\)\);[\s\S]*transform: none/);
   assert.match(oakCss, /\.oak-h1-calendar-grid \{[\s\S]*grid-template-columns: repeat\(7, minmax\(0, 1fr\)\)/);
   assert.match(oakCss, /\.oak-engine-screen,[\s\S]*\.oak-h1-table-scroll \{[\s\S]*min-width: 0;[\s\S]*max-width: 100%/);

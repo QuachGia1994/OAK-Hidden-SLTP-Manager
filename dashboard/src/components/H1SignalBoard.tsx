@@ -488,7 +488,7 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
               <tr><th id="h1-entry-time-row" scope="row" className="oak-h1-symbol-sticky"><b>ENTRY TIME</b><small>{locale === "EN" ? "PREV H3 · —" : "H3 HÔM TRƯỚC · —"}</small></th>{fallbackHours.map((hour) => (
                 <td key={hour} headers={`h1-entry-time-row h1-hour-${hour}`} data-entry-highlight={hour === 12 || hour === 14 ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>
               ))}</tr>
-              {H1_SIGNAL_ROWS.map((symbol) => <tr key={symbol}><th id={`h1-signal-row-${symbol}`} scope="row" className="oak-h1-symbol-sticky"><b>{symbol}</b><small>M15 E-2:15 · H3 RULE</small></th>{fallbackHours.map((hour) => (
+              {H1_SIGNAL_ROWS.map((symbol) => <tr key={symbol}><th id={`h1-signal-row-${symbol}`} scope="row" className="oak-h1-symbol-sticky"><b>{symbol}</b></th>{fallbackHours.map((hour) => (
                 <td key={hour} headers={`h1-signal-row-${symbol} h1-hour-${hour}`} data-entry-highlight={hour === 12 || hour === 14 ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>
               ))}</tr>)}
             </tbody>
@@ -543,7 +543,7 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
                 if (!Number.isInteger(alert?.entryHour)) return <td key={hour} headers={`h1-entry-time-row h1-hour-${hour}`} data-entry-highlight={hour === 12 || hour === 14 ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>;
                 return <td key={hour} headers={`h1-entry-time-row h1-hour-${hour}`} data-entry-highlight={hour === 12 || hour === 14 ? "true" : undefined} data-pattern-group={alert?.patternGroup || undefined} title={`XAUUSD · ${alert?.pattern || ""} · ${alert?.patternGroup || ""}`}><button type="button" className="oak-h1-cell-entry oak-h1-cell-evidence" onClick={() => setEvidenceSelection({ base: "XAUUSD", brokerDate: date, alert: alert! })} aria-label={`H${hour}: ${locale === "EN" ? "view entry-time pattern evidence" : "xem evidence entry time"}`}><b>{entryHourLabel(alert)}</b></button></td>;
               })}</tr>
-              {H1_SIGNAL_ROWS.map((symbol) => <tr key={symbol}><th id={`h1-signal-row-${symbol}`} scope="row" className="oak-h1-symbol-sticky"><b>{symbol}</b><small>M15 E-2:15 · H3 RULE</small></th>{activeHours.map((hour) => {
+              {H1_SIGNAL_ROWS.map((symbol) => <tr key={symbol}><th id={`h1-signal-row-${symbol}`} scope="row" className="oak-h1-symbol-sticky"><b>{symbol}</b></th>{activeHours.map((hour) => {
                 const alert = signalAlertForHour(day, symbol, hour);
                 const signal = signalLabel(alert);
                 if (signal === "—") return <td key={hour} headers={`h1-signal-row-${symbol} h1-hour-${hour}`} data-entry-highlight={hour === 12 || hour === 14 ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>;
