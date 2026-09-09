@@ -6,6 +6,8 @@ All notable changes to the dashboard are recorded here.
 
 ### Changed
 
+- Restored lightweight H1 geometric-core motion on iPhone/Android mobile browsers by removing the mobile/coarse-pointer animation kill switch; only `prefers-reduced-motion` disables it. Also fixed NeoTech Advanced setup content/CTA wrapping so expanded mobile copy no longer overlaps.
+
 - Fixed H1 export fidelity. The board PNG now has balanced column/row proportions, split v90 metadata that stays inside the canvas and subtler H12/H14 shading. The evidence chart export now separates the XAUUSD Entry-pattern chart from the selected row's own-symbol M15 signal base, states plot order vs pattern-match read order, includes intrinsic KEEP/INVERT, a dated human H3 selector, base OHLC and final side, and no longer exposes a raw `h3-prev-*`/`h3-today-*` slug in the copied image.
 
 - Fixed the mobile H1 table proportions after v90: the label column now keeps `ENTRY TIME` on one line, H03/H06/H09/H12/H14 share the remaining width consistently, BUY/SELL pills cannot overflow their cells, and symbol rows no longer repeat the `M15 E-2:15 · H3 RULE` subtitle.

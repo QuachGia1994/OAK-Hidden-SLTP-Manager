@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed mobile H1 geometric-core motion and NeoTech setup-card flow: iPhone/Android coarse-pointer browsers now keep lightweight transform-only orbit/sphere animation unless the OS requests reduced motion, while the expanded NeoTech Advanced setup content stays in normal document flow and its CTA/text wrap without overlap.
+
 - Fixed H1 image exports: Copy PNG now uses a more balanced matrix, split metadata lines so the v90 rule text cannot run off-canvas, and lighter H12/H14 emphasis. Copy Chart now labels XAUUSD as the Entry-pattern source separately from the selected row's own-symbol M15 signal base, prints pattern plot/read direction explicitly, expands the header area for unclipped evidence, shows the intrinsic UC/UJ inversion result, the human H3 selector/date, base OHLC and final signal. Trading/signal computation is unchanged.
 
 - Tightened the mobile H1 table after H16 retirement: the five hour columns now share the remaining viewport width evenly, the sticky label column is wide enough to keep `ENTRY TIME` on one line, BUY/SELL pills are box-sized so they cannot spill into adjacent cells, and the redundant `M15 E-2:15 · H3 RULE` subtitle was removed from every symbol row. Signal/evidence logic is unchanged.

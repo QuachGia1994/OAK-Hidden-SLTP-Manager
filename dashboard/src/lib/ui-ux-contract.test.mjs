@@ -12,6 +12,7 @@ const dialogHookSource = readFileSync(new URL("../hooks/useDialogFocusTrap.ts", 
 const neoTechSource = readFileSync(new URL("../app/neotech/NeoTechPublicDashboard.tsx", import.meta.url), "utf8");
 const factCheckSharedSource = readFileSync(new URL("../app/factcheck/[id]/page.tsx", import.meta.url), "utf8");
 const oakCss = readFileSync(new URL("../app/oak-redesign.css", import.meta.url), "utf8");
+const neotechCss = readFileSync(new URL("../app/neotech/neotech.module.css", import.meta.url), "utf8");
 const globalsCss = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const layoutSource = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const spatialSource = readFileSync(new URL("../components/SpatialHudCanvas.tsx", import.meta.url), "utf8");
@@ -136,6 +137,18 @@ test("spatial HUD layer stays below DOM UI and respects performance guards", () 
   assert.match(oakCss, /@media \(max-width: 899px\), \(pointer: coarse\)/);
   assert.match(oakCss, /\.oak-spatial-stage \{ display: none !important; \}/);
   assert.match(oakCss, /body\.oak-body \{ background: var\(--oak-bg-canvas\) !important; \}/);
+});
+
+test("mobile engine geometry keeps lightweight motion while NeoTech advanced setup content cannot overlap", () => {
+  assert.match(oakCss, /\.engine-core-orbit \{[^}]*animation: engine-orbit 12s linear infinite/);
+  assert.match(oakCss, /\.engine-core-sphere \{[^}]*animation: engine-sphere-drift 18s ease-in-out infinite alternate/);
+  assert.match(oakCss, /@keyframes engine-sphere-drift/);
+  assert.doesNotMatch(oakCss, /prefers-reduced-motion: reduce\), \(max-width: 759px\), \(pointer: coarse\)[^}]*engine-core-orbit[^}]*animation: none/);
+  assert.match(oakCss, /@media \(prefers-reduced-motion: reduce\) \{\s*\.engine-core-orbit, \.engine-core-sphere \{ animation: none; \}/);
+  assert.match(neotechCss, /\.downloadInstall details \{[^}]*min-width: 0;[^}]*overflow: visible/);
+  assert.match(neotechCss, /\.downloadInstall details a \{[^}]*display: inline-flex;[^}]*max-width: 100%;[^}]*white-space: normal/);
+  assert.match(neotechCss, /@media \(max-width: 760px\) \{[\s\S]*\.downloadInstall \{ align-content: start; \}/);
+  assert.match(neotechCss, /\.ruleGroupLabel small \{[^}]*min-width: 0/);
 });
 
 test("desktop spatial grid uses a stronger two-scale perspective plane without re-enabling mobile HUD", () => {

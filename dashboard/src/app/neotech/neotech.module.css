@@ -49,14 +49,14 @@
 .downloadActions { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; margin-top: .35rem; }
 .downloadActions a { text-decoration: none; }
 .downloadChecksum { display: inline-flex; align-items: center; min-height: 44px; padding: .5rem; color: var(--nt-muted); font: 700 .75rem/1.3 var(--font-mono); }
-.downloadInstall { display: grid; align-content: center; gap: .5rem; padding: .85rem; border: 1px solid var(--nt-border); border-radius: 12px; background: color-mix(in srgb, var(--nt-raised) 68%, transparent); }
+.downloadInstall { display: grid; min-width: 0; align-content: center; gap: .5rem; padding: .85rem; border: 1px solid var(--nt-border); border-radius: 12px; background: color-mix(in srgb, var(--nt-raised) 68%, transparent); }
 .downloadInstall b { color: var(--nt-blue); font: 800 .75rem/1.2 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
 .downloadInstall span { color: var(--nt-muted); font-size: .75rem; line-height: 1.45; overflow-wrap: anywhere; }
-.downloadInstall details { display: grid; gap: .55rem; margin-top: .2rem; padding-top: .65rem; border-top: 1px solid var(--nt-border); }
+.downloadInstall details { display: block; min-width: 0; overflow: visible; margin-top: .2rem; padding-top: .65rem; border-top: 1px solid var(--nt-border); }
 .downloadInstall summary { cursor: pointer; color: var(--nt-text); font: 800 .72rem/1.3 var(--font-mono); letter-spacing: .04em; }
 .downloadInstall details[open] summary { margin-bottom: .15rem; }
 .downloadInstall details span { display: block; margin-top: .45rem; }
-.downloadInstall details a { width: fit-content; margin-top: .55rem; }
+.downloadInstall details a { display: inline-flex; width: fit-content; max-width: 100%; margin-top: .55rem; box-sizing: border-box; white-space: normal; line-height: 1.35; overflow-wrap: anywhere; }
 
 .securityStripV2 { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: .55rem; }
 .securityItemV2 { border: 1px solid var(--oak-border-subtle); border-radius: 12px; padding: .75rem; background: var(--oak-bg-raised); }
@@ -85,7 +85,7 @@
 .ruleConceptTailGrid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: .6rem; }
 .ruleGroupLabel { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-top: 1rem; padding: 0 .15rem .15rem; border-bottom: 1px solid var(--nt-border); }
 .ruleGroupLabel span { color: var(--nt-text); font: 850 .75rem/1.2 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; }
-.ruleGroupLabel small { color: var(--nt-muted); font-size: .75rem; }
+.ruleGroupLabel small { min-width: 0; color: var(--nt-muted); font-size: .75rem; overflow-wrap: anywhere; text-align: right; }
 .ruleConceptCard { min-width: 0; display: grid; grid-template-rows: auto auto auto 1fr auto; align-content: start; gap: .7rem; padding: 1rem; border: 1px solid var(--nt-border); border-radius: 12px; background: var(--nt-raised); }
 .ruleConceptCard[data-status="PASS"] { border-color: color-mix(in srgb, var(--nt-green) 45%, var(--nt-border)); }
 .ruleConceptCard[data-risk="fdd"]:not([data-status="PASS"]):not([data-status="FAIL"]) { border-color: color-mix(in srgb, var(--nt-amber) 50%, var(--nt-border)); background: color-mix(in srgb, var(--nt-amber) 5%, var(--nt-raised)); }
@@ -541,6 +541,8 @@
   .page { width: calc(100% - 1rem); gap: .75rem; padding-top: .5rem; }
   .heroV2 { border-radius: 18px; }
   .downloadPanel { grid-template-columns: 1fr; border-radius: 18px; }
+  .downloadInstall { align-content: start; }
+  .downloadInstall details a { width: 100%; justify-content: center; }
   .brandRail { grid-template-columns: 1fr auto; padding: .8rem; }
   .rulesetBadge { min-width: 100px; padding: .55rem .6rem; }
   .heroV2Grid { grid-template-columns: 1fr; min-height: 0; }
@@ -602,6 +604,7 @@
   .page .ruleConceptCard h3, .page .ruleConceptCard p, .page .ruleConceptFooter { grid-column: 2; }
   .page .ruleConceptFooter { margin-top: .2rem; }
   .ruleGroupLabel { flex-wrap: wrap; gap: .35rem; padding-bottom: .5rem; }
+  .ruleGroupLabel small { flex: 1 1 100%; text-align: left; }
   .sessionTracks { grid-template-columns: 1fr; gap: .7rem; }
   .sessionTrack { grid-template-columns: 1fr 1fr; align-items: center; }
   .sessionTrack b { grid-column: 1 / -1; grid-row: 1; }

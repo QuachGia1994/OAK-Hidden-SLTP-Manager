@@ -1944,14 +1944,14 @@ body.oak-body:has(.oak-workspace-heading) { background: radial-gradient(ellipse 
 .engine-core-ring-outer { width: 17rem; height: 17rem; transform: rotateX(66deg) rotateZ(-14deg); opacity: .7; }
 .engine-core-ring-mid { width: 15rem; height: 15rem; transform: rotateX(66deg) rotateZ(34deg); opacity: .62; border-style: dashed; }
 .engine-core-ring-inner { width: 5.3rem; height: 5.3rem; transform: rotateX(62deg) rotateZ(-28deg); opacity: .88; box-shadow: 0 0 2rem var(--engine-glow); }
-.engine-core-orbit { position: absolute; width: 16rem; height: 16rem; border: 1px solid color-mix(in srgb, var(--engine-accent) 38%, transparent); border-radius: 50%; transform: rotateX(64deg) rotateZ(12deg); animation: engine-orbit 12s linear infinite; }
+.engine-core-orbit { position: absolute; width: 16rem; height: 16rem; border: 1px solid color-mix(in srgb, var(--engine-accent) 38%, transparent); border-radius: 50%; transform: rotateX(64deg) rotateZ(12deg); animation: engine-orbit 12s linear infinite; will-change: transform; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
 .engine-core-orbit span { position: absolute; width: .34rem; height: .34rem; border-radius: 50%; background: var(--engine-accent); box-shadow: 0 0 .8rem var(--engine-accent); }
 .engine-core-orbit span:first-child { top: -.15rem; left: 50%; }
 .engine-core-orbit span:nth-child(2) { right: 8%; bottom: 22%; }
 .engine-core-orbit span:last-child { left: 15%; bottom: 19%; }
 .engine-core-center { position: relative; display: grid; place-items: center; width: 4.1rem; height: 4.1rem; border: 1px solid var(--engine-accent); border-radius: 50%; color: var(--engine-fg); background: color-mix(in srgb, var(--engine-surface) 86%, transparent); box-shadow: 0 0 2rem var(--engine-glow), inset 0 0 1.4rem var(--engine-glow); }
 .engine-core-center b { font: 850 1.25rem/1 var(--font-mono); letter-spacing: -.08em; }
-.engine-core-sphere { position: absolute; width: 8.5rem; aspect-ratio: 1; border-radius: 50%; transform-style: preserve-3d; transform: rotateX(-18deg) rotateZ(-22deg); box-shadow: 0 0 3rem var(--engine-glow), inset 0 0 2rem var(--engine-glow); }
+.engine-core-sphere { position: absolute; width: 8.5rem; aspect-ratio: 1; border-radius: 50%; transform-style: preserve-3d; -webkit-transform-style: preserve-3d; transform: rotateX(-18deg) rotateZ(-22deg); animation: engine-sphere-drift 18s ease-in-out infinite alternate; will-change: transform; backface-visibility: hidden; -webkit-backface-visibility: hidden; box-shadow: 0 0 3rem var(--engine-glow), inset 0 0 2rem var(--engine-glow); }
 .engine-core-sphere > span { position: absolute; inset: 0; border: 1px solid color-mix(in srgb, var(--engine-accent) 65%, transparent); border-radius: 50%; }
 .engine-core-meridian:nth-child(2) { transform: rotateY(30deg); }
 .engine-core-meridian:nth-child(3) { transform: rotateY(60deg); }
@@ -1979,7 +1979,13 @@ body.oak-body:has(.oak-workspace-heading) { background: radial-gradient(ellipse 
 .engine-module-links small { color: var(--engine-muted); font-size: .75rem; }
 .engine-module-links b { grid-column: 2; grid-row: 1 / span 2; color: var(--engine-accent); font: 800 1.1rem var(--font-mono); }
 @keyframes engine-orbit { to { transform: rotateX(64deg) rotateZ(372deg); } }
-@media (prefers-reduced-motion: reduce), (max-width: 759px), (pointer: coarse) { .engine-core-orbit { animation: none; } }
+@keyframes engine-sphere-drift {
+  from { transform: rotateX(-18deg) rotateY(-8deg) rotateZ(-22deg); }
+  to { transform: rotateX(-10deg) rotateY(34deg) rotateZ(14deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .engine-core-orbit, .engine-core-sphere { animation: none; }
+}
 @media (max-width: 759px) {
   .engine-route-shell { padding-top: .75rem; padding-bottom: 1.5rem; }
   .engine-command-hero { grid-template-columns: minmax(0, 1fr) 8.5rem; min-height: 12rem; border-radius: .75rem; }
@@ -1996,7 +2002,8 @@ body.oak-body:has(.oak-workspace-heading) { background: radial-gradient(ellipse 
   .engine-core-sphere { width: 5rem; }
   .engine-core-ring-mid { width: 6rem; height: 6rem; }
   .engine-core-ring-inner { width: 3.5rem; height: 3.5rem; }
-  .engine-core-orbit { width: 7rem; height: 7rem; }
+  .engine-core-orbit { width: 7rem; height: 7rem; animation-duration: 10s; }
+  .engine-core-sphere { animation-duration: 14s; }
   .engine-core-center { width: 3rem; height: 3rem; }
   .engine-core-center b { font-size: .9rem; }
   .engine-core-caption { display: none; }
