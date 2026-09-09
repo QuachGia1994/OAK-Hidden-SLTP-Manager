@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.09"
+#property version   "1.10"
 #property description "OAK NeoTech C5 discipline helper: standalone popup + C5 LOOK + optional Telegram. Read-only."
 
 #include "neotech\\NeoTechC5Reminder.mqh"
@@ -415,22 +415,31 @@ string NC5BuildLocalLookText()
    return NC5LocalLookText(session,symbols,session_end);
   }
 
+void NC5LayoutLookButton()
+  {
+   if(!InpLookButton || ObjectFind(0,NC5_LOOK_BUTTON_NAME)<0) return;
+   // Keep the control away from MT5's EA/status chrome on the upper-right.
+   // Fixed upper-left offsets are stable on desktop, phone remote sessions and chart resizes.
+   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_CORNER,CORNER_LEFT_UPPER);
+   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_XDISTANCE,12);
+   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_YDISTANCE,18);
+   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_XSIZE,92);
+   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_YSIZE,28);
+   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_ZORDER,1000);
+  }
+
 bool NC5EnsureLookButton()
   {
    if(!InpLookButton) return true;
-   if(ObjectFind(0,NC5_LOOK_BUTTON_NAME)>=0) return true;
-   if(!ObjectCreate(0,NC5_LOOK_BUTTON_NAME,OBJ_BUTTON,0,0,0)) return false;
-   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
-   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_XDISTANCE,14);
-   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_YDISTANCE,36);
-   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_XSIZE,92);
-   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_YSIZE,28);
+   if(ObjectFind(0,NC5_LOOK_BUTTON_NAME)<0 && !ObjectCreate(0,NC5_LOOK_BUTTON_NAME,OBJ_BUTTON,0,0,0)) return false;
+   NC5LayoutLookButton();
    ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_BGCOLOR,C'22,38,35');
    ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_BORDER_COLOR,C'57,170,132');
    ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_COLOR,clrWhite);
    ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_FONTSIZE,9);
    ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_HIDDEN,false);
    ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_SELECTABLE,false);
+   ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_BACK,false);
    ObjectSetString(0,NC5_LOOK_BUTTON_NAME,OBJPROP_TEXT,"C5 LOOK");
    ChartRedraw(0);
    return true;
@@ -464,7 +473,7 @@ int OnInit()
    NC5PublishLookSnapshot();
    NC5EnsureLookButton();
    if(!EventSetTimer(InpTimerSeconds)) return INIT_FAILED;
-   PrintFormat("[NEOTECH-C5] C5-only helper initialized auto-bind=true standalone=true login=%I64d timer=%ds catchup=%dm",(long)AccountInfoInteger(ACCOUNT_LOGIN),InpTimerSeconds,InpStartupCatchupMinutes);
+   PrintFormat("[NEOTECH-C5] v1.10 initialized auto-bind=true standalone=true login=%I64d timer=%ds catchup=%dm",(long)AccountInfoInteger(ACCOUNT_LOGIN),InpTimerSeconds,InpStartupCatchupMinutes);
    return INIT_SUCCEEDED;
   }
 
@@ -476,6 +485,11 @@ void OnDeinit(const int reason)
 
 void OnChartEvent(const int id,const long &lparam,const double &dparam,const string &sparam)
   {
+   if(id==CHARTEVENT_CHART_CHANGE)
+     {
+      NC5EnsureLookButton();
+      return;
+     }
    if(id!=CHARTEVENT_OBJECT_CLICK || sparam!=NC5_LOOK_BUTTON_NAME) return;
    ObjectSetInteger(0,NC5_LOOK_BUTTON_NAME,OBJPROP_STATE,false);
    const string text=NC5BuildLocalLookText();
@@ -488,6 +502,7 @@ void OnTimer()
   {
    NC5RefreshAccountIdentity();
    NC5PublishLookSnapshot();
+   NC5EnsureLookButton();
    NC5FlushReminders();
   }
 

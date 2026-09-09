@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- NeoTech C5 helper v1.10: moved the chart `C5 LOOK` control from the upper-right EA/status area to a fixed upper-left safe anchor, raised its z-order, and relayouts it on `CHARTEVENT_CHART_CHANGE`/timer so remote-mobile chart resizes cannot hide the button. C5 logic, reminders and read-only behavior are unchanged; the public one-click package remains v1.09 until it is rebuilt as a matching artifact set.
+
 - Synchronized shared FactCheck result pages with the current OAK graphite/mint workspace across Light/Dark/Contrast. Public `/factcheck/[id]` now carries the same `factcheck-route-shell` theme boundary as the main tool (which also disables the unrelated spatial HUD), fixes the public `h2/h3` heading/source-card typography mismatch, adds a compact confidence + claim/source metrics rail, uses a two-column evidence grid on desktop with a one-column mobile fallback, and strips stale `&nbsp;`/zero-width display artifacts from retained source text without changing stored evidence.
 
 - Hardened MT5 scheduled/direct reversals in EA v1.12 against the post-net/pre-entry gap. The EA now preflights projected post-net symbol exposure before closing the opposite side, tracks successful opposite-position/pending mutations, uses a configurable 5s broker-settlement wait (`InpEntryNetSettleTimeoutMs`, bounded 1–15s), and rechecks exposure/market data after settlement. If netting changed the account but the replacement entry is not submitted or cannot be confirmed, the durable result/event is `REVERSAL_INCOMPLETE` with current BUY/SELL exposure; Telegram demands manual broker inspection and automatic broker replay remains disabled. Scheduled MT5 UI entry now requires EA v1.12+.

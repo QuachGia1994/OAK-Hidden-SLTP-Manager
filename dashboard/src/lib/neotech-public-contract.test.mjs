@@ -70,7 +70,7 @@ test("NeoTech web/connector own the 14-rule contract while the auxiliary EA stay
   const publicUi = readFileSync(path.join(dashboardRoot, "src", "app", "neotech", "NeoTechPublicDashboard.tsx"), "utf8");
   assert.match(complianceDomain, /NEOTECH_SCHEMA_VERSION = "oak-neotech-compliance-report-v3"/);
   assert.match(reminderEa, /NeoTechC5Reminder\.mqh/);
-  assert.match(reminderEa, /#property version\s+"1\.09"/);
+  assert.match(reminderEa, /#property version\s+"1\.10"/);
   assert.match(reminderEa, /neotech_c5_reentry/);
   assert.match(reminderEa, /neotech_c5_look/);
   assert.doesNotMatch(reminderEa, /InpExpectedLogin/);
@@ -83,6 +83,12 @@ test("NeoTech web/connector own the 14-rule contract while the auxiliary EA stay
   assert.match(reminderEa, /InpLookButton\s*=\s*true/);
   assert.match(reminderEa, /OBJ_BUTTON/);
   assert.match(reminderEa, /C5 LOOK/);
+  assert.match(reminderEa, /NC5LayoutLookButton/);
+  assert.match(reminderEa, /OBJPROP_CORNER,CORNER_LEFT_UPPER/);
+  assert.match(reminderEa, /OBJPROP_XDISTANCE,12/);
+  assert.match(reminderEa, /OBJPROP_YDISTANCE,18/);
+  assert.match(reminderEa, /OBJPROP_ZORDER,1000/);
+  assert.match(reminderEa, /CHARTEVENT_CHART_CHANGE/);
   assert.match(reminderEa, /OnChartEvent/);
   assert.match(reminderEa, /NC5LocalReminderText/);
   assert.match(reminderEa, /NC5LocalLookText/);
