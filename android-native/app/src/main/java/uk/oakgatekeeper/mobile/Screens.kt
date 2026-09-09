@@ -71,7 +71,7 @@ import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlin.math.max
 
-private val VisibleSymbols = listOf("XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY")
+private val VisibleSymbols = listOf("XAUUSD")
 
 @Composable
 fun UnlockScreen(state: OAKAppState) {
@@ -306,7 +306,7 @@ private fun H1MetadataStrip(h1: H1SignalPayload) {
             Row(Modifier.fillMaxWidth()) {
                 H1MetaCell("NGUỒN DỮ LIỆU", "MT5 ICMarkets Local", Modifier.weight(1f))
                 Box(Modifier.width(1.dp).height(58.dp).background(p.border.copy(alpha = .5f)))
-                H1MetaCell("NHỊP DỮ LIỆU", "H03–H14 · M15 → H1", Modifier.weight(1f))
+                H1MetaCell("NHỊP DỮ LIỆU", "H03–H16 · M15 ENTRY + H1 BASE", Modifier.weight(1f))
             }
             HorizontalDivider(color = p.border.copy(alpha = .5f))
             Row(Modifier.fillMaxWidth()) {
@@ -538,7 +538,7 @@ private fun H1Matrix(h1: H1SignalPayload, date: String, onSelect: (H1SignalAlert
                         h1.hours.forEach { hour ->
                             H1EntryTimeCell(
                                 alert = h1.alert(date, "XAUUSD", hour),
-                                highlighted = hour == 12 || hour == 14,
+                                highlighted = false,
                             )
                         }
                     }
@@ -547,7 +547,7 @@ private fun H1Matrix(h1: H1SignalPayload, date: String, onSelect: (H1SignalAlert
                             h1.hours.forEach { hour ->
                                 H1SignalCell(
                                     alert = h1.alert(date, symbol, hour),
-                                    highlighted = hour == 12 || hour == 14,
+                                    highlighted = false,
                                     onSelect = onSelect,
                                 )
                             }

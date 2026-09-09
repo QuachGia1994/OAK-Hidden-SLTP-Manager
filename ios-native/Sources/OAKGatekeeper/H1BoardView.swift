@@ -18,7 +18,7 @@ struct H1BoardScreen: View {
     @State private var scheduleShare: OAKShareItem?
     @State private var imageTransferFailed = false
 
-    private let visibleSymbols = ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"]
+    private let visibleSymbols = ["XAUUSD"]
 
     var body: some View {
         ScrollView {
@@ -287,7 +287,7 @@ private struct H1NativeMetadataStrip: View {
     var body: some View {
         LazyVGrid(columns: columns, spacing: 0) {
             metadata(label: "NGUỒN DỮ LIỆU", value: "MT5 ICMarkets Local")
-            metadata(label: "NHỊP DỮ LIỆU", value: "H03–H14 · M15 → H1")
+            metadata(label: "NHỊP DỮ LIỆU", value: "H03–H16 · M15 ENTRY + H1 BASE")
             metadata(label: "NGÀY ĐÃ LƯU", value: "\(h1.orderedDatesDescending.count) ngày")
             metadata(label: "NGÀY MỚI NHẤT", value: h1.latestDate)
         }
@@ -428,7 +428,7 @@ private struct H1MatrixView: View {
                                         alert: h1.alert(date: date, symbol: "XAUUSD", hour: hour),
                                         width: cellWidth,
                                         height: rowHeight,
-                                        highlighted: hour == 12 || hour == 14
+                                        highlighted: false
                                     )
                                 }
                             }
@@ -439,7 +439,7 @@ private struct H1MatrixView: View {
                                             alert: h1.alert(date: date, symbol: symbol, hour: hour),
                                             width: cellWidth,
                                             height: rowHeight,
-                                            highlighted: hour == 12 || hour == 14,
+                                            highlighted: false,
                                             onSelect: onSelect
                                         )
                                     }

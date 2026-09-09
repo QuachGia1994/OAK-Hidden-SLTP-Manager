@@ -59,7 +59,8 @@ def main():
     argv = sys.argv[1:]
     terminal = terminal_from_args(argv)
     days = parse_days(argv)
-    bar_count = min(12_000, days * 96 + 192)
+    m15_bar_count = min(12_000, days * 96 + 192)
+    h1_bar_count = min(4_000, days * 24 + 72)
 
     if not mt5.initialize(path=terminal):
         raise RuntimeError(f"MT5 initialize failed: {mt5.last_error()}")
@@ -80,15 +81,18 @@ def main():
                 raise RuntimeError(f"ICMarkets symbol not found: {base}")
             if not mt5.symbol_select(symbol, True):
                 raise RuntimeError(f"cannot select ICMarkets symbol: {symbol}")
-            rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M15, 0, bar_count)
-            if rates is None or len(rates) < 8:
+            m15_rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M15, 0, m15_bar_count)
+            h1_rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_H1, 0, h1_bar_count)
+            if m15_rates is None or len(m15_rates) < 8:
                 raise RuntimeError(f"insufficient M15 bars for {symbol}: {mt5.last_error()}")
+            if h1_rates is None or len(h1_rates) < 3:
+                raise RuntimeError(f"insufficient H1 bars for {symbol}: {mt5.last_error()}")
 
-            current = rates[-1]
+            current = m15_rates[-1]
             if broker_anchor is None:
                 broker_anchor = int(current["time"])
             bars = []
-            for row in rates[:-1]:
+            for row in m15_rates[:-1]:
                 epoch = int(row["time"])
                 broker_date, hour, minute = broker_wall_parts(epoch)
                 open_price = float(row["open"])
@@ -105,13 +109,31 @@ def main():
                     "low": low_price,
                     "close": close_price,
                 })
-            payload_symbols[base] = {"displayName": symbol, "bars": bars}
+            h1_bars = []
+            for row in h1_rates[:-1]:
+                epoch = int(row["time"])
+                broker_date, hour, minute = broker_wall_parts(epoch)
+                open_price = float(row["open"])
+                high_price = float(row["high"])
+                low_price = float(row["low"])
+                close_price = float(row["close"])
+                h1_bars.append({
+                    "brokerDate": broker_date,
+                    "hour": hour,
+                    "minute": minute,
+                    "direction": "T" if close_price > open_price else "G",
+                    "open": open_price,
+                    "high": high_price,
+                    "low": low_price,
+                    "close": close_price,
+                })
+            payload_symbols[base] = {"displayName": symbol, "bars": bars, "h1Bars": h1_bars}
 
         if broker_anchor is None:
             raise RuntimeError("ICMarkets broker anchor unavailable")
         broker_date, broker_hour, broker_minute = broker_wall_parts(broker_anchor)
         print(json.dumps({
-            "version": 1,
+            "version": 2,
             "profile": "MT5 ICMarkets Local",
             "capturedAt": int(time.time() * 1000),
             "login": int(account.login),

@@ -22,7 +22,6 @@ import {
   H1_CLOUD_PROFILE,
   ensureSymbolDay,
   evaluateLocalH1PatternsForTarget,
-  xauH3EntryHour,
   type H1LocalMarketSnapshot,
   type H1StoredAlert,
 } from "@/lib/h1-cloud-scanner";
@@ -73,7 +72,7 @@ type LocalMarketBody = {
   symbols?: unknown;
 };
 
-function parseBar(value: unknown): H1M15Bar | null {
+function parseBar(value: unknown, timeframe: "M15" | "H1" = "M15"): H1M15Bar | null {
   if (!value || typeof value !== "object") return null;
   const row = value as Record<string, unknown>;
   const brokerDate = String(row.brokerDate || "");
@@ -86,7 +85,7 @@ function parseBar(value: unknown): H1M15Bar | null {
   const close = Number(row.close);
   if (!isValidBrokerDateKey(brokerDate)) return null;
   if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
-  if (![0, 15, 30, 45].includes(minute)) return null;
+  if (timeframe === "H1" ? minute !== 0 : ![0, 15, 30, 45].includes(minute)) return null;
   if (direction !== "T" && direction !== "G") return null;
   if (![open, high, low, close].every(Number.isFinite)) return null;
   if (high < Math.max(open, close) || low > Math.min(open, close) || high < low) return null;
@@ -95,7 +94,7 @@ function parseBar(value: unknown): H1M15Bar | null {
 }
 
 function parseMarket(body: LocalMarketBody): { brokerDate: string; brokerHour: number; brokerMinute: number; login: number; server: string; market: H1LocalMarketSnapshot } {
-  if (Number(body.version) !== 1 || String(body.profile || "") !== H1_CLOUD_PROFILE) throw new Error("invalid local H1 snapshot version/profile");
+  if (Number(body.version) !== 2 || String(body.profile || "") !== H1_CLOUD_PROFILE) throw new Error("invalid local H1 snapshot version/profile");
   const capturedAt = Number(body.capturedAt);
   if (!Number.isFinite(capturedAt) || Math.abs(Date.now() - capturedAt) > MAX_SNAPSHOT_AGE_MS) throw new Error("stale local H1 snapshot");
   const login = Number(body.login);
@@ -113,11 +112,14 @@ function parseMarket(body: LocalMarketBody): { brokerDate: string; brokerHour: n
   for (const source of H1_LOCAL_SOURCES) {
     const raw = sourceRows[source];
     if (!raw || typeof raw !== "object") throw new Error(`missing local H1 source ${source}`);
-    const item = raw as { displayName?: unknown; bars?: unknown };
-    if (!Array.isArray(item.bars) || item.bars.length > MAX_BARS_PER_SOURCE) throw new Error(`invalid local H1 bars ${source}`);
-    const bars = item.bars.map(parseBar);
-    if (bars.some((bar) => !bar)) throw new Error(`invalid local H1 bar ${source}`);
-    market[source as H1LocalSource] = { displayName: String(item.displayName || source), bars: bars as H1M15Bar[] };
+    const item = raw as { displayName?: unknown; bars?: unknown; h1Bars?: unknown };
+    if (!Array.isArray(item.bars) || item.bars.length > MAX_BARS_PER_SOURCE) throw new Error(`invalid local M15 bars ${source}`);
+    if (!Array.isArray(item.h1Bars) || item.h1Bars.length > MAX_BARS_PER_SOURCE) throw new Error(`invalid local H1 bars ${source}`);
+    const bars = item.bars.map((bar) => parseBar(bar, "M15"));
+    const h1Bars = item.h1Bars.map((bar) => parseBar(bar, "H1"));
+    if (bars.some((bar) => !bar)) throw new Error(`invalid local M15 bar ${source}`);
+    if (h1Bars.some((bar) => !bar)) throw new Error(`invalid local H1 bar ${source}`);
+    market[source as H1LocalSource] = { displayName: String(item.displayName || source), bars: bars as H1M15Bar[], h1Bars: h1Bars as H1M15Bar[] };
   }
   return { brokerDate, brokerHour, brokerMinute, login, server, market };
 }
@@ -142,10 +144,6 @@ function sameAlert(left: H1StoredAlert, right: H1StoredAlert): boolean {
     && JSON.stringify(left.signalBaseBar ?? null) === JSON.stringify(right.signalBaseBar ?? null);
 }
 
-function previousAvailableXauBrokerDate(market: H1LocalMarketSnapshot, brokerDate: string): string {
-  return [...new Set(market.XAUUSD.bars.map((bar) => bar.brokerDate).filter((date) => date < brokerDate))].sort().at(-1) || "";
-}
-
 export async function POST(request: Request) {
   const denied = await authorize(request);
   if (denied) return denied;
@@ -165,17 +163,12 @@ export async function POST(request: Request) {
     const { state, source } = await loadH1CloudState(parsed.brokerDate, parsed.brokerHour);
     const dayWasMissing = !state.days[parsed.brokerDate];
     const readyHours = H1_LOCAL_SCAN_HOURS.filter((hour) => hour <= parsed.brokerHour);
-    const previousBrokerDate = previousAvailableXauBrokerDate(parsed.market, parsed.brokerDate);
-    const h3Context = {
-      previousH3EntryHour: previousBrokerDate ? xauH3EntryHour(previousBrokerDate, parsed.market) : null,
-      currentH3EntryHour: xauH3EntryHour(parsed.brokerDate, parsed.market),
-    };
     let changed = false;
     let matched = 0;
     let updated = 0;
 
     for (const target of H1_LOCAL_TARGETS) {
-      const computed = evaluateLocalH1PatternsForTarget(target, parsed.brokerDate, parsed.market, readyHours, parsed.brokerHour, h3Context);
+      const computed = evaluateLocalH1PatternsForTarget(target, parsed.brokerDate, parsed.market, readyHours, parsed.brokerHour);
       matched += computed.length;
       const { symbol } = ensureSymbolDay(state, parsed.brokerDate, target);
       const existing = new Map(symbol.alerts.map((alert) => [alert.slotHour, alert]));

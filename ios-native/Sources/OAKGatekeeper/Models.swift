@@ -274,6 +274,7 @@ extension H1SignalPayload {
     }
 
     func evidenceFacts(date: String, sourceAlert: H1SignalAlert) -> H1EvidenceFacts {
+        _ = date
         let baseTime: String
         if let hour = sourceAlert.baseHour, let minute = sourceAlert.baseMinute {
             baseTime = String(format: "%02d:%02d", hour, minute)
@@ -281,22 +282,19 @@ extension H1SignalPayload {
             baseTime = "—"
         }
         let baseSignal = sourceAlert.baseSignal?.rawValue ?? "—"
-        let inverted = sourceAlert.symbol == "USDCAD" || sourceAlert.symbol == "USDJPY"
+        let signalSource = sourceAlert.baseSymbol.isEmpty ? sourceAlert.symbol : sourceAlert.baseSymbol
         let rawBase = sourceAlert.baseDirection.isEmpty
             ? "—"
-            : "\(sourceAlert.baseSymbol.isEmpty ? sourceAlert.symbol : sourceAlert.baseSymbol) M15 \(baseTime) · \(sourceAlert.baseDirection) → \(baseSignal)"
-        let previousDate = days.keys.filter { $0 < date }.sorted().last ?? "PREV"
-        let rawRule = sourceAlert.postSignalRule ?? ""
-        let ruleDate = rawRule.hasPrefix("h3-prev-") ? previousDate : date
-        let h3Rule = rawRule.isEmpty
-            ? "H3 RULE —"
-            : "\(ruleDate) " + rawRule.replacingOccurrences(of: "h3-", with: "H3 ").replacingOccurrences(of: "-", with: " ").uppercased()
+            : "\(signalSource) H1 \(baseTime) · \(sourceAlert.baseDirection) → \(baseSignal)"
+        let delta = sourceAlert.entryHour.map { $0 - sourceAlert.slotHour }
+        let lookup = delta == 1 ? "ENTRY-2" : delta == 2 ? "ENTRY-1" : "—"
+        let rule = delta.map { "ENTRY-BLOCK \($0) · \(lookup) · \(sourceAlert.postSignalInverted ? "INVERT" : "KEEP")" } ?? "H1 BASE —"
 
         return H1EvidenceFacts(
             patternSource: sourceAlert.scannerSource ?? "XAUUSD",
             rawBase: rawBase,
-            signalSource: sourceAlert.baseSymbol.isEmpty ? sourceAlert.symbol : sourceAlert.baseSymbol,
-            rule: "M15 entry-2h15 · BASE \(inverted ? "INVERT" : "KEEP") · \(h3Rule)",
+            signalSource: signalSource,
+            rule: "H1 BASE · \(rule)",
             finalSignal: sourceAlert.signal?.rawValue ?? "—"
         )
     }

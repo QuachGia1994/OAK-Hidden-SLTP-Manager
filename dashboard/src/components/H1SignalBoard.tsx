@@ -16,11 +16,7 @@ const H1_SHARE_HOUR_WIDTH = 96;
 const H1_SHARE_ENTRY_ROW_HEIGHT = 72;
 const H1_SHARE_SIGNAL_ROW_HEIGHT = 54;
 const H1_SHARE_FONT = '"Cascadia Mono", "SFMono-Regular", Consolas, monospace';
-const H1_SIGNAL_ROWS = ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const;
-function previousRetainedBrokerDate(datesDescending: readonly string[], date: string): string {
-  const index = datesDescending.indexOf(date);
-  return index >= 0 ? datesDescending[index + 1] || "" : "";
-}
+const H1_SIGNAL_ROWS = ["XAUUSD"] as const;
 
 function entryAlertForHour(day: H1SignalPayload["days"][string] | undefined, hour: number): H1SignalAlert | undefined {
   return day?.symbols?.XAUUSD?.alerts?.find((alert) => alert.slotHour === hour && Number.isInteger(alert.entryHour));
@@ -53,9 +49,6 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   if (!day) throw new Error("Broker day unavailable");
 
   const hours = activeH1ScanHoursForBrokerDate(date, data.hours);
-  const datesDescending = historyDatesForWeekday(data.days, "all");
-  const previousDate = previousRetainedBrokerDate(datesDescending, date);
-  const previousH3 = entryAlertForHour(previousDate ? data.days[previousDate] : undefined, 3);
   const entryByHour = new Map((day.symbols?.XAUUSD?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
   const padding = 40;
   const titleHeight = 150;
@@ -81,8 +74,6 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     text: "#f4f7fb",
     muted: "#8fa2b8",
     accent: "#4b8cff",
-    highlight: "#d9a441",
-    highlightBg: "rgba(217, 164, 65, 0.08)",
     buy: "#42d39b",
     sell: "#ff6b7d",
   };
@@ -97,15 +88,15 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   ctx.fillText("OAK GATEKEEPER · H1 SCANNER", padding + 22, padding + 30);
   ctx.fillStyle = colors.text;
   ctx.font = `900 28px ${H1_SHARE_FONT}`;
-  ctx.fillText(locale === "EN" ? "H1 Entry + M15 Signals" : "H1 Entry + Signal M15", padding + 22, padding + 66);
+  ctx.fillText(locale === "EN" ? "H1 Entry + XAUUSD Signal" : "H1 Entry + Signal XAUUSD", padding + 22, padding + 66);
   ctx.fillStyle = colors.muted;
   ctx.font = `700 14px ${H1_SHARE_FONT}`;
   ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  Entry owner XAUUSD`, padding + 22, padding + 96);
   ctx.font = `700 13px ${H1_SHARE_FONT}`;
   ctx.fillText(
     locale === "EN"
-      ? "Signal base: own-symbol M15 E-2:15 · UC/UJ invert · H3 selector final"
-      : "Signal base: M15 E-2:15 đúng symbol · UC/UJ đảo · H3 selector final",
+      ? "H1 base: H3 AU keep · H6/H9 GU invert · H12 UJ invert · H14 UC keep · H16 GU invert"
+      : "Base H1: H3 AU giữ · H6/H9 GU đảo · H12 UJ đảo · H14 UC giữ · H16 GU đảo",
     padding + 22,
     padding + 120,
   );
@@ -131,16 +122,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
 
   hours.forEach((hour, index) => {
     const x = tableX + H1_SHARE_SYMBOL_WIDTH + index * H1_SHARE_HOUR_WIDTH;
-    if (hour === 12 || hour === 14) {
-      ctx.fillStyle = colors.highlightBg;
-      ctx.fillRect(x, tableY, H1_SHARE_HOUR_WIDTH, headerHeight + tableRowsHeight);
-      ctx.strokeStyle = colors.highlight;
-      ctx.lineWidth = 1.25;
-      ctx.strokeRect(x + 1, tableY + 1, H1_SHARE_HOUR_WIDTH - 2, headerHeight + tableRowsHeight - 2);
-      ctx.strokeStyle = colors.border;
-      ctx.lineWidth = 1;
-    }
-    drawCentered(`H${String(hour).padStart(2, "0")}`, x, tableY, H1_SHARE_HOUR_WIDTH, headerHeight, hour === 12 || hour === 14 ? colors.highlight : colors.muted, `850 14px ${H1_SHARE_FONT}`);
+    drawCentered(`H${String(hour).padStart(2, "0")}`, x, tableY, H1_SHARE_HOUR_WIDTH, headerHeight, colors.muted, `850 14px ${H1_SHARE_FONT}`);
   });
 
   for (let col = 0; col < hours.length; col += 1) {
@@ -158,12 +140,11 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   ctx.fillText("ENTRY TIME", tableX + 14, entryRowY + 29);
   ctx.fillStyle = colors.muted;
   ctx.font = `800 11px ${H1_SHARE_FONT}`;
-  const previousReference = `${locale === "EN" ? "PREV H3" : "H3 HÔM TRƯỚC"} · ${entryHourLabel(previousH3)}`;
-  ctx.fillText(previousReference, tableX + 14, entryRowY + 54);
+  ctx.fillText("BT +1 · SW +2", tableX + 14, entryRowY + 54);
 
   hours.forEach((hour, hourIndex) => {
     const x = tableX + H1_SHARE_SYMBOL_WIDTH + hourIndex * H1_SHARE_HOUR_WIDTH;
-    drawCentered(entryHourLabel(entryByHour.get(hour)), x, entryRowY, H1_SHARE_HOUR_WIDTH, H1_SHARE_ENTRY_ROW_HEIGHT, hour === 12 || hour === 14 ? colors.highlight : colors.text, `950 16px ${H1_SHARE_FONT}`);
+    drawCentered(entryHourLabel(entryByHour.get(hour)), x, entryRowY, H1_SHARE_HOUR_WIDTH, H1_SHARE_ENTRY_ROW_HEIGHT, colors.text, `950 16px ${H1_SHARE_FONT}`);
   });
 
   H1_SIGNAL_ROWS.forEach((symbol, rowIndex) => {
@@ -375,12 +356,10 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
   const latestDate = allDates[0] || "";
   const date = data ? selectHistoryDate(data.days, "all", selectedDate) : selectedDate;
   const day = date && data ? data.days[date] : undefined;
-  const previousDate = data && date ? previousRetainedBrokerDate(allDates, date) : "";
-  const previousH3 = data && previousDate ? entryAlertForHour(data.days[previousDate], 3) : undefined;
   const copy = locale === "EN"
     ? {
         title: "H1 Live + History",
-        sub: "MT5 ICMarkets · M15 · latest + retained broker days",
+        sub: "MT5 ICMarkets · M15 ENTRY + H1 BASE · latest + retained broker days",
         awaiting: "Awaiting local H1 feed",
         freeAccess: "All H1 entry-time cells unlocked",
         dateGroup: "Broker date",
@@ -389,7 +368,7 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
       }
     : {
         title: "H1 Live + Lịch sử",
-        sub: "MT5 ICMarkets · M15 · ngày broker mới nhất + lịch sử đã lưu",
+        sub: "MT5 ICMarkets · M15 ENTRY + H1 BASE · ngày broker mới nhất + lịch sử đã lưu",
         awaiting: "Đang chờ feed H1 local",
         freeAccess: "Tất cả ô entry-time H1 đã được mở",
         dateGroup: "Ngày broker",
@@ -491,13 +470,13 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
         <p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe if the table extends beyond the screen" : "Vuốt ngang nếu bảng rộng hơn màn hình"}</p>
         <div ref={tableScrollRef} className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
-            <thead><tr><th id="h1-entry-label-header" scope="col" className="oak-h1-symbol-sticky" aria-label={locale === "EN" ? "Entry time" : "Entry time"}></th>{fallbackHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour} data-entry-highlight={hour === 12 || hour === 14 ? "true" : undefined}><span>H{String(hour).padStart(2, "0")}</span></th>)}</tr></thead>
+            <thead><tr><th id="h1-entry-label-header" scope="col" className="oak-h1-symbol-sticky" aria-label={locale === "EN" ? "Entry time" : "Entry time"}></th>{fallbackHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour} ><span>H{String(hour).padStart(2, "0")}</span></th>)}</tr></thead>
             <tbody>
-              <tr><th id="h1-entry-time-row" scope="row" className="oak-h1-symbol-sticky"><b>ENTRY TIME</b><small>{locale === "EN" ? "PREV H3 · —" : "H3 HÔM TRƯỚC · —"}</small></th>{fallbackHours.map((hour) => (
-                <td key={hour} headers={`h1-entry-time-row h1-hour-${hour}`} data-entry-highlight={hour === 12 || hour === 14 ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>
+              <tr><th id="h1-entry-time-row" scope="row" className="oak-h1-symbol-sticky"><b>ENTRY TIME</b><small>BT +1 · SW +2</small></th>{fallbackHours.map((hour) => (
+                <td key={hour} headers={`h1-entry-time-row h1-hour-${hour}`}><span className="oak-h1-cell-empty">—</span></td>
               ))}</tr>
               {H1_SIGNAL_ROWS.map((symbol) => <tr key={symbol}><th id={`h1-signal-row-${symbol}`} scope="row" className="oak-h1-symbol-sticky"><b>{symbol}</b></th>{fallbackHours.map((hour) => (
-                <td key={hour} headers={`h1-signal-row-${symbol} h1-hour-${hour}`} data-entry-highlight={hour === 12 || hour === 14 ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>
+                <td key={hour} headers={`h1-signal-row-${symbol} h1-hour-${hour}`}><span className="oak-h1-cell-empty">—</span></td>
               ))}</tr>)}
             </tbody>
           </table>
@@ -544,19 +523,19 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
         </div>
         {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : <><p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe if the table extends beyond the screen" : "Vuốt ngang nếu bảng rộng hơn màn hình"}</p><div ref={tableScrollRef} className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
-            <thead><tr><th id="h1-entry-label-header" scope="col" className="oak-h1-symbol-sticky" aria-label={locale === "EN" ? "Entry time" : "Entry time"}></th>{activeHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour} data-entry-highlight={hour === 12 || hour === 14 ? "true" : undefined}><span>H{String(hour).padStart(2, "0")}</span></th>)}</tr></thead>
+            <thead><tr><th id="h1-entry-label-header" scope="col" className="oak-h1-symbol-sticky" aria-label={locale === "EN" ? "Entry time" : "Entry time"}></th>{activeHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour}><span>H{String(hour).padStart(2, "0")}</span></th>)}</tr></thead>
             <tbody>
-              <tr><th id="h1-entry-time-row" scope="row" className="oak-h1-symbol-sticky"><b>ENTRY TIME</b><small title={previousDate || undefined}>{locale === "EN" ? `PREV H3 · ${entryHourLabel(previousH3)}` : `H3 HÔM TRƯỚC · ${entryHourLabel(previousH3)}`}</small></th>{activeHours.map((hour) => {
+              <tr><th id="h1-entry-time-row" scope="row" className="oak-h1-symbol-sticky"><b>ENTRY TIME</b><small>BT +1 · SW +2</small></th>{activeHours.map((hour) => {
                 const alert = entryByHour.get(hour);
-                if (!Number.isInteger(alert?.entryHour)) return <td key={hour} headers={`h1-entry-time-row h1-hour-${hour}`} data-entry-highlight={hour === 12 || hour === 14 ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>;
-                return <td key={hour} headers={`h1-entry-time-row h1-hour-${hour}`} data-entry-highlight={hour === 12 || hour === 14 ? "true" : undefined} data-pattern-group={alert?.patternGroup || undefined} title={`XAUUSD · ${alert?.pattern || ""} · ${alert?.patternGroup || ""}`}><button type="button" className="oak-h1-cell-entry oak-h1-cell-evidence" onClick={() => setEvidenceSelection({ base: "XAUUSD", brokerDate: date, alert: alert! })} aria-label={`H${hour}: ${locale === "EN" ? "view entry-time pattern evidence" : "xem evidence entry time"}`}><b>{entryHourLabel(alert)}</b></button></td>;
+                if (!Number.isInteger(alert?.entryHour)) return <td key={hour} headers={`h1-entry-time-row h1-hour-${hour}`}><span className="oak-h1-cell-empty">—</span></td>;
+                return <td key={hour} headers={`h1-entry-time-row h1-hour-${hour}`} data-pattern-group={alert?.patternGroup || undefined} title={`XAUUSD · ${alert?.pattern || ""} · ${alert?.patternGroup || ""}`}><button type="button" className="oak-h1-cell-entry oak-h1-cell-evidence" onClick={() => setEvidenceSelection({ base: "XAUUSD", brokerDate: date, alert: alert! })} aria-label={`H${hour}: ${locale === "EN" ? "view entry-time pattern evidence" : "xem evidence entry time"}`}><b>{entryHourLabel(alert)}</b></button></td>;
               })}</tr>
               {H1_SIGNAL_ROWS.map((symbol) => <tr key={symbol}><th id={`h1-signal-row-${symbol}`} scope="row" className="oak-h1-symbol-sticky"><b>{symbol}</b></th>{activeHours.map((hour) => {
                 const alert = signalAlertForHour(day, symbol, hour);
                 const signal = signalLabel(alert);
-                if (signal === "—") return <td key={hour} headers={`h1-signal-row-${symbol} h1-hour-${hour}`} data-entry-highlight={hour === 12 || hour === 14 ? "true" : undefined}><span className="oak-h1-cell-empty">—</span></td>;
+                if (signal === "—") return <td key={hour} headers={`h1-signal-row-${symbol} h1-hour-${hour}`}><span className="oak-h1-cell-empty">—</span></td>;
                 const baseTime = `${String(alert?.baseHour ?? 0).padStart(2, "0")}:${String(alert?.baseMinute ?? 0).padStart(2, "0")}`;
-                return <td key={hour} headers={`h1-signal-row-${symbol} h1-hour-${hour}`} data-entry-highlight={hour === 12 || hour === 14 ? "true" : undefined} title={`${symbol} · M15 ${baseTime} · ${alert?.baseDirection || "—"} → ${signal}`}><button type="button" className="oak-h1-cell-signal oak-h1-cell-evidence" data-side={signal.toLowerCase()} onClick={() => setEvidenceSelection({ base: symbol, brokerDate: date, alert: alert! })} aria-label={`${symbol} H${hour}: ${signal}; ${locale === "EN" ? "view M15 signal evidence" : "xem evidence signal M15"}`}>{signal}</button></td>;
+                return <td key={hour} headers={`h1-signal-row-${symbol} h1-hour-${hour}`} title={`${symbol} · ${alert?.baseSymbol || "—"} H1 ${baseTime} · ${alert?.baseDirection || "—"} · ${alert?.postSignalInverted ? "INVERT" : "KEEP"} → ${signal}`}><button type="button" className="oak-h1-cell-signal oak-h1-cell-evidence" data-side={signal.toLowerCase()} onClick={() => setEvidenceSelection({ base: symbol, brokerDate: date, alert: alert! })} aria-label={`${symbol} H${hour}: ${signal}; ${locale === "EN" ? "view H1 signal evidence" : "xem evidence signal H1"}`}>{signal}</button></td>;
               })}</tr>)}
             </tbody>
           </table>

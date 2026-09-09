@@ -6,6 +6,8 @@ All notable changes to the dashboard are recorded here.
 
 ### Changed
 
+- Advanced H1 to v91. The dashboard now renders only the shared `ENTRY TIME` row and final `XAUUSD` row for H03/H06/H09/H12/H14/H16. XAUUSD M15 remains the entry-pattern owner, while each final signal reads a closed H1 base selected from the entry/block gap (`+1` uses `entry-2`, `+2` uses `entry-1`): H3 AUDUSD keep, H6/H9 GBPUSD invert, H12 USDJPY invert, H14 USDCAD keep and H16 GBPUSD invert. Local snapshot protocol v2 carries both M15 and H1 OHLC; web/native evidence, PNG export and mobile fallbacks use the same contract. H16 is calculation-only and does not extend the Telegram H14 appointment cutoff.
+
 - Published NeoTech C5 Helper v1.10 across the web and native NeoTech surfaces. The download panel now cache-busts Setup/EX5/guide/checksum URLs with `?v=1.10`, and the rebuilt one-click Setup embeds the matching v1.10 EX5/checksum artifact set.
 
 - Synchronized public FactCheck share pages with the current OAK workspace theme. Shared `/factcheck/[id]` now applies the same graphite/mint route-shell tokens as the main FactCheck tool across Light/Dark/Contrast, which also removes the unrelated spatial HUD on shared results. Public text results now normalize heading/source-card typography, add a compact confidence + claim/source metrics rail, show a two-column source grid on desktop with a one-column mobile fallback, and clean retained `&nbsp;`/zero-width display artifacts without altering evidence records.

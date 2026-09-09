@@ -31,7 +31,7 @@ test("legacy cloud H1 run/backfill endpoints are authenticated no-ops owned by l
   assert.match(backfillRoute, /skipped: "local-mt5-history-only"/);
 });
 
-test("local MT5 market endpoint is private, ICMarkets-only, stale-guarded, singleton locked and derives H3 selector context", () => {
+test("local MT5 market endpoint is private, ICMarkets-only, stale-guarded, singleton locked and validates M15 + H1 v91 snapshots", () => {
   assert.match(localRoute, /DASHBOARD_API_KEY/);
   assert.match(localRoute, /x-telegram-bot-api-secret-token/);
   assert.match(localRoute, /timingSafeEqual/);
@@ -39,10 +39,10 @@ test("local MT5 market endpoint is private, ICMarkets-only, stale-guarded, singl
   assert.match(localRoute, /\/icmarkets\/i\.test\(server\)/);
   assert.match(localRoute, /H1_LOCAL_SOURCES/);
   assert.match(localRoute, /evaluateLocalH1PatternsForTarget/);
-  assert.match(localRoute, /previousAvailableXauBrokerDate/);
-  assert.match(localRoute, /xauH3EntryHour/);
-  assert.match(localRoute, /previousH3EntryHour/);
-  assert.match(localRoute, /currentH3EntryHour/);
+  assert.match(localRoute, /Number\(body\.version\) !== 2/);
+  assert.match(localRoute, /h1Bars/);
+  assert.match(localRoute, /timeframe === "H1" \? minute !== 0/);
+  assert.doesNotMatch(localRoute, /previousAvailableXauBrokerDate|xauH3EntryHour|previousH3EntryHour|currentH3EntryHour/);
   assert.match(localRoute, /targetEnabledForDate/);
   assert.match(localRoute, /acquireH1CloudLock/);
   assert.match(localRoute, /releaseH1CloudLock/);
@@ -54,8 +54,9 @@ test("local MT5 market endpoint is private, ICMarkets-only, stale-guarded, singl
   assert.doesNotMatch(localRoute, /order_send|placeCTraderMarketOrder|SendTradeRequest|closeCTraderPositions/);
 });
 
-test("local ICMarkets reader uses M15 only and does not double-shift MT5 server-wall timestamps", () => {
+test("local ICMarkets reader uses M15 entry patterns plus H1 signal bases without double-shifting MT5 server-wall timestamps", () => {
   assert.match(reader, /TIMEFRAME_M15/);
+  assert.match(reader, /TIMEFRAME_H1/);
   assert.match(reader, /copy_rates_from_pos/);
   assert.match(reader, /MetaTrader5 copy_rates_from_pos exposes MT5 server-wall timestamps/);
   assert.match(reader, /datetime\.fromtimestamp\(epoch_seconds, timezone\.utc\)/);
@@ -66,7 +67,7 @@ test("local ICMarkets reader uses M15 only and does not double-shift MT5 server-
   assert.doesNotMatch(reader, /order_send|positions_get|TRADE_ACTION|ORDER_TYPE_BUY|ORDER_TYPE_SELL/);
 });
 
-test("local publisher sends same-day own-symbol bars plus previous XAU H3 context for v90 and supports bounded 90-day history backfill", () => {
+test("local publisher sends same-day M15 + H1 v91 evidence and supports bounded 90-day history backfill", () => {
   assert.match(publisher, /MAX_BACKFILL_DAYS = 90/);
   assert.match(publisher, /HISTORICAL_READER_TIMEOUT_MS = 180_000/);
   assert.match(publisher, /HISTORICAL_READER_MAX_BUFFER = 32_000_000/);
@@ -83,9 +84,10 @@ test("local publisher sends same-day own-symbol bars plus previous XAU H3 contex
   assert.match(publisher, /currentDaySnapshot/);
   assert.match(publisher, /"XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"/);
   assert.match(publisher, /snapshotBarsForSource/);
-  assert.match(publisher, /previousAvailableXauDate/);
-  assert.match(publisher, /snapshotBarsWithH3Context/);
-  assert.match(publisher, /source !== "XAUUSD"/);
+  assert.match(publisher, /snapshotH1BarsForSource/);
+  assert.match(publisher, /h1Bars/);
+  assert.match(publisher, /payload\?\.version !== 2/);
+  assert.doesNotMatch(publisher, /previousAvailableXauDate|snapshotBarsWithH3Context/);
   assert.match(publisher, /backfillDays > 0 \? Math\.min\(MAX_BACKFILL_DAYS \+ 20, backfillDays \+ 20\) : 7/);
   assert.match(publisher, /dateSnapshots/);
   assert.match(publisher, /source: "local-mt5-icmarkets"|local-market/);

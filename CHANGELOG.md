@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced H1 to v91 with one visible signal row (`XAUUSD`) plus the shared `ENTRY TIME` row across H3/H6/H9/H12/H14/H16. XAUUSD M15 still owns BT/SW entry timing; final signal now comes from an exact closed H1 candle selected by `entry-block` distance (`+1` → `entry-2`, `+2` → `entry-1`) and block policy: H3 AUDUSD keep, H6/H9 GBPUSD invert, H12 USDJPY invert, H14 USDCAD keep, H16 GBPUSD invert. Local ICMarkets snapshots now carry both M15 pattern bars and H1 signal-base bars under snapshot v2, evidence/PNG/native/Expo surfaces follow the same H1-base rule, stale v90 FX/XAU rows are retired, and H16 remains calculation-only while Telegram appointment annotation keeps its existing H14 cutoff.
+
 - NeoTech C5 helper v1.10: moved the chart `C5 LOOK` control from the upper-right EA/status area to a fixed upper-left safe anchor, raised its z-order, and relayouts it on `CHARTEVENT_CHART_CHANGE`/timer so remote-mobile chart resizes cannot hide the button. C5 logic, reminders and read-only behavior are unchanged. The matching public v1.10 EX5, one-click Setup and both SHA-256 manifests are now rebuilt and published together.
 
 - Synchronized shared FactCheck result pages with the current OAK graphite/mint workspace across Light/Dark/Contrast. Public `/factcheck/[id]` now carries the same `factcheck-route-shell` theme boundary as the main tool (which also disables the unrelated spatial HUD), fixes the public `h2/h3` heading/source-card typography mismatch, adds a compact confidence + claim/source metrics rail, uses a two-column evidence grid on desktop with a one-column mobile fallback, and strips stale `&nbsp;`/zero-width display artifacts from retained source text without changing stored evidence.

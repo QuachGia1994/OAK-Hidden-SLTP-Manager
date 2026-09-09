@@ -51,7 +51,7 @@ export async function readIcMarketsM15({ exec = execFile, days = 2 } = {}) {
   const maxBuffer = days > 4 ? HISTORICAL_READER_MAX_BUFFER : LIVE_READER_MAX_BUFFER;
   const { stdout } = await exec(PYTHON, [READER, "--days", String(days)], { windowsHide: true, timeout, maxBuffer });
   const payload = JSON.parse(String(stdout || "{}"));
-  if (payload?.version !== 1 || !payload?.brokerDate || !payload?.symbols || !/icmarkets/i.test(String(payload.server || ""))) {
+  if (payload?.version !== 2 || !payload?.brokerDate || !payload?.symbols || !/icmarkets/i.test(String(payload.server || ""))) {
     throw new Error("invalid ICMarkets M15 snapshot");
   }
   return payload;
@@ -103,18 +103,8 @@ function snapshotBarsForSource(payload, source, brokerDate) {
   return (payload.symbols?.[source]?.bars || []).filter((bar) => bar.brokerDate === brokerDate);
 }
 
-function previousAvailableXauDate(payload, brokerDate) {
-  return [...new Set((payload.symbols?.XAUUSD?.bars || [])
-    .map((bar) => bar.brokerDate)
-    .filter((date) => date < brokerDate))].sort().at(-1) || "";
-}
-
-function snapshotBarsWithH3Context(payload, source, brokerDate) {
-  const current = snapshotBarsForSource(payload, source, brokerDate);
-  if (source !== "XAUUSD") return current;
-  const previous = previousAvailableXauDate(payload, brokerDate);
-  if (!previous) return current;
-  return [...snapshotBarsForSource(payload, source, previous), ...current];
+function snapshotH1BarsForSource(payload, source, brokerDate) {
+  return (payload.symbols?.[source]?.h1Bars || []).filter((bar) => bar.brokerDate === brokerDate);
 }
 
 function currentDaySnapshot(payload) {
@@ -122,7 +112,8 @@ function currentDaySnapshot(payload) {
     ...payload,
     symbols: Object.fromEntries(SOURCE_KEYS.map((source) => [source, {
       displayName: payload.symbols?.[source]?.displayName || source,
-      bars: snapshotBarsWithH3Context(payload, source, payload.brokerDate),
+      bars: snapshotBarsForSource(payload, source, payload.brokerDate),
+      h1Bars: snapshotH1BarsForSource(payload, source, payload.brokerDate),
     }])),
   };
 }
@@ -137,11 +128,13 @@ function dateSnapshots(payload, days) {
     if (weekday === 0 || weekday === 6) return [];
     const symbols = {};
     for (const source of SOURCE_KEYS) {
-      const currentBars = (payload.symbols?.[source]?.bars || []).filter((bar) => bar.brokerDate === brokerDate);
-      if (currentBars.length < 8) return [];
+      const currentBars = snapshotBarsForSource(payload, source, brokerDate);
+      const currentH1Bars = snapshotH1BarsForSource(payload, source, brokerDate);
+      if (currentBars.length < 8 || currentH1Bars.length < 1) return [];
       symbols[source] = {
         displayName: payload.symbols[source].displayName || source,
-        bars: snapshotBarsWithH3Context(payload, source, brokerDate),
+        bars: currentBars,
+        h1Bars: currentH1Bars,
       };
     }
     const currentDay = brokerDate === payload.brokerDate;

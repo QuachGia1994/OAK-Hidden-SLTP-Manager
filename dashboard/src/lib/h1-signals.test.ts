@@ -93,38 +93,29 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 v90 uses five active blocks, own-symbol M15 base and H3-entry final inversion", () => {
-  const rows = /\["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"\]/;
+test("H1 v91 uses six blocks, one XAU row and block-specific H1 bases", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
-  assert.match(localPatternsSource, new RegExp(`H1_LOCAL_TARGETS = ${rows.source}`));
-  assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14\]/);
-  assert.match(mobileAppBackendSource, /FALLBACK_HOURS = \[3, 6, 9, 12, 14\]/);
-  assert.match(mobileAppBackendSource, new RegExp(`FALLBACK_SYMBOLS = ${rows.source}`));
-  assert.match(expoH1Source, /DEFAULT_H1_HOURS = \[3, 6, 9, 12, 14\]/);
-  assert.match(expoCalendarSource, new RegExp(`FALLBACK_SYMBOLS = ${rows.source}`));
-  assert.doesNotMatch(expoCalendarSource + expoSignalsSource, /TEMP_HIDDEN_H1_ROWS/);
-  assert.match(nativeSignalsSource, new RegExp(`visibleSymbols = ${rows.source}`));
-  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 90/);
-  assert.match(scannerSource, /H1_SIGNAL_END_HOUR = 14/);
+  assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD"\]/);
+  assert.match(localPatternsSource, /H1_SIGNAL_BASE_SOURCES = \["GBPUSD", "AUDUSD", "USDCAD", "USDJPY"\]/);
+  assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14, 16\]/);
+  assert.match(mobileAppBackendSource, /FALLBACK_HOURS = \[3, 6, 9, 12, 14, 16\]/);
+  assert.match(mobileAppBackendSource, /FALLBACK_SYMBOLS = \["XAUUSD"\]/);
+  assert.match(nativeSignalsSource, /visibleSymbols = \["XAUUSD"\]/);
+  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 91/);
+  assert.match(scannerSource, /H1_SIGNAL_END_HOUR = 16/);
   assert.match(scannerSource, /includes\(hour\) \? H1_TARGET_BASES : \[\]/);
   assert.match(localMarketRouteSource, /evaluateLocalH1PatternsForTarget/);
-  assert.doesNotMatch(scannerSource, /h14SignalForH16|repairLegacyH16AdvisorySignals/);
-  assert.doesNotMatch(scannerSource, /appointmentHour: 22, appointmentMinute: 5/);
-  assert.match(scannerSource, /appointmentMinute >= 22 \* 60 \+ 5/);
-  assert.match(scannerSource, /evaluateLocalH1Pattern\(\{ target: "XAUUSD", brokerDate, slotHour, bars: market\.XAUUSD\.bars \}\)/);
-  assert.match(scannerSource, /const totalMinutes = entryHour \* 60 - 135/);
-  assert.match(scannerSource, /signalBaseSourceForTarget\(base: H1TargetBase\)[\s\S]*return base/);
-  assert.match(scannerSource, /base === "USDCAD" \|\| base === "USDJPY"/);
-  assert.match(scannerSource, /h3EntrySignalDecision/);
-  assert.match(scannerSource, /h3-prev-h4-keep/);
-  assert.match(scannerSource, /h3-prev-h5-invert/);
-  assert.match(scannerSource, /h3-today-h4-keep/);
-  assert.match(scannerSource, /h3-today-h5-invert/);
-  assert.match(scannerSource, /m15SignalBaseForEntry/);
-  assert.match(scannerSource, /bar\.brokerDate === brokerDate && bar\.hour === baseHour && bar\.minute === baseMinute/);
-  assert.doesNotMatch(scannerSource, /signalBaseUsesPreviousBrokerDay|h1DirectionForPreviousAvailableBrokerDay/);
-  assert.match(localPatternsSource, /H1_SIGNAL_BASE_SOURCES = \[\]/);
-  assert.match(localPatternsSource, /H1_LOCAL_SOURCES = \[\.\.\.H1_LOCAL_TARGETS\]/);
+  assert.match(scannerSource, /3: \{ baseSymbol: "AUDUSD", inverted: false \}/);
+  assert.match(scannerSource, /6: \{ baseSymbol: "GBPUSD", inverted: true \}/);
+  assert.match(scannerSource, /9: \{ baseSymbol: "GBPUSD", inverted: true \}/);
+  assert.match(scannerSource, /12: \{ baseSymbol: "USDJPY", inverted: true \}/);
+  assert.match(scannerSource, /14: \{ baseSymbol: "USDCAD", inverted: false \}/);
+  assert.match(scannerSource, /16: \{ baseSymbol: "GBPUSD", inverted: true \}/);
+  assert.match(scannerSource, /const delta = entryHour - slotHour/);
+  assert.match(scannerSource, /const baseHour = entryHour - \(delta === 1 \? 2 : 1\)/);
+  assert.match(scannerSource, /market\[plan\.baseSymbol\]\.h1Bars/);
+  assert.match(scannerSource, /bar\.brokerDate === brokerDate && bar\.hour === plan\.baseHour && bar\.minute === 0/);
+  assert.doesNotMatch(scannerSource, /h3EntrySignalDecision|m15SignalBaseForEntry|signalBaseSourceForTarget/);
   assert.match(localPatternsSource, /return "XAUUSD"/);
 });
 
@@ -137,11 +128,10 @@ test("web tab softly refreshes server data every 20 seconds", () => {
   assert.doesNotMatch(tabAutoRefreshSource, /location\.reload/);
 });
 
-test("H16 is removed while Telegram scheduling still caps at H14", () => {
-  assert.match(scannerSource, /H1_SIGNAL_END_HOUR = 14/);
-  assert.doesNotMatch(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[[^\]]*16/);
-  assert.doesNotMatch(mobileAppBackendSource, /FALLBACK_HOURS = \[[^\]]*16/);
-  assert.doesNotMatch(expoH1Source, /DEFAULT_H1_HOURS = \[[^\]]*16/);
+test("H16 is restored for calculation while Telegram scheduling keeps the existing H14 cutoff", () => {
+  assert.match(scannerSource, /H1_SIGNAL_END_HOUR = 16/);
+  assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14, 16\]/);
+  assert.match(mobileAppBackendSource, /FALLBACK_HOURS = \[3, 6, 9, 12, 14, 16\]/);
   assert.doesNotMatch(scannerSource, /appointmentHour: 22, appointmentMinute: 5/);
   assert.match(scannerSource, /appointmentMinute >= 22 \* 60 \+ 5/);
   assert.doesNotMatch(boardSource, /H16 CLOSE|isManualCloseH16Day/);
@@ -149,27 +139,26 @@ test("H16 is removed while Telegram scheduling still caps at H14", () => {
   assert.doesNotMatch(boardSource + androidScreensSource, /order_send|closePosition|dispatchTask|\/approve/);
 });
 
-test("web and native clients expose shared Entry time plus the same five v90 signal rows", () => {
+test("web and native clients expose only shared Entry time plus the XAUUSD v91 signal row", () => {
   assert.match(boardSource, /<b>ENTRY TIME<\/b>/);
   assert.match(boardSource, /entryByHour = new Map\(\(day\?\.symbols\?\.XAUUSD\?\.alerts/);
-  assert.match(boardSource, /H1_SIGNAL_ROWS = \["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"\]/);
-  assert.doesNotMatch(boardSource, /M15 E-2:15 · H3 RULE/);
-  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"\)/);
-  assert.match(nativeH1BoardSource, /visibleSymbols = \["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"\]/);
+  assert.match(boardSource, /H1_SIGNAL_ROWS = \["XAUUSD"\]/);
+  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD"\)/);
+  assert.match(nativeH1BoardSource, /visibleSymbols = \["XAUUSD"\]/);
+  assert.doesNotMatch(boardSource + androidScreensSource + nativeH1BoardSource, /VisibleSymbols = listOf\("XAUUSD", "GBPUSD"|visibleSymbols = \["XAUUSD", "GBPUSD"|H1_SIGNAL_ROWS = \["XAUUSD", "GBPUSD"/);
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
 });
 
-test("web H1 table renders BUY/SELL for all five v90 rows under the shared entry row", () => {
+test("web H1 table renders the final XAU BUY/SELL row directly under shared Entry time", () => {
   assert.match(boardSource, /oak-h1-cell-entry/);
   assert.match(boardSource, /oak-h1-cell-signal oak-h1-cell-evidence/);
   assert.match(boardSource, /signalLabel\(alert\)/);
   assert.match(boardSource, /setEvidenceSelection\(\{ base: symbol/);
-  assert.match(boardSource, /previousRetainedBrokerDate/);
-  assert.match(boardSource, /H3 HÔM TRƯỚC/);
-  assert.match(boardSource, /data-entry-highlight=\{hour === 12 \|\| hour === 14/);
-  assert.match(redesignCss, /\[data-entry-highlight="true"\]/);
-  assert.match(scannerSource, /const ownSymbolSignal = baseH1Signal/);
-  assert.match(scannerSource, /h3Decision\.inverted \? invertSignal\(ownSymbolSignal\) : ownSymbolSignal/);
+  assert.match(boardSource, /BT \+1 · SW \+2/);
+  assert.doesNotMatch(boardSource, /previousRetainedBrokerDate|H3 HÔM TRƯỚC|PREV H3/);
+  assert.doesNotMatch(boardSource, /data-entry-highlight/);
+  assert.match(scannerSource, /const symbolH1Signal = baseH1Signal/);
+  assert.match(scannerSource, /plan\.inverted \? invertSignal\(baseH1Signal\) : baseH1Signal/);
   assert.doesNotMatch(nativeH1BoardSource, /entryReference|isReference\(symbol:/);
   assert.doesNotMatch(androidScreensSource, /entryReference/);
 });
@@ -318,15 +307,14 @@ test("unified H1 uses a deterministic Sunday-first history calendar without week
   assert.doesNotMatch(boardSource, /oak-h1-history-dates/);
 });
 
-test("legacy weekday and CẦU presentation stays hidden while v90 H3 selector remains explicit", () => {
+test("legacy weekday/CẦU/H3-selector presentation stays hidden while v91 H1-base evidence is explicit", () => {
   assert.doesNotMatch(boardSource, /inversionBadge|data-post-signal-inverted|ĐẢO/);
   assert.doesNotMatch(boardSource, /isMonthEndBridgeCell|oak-h1-bridge-badge|data-month-end-bridge|CẦU/);
-  assert.doesNotMatch(evidencePanelSource, /Weekday:|WEEKDAY|ĐẢO|GIỮ/);
-  assert.doesNotMatch(boardSource, /M15 E-2:15 · H3 RULE/);
-  assert.match(evidencePanelSource, /M15 entry-2h15 · BASE/);
-  assert.match(evidencePanelSource, /h3-prev-h5-invert/);
-  assert.match(evidencePanelSource, /h3-today-h5-invert/);
-  assert.match(evidencePanelSource, /H3 ENTRY H5 · INVERT/);
+  assert.doesNotMatch(evidencePanelSource, /Weekday:|WEEKDAY|ĐẢO|GIỮ|h3-prev-|h3-today-|H3 ENTRY/);
+  assert.match(evidencePanelSource, /H1 BASE ·/);
+  assert.match(evidencePanelSource, /ENTRY-BLOCK/);
+  assert.match(evidencePanelSource, /ENTRY-2/);
+  assert.match(evidencePanelSource, /ENTRY-1/);
   assert.match(evidencePanelSource, /SIGNAL/);
   assert.match(evidencePanelSource, /BASE CANDLE/);
 });
@@ -387,7 +375,7 @@ test("native iOS and Android mirror the web three-tab hierarchy with animated H1
 });
 
 test("native Android copies the iOS H1 presentation, evidence, reports, themes and account interaction", () => {
-  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"\)/);
+  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD"\)/);
   assert.doesNotMatch(androidScreensSource, /entryReference/);
   assert.match(androidScreensSource, /OAKPill\("FREE ACCESS", PillTone\.SUCCESS\)/);
   assert.match(androidScreensSource, /BrokerCalendarSheet/);
@@ -482,9 +470,9 @@ test("H1 board exports interoperable PNG with clipboard, Android share-sheet and
   assert.match(boardSource, /H1_SHARE_SCALE = 2/);
   assert.match(boardSource, /H1_SHARE_SYMBOL_WIDTH = 148/);
   assert.match(boardSource, /H1_SHARE_HOUR_WIDTH = 96/);
-  assert.match(boardSource, /Signal base: own-symbol M15 E-2:15/);
-  assert.match(boardSource, /Signal base: M15 E-2:15 đúng symbol/);
-  assert.match(boardSource, /highlightBg: "rgba\(217, 164, 65, 0\.08\)"/);
+  assert.match(boardSource, /H1 base: H3 AU keep/);
+  assert.match(boardSource, /Base H1: H3 AU giữ/);
+  assert.match(boardSource, /H16 GU invert/);
   assert.match(boardSource, /deliverPngBlob/);
   assert.match(boardSource, /SHARED/);
   assert.match(boardSource, /SAVED/);
@@ -527,13 +515,12 @@ test("H1 board exports interoperable PNG with clipboard, Android share-sheet and
   assert.match(boardSource, /entryHourLabel\(entryByHour\.get\(hour\)\)/);
   assert.match(boardSource, /H1_SIGNAL_ROWS\.forEach/);
   assert.match(boardSource, /signalAlertForHour\(day, symbol, hour\)/);
-  assert.match(boardSource, /const previousReference =/);
-  assert.match(boardSource, /hour === 12 \|\| hour === 14/);
+  assert.doesNotMatch(boardSource, /const previousReference =|data-entry-highlight/);
   assert.match(redesignCss, /\.oak-h1-share-png \{/);
   assert.match(redesignCss, /data-copied="true"/);
 });
 
-test("populated H1 cells expose synchronized XAU entry-pattern and own-symbol M15 signal evidence", () => {
+test("populated H1 cells expose synchronized XAU entry-pattern plus block-specific H1 signal evidence", () => {
   assert.match(boardSource, /oak-h1-cell-entry oak-h1-cell-evidence/);
   assert.match(boardSource, /oak-h1-cell-signal oak-h1-cell-evidence/);
   assert.match(boardSource, /setEvidenceSelection/);
@@ -543,14 +530,15 @@ test("populated H1 cells expose synchronized XAU entry-pattern and own-symbol M1
   assert.match(evidencePanelSource, /BASE OHLC/);
   assert.match(evidencePanelSource, /SIGNAL SOURCE/);
   assert.match(evidencePanelSource, /signalBaseBar/);
-  assert.match(evidencePanelSource, /M15 entry-2h15 ·/);
+  assert.match(evidencePanelSource, /H1 BASE ·/);
+  assert.match(evidencePanelSource, /ENTRY-BLOCK/);
   assert.match(evidencePanelSource, /INVERT/);
   assert.match(evidencePanelSource, /KEEP/);
-  assert.doesNotMatch(evidencePanelSource + nativeModelsSource + androidModelsSource, /OWN H\(entry-2\)|PREV H\(entry-2\)|ENTRY ONLY/);
-  assert.match(nativeModelsSource, /M15 entry-2h15/);
-  assert.match(androidModelsSource, /M15 entry-2h15/);
-  assert.match(nativeModelsSource, /sourceAlert\.symbol == "USDCAD" \|\| sourceAlert\.symbol == "USDJPY"/);
-  assert.match(androidModelsSource, /sourceAlert\.symbol == "USDCAD" \|\| sourceAlert\.symbol == "USDJPY"/);
+  assert.match(nativeModelsSource, /H1 BASE ·/);
+  assert.match(androidModelsSource, /H1 BASE ·/);
+  assert.match(nativeModelsSource, /ENTRY-BLOCK/);
+  assert.match(androidModelsSource, /ENTRY-BLOCK/);
+  assert.doesNotMatch(nativeModelsSource + androidModelsSource, /M15 entry-2h15|sourceAlert\.symbol == "USDCAD"|sourceAlert\.symbol == "USDJPY"/);
   assert.match(evidencePanelSource, /M15 candlestick pattern evidence/);
   assert.match(evidencePanelSource, /ENTRY PATTERN · M15/);
   assert.match(evidencePanelSource, /sampleBars/);
@@ -561,9 +549,8 @@ test("populated H1 cells expose synchronized XAU entry-pattern and own-symbol M1
   assert.match(evidencePanelSource, /ENTRY PATTERN \$\{patternSource\}/);
   assert.match(evidencePanelSource, /PLOT OLDEST→NEWEST/);
   assert.match(evidencePanelSource, /MATCH READ NEWEST→OLDEST/);
-  assert.match(evidencePanelSource, /SIGNAL BASE \$\{selection\.alert\.baseSymbol \|\| selection\.base\} M15/);
-  assert.match(evidencePanelSource, /OWN \$\{intrinsicInverted \? "INVERT" : "KEEP"\}→\$\{intrinsicSignal\}/);
-  assert.match(evidencePanelSource, /H3 SELECTOR \$\{h3EntryRuleLabel\(selection, payload\)\}/);
+  assert.match(evidencePanelSource, /SIGNAL BASE \$\{selection\.alert\.baseSymbol \|\| selection\.base\} H1/);
+  assert.match(evidencePanelSource, /blockBaseRuleLabel\(selection\)/);
   assert.match(evidencePanelSource, /BASE OHLC \$\{facts\.baseOhlc\}/);
   assert.match(evidencePanelSource, /deliverPngBlob/);
   assert.match(evidencePanelSource, /delivery === "shared"/);

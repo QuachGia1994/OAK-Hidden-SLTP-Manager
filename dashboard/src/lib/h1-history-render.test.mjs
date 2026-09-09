@@ -77,10 +77,10 @@ function payload() {
   const dates = ["2025-12-29", "2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02", "2026-01-05", "2026-02-03"];
   return {
     schemaVersion: 18,
-    signalRuleVersion: 59,
+    signalRuleVersion: 91,
     profile: "MT5 ICMarkets Local",
     publishedAt: "2026-02-03T12:00:00.000Z",
-    hours: [3, 6, 9, 12, 14],
+    hours: [3, 6, 9, 12, 14, 16],
     symbols: ["XAUUSD"],
     days: Object.fromEntries(dates.map((date, index) => [date, { symbols: { XAUUSD: { alerts: [alert(3, index % 2 ? 4 : 5, index % 3 === 0 ? "SELL" : "BUY")] } } }])),
   };
@@ -115,25 +115,26 @@ test("unified H1 keeps the calendar month grid out of the normal closed DOM", ()
   assert.doesNotMatch(h1SignalBoardSource, /embedded|data-embedded/);
 });
 
-test("H12 and H14 highlight the shared Entry row plus every v89 signal row", () => {
+test("v91 table renders six equal blocks with only Entry time and XAUUSD rows", () => {
   const data = payload();
-  data.days["2026-02-03"].symbols.XAUUSD.alerts = [alert(3, 5, "BUY"), alert(14, 15, "SELL")];
+  data.days["2026-02-03"].symbols.XAUUSD.alerts = [alert(3, 5, "BUY"), alert(16, 17, "SELL")];
   const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data, locale: "VN", unlocked: true }));
-  assert.equal((markup.match(/data-entry-highlight="true"/g) || []).length, 14);
+  assert.doesNotMatch(markup, /data-entry-highlight="true"/);
   assert.match(markup, /<b>ENTRY TIME<\/b>/);
-  for (const symbol of ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"]) assert.match(markup, new RegExp(`<b>${symbol}<\\/b>`));
-  assert.doesNotMatch(markup, /data-xau-h4-highlight/);
+  assert.match(markup, /<b>XAUUSD<\/b>/);
+  assert.match(markup, />H16<\/span>/);
+  for (const symbol of ["GBPUSD", "AUDUSD", "USDCAD", "USDJPY"]) assert.doesNotMatch(markup, new RegExp(`<b>${symbol}<\\/b>`));
 });
 
-test("shared H1 table keeps entry hour and previous H3 reference above v89 signal rows", () => {
+test("shared H1 table keeps entry hour and BT/SW timing reference above the XAU signal row", () => {
   const data = payload();
   data.days["2026-02-03"].symbols.XAUUSD.alerts = [alert(3, 5, "SELL")];
   const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data, locale: "VN", unlocked: true }));
   assert.match(markup, /data-pattern-group="BT"/);
   assert.match(markup, />H05<\/b>/);
-  assert.match(markup, /H3 HÔM TRƯỚC · H04/);
+  assert.match(markup, /BT \+1 · SW \+2/);
+  assert.doesNotMatch(markup, /H3 HÔM TRƯỚC|PREV H3/);
   assert.doesNotMatch(markup, />SELL<\/small>|data-signal=/);
-  assert.doesNotMatch(markup, /data-post-signal-inverted|>ĐẢO<\/small>|>INVERT<\/small>/);
 });
 
 test("unified H1 empty state keeps the fallback calendar interactive", () => {

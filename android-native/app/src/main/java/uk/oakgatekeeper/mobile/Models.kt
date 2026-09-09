@@ -69,33 +69,32 @@ data class H1SignalPayload(
         days[date]?.symbols?.get(symbol)?.alerts?.firstOrNull { it.slotHour == hour }
 
     fun evidenceFacts(date: String, sourceAlert: H1SignalAlert): H1EvidenceFacts {
+        @Suppress("UNUSED_VARIABLE") val ignoredDate = date
         val baseTime = if (sourceAlert.baseHour != null && sourceAlert.baseMinute != null) {
             "${sourceAlert.baseHour.toString().padStart(2, '0')}:${sourceAlert.baseMinute.toString().padStart(2, '0')}"
         } else {
             "—"
         }
         val baseSignal = sourceAlert.baseSignal?.name ?: "—"
-        val inverted = sourceAlert.symbol == "USDCAD" || sourceAlert.symbol == "USDJPY"
         val signalSource = sourceAlert.baseSymbol.ifBlank { sourceAlert.symbol }
         val rawBase = if (sourceAlert.baseDirection.isBlank()) {
             "—"
         } else {
-            "$signalSource M15 $baseTime · ${sourceAlert.baseDirection} → $baseSignal"
+            "$signalSource H1 $baseTime · ${sourceAlert.baseDirection} → $baseSignal"
         }
-        val previousDate = days.keys.filter { it < date }.maxOrNull() ?: "PREV"
-        val rawRule = sourceAlert.postSignalRule
-        val ruleDate = if (rawRule.startsWith("h3-prev-")) previousDate else date
-        val h3Rule = if (rawRule.isBlank()) {
-            "H3 RULE —"
-        } else {
-            "$ruleDate ${rawRule.replace("h3-", "H3 ").replace('-', ' ').uppercase()}"
+        val delta = sourceAlert.entryHour?.minus(sourceAlert.slotHour)
+        val lookup = when (delta) {
+            1 -> "ENTRY-2"
+            2 -> "ENTRY-1"
+            else -> "—"
         }
+        val rule = delta?.let { "ENTRY-BLOCK $it · $lookup · ${if (sourceAlert.postSignalInverted) "INVERT" else "KEEP"}" } ?: "H1 BASE —"
 
         return H1EvidenceFacts(
             patternSource = sourceAlert.scannerSource ?: "XAUUSD",
             rawBase = rawBase,
             signalSource = signalSource,
-            rule = "M15 entry-2h15 · BASE ${if (inverted) "INVERT" else "KEEP"} · $h3Rule",
+            rule = "H1 BASE · $rule",
             finalSignal = sourceAlert.signal?.name ?: "—",
         )
     }

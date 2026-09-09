@@ -30,30 +30,22 @@ type H1EvidenceFacts = {
   finalSignal: string;
 };
 
-function previousRetainedBrokerDate(payload: H1SignalPayload, brokerDate: string): string {
-  return Object.keys(payload.days).filter((date) => date < brokerDate).sort().at(-1) || "";
-}
-
-function h3EntryRuleLabel(selection: H1EvidenceSelection, payload: H1SignalPayload): string {
-  const rule = selection.alert.postSignalRule || "none";
-  const previousDate = previousRetainedBrokerDate(payload, selection.brokerDate);
-  if (rule === "h3-prev-h4-keep") return `${previousDate || "PREV"} H3 ENTRY H4 · KEEP`;
-  if (rule === "h3-prev-h5-invert") return `${previousDate || "PREV"} H3 ENTRY H5 · INVERT`;
-  if (rule === "h3-prev-pending") return `${previousDate || "PREV"} H3 ENTRY — · WAIT`;
-  if (rule === "h3-today-h4-keep") return `${selection.brokerDate} H3 ENTRY H4 · KEEP`;
-  if (rule === "h3-today-h5-invert") return `${selection.brokerDate} H3 ENTRY H5 · INVERT`;
-  if (rule === "h3-today-pending") return `${selection.brokerDate} H3 ENTRY — · WAIT`;
-  return "H3 RULE —";
+function blockBaseRuleLabel(selection: H1EvidenceSelection): string {
+  const { alert } = selection;
+  if (!Number.isInteger(alert.entryHour) || !Number.isInteger(alert.baseHour)) return "H1 BASE —";
+  const delta = Number(alert.entryHour) - alert.slotHour;
+  const lookup = delta === 1 ? "ENTRY-2" : delta === 2 ? "ENTRY-1" : "—";
+  return `ENTRY-BLOCK ${delta} · ${lookup} · ${alert.postSignalInverted ? "INVERT" : "KEEP"}`;
 }
 
 function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload): H1EvidenceFacts {
+  void payload;
   const { base, alert } = selection;
   const baseTime = Number.isInteger(alert.baseHour) && Number.isInteger(alert.baseMinute)
     ? `${String(alert.baseHour).padStart(2, "0")}:${String(alert.baseMinute).padStart(2, "0")}`
     : "—";
-  const intrinsicInverted = base === "USDCAD" || base === "USDJPY";
   const rawBase = alert.baseDirection
-    ? `${alert.baseSymbol || base} M15 ${baseTime} · ${alert.baseDirection} → ${alert.baseSignal ?? "—"}`
+    ? `${alert.baseSymbol || base} H1 ${baseTime} · ${alert.baseDirection} → ${alert.baseSignal ?? "—"}`
     : "—";
   const signalBaseBar = alert.signalBaseBar;
   const baseOhlc = signalBaseBar
@@ -64,7 +56,7 @@ function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload)
     rawBase,
     baseOhlc,
     signalSource: alert.baseSymbol || base,
-    rule: `M15 entry-2h15 · BASE ${intrinsicInverted ? "INVERT" : "KEEP"} · ${h3EntryRuleLabel(selection, payload)}`,
+    rule: `H1 BASE · ${blockBaseRuleLabel(selection)}`,
     finalSignal: alert.signal ?? "—",
   };
 }
@@ -172,13 +164,8 @@ async function renderEvidenceChartPng(
   const baseTime = Number.isInteger(selection.alert.baseHour) && Number.isInteger(selection.alert.baseMinute)
     ? `${String(selection.alert.baseHour).padStart(2, "0")}:${String(selection.alert.baseMinute).padStart(2, "0")}`
     : "—";
-  const intrinsicInverted = selection.base === "USDCAD" || selection.base === "USDJPY";
   const baseSignal = selection.alert.baseSignal ?? "—";
-  const intrinsicSignal = selection.alert.baseSignal
-    ? (intrinsicInverted
-      ? (selection.alert.baseSignal === "BUY" ? "SELL" : "BUY")
-      : selection.alert.baseSignal)
-    : "—";
+  const finalSignal = selection.alert.signal ?? "—";
 
   ctx.fillStyle = textColor;
   ctx.font = '900 19px "Cascadia Mono", Consolas, monospace';
@@ -193,11 +180,11 @@ async function renderEvidenceChartPng(
     46,
   );
   ctx.fillText(
-    `MATCH READ NEWEST→OLDEST · SIGNAL BASE ${selection.alert.baseSymbol || selection.base} M15 ${baseTime} · ${selection.alert.baseDirection || "—"}→${baseSignal} · OWN ${intrinsicInverted ? "INVERT" : "KEEP"}→${intrinsicSignal}`,
+    `MATCH READ NEWEST→OLDEST · SIGNAL BASE ${selection.alert.baseSymbol || selection.base} H1 ${baseTime} · ${selection.alert.baseDirection || "—"}→${baseSignal}`,
     chartX,
     64,
   );
-  ctx.fillText(`H3 SELECTOR ${h3EntryRuleLabel(selection, payload)} · FINAL ${facts.finalSignal}`, chartX, 82);
+  ctx.fillText(`${blockBaseRuleLabel(selection)} · FINAL ${finalSignal}`, chartX, 82);
   ctx.fillText(`BASE OHLC ${facts.baseOhlc}`, chartX, 100);
 
   const image = await loadSvgImage(inlineSvgComputedStyles(svg));
