@@ -106,11 +106,11 @@ test("H1 v91 uses six blocks, one XAU row and block-specific H1 bases", () => {
   assert.match(scannerSource, /includes\(hour\) \? H1_TARGET_BASES : \[\]/);
   assert.match(localMarketRouteSource, /evaluateLocalH1PatternsForTarget/);
   assert.match(scannerSource, /3: \{ baseSymbol: "AUDUSD", inverted: false \}/);
-  assert.match(scannerSource, /6: \{ baseSymbol: "GBPUSD", inverted: true \}/);
+  assert.match(scannerSource, /6: \{ baseSymbol: "GBPUSD", inverted: false \}/);
   assert.match(scannerSource, /9: \{ baseSymbol: "GBPUSD", inverted: true \}/);
   assert.match(scannerSource, /12: \{ baseSymbol: "USDJPY", inverted: true \}/);
   assert.match(scannerSource, /14: \{ baseSymbol: "USDCAD", inverted: false \}/);
-  assert.match(scannerSource, /16: \{ baseSymbol: "GBPUSD", inverted: true \}/);
+  assert.match(scannerSource, /16: \{ baseSymbol: "GBPUSD", inverted: false \}/);
   assert.match(scannerSource, /const delta = entryHour - slotHour/);
   assert.match(scannerSource, /const baseHour = entryHour - \(delta === 1 \? 2 : 1\)/);
   assert.match(scannerSource, /market\[plan\.baseSymbol\]\.h1Bars/);
@@ -471,8 +471,10 @@ test("H1 board exports interoperable PNG with clipboard, Android share-sheet and
   assert.match(boardSource, /H1_SHARE_SYMBOL_WIDTH = 148/);
   assert.match(boardSource, /H1_SHARE_HOUR_WIDTH = 96/);
   assert.match(boardSource, /H1 base: H3 AU keep/);
+  assert.match(boardSource, /H6 GU keep/);
+  assert.match(boardSource, /H9 GU invert/);
   assert.match(boardSource, /Base H1: H3 AU giữ/);
-  assert.match(boardSource, /H16 GU invert/);
+  assert.match(boardSource, /H16 GU keep/);
   assert.match(boardSource, /deliverPngBlob/);
   assert.match(boardSource, /SHARED/);
   assert.match(boardSource, /SAVED/);

@@ -91,19 +91,19 @@ test("rule v91 keeps schema/state stable, exposes one XAU row and restores H16",
 test("delta 1 looks back two H1 candles and delta 2 looks back one", () => {
   assert.deepEqual(h1BlockSignalPlan(3, 4), { baseSymbol: "AUDUSD", baseHour: 2, inverted: false, rule: "block-base-keep" });
   assert.deepEqual(h1BlockSignalPlan(3, 5), { baseSymbol: "AUDUSD", baseHour: 4, inverted: false, rule: "block-base-keep" });
-  assert.deepEqual(h1BlockSignalPlan(6, 7), { baseSymbol: "GBPUSD", baseHour: 5, inverted: true, rule: "block-base-invert" });
-  assert.deepEqual(h1BlockSignalPlan(6, 8), { baseSymbol: "GBPUSD", baseHour: 7, inverted: true, rule: "block-base-invert" });
+  assert.deepEqual(h1BlockSignalPlan(6, 7), { baseSymbol: "GBPUSD", baseHour: 5, inverted: false, rule: "block-base-keep" });
+  assert.deepEqual(h1BlockSignalPlan(6, 8), { baseSymbol: "GBPUSD", baseHour: 7, inverted: false, rule: "block-base-keep" });
 });
 
 test("all six blocks use the requested H1 source and KEEP/INVERT policy", () => {
   const date = "2026-09-09";
   const cases = [
     { slot: 3, source: "AUDUSD" as const, inverted: false, direction: "T" as const, expected: "BUY" },
-    { slot: 6, source: "GBPUSD" as const, inverted: true, direction: "T" as const, expected: "SELL" },
+    { slot: 6, source: "GBPUSD" as const, inverted: false, direction: "T" as const, expected: "BUY" },
     { slot: 9, source: "GBPUSD" as const, inverted: true, direction: "G" as const, expected: "BUY" },
     { slot: 12, source: "USDJPY" as const, inverted: true, direction: "T" as const, expected: "SELL" },
     { slot: 14, source: "USDCAD" as const, inverted: false, direction: "G" as const, expected: "SELL" },
-    { slot: 16, source: "GBPUSD" as const, inverted: true, direction: "T" as const, expected: "SELL" },
+    { slot: 16, source: "GBPUSD" as const, inverted: false, direction: "T" as const, expected: "BUY" },
   ];
   for (const item of cases) {
     const snapshot = market(date, item.slot, "TTGTTT"); // BT => entry block+1 => H1 base block-1

@@ -207,11 +207,11 @@ export type H1BlockSignalPlan = {
 
 const H1_BLOCK_BASE_POLICY: Record<number, { baseSymbol: H1LocalSource; inverted: boolean }> = {
   3: { baseSymbol: "AUDUSD", inverted: false },
-  6: { baseSymbol: "GBPUSD", inverted: true },
+  6: { baseSymbol: "GBPUSD", inverted: false },
   9: { baseSymbol: "GBPUSD", inverted: true },
   12: { baseSymbol: "USDJPY", inverted: true },
   14: { baseSymbol: "USDCAD", inverted: false },
-  16: { baseSymbol: "GBPUSD", inverted: true },
+  16: { baseSymbol: "GBPUSD", inverted: false },
 };
 
 export function h1BlockSignalPlan(slotHour: number, entryHour: number): H1BlockSignalPlan | null {

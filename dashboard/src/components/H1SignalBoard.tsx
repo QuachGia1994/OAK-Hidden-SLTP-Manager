@@ -95,8 +95,8 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   ctx.font = `700 13px ${H1_SHARE_FONT}`;
   ctx.fillText(
     locale === "EN"
-      ? "H1 base: H3 AU keep · H6/H9 GU invert · H12 UJ invert · H14 UC keep · H16 GU invert"
-      : "Base H1: H3 AU giữ · H6/H9 GU đảo · H12 UJ đảo · H14 UC giữ · H16 GU đảo",
+      ? "H1 base: H3 AU keep · H6 GU keep · H9 GU invert · H12 UJ invert · H14 UC keep · H16 GU keep"
+      : "Base H1: H3 AU giữ · H6 GU giữ · H9 GU đảo · H12 UJ đảo · H14 UC giữ · H16 GU giữ",
     padding + 22,
     padding + 120,
   );
