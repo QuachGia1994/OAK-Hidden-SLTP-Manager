@@ -17,6 +17,7 @@ import {
   ensureSymbolDay,
   evaluateLocalH1PatternsForTarget,
   h1TargetBaseFromSymbol,
+  h3EntrySignalDecision,
   mergeH1CloudStateHistory,
   parseCloudState,
   parsePublicFeedCloudState,
@@ -25,6 +26,7 @@ import {
   signalBaseSourceForTarget,
   signalInvertedForTarget,
   targetsForBlockHour,
+  type H1H3EntrySignalContext,
   type H1LocalMarketSnapshot,
 } from "./h1-cloud-scanner.ts";
 import type { H1M15Bar } from "./h1-local-patterns.ts";
@@ -34,24 +36,10 @@ const TARGETS = ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const;
 function candle(date: string, hour: number, minute: number, direction: "T" | "G", seed = 100): H1M15Bar {
   const open = seed;
   const close = direction === "T" ? open + 1 : open - 1;
-  return {
-    brokerDate: date,
-    hour,
-    minute,
-    direction,
-    open,
-    high: Math.max(open, close) + 0.2,
-    low: Math.min(open, close) - 0.2,
-    close,
-  };
+  return { brokerDate: date, hour, minute, direction, open, high: Math.max(open, close) + 0.2, low: Math.min(open, close) - 0.2, close };
 }
 
-function patternBars(
-  date: string,
-  slotHour = 3,
-  sequence = "TTGTTT",
-  family: "ALT" | "SAME" = "ALT",
-): H1M15Bar[] {
+function patternBars(date: string, slotHour = 3, sequence = "TTGTTT", family: "ALT" | "SAME" = "ALT"): H1M15Bar[] {
   const shift = slotHour - 3;
   const rows: Array<[number, number, "T" | "G"]> = [];
   if (family === "ALT") {
@@ -67,9 +55,8 @@ function patternBars(
 }
 
 function market(date: string, slotHour = 3, sequence = "TTGTTT", family: "ALT" | "SAME" = "ALT"): H1LocalMarketSnapshot {
-  const xau = patternBars(date, slotHour, sequence, family);
   return {
-    XAUUSD: { displayName: "XAUUSD", bars: xau },
+    XAUUSD: { displayName: "XAUUSD", bars: patternBars(date, slotHour, sequence, family) },
     GBPUSD: { displayName: "GBPUSD", bars: [] },
     AUDUSD: { displayName: "AUDUSD", bars: [] },
     USDCAD: { displayName: "USDCAD", bars: [] },
@@ -84,27 +71,28 @@ function setBase(snapshot: H1LocalMarketSnapshot, symbol: typeof TARGETS[number]
   ];
 }
 
-function alertFor(snapshot: H1LocalMarketSnapshot, target: typeof TARGETS[number], date: string, slotHour: number) {
-  return evaluateLocalH1PatternsForTarget(target, date, snapshot, [slotHour], slotHour)[0];
+function alertFor(snapshot: H1LocalMarketSnapshot, target: typeof TARGETS[number], date: string, slotHour: number, context: H1H3EntrySignalContext) {
+  return evaluateLocalH1PatternsForTarget(target, date, snapshot, [slotHour], slotHour, context)[0];
 }
 
-test("rule v89 uses local MT5 ICMarkets, schema 18 and five own-symbol M15 rows through H16", () => {
+const KEEP_PREV: H1H3EntrySignalContext = { previousH3EntryHour: 4, currentH3EntryHour: 4 };
+const INVERT_PREV: H1H3EntrySignalContext = { previousH3EntryHour: 5, currentH3EntryHour: 4 };
+const KEEP_TODAY: H1H3EntrySignalContext = { previousH3EntryHour: 4, currentH3EntryHour: 4 };
+const INVERT_TODAY: H1H3EntrySignalContext = { previousH3EntryHour: 4, currentH3EntryHour: 5 };
+
+test("rule v90 keeps schema/state stable and removes H16 end-to-end", () => {
   assert.equal(H1_CLOUD_STATE_VERSION, 56);
   assert.equal(H1_PUBLIC_SCHEMA, 18);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 89);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 90);
   assert.equal(H1_CLOUD_PROFILE, "MT5 ICMarkets Local");
-  assert.equal(H1_SCAN_END_HOUR, 16);
-  assert.equal(H1_SIGNAL_END_HOUR, 16);
-  assert.deepEqual(H1_SCAN_HOURS, [3, 6, 9, 12, 14, 16]);
+  assert.equal(H1_SCAN_END_HOUR, 14);
+  assert.equal(H1_SIGNAL_END_HOUR, 14);
+  assert.deepEqual(H1_SCAN_HOURS, [3, 6, 9, 12, 14]);
   assert.deepEqual(H1_TARGET_BASES, TARGETS);
+  assert.deepEqual(targetsForBlockHour(16), []);
 });
 
-test("all five signal rows are eligible on every H1 block", () => {
-  for (const hour of H1_SCAN_HOURS) assert.deepEqual(targetsForBlockHour(hour), TARGETS);
-  assert.deepEqual(targetsForBlockHour(4), []);
-});
-
-test("every row uses its own symbol as the M15 base and only USDCAD/USDJPY invert", () => {
+test("every row still uses its own M15 base and UC/UJ intrinsic inversion", () => {
   for (const target of TARGETS) assert.equal(signalBaseSourceForTarget(target), target);
   assert.equal(signalInvertedForTarget("XAUUSD"), false);
   assert.equal(signalInvertedForTarget("GBPUSD"), false);
@@ -113,181 +101,134 @@ test("every row uses its own symbol as the M15 base and only USDCAD/USDJPY inver
   assert.equal(signalInvertedForTarget("USDJPY"), true);
 });
 
-test("BT H3 entry H4 reads exact own-symbol M15 01:45", () => {
+test("H3/H6/H9 policy uses previous broker-day H3 entry H4 keep and H5 invert", () => {
+  for (const slotHour of [3, 6, 9]) {
+    assert.deepEqual(h3EntrySignalDecision(slotHour, KEEP_PREV), { ready: true, inverted: false, rule: "h3-prev-h4-keep", referenceEntryHour: 4 });
+    assert.deepEqual(h3EntrySignalDecision(slotHour, INVERT_PREV), { ready: true, inverted: true, rule: "h3-prev-h5-invert", referenceEntryHour: 5 });
+  }
+});
+
+test("H12/H14 policy uses current broker-day H3 entry H4 keep and H5 invert", () => {
+  for (const slotHour of [12, 14]) {
+    assert.deepEqual(h3EntrySignalDecision(slotHour, KEEP_TODAY), { ready: true, inverted: false, rule: "h3-today-h4-keep", referenceEntryHour: 4 });
+    assert.deepEqual(h3EntrySignalDecision(slotHour, INVERT_TODAY), { ready: true, inverted: true, rule: "h3-today-h5-invert", referenceEntryHour: 5 });
+  }
+});
+
+test("H3/H6/H9 final signal applies previous-H3 inversion after own-symbol base rule", () => {
+  const date = "2026-09-09";
+  for (const slotHour of [3, 6, 9]) {
+    const snapshot = market(date, slotHour, "TTGTTT", "ALT"); // BT => entry slot+1, base :45
+    const baseHour = slotHour - 2;
+    setBase(snapshot, "GBPUSD", date, baseHour, 45, "T");
+    setBase(snapshot, "USDCAD", date, baseHour, 45, "T");
+    const guKeep = alertFor(snapshot, "GBPUSD", date, slotHour, KEEP_PREV);
+    const guFlip = alertFor(snapshot, "GBPUSD", date, slotHour, INVERT_PREV);
+    const ucKeep = alertFor(snapshot, "USDCAD", date, slotHour, KEEP_PREV);
+    const ucFlip = alertFor(snapshot, "USDCAD", date, slotHour, INVERT_PREV);
+    assert.deepEqual([guKeep?.baseH1Signal, guKeep?.symbolH1Signal, guKeep?.postSignalRule], ["BUY", "BUY", "h3-prev-h4-keep"]);
+    assert.deepEqual([guFlip?.baseH1Signal, guFlip?.symbolH1Signal, guFlip?.postSignalRule], ["BUY", "SELL", "h3-prev-h5-invert"]);
+    assert.deepEqual([ucKeep?.baseH1Signal, ucKeep?.symbolH1Signal, ucKeep?.postSignalRule], ["BUY", "SELL", "h3-prev-h4-keep"]);
+    assert.deepEqual([ucFlip?.baseH1Signal, ucFlip?.symbolH1Signal, ucFlip?.postSignalRule], ["BUY", "BUY", "h3-prev-h5-invert"]);
+  }
+});
+
+test("H12/H14 final signal applies today's-H3 inversion after own-symbol base rule", () => {
+  const date = "2026-09-09";
+  for (const slotHour of [12, 14]) {
+    const snapshot = market(date, slotHour, "TTGTTT", "ALT");
+    const baseHour = slotHour - 2;
+    setBase(snapshot, "AUDUSD", date, baseHour, 45, "G");
+    setBase(snapshot, "USDJPY", date, baseHour, 45, "G");
+    const auKeep = alertFor(snapshot, "AUDUSD", date, slotHour, KEEP_TODAY);
+    const auFlip = alertFor(snapshot, "AUDUSD", date, slotHour, INVERT_TODAY);
+    const ujKeep = alertFor(snapshot, "USDJPY", date, slotHour, KEEP_TODAY);
+    const ujFlip = alertFor(snapshot, "USDJPY", date, slotHour, INVERT_TODAY);
+    assert.deepEqual([auKeep?.baseH1Signal, auKeep?.symbolH1Signal, auKeep?.postSignalRule], ["SELL", "SELL", "h3-today-h4-keep"]);
+    assert.deepEqual([auFlip?.baseH1Signal, auFlip?.symbolH1Signal, auFlip?.postSignalRule], ["SELL", "BUY", "h3-today-h5-invert"]);
+    assert.deepEqual([ujKeep?.baseH1Signal, ujKeep?.symbolH1Signal, ujKeep?.postSignalRule], ["SELL", "BUY", "h3-today-h4-keep"]);
+    assert.deepEqual([ujFlip?.baseH1Signal, ujFlip?.symbolH1Signal, ujFlip?.postSignalRule], ["SELL", "SELL", "h3-today-h5-invert"]);
+  }
+});
+
+test("missing H3 selector fails closed instead of guessing KEEP", () => {
   const date = "2026-09-09";
   const snapshot = market(date, 3, "TTGTTT", "ALT");
   setBase(snapshot, "GBPUSD", date, 1, 45, "T");
-  setBase(snapshot, "AUDUSD", date, 1, 45, "G");
-  setBase(snapshot, "USDCAD", date, 1, 45, "T");
-  setBase(snapshot, "USDJPY", date, 1, 45, "G");
-
-  const expected = {
-    XAUUSD: ["XAUUSD", "G", "SELL"],
-    GBPUSD: ["GBPUSD", "T", "BUY"],
-    AUDUSD: ["AUDUSD", "G", "SELL"],
-    USDCAD: ["USDCAD", "T", "SELL"],
-    USDJPY: ["USDJPY", "G", "BUY"],
-  } as const;
-
-  for (const target of TARGETS) {
-    const alert = alertFor(snapshot, target, date, 3);
-    assert.deepEqual(
-      [alert?.entryHour, alert?.baseSymbol, alert?.baseHour, alert?.baseMinute, alert?.baseDirection, alert?.symbolH1Signal],
-      [4, expected[target][0], 1, 45, expected[target][1], expected[target][2]],
-    );
-    assert.equal(alert?.signalBaseBar?.brokerTime, "01:45");
-    assert.equal(alert?.signalBaseBar?.brokerDate, date);
-  }
+  const alert = alertFor(snapshot, "GBPUSD", date, 3, { previousH3EntryHour: null, currentH3EntryHour: 4 });
+  assert.deepEqual([alert?.baseH1Signal, alert?.symbolH1Signal, alert?.postSignalRule], ["BUY", null, "h3-prev-pending"]);
 });
 
-test("explicit H11:00 example reads each row's own M15 08:45", () => {
+test("exact own-symbol M15 base remains entry-2h15", () => {
   const date = "2026-09-09";
-  const snapshot = market(date, 9, "TGGTTT", "ALT"); // SW => entry H11
-  setBase(snapshot, "XAUUSD", date, 8, 45, "T");
-  setBase(snapshot, "GBPUSD", date, 8, 45, "G");
+  const snapshot = market(date, 9, "TGGTTT", "ALT"); // SW => H11, base 08:45
   setBase(snapshot, "AUDUSD", date, 8, 45, "T");
-  setBase(snapshot, "USDCAD", date, 8, 45, "T");
-  setBase(snapshot, "USDJPY", date, 8, 45, "G");
-
-  const expectedSignal = { XAUUSD: "BUY", GBPUSD: "SELL", AUDUSD: "BUY", USDCAD: "SELL", USDJPY: "BUY" } as const;
-  for (const target of TARGETS) {
-    const alert = alertFor(snapshot, target, date, 9);
-    assert.deepEqual([alert?.entryHour, alert?.baseSymbol, alert?.baseHour, alert?.baseMinute, alert?.symbolH1Signal], [11, target, 8, 45, expectedSignal[target]]);
-  }
+  const alert = alertFor(snapshot, "AUDUSD", date, 9, KEEP_PREV);
+  assert.deepEqual([alert?.entryHour, alert?.baseSymbol, alert?.baseHour, alert?.baseMinute, alert?.signalBaseBar?.brokerTime], [11, "AUDUSD", 8, 45, "08:45"]);
 });
 
-test("v89 never falls back to a previous broker day for signal base", () => {
-  const monday = "2026-09-07";
-  const friday = "2026-09-04";
-  const snapshot = market(monday, 3, "TTGTTT", "ALT");
-  setBase(snapshot, "AUDUSD", friday, 1, 45, "T");
-  const missing = alertFor(snapshot, "AUDUSD", monday, 3);
-  assert.equal(missing?.entryHour, 4);
-  assert.equal(missing?.baseSymbol, "AUDUSD");
-  assert.deepEqual([missing?.baseHour, missing?.baseMinute, missing?.baseDirection, missing?.symbolH1Signal], [1, 45, "", null]);
-
-  setBase(snapshot, "AUDUSD", monday, 1, 45, "G");
-  const sameDay = alertFor(snapshot, "AUDUSD", monday, 3);
-  assert.deepEqual([sameDay?.baseDirection, sameDay?.symbolH1Signal], ["G", "SELL"]);
-});
-
-test("row base availability never changes the shared XAU entry time", () => {
-  const date = "2026-09-09";
-  const snapshot = market(date, 9, "TGGTTT", "ALT");
-  for (const target of TARGETS) {
-    const alert = alertFor(snapshot, target, date, 9);
-    assert.equal(alert?.entryHour, 11);
-    assert.equal(alert?.scannerSource, "XAUUSD");
-  }
-});
-
-test("H16 computes BUY/SELL from own M15 base while Telegram slot mapping still stops at H14", () => {
+test("H16 cannot be evaluated or published in v90", () => {
   const date = "2026-09-09";
   const snapshot = market(date, 16, "TTGTTT", "ALT");
-  const xau = alertFor(snapshot, "XAUUSD", date, 16);
-  assert.ok(Number.isInteger(xau?.entryHour));
-  const totalMinutes = Number(xau?.entryHour) * 60 - 135;
-  const baseHour = Math.floor(totalMinutes / 60);
-  const baseMinute = totalMinutes % 60;
-  assert.deepEqual([xau?.baseSymbol, xau?.baseHour, xau?.baseMinute], ["XAUUSD", baseHour, 45]);
-  assert.ok(xau?.symbolH1Signal === "BUY" || xau?.symbolH1Signal === "SELL");
-
-  for (const target of ["GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const) {
-    setBase(snapshot, target, date, baseHour, baseMinute, "T");
-    const alert = alertFor(snapshot, target, date, 16);
-    assert.deepEqual(
-      [alert?.entryHour, alert?.baseSymbol, alert?.baseHour, alert?.baseMinute, alert?.symbolH1Signal],
-      [xau?.entryHour, target, baseHour, 45, signalInvertedForTarget(target) ? "SELL" : "BUY"],
-    );
+  for (const target of TARGETS) {
+    assert.deepEqual(evaluateLocalH1PatternsForTarget(target, date, snapshot, [16], 16, KEEP_PREV), []);
   }
   assert.equal(scheduledSignalSlotForBrokerHour("XAUUSD", date, 16), 14);
   assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 22, 4), 14);
   assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 22, 5), null);
 });
 
-test("Telegram target parsing preserves GBP-cross routing onto the new underlying rows", () => {
-  const date = "2026-09-09";
-  assert.equal(h1TargetBaseFromSymbol("xauusd+"), "XAUUSD");
-  assert.equal(h1TargetBaseFromSymbol("AUDUSD.a"), "AUDUSD");
-  assert.equal(h1TargetBaseFromSymbol("USDCAD"), "USDCAD");
-  assert.equal(h1TargetBaseFromSymbol("USDJPY.pro"), "USDJPY");
+test("Telegram GBP-cross aliases still map to underlying v90 table rows", () => {
   assert.equal(h1TargetBaseFromSymbol("GBPAUD"), "AUDUSD");
   assert.equal(h1TargetBaseFromSymbol("GBPCAD.a"), "USDCAD");
   assert.equal(h1TargetBaseFromSymbol("GBPJPY"), "USDJPY");
-  assert.equal(scheduledSignalSlotForVietnamWall("AUDUSD", date, 15, 5), 9);
 });
 
-test("cloud state v56 round-trips v89 base minute and exact OHLC evidence", () => {
-  const date = "2026-09-09";
-  const snapshot = market(date, 3, "TTGTTT", "ALT");
-  setBase(snapshot, "AUDUSD", date, 1, 45, "T");
-  const state = emptyCloudState();
-  ensureSymbolDay(state, date, "AUDUSD").symbol.alerts.push(alertFor(snapshot, "AUDUSD", date, 3));
-
-  const stored = parseCloudState(JSON.stringify(state)).days[date].symbols.AUDUSD?.alerts[0];
-  assert.deepEqual([stored?.entryHour, stored?.baseSymbol, stored?.baseHour, stored?.baseMinute, stored?.baseH1Signal, stored?.symbolH1Signal], [4, "AUDUSD", 1, 45, "BUY", "BUY"]);
-  assert.equal(stored?.signalBaseBar?.brokerTime, "01:45");
-  assert.throws(() => parseCloudState({ version: 55, days: {} }), /schema/i);
-});
-
-test("public feed schema 18 exposes v89 own-symbol M15 signals and can seed state", () => {
+test("cloud state v56 round-trips v90 H3 rule and OHLC evidence", () => {
   const date = "2026-09-09";
   const snapshot = market(date, 3, "TTGTTT", "ALT");
   setBase(snapshot, "USDCAD", date, 1, 45, "T");
   const state = emptyCloudState();
-  ensureSymbolDay(state, date, "USDCAD").symbol.alerts.push(alertFor(snapshot, "USDCAD", date, 3));
-
-  const feed = buildPublicFeed(state, "2026-09-09T01:00:00.000Z");
-  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours, feed.symbols], [18, 89, [3, 6, 9, 12, 14, 16], TARGETS]);
-  const row = feed.days[date].symbols.USDCAD?.alerts[0];
-  assert.deepEqual([row?.entryHour, row?.baseSymbol, row?.baseHour, row?.baseMinute, row?.baseSignal, row?.signal], [4, "USDCAD", 1, 45, "BUY", "SELL"]);
-  assert.equal(row?.signalBaseBar?.brokerTime, "01:45");
-
-  const seeded = parsePublicFeedCloudState(feed);
-  const seededRow = seeded?.days[date].symbols.USDCAD?.alerts[0];
-  assert.deepEqual([seededRow?.baseH1Signal, seededRow?.symbolH1Signal, seededRow?.baseMinute], ["BUY", "SELL", 45]);
-  assert.equal(seededRow?.signalBaseBar?.brokerTime, "01:45");
+  ensureSymbolDay(state, date, "USDCAD").symbol.alerts.push(alertFor(snapshot, "USDCAD", date, 3, INVERT_PREV));
+  const stored = parseCloudState(JSON.stringify(state)).days[date].symbols.USDCAD?.alerts[0];
+  assert.deepEqual([stored?.baseH1Signal, stored?.symbolH1Signal, stored?.postSignalRule, stored?.postSignalInverted], ["BUY", "BUY", "h3-prev-h5-invert", true]);
+  assert.equal(stored?.signalBaseBar?.brokerTime, "01:45");
 });
 
-test("public-feed reader rejects v88 payloads instead of relabeling old logic", () => {
-  const feed = buildPublicFeed(emptyCloudState());
-  assert.equal(parsePublicFeedCloudState({ ...feed, signalRuleVersion: 88 }), null);
-});
-
-test("state parser strips retired GBP-cross rows and stale v88 local-pattern rows", () => {
+test("public feed schema 18 exposes v90 five-block H3 selector contract", () => {
   const date = "2026-09-09";
-  const stale = emptyCloudState() as unknown as { version: 56; days: Record<string, { symbols: Record<string, { alerts: unknown[] }> }> };
-  stale.days[date] = {
-    symbols: {
-      GBPAUD: { alerts: [] },
-      XAUUSD: { alerts: [{
-        slotHour: 3, symbol: "XAUUSD", profile: H1_CLOUD_PROFILE, baseSymbol: "GBPUSD",
-        baseH1Signal: "BUY", baseHour: 2, baseMinute: 0, baseDirection: "T", symbolH1Signal: "BUY",
-        scheduledSignal: null, postSignalInverted: false, postSignalRule: "none", entryHour: 4,
-        patternGroup: "BT", patternFamily: "ALT", pattern: "TTG", scannerSource: "XAUUSD", inversionBadge: false, sampleBars: [],
-      }] },
-    },
-  };
-  const parsed = parseCloudState(JSON.stringify(stale));
-  assert.equal(Object.hasOwn(parsed.days[date].symbols, "GBPAUD"), false);
-  assert.deepEqual(parsed.days[date].symbols.XAUUSD?.alerts, []);
+  const snapshot = market(date, 12, "TTGTTT", "ALT");
+  setBase(snapshot, "GBPUSD", date, 10, 45, "T");
+  const state = emptyCloudState();
+  ensureSymbolDay(state, date, "GBPUSD").symbol.alerts.push(alertFor(snapshot, "GBPUSD", date, 12, INVERT_TODAY));
+  const feed = buildPublicFeed(state, "2026-09-09T01:00:00.000Z");
+  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours, feed.symbols], [18, 90, [3, 6, 9, 12, 14], TARGETS]);
+  const row = feed.days[date].symbols.GBPUSD?.alerts[0];
+  assert.deepEqual([row?.baseSignal, row?.signal, row?.postSignalRule, row?.postSignalInverted], ["BUY", "SELL", "h3-today-h5-invert", true]);
+  const seeded = parsePublicFeedCloudState(feed);
+  const seededRow = seeded?.days[date].symbols.GBPUSD?.alerts[0];
+  assert.deepEqual([seededRow?.baseH1Signal, seededRow?.symbolH1Signal, seededRow?.postSignalRule], ["BUY", "SELL", "h3-today-h5-invert"]);
 });
 
-test("rule bumps keep H1 history on the schema-stable state key", () => {
+test("v90 parser rejects retained v89 local-pattern rows", () => {
+  const date = "2026-09-09";
+  const stale = emptyCloudState();
+  ensureSymbolDay(stale, date, "GBPUSD").symbol.alerts.push({
+    slotHour: 3, symbol: "GBPUSD", profile: H1_CLOUD_PROFILE, baseSymbol: "GBPUSD",
+    baseH1Signal: "BUY", baseHour: 1, baseMinute: 45, baseDirection: "T", symbolH1Signal: "BUY",
+    scheduledSignal: null, postSignalInverted: false, postSignalRule: "none", entryHour: 4,
+    patternGroup: "BT", patternFamily: "ALT", pattern: "TTG", scannerSource: "XAUUSD", inversionBadge: false, sampleBars: [], signalBaseBar: null,
+  });
+  assert.deepEqual(parseCloudState(JSON.stringify(stale)).days[date].symbols.GBPUSD?.alerts, []);
+  assert.equal(parsePublicFeedCloudState({ ...buildPublicFeed(emptyCloudState()), signalRuleVersion: 89 }), null);
+});
+
+test("rule bumps keep H1 history on schema-stable state key and merge dates", () => {
   assert.equal(H1_CLOUD_STATE_KEY, `robot-sltp:cloud:h1-scanner:state:s${H1_CLOUD_STATE_VERSION}`);
-  assert.deepEqual(H1_LEGACY_CLOUD_STATE_KEYS, [
-    "robot-sltp:cloud:h1-scanner:state:v73",
-    "robot-sltp:cloud:h1-scanner:state:v72",
-  ]);
-});
-
-test("history merge retains v89 broker days", () => {
-  const oldDate = "2026-09-08";
-  const currentDate = "2026-09-09";
+  assert.deepEqual(H1_LEGACY_CLOUD_STATE_KEYS, ["robot-sltp:cloud:h1-scanner:state:v73", "robot-sltp:cloud:h1-scanner:state:v72"]);
   const history = emptyCloudState();
-  history.days[oldDate] = { symbols: { XAUUSD: { alerts: [] } } };
+  history.days["2026-09-08"] = { symbols: { XAUUSD: { alerts: [] } } };
   const current = emptyCloudState();
-  current.days[currentDate] = { symbols: { XAUUSD: { alerts: [] } } };
-  const merged = mergeH1CloudStateHistory(history, current);
-  assert.deepEqual(Object.keys(merged.days).sort(), [oldDate, currentDate]);
+  current.days["2026-09-09"] = { symbols: { XAUUSD: { alerts: [] } } };
+  assert.deepEqual(Object.keys(mergeH1CloudStateHistory(history, current).days).sort(), ["2026-09-08", "2026-09-09"]);
 });

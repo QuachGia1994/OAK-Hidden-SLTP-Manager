@@ -82,12 +82,20 @@ data class H1SignalPayload(
         } else {
             "$signalSource M15 $baseTime · ${sourceAlert.baseDirection} → $baseSignal"
         }
+        val previousDate = days.keys.filter { it < date }.maxOrNull() ?: "PREV"
+        val rawRule = sourceAlert.postSignalRule
+        val ruleDate = if (rawRule.startsWith("h3-prev-")) previousDate else date
+        val h3Rule = if (rawRule.isBlank()) {
+            "H3 RULE —"
+        } else {
+            "$ruleDate ${rawRule.replace("h3-", "H3 ").replace('-', ' ').uppercase()}"
+        }
 
         return H1EvidenceFacts(
             patternSource = sourceAlert.scannerSource ?: "XAUUSD",
             rawBase = rawBase,
             signalSource = signalSource,
-            rule = "M15 entry-2h15 · ${if (inverted) "INVERT" else "KEEP"}",
+            rule = "M15 entry-2h15 · BASE ${if (inverted) "INVERT" else "KEEP"} · $h3Rule",
             finalSignal = sourceAlert.signal?.name ?: "—",
         )
     }

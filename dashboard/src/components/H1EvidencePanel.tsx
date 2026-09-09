@@ -30,13 +30,28 @@ type H1EvidenceFacts = {
   finalSignal: string;
 };
 
+function previousRetainedBrokerDate(payload: H1SignalPayload, brokerDate: string): string {
+  return Object.keys(payload.days).filter((date) => date < brokerDate).sort().at(-1) || "";
+}
+
+function h3EntryRuleLabel(selection: H1EvidenceSelection, payload: H1SignalPayload): string {
+  const rule = selection.alert.postSignalRule || "none";
+  const previousDate = previousRetainedBrokerDate(payload, selection.brokerDate);
+  if (rule === "h3-prev-h4-keep") return `${previousDate || "PREV"} H3 ENTRY H4 · KEEP`;
+  if (rule === "h3-prev-h5-invert") return `${previousDate || "PREV"} H3 ENTRY H5 · INVERT`;
+  if (rule === "h3-prev-pending") return `${previousDate || "PREV"} H3 ENTRY — · WAIT`;
+  if (rule === "h3-today-h4-keep") return `${selection.brokerDate} H3 ENTRY H4 · KEEP`;
+  if (rule === "h3-today-h5-invert") return `${selection.brokerDate} H3 ENTRY H5 · INVERT`;
+  if (rule === "h3-today-pending") return `${selection.brokerDate} H3 ENTRY — · WAIT`;
+  return "H3 RULE —";
+}
+
 function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload): H1EvidenceFacts {
   const { base, alert } = selection;
-  void payload;
   const baseTime = Number.isInteger(alert.baseHour) && Number.isInteger(alert.baseMinute)
     ? `${String(alert.baseHour).padStart(2, "0")}:${String(alert.baseMinute).padStart(2, "0")}`
     : "—";
-  const inverted = base === "USDCAD" || base === "USDJPY";
+  const intrinsicInverted = base === "USDCAD" || base === "USDJPY";
   const rawBase = alert.baseDirection
     ? `${alert.baseSymbol || base} M15 ${baseTime} · ${alert.baseDirection} → ${alert.baseSignal ?? "—"}`
     : "—";
@@ -49,7 +64,7 @@ function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload)
     rawBase,
     baseOhlc,
     signalSource: alert.baseSymbol || base,
-    rule: `M15 entry-2h15 · ${inverted ? "INVERT" : "KEEP"}`,
+    rule: `M15 entry-2h15 · BASE ${intrinsicInverted ? "INVERT" : "KEEP"} · ${h3EntryRuleLabel(selection, payload)}`,
     finalSignal: alert.signal ?? "—",
   };
 }
@@ -158,7 +173,7 @@ async function renderEvidenceChartPng(svg: SVGSVGElement, selection: H1EvidenceS
   const baseTime = Number.isInteger(selection.alert.baseHour) && Number.isInteger(selection.alert.baseMinute)
     ? `${String(selection.alert.baseHour).padStart(2, "0")}:${String(selection.alert.baseMinute).padStart(2, "0")}`
     : "—";
-  ctx.fillText(`${selection.alert.patternGroup ?? "—"} · ${familyLabel(selection.alert.patternFamily)} · ${patternLabel(selection.alert.pattern)} · BASE ${selection.alert.baseSymbol || selection.base} M15 ${baseTime} · FINAL ${selection.alert.signal ?? "—"}`, chartX, 44);
+  ctx.fillText(`${selection.alert.patternGroup ?? "—"} · ${familyLabel(selection.alert.patternFamily)} · ${patternLabel(selection.alert.pattern)} · BASE ${selection.alert.baseSymbol || selection.base} M15 ${baseTime} · ${selection.alert.postSignalRule || "H3 RULE —"} · FINAL ${selection.alert.signal ?? "—"}`, chartX, 44);
 
   const image = await loadSvgImage(inlineSvgComputedStyles(svg));
   ctx.drawImage(image, chartX, chartY, chartWidth, chartHeight);

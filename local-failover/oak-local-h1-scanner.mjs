@@ -103,12 +103,26 @@ function snapshotBarsForSource(payload, source, brokerDate) {
   return (payload.symbols?.[source]?.bars || []).filter((bar) => bar.brokerDate === brokerDate);
 }
 
+function previousAvailableXauDate(payload, brokerDate) {
+  return [...new Set((payload.symbols?.XAUUSD?.bars || [])
+    .map((bar) => bar.brokerDate)
+    .filter((date) => date < brokerDate))].sort().at(-1) || "";
+}
+
+function snapshotBarsWithH3Context(payload, source, brokerDate) {
+  const current = snapshotBarsForSource(payload, source, brokerDate);
+  if (source !== "XAUUSD") return current;
+  const previous = previousAvailableXauDate(payload, brokerDate);
+  if (!previous) return current;
+  return [...snapshotBarsForSource(payload, source, previous), ...current];
+}
+
 function currentDaySnapshot(payload) {
   return {
     ...payload,
     symbols: Object.fromEntries(SOURCE_KEYS.map((source) => [source, {
       displayName: payload.symbols?.[source]?.displayName || source,
-      bars: snapshotBarsForSource(payload, source, payload.brokerDate),
+      bars: snapshotBarsWithH3Context(payload, source, payload.brokerDate),
     }])),
   };
 }
@@ -127,7 +141,7 @@ function dateSnapshots(payload, days) {
       if (currentBars.length < 8) return [];
       symbols[source] = {
         displayName: payload.symbols[source].displayName || source,
-        bars: snapshotBarsForSource(payload, source, brokerDate),
+        bars: snapshotBarsWithH3Context(payload, source, brokerDate),
       };
     }
     const currentDay = brokerDate === payload.brokerDate;
@@ -143,7 +157,7 @@ function dateSnapshots(payload, days) {
 
 export async function publishIcMarketsM15({ fetchImpl = globalThis.fetch, exec = execFile, dryRun = false, backfillDays = 0 } = {}) {
   const config = JSON.parse(await fs.readFile(CONFIG_PATH, "utf8"));
-  const readDays = backfillDays > 0 ? Math.min(MAX_BACKFILL_DAYS + 20, backfillDays + 20) : 2;
+  const readDays = backfillDays > 0 ? Math.min(MAX_BACKFILL_DAYS + 20, backfillDays + 20) : 7;
   const payload = await readIcMarketsM15({ exec, days: readDays });
   if (dryRun) {
     return { ok: true, dryRun: true, brokerDate: payload.brokerDate, brokerHour: payload.brokerHour, brokerMinute: payload.brokerMinute, login: payload.login };

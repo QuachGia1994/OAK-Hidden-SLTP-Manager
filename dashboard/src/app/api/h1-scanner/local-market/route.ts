@@ -22,6 +22,7 @@ import {
   H1_CLOUD_PROFILE,
   ensureSymbolDay,
   evaluateLocalH1PatternsForTarget,
+  xauH3EntryHour,
   type H1LocalMarketSnapshot,
   type H1StoredAlert,
 } from "@/lib/h1-cloud-scanner";
@@ -130,11 +131,19 @@ function sameAlert(left: H1StoredAlert, right: H1StoredAlert): boolean {
     && left.scannerSource === right.scannerSource
     && left.baseSymbol === right.baseSymbol
     && left.baseHour === right.baseHour
+    && left.baseMinute === right.baseMinute
     && left.baseDirection === right.baseDirection
     && left.baseH1Signal === right.baseH1Signal
     && left.symbolH1Signal === right.symbolH1Signal
+    && left.postSignalInverted === right.postSignalInverted
+    && left.postSignalRule === right.postSignalRule
     && Boolean(left.inversionBadge) === Boolean(right.inversionBadge)
-    && JSON.stringify(left.sampleBars ?? []) === JSON.stringify(right.sampleBars ?? []);
+    && JSON.stringify(left.sampleBars ?? []) === JSON.stringify(right.sampleBars ?? [])
+    && JSON.stringify(left.signalBaseBar ?? null) === JSON.stringify(right.signalBaseBar ?? null);
+}
+
+function previousAvailableXauBrokerDate(market: H1LocalMarketSnapshot, brokerDate: string): string {
+  return [...new Set(market.XAUUSD.bars.map((bar) => bar.brokerDate).filter((date) => date < brokerDate))].sort().at(-1) || "";
 }
 
 export async function POST(request: Request) {
@@ -156,12 +165,17 @@ export async function POST(request: Request) {
     const { state, source } = await loadH1CloudState(parsed.brokerDate, parsed.brokerHour);
     const dayWasMissing = !state.days[parsed.brokerDate];
     const readyHours = H1_LOCAL_SCAN_HOURS.filter((hour) => hour <= parsed.brokerHour);
+    const previousBrokerDate = previousAvailableXauBrokerDate(parsed.market, parsed.brokerDate);
+    const h3Context = {
+      previousH3EntryHour: previousBrokerDate ? xauH3EntryHour(previousBrokerDate, parsed.market) : null,
+      currentH3EntryHour: xauH3EntryHour(parsed.brokerDate, parsed.market),
+    };
     let changed = false;
     let matched = 0;
     let updated = 0;
 
     for (const target of H1_LOCAL_TARGETS) {
-      const computed = evaluateLocalH1PatternsForTarget(target, parsed.brokerDate, parsed.market, readyHours, parsed.brokerHour);
+      const computed = evaluateLocalH1PatternsForTarget(target, parsed.brokerDate, parsed.market, readyHours, parsed.brokerHour, h3Context);
       matched += computed.length;
       const { symbol } = ensureSymbolDay(state, parsed.brokerDate, target);
       const existing = new Map(symbol.alerts.map((alert) => [alert.slotHour, alert]));

@@ -31,7 +31,7 @@ test("legacy cloud H1 run/backfill endpoints are authenticated no-ops owned by l
   assert.match(backfillRoute, /skipped: "local-mt5-history-only"/);
 });
 
-test("local MT5 market endpoint is private, ICMarkets-only, stale-guarded and singleton locked", () => {
+test("local MT5 market endpoint is private, ICMarkets-only, stale-guarded, singleton locked and derives H3 selector context", () => {
   assert.match(localRoute, /DASHBOARD_API_KEY/);
   assert.match(localRoute, /x-telegram-bot-api-secret-token/);
   assert.match(localRoute, /timingSafeEqual/);
@@ -39,6 +39,10 @@ test("local MT5 market endpoint is private, ICMarkets-only, stale-guarded and si
   assert.match(localRoute, /\/icmarkets\/i\.test\(server\)/);
   assert.match(localRoute, /H1_LOCAL_SOURCES/);
   assert.match(localRoute, /evaluateLocalH1PatternsForTarget/);
+  assert.match(localRoute, /previousAvailableXauBrokerDate/);
+  assert.match(localRoute, /xauH3EntryHour/);
+  assert.match(localRoute, /previousH3EntryHour/);
+  assert.match(localRoute, /currentH3EntryHour/);
   assert.match(localRoute, /targetEnabledForDate/);
   assert.match(localRoute, /acquireH1CloudLock/);
   assert.match(localRoute, /releaseH1CloudLock/);
@@ -62,7 +66,7 @@ test("local ICMarkets reader uses M15 only and does not double-shift MT5 server-
   assert.doesNotMatch(reader, /order_send|positions_get|TRADE_ACTION|ORDER_TYPE_BUY|ORDER_TYPE_SELL/);
 });
 
-test("local publisher sends same-day bars for the five v89 own-symbol rows and supports bounded 90-day history backfill", () => {
+test("local publisher sends same-day own-symbol bars plus previous XAU H3 context for v90 and supports bounded 90-day history backfill", () => {
   assert.match(publisher, /MAX_BACKFILL_DAYS = 90/);
   assert.match(publisher, /HISTORICAL_READER_TIMEOUT_MS = 180_000/);
   assert.match(publisher, /HISTORICAL_READER_MAX_BUFFER = 32_000_000/);
@@ -79,8 +83,10 @@ test("local publisher sends same-day bars for the five v89 own-symbol rows and s
   assert.match(publisher, /currentDaySnapshot/);
   assert.match(publisher, /"XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"/);
   assert.match(publisher, /snapshotBarsForSource/);
-  assert.match(publisher, /bar\.brokerDate === brokerDate/);
-  assert.doesNotMatch(publisher, /previousAvailableDate/);
+  assert.match(publisher, /previousAvailableXauDate/);
+  assert.match(publisher, /snapshotBarsWithH3Context/);
+  assert.match(publisher, /source !== "XAUUSD"/);
+  assert.match(publisher, /backfillDays > 0 \? Math\.min\(MAX_BACKFILL_DAYS \+ 20, backfillDays \+ 20\) : 7/);
   assert.match(publisher, /dateSnapshots/);
   assert.match(publisher, /source: "local-mt5-icmarkets"|local-market/);
   assert.match(publisher, /x-telegram-bot-api-secret-token/);

@@ -285,12 +285,18 @@ extension H1SignalPayload {
         let rawBase = sourceAlert.baseDirection.isEmpty
             ? "—"
             : "\(sourceAlert.baseSymbol.isEmpty ? sourceAlert.symbol : sourceAlert.baseSymbol) M15 \(baseTime) · \(sourceAlert.baseDirection) → \(baseSignal)"
+        let previousDate = days.keys.filter { $0 < date }.sorted().last ?? "PREV"
+        let rawRule = sourceAlert.postSignalRule ?? ""
+        let ruleDate = rawRule.hasPrefix("h3-prev-") ? previousDate : date
+        let h3Rule = rawRule.isEmpty
+            ? "H3 RULE —"
+            : "\(ruleDate) " + rawRule.replacingOccurrences(of: "h3-", with: "H3 ").replacingOccurrences(of: "-", with: " ").uppercased()
 
         return H1EvidenceFacts(
             patternSource: sourceAlert.scannerSource ?? "XAUUSD",
             rawBase: rawBase,
             signalSource: sourceAlert.baseSymbol.isEmpty ? sourceAlert.symbol : sourceAlert.baseSymbol,
-            rule: "M15 entry-2h15 · \(inverted ? "INVERT" : "KEEP")",
+            rule: "M15 entry-2h15 · BASE \(inverted ? "INVERT" : "KEEP") · \(h3Rule)",
             finalSignal: sourceAlert.signal?.rawValue ?? "—"
         )
     }

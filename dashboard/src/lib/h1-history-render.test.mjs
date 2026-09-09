@@ -80,7 +80,7 @@ function payload() {
     signalRuleVersion: 59,
     profile: "MT5 ICMarkets Local",
     publishedAt: "2026-02-03T12:00:00.000Z",
-    hours: [3, 6, 9, 12, 14, 16],
+    hours: [3, 6, 9, 12, 14],
     symbols: ["XAUUSD"],
     days: Object.fromEntries(dates.map((date, index) => [date, { symbols: { XAUUSD: { alerts: [alert(3, index % 2 ? 4 : 5, index % 3 === 0 ? "SELL" : "BUY")] } } }])),
   };
