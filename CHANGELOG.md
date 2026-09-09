@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed H1 image exports: Copy PNG now uses a more balanced matrix, split metadata lines so the v90 rule text cannot run off-canvas, and lighter H12/H14 emphasis. Copy Chart now labels XAUUSD as the Entry-pattern source separately from the selected row's own-symbol M15 signal base, prints pattern plot/read direction explicitly, expands the header area for unclipped evidence, shows the intrinsic UC/UJ inversion result, the human H3 selector/date, base OHLC and final signal. Trading/signal computation is unchanged.
+
 - Tightened the mobile H1 table after H16 retirement: the five hour columns now share the remaining viewport width evenly, the sticky label column is wide enough to keep `ENTRY TIME` on one line, BUY/SELL pills are box-sized so they cannot spill into adjacent cells, and the redundant `M15 E-2:15 · H3 RULE` subtitle was removed from every symbol row. Signal/evidence logic is unchanged.
 
 - Advanced H1 to v90 and removed H16 entirely. The active matrix is now H3/H6/H9/H12/H14 across `XAUUSD`, `GBPUSD`, `AUDUSD`, `USDCAD`, `USDJPY`. Each row still reads its own same-broker-day M15 candle at `entry time - 2h15`; XAUUSD/GBPUSD/AUDUSD keep that base direction while USDCAD/USDJPY invert it first. A second final-signal layer is driven by XAUUSD H3 Entry time: H3/H6/H9 use the previous available broker day's H3 Entry (`H4` = keep, `H5` = invert), while H12/H14 use today's H3 Entry with the same H4/H5 rule. Missing selector evidence fails closed. Local snapshots carry the previous XAUUSD broker day only as selector context; signal bases remain own-symbol/same-day. Evidence/PNG/native clients expose the same rule, stale v89 local-pattern rows are rejected, schema 18/state v56 remain stable, and broker execution remains independent.

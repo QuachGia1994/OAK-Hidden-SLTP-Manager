@@ -459,6 +459,11 @@ test("H1 board exports interoperable PNG with clipboard, Android share-sheet and
   assert.match(boardSource, /document\.createElement\("canvas"\)/);
   assert.match(boardSource, /canvas\.toBlob/);
   assert.match(boardSource, /H1_SHARE_SCALE = 2/);
+  assert.match(boardSource, /H1_SHARE_SYMBOL_WIDTH = 148/);
+  assert.match(boardSource, /H1_SHARE_HOUR_WIDTH = 96/);
+  assert.match(boardSource, /Signal base: own-symbol M15 E-2:15/);
+  assert.match(boardSource, /Signal base: M15 E-2:15 đúng symbol/);
+  assert.match(boardSource, /highlightBg: "rgba\(217, 164, 65, 0\.08\)"/);
   assert.match(boardSource, /deliverPngBlob/);
   assert.match(boardSource, /SHARED/);
   assert.match(boardSource, /SAVED/);
@@ -531,7 +536,14 @@ test("populated H1 cells expose synchronized XAU entry-pattern and own-symbol M1
   assert.match(evidencePanelSource, /Pattern Evidence · newest → oldest/);
   assert.match(evidencePanelSource, /copy: "Copy chart"/);
   assert.match(evidencePanelSource, /renderEvidenceChartPng/);
-  assert.match(evidencePanelSource, /BASE \$\{selection\.alert\.baseSymbol \|\| selection\.base\} M15/);
+  assert.match(evidencePanelSource, /renderEvidenceChartPng\(svg, selection, payload\)/);
+  assert.match(evidencePanelSource, /ENTRY PATTERN \$\{patternSource\}/);
+  assert.match(evidencePanelSource, /PLOT OLDEST→NEWEST/);
+  assert.match(evidencePanelSource, /MATCH READ NEWEST→OLDEST/);
+  assert.match(evidencePanelSource, /SIGNAL BASE \$\{selection\.alert\.baseSymbol \|\| selection\.base\} M15/);
+  assert.match(evidencePanelSource, /OWN \$\{intrinsicInverted \? "INVERT" : "KEEP"\}→\$\{intrinsicSignal\}/);
+  assert.match(evidencePanelSource, /H3 SELECTOR \$\{h3EntryRuleLabel\(selection, payload\)\}/);
+  assert.match(evidencePanelSource, /BASE OHLC \$\{facts\.baseOhlc\}/);
   assert.match(evidencePanelSource, /deliverPngBlob/);
   assert.match(evidencePanelSource, /delivery === "shared"/);
   assert.match(evidencePanelSource, /delivery === "downloaded"/);

@@ -136,11 +136,15 @@ function canvasPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   });
 }
 
-async function renderEvidenceChartPng(svg: SVGSVGElement, selection: H1EvidenceSelection): Promise<Blob> {
+async function renderEvidenceChartPng(
+  svg: SVGSVGElement,
+  selection: H1EvidenceSelection,
+  payload: H1SignalPayload,
+): Promise<Blob> {
   const logicalWidth = 900;
-  const logicalHeight = 360;
+  const logicalHeight = 430;
   const chartX = 55;
-  const chartY = 56;
+  const chartY = 118;
   const chartWidth = 790;
   const chartHeight = 297;
   const canvas = document.createElement("canvas");
@@ -163,17 +167,38 @@ async function renderEvidenceChartPng(svg: SVGSVGElement, selection: H1EvidenceS
 
   ctx.fillStyle = background;
   ctx.fillRect(0, 0, logicalWidth, logicalHeight);
+  const facts = evidenceFacts(selection, payload);
+  const patternSource = selection.alert.scannerSource || "XAUUSD";
+  const baseTime = Number.isInteger(selection.alert.baseHour) && Number.isInteger(selection.alert.baseMinute)
+    ? `${String(selection.alert.baseHour).padStart(2, "0")}:${String(selection.alert.baseMinute).padStart(2, "0")}`
+    : "—";
+  const intrinsicInverted = selection.base === "USDCAD" || selection.base === "USDJPY";
+  const baseSignal = selection.alert.baseSignal ?? "—";
+  const intrinsicSignal = selection.alert.baseSignal
+    ? (intrinsicInverted
+      ? (selection.alert.baseSignal === "BUY" ? "SELL" : "BUY")
+      : selection.alert.baseSignal)
+    : "—";
+
   ctx.fillStyle = textColor;
   ctx.font = '900 19px "Cascadia Mono", Consolas, monospace';
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   ctx.fillText(`OAK H1 · ${selection.base} H${String(selection.alert.slotHour).padStart(2, "0")} · ${selection.brokerDate}`, chartX, 25);
   ctx.fillStyle = mutedColor;
-  ctx.font = '800 11px "Cascadia Mono", Consolas, monospace';
-  const baseTime = Number.isInteger(selection.alert.baseHour) && Number.isInteger(selection.alert.baseMinute)
-    ? `${String(selection.alert.baseHour).padStart(2, "0")}:${String(selection.alert.baseMinute).padStart(2, "0")}`
-    : "—";
-  ctx.fillText(`${selection.alert.patternGroup ?? "—"} · ${familyLabel(selection.alert.patternFamily)} · ${patternLabel(selection.alert.pattern)} · BASE ${selection.alert.baseSymbol || selection.base} M15 ${baseTime} · ${selection.alert.postSignalRule || "H3 RULE —"} · FINAL ${selection.alert.signal ?? "—"}`, chartX, 44);
+  ctx.font = '800 10.5px "Cascadia Mono", Consolas, monospace';
+  ctx.fillText(
+    `ENTRY PATTERN ${patternSource} · ${selection.alert.patternGroup ?? "—"} · ${familyLabel(selection.alert.patternFamily)} · MATCH ${patternLabel(selection.alert.pattern)} · PLOT OLDEST→NEWEST`,
+    chartX,
+    46,
+  );
+  ctx.fillText(
+    `MATCH READ NEWEST→OLDEST · SIGNAL BASE ${selection.alert.baseSymbol || selection.base} M15 ${baseTime} · ${selection.alert.baseDirection || "—"}→${baseSignal} · OWN ${intrinsicInverted ? "INVERT" : "KEEP"}→${intrinsicSignal}`,
+    chartX,
+    64,
+  );
+  ctx.fillText(`H3 SELECTOR ${h3EntryRuleLabel(selection, payload)} · FINAL ${facts.finalSignal}`, chartX, 82);
+  ctx.fillText(`BASE OHLC ${facts.baseOhlc}`, chartX, 100);
 
   const image = await loadSvgImage(inlineSvgComputedStyles(svg));
   ctx.drawImage(image, chartX, chartY, chartWidth, chartHeight);
@@ -257,7 +282,7 @@ export function H1EvidencePanel({ selection, payload, locale, onClose, variant =
     try {
       const svg = dialogRef.current?.querySelector("svg.oak-h1-evidence-chart") as SVGSVGElement | null;
       if (!svg || !orderedBars.length) throw new Error("Chart unavailable");
-      const png = await renderEvidenceChartPng(svg, selection);
+      const png = await renderEvidenceChartPng(svg, selection, payload);
       const result = await deliverPngBlob(png, {
         fileName: `oak-h1-${base}-h${String(alert.slotHour).padStart(2, "0")}-${brokerDate}.png`,
         title: `OAK H1 ${base} H${String(alert.slotHour).padStart(2, "0")}`,
@@ -298,7 +323,7 @@ export function H1EvidencePanel({ selection, payload, locale, onClose, variant =
         </div>
 
         <div className="oak-h1-evidence-chart-card">
-          <div className="oak-h1-evidence-card-head"><div><small>ENTRY PATTERN · M15 · ICMarkets local · OLDEST → NEWEST</small><b>{alert.scannerSource || "XAUUSD"}</b></div><span>{orderedBars.filter((bar) => bar.selected).length}/{orderedBars.length || 0} selected</span></div>
+          <div className="oak-h1-evidence-card-head"><div><small>ENTRY PATTERN · M15 · ICMarkets local · PLOT OLDEST → NEWEST · MATCH READ NEWEST → OLDEST</small><b>{alert.scannerSource || "XAUUSD"}</b></div><span>{orderedBars.filter((bar) => bar.selected).length}/{orderedBars.length || 0} selected</span></div>
           <EvidenceChart bars={orderedBars} blockHour={alert.slotHour} entryHour={entryHour} />
         </div>
 

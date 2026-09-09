@@ -11,10 +11,10 @@ type Locale = "EN" | "VN";
 type ShareArtifact = { date: string; blob: Blob };
 
 const H1_SHARE_SCALE = 2;
-const H1_SHARE_SYMBOL_WIDTH = 172;
-const H1_SHARE_HOUR_WIDTH = 88;
-const H1_SHARE_ENTRY_ROW_HEIGHT = 82;
-const H1_SHARE_SIGNAL_ROW_HEIGHT = 62;
+const H1_SHARE_SYMBOL_WIDTH = 148;
+const H1_SHARE_HOUR_WIDTH = 96;
+const H1_SHARE_ENTRY_ROW_HEIGHT = 72;
+const H1_SHARE_SIGNAL_ROW_HEIGHT = 54;
 const H1_SHARE_FONT = '"Cascadia Mono", "SFMono-Regular", Consolas, monospace';
 const H1_SIGNAL_ROWS = ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const;
 function previousRetainedBrokerDate(datesDescending: readonly string[], date: string): string {
@@ -58,9 +58,9 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   const previousH3 = entryAlertForHour(previousDate ? data.days[previousDate] : undefined, 3);
   const entryByHour = new Map((day.symbols?.XAUUSD?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
   const padding = 40;
-  const titleHeight = 128;
-  const headerHeight = 54;
-  const footerHeight = 46;
+  const titleHeight = 150;
+  const headerHeight = 50;
+  const footerHeight = 42;
   const signalRowsHeight = H1_SIGNAL_ROWS.length * H1_SHARE_SIGNAL_ROW_HEIGHT;
   const tableRowsHeight = H1_SHARE_ENTRY_ROW_HEIGHT + signalRowsHeight;
   const tableWidth = H1_SHARE_SYMBOL_WIDTH + hours.length * H1_SHARE_HOUR_WIDTH;
@@ -82,7 +82,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     muted: "#8fa2b8",
     accent: "#4b8cff",
     highlight: "#d9a441",
-    highlightBg: "#2b2518",
+    highlightBg: "rgba(217, 164, 65, 0.08)",
     buy: "#42d39b",
     sell: "#ff6b7d",
   };
@@ -99,8 +99,16 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   ctx.font = `900 28px ${H1_SHARE_FONT}`;
   ctx.fillText(locale === "EN" ? "H1 Entry + M15 Signals" : "H1 Entry + Signal M15", padding + 22, padding + 66);
   ctx.fillStyle = colors.muted;
-  ctx.font = `700 15px ${H1_SHARE_FONT}`;
-  ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  Entry owner XAUUSD  ·  Base M15 = entry - 2h15`, padding + 22, padding + 96);
+  ctx.font = `700 14px ${H1_SHARE_FONT}`;
+  ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  Entry owner XAUUSD`, padding + 22, padding + 96);
+  ctx.font = `700 13px ${H1_SHARE_FONT}`;
+  ctx.fillText(
+    locale === "EN"
+      ? "Signal base: own-symbol M15 E-2:15 · UC/UJ invert · H3 selector final"
+      : "Signal base: M15 E-2:15 đúng symbol · UC/UJ đảo · H3 selector final",
+    padding + 22,
+    padding + 120,
+  );
 
   const tableX = padding;
   const tableY = padding + titleHeight;
@@ -127,7 +135,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
       ctx.fillStyle = colors.highlightBg;
       ctx.fillRect(x, tableY, H1_SHARE_HOUR_WIDTH, headerHeight + tableRowsHeight);
       ctx.strokeStyle = colors.highlight;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.25;
       ctx.strokeRect(x + 1, tableY + 1, H1_SHARE_HOUR_WIDTH - 2, headerHeight + tableRowsHeight - 2);
       ctx.strokeStyle = colors.border;
       ctx.lineWidth = 1;
