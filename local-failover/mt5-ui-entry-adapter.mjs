@@ -95,6 +95,37 @@ function failed(detail) {
   };
 }
 
+function reversalIncomplete(prepared, detail, replacementState = "not_submitted") {
+  const buyLots = Number(prepared?.currentBuyLots || 0);
+  const sellLots = Number(prepared?.currentSellLots || 0);
+  const closedPositions = Number(prepared?.netClosedPositions || 0);
+  const closedLots = Number(prepared?.netClosedLots || 0);
+  const removedPending = Number(prepared?.netRemovedPending || 0);
+  const reason = String(detail || prepared?.detail || "replacement entry did not complete").replace(/^REVERSAL_INCOMPLETE(?:\s*\[[^\]]+\])?:?\s*/i, "");
+  return {
+    status: "failed",
+    result: {
+      ok: false,
+      action: "entry",
+      reversalIncomplete: true,
+      replacementState,
+      netMutationOccurred: true,
+      netClosedPositions: closedPositions,
+      netClosedLots: closedLots,
+      netRemovedPending: removedPending,
+      currentBuyLots: buyLots,
+      currentSellLots: sellLots,
+      detail: `REVERSAL_INCOMPLETE [${replacementState}]: ${reason}; current BUY ${compactUiNumber(buyLots)} / SELL ${compactUiNumber(sellLots)}; automatic replay is disabled`,
+    },
+  };
+}
+
+function compactUiNumber(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "0";
+  return number.toFixed(8).replace(/0+$/, "").replace(/\.$/, "");
+}
+
 function claimEnvelope(task, clock) {
   return {
     version: 2,
@@ -234,6 +265,12 @@ function buildUiTask(task, prepared) {
     slText: String(prepared.slText || prepared.slPrice || ""),
     tpText: String(prepared.tpText || prepared.tpPrice || ""),
     comment: String(prepared.comment || ""),
+    netMutationOccurred: prepared.netMutationOccurred === true,
+    netClosedPositions: Number(prepared.netClosedPositions || 0),
+    netClosedLots: Number(prepared.netClosedLots || 0),
+    netRemovedPending: Number(prepared.netRemovedPending || 0),
+    currentBuyLots: Number(prepared.currentBuyLots || 0),
+    currentSellLots: Number(prepared.currentSellLots || 0),
   };
 }
 
@@ -368,26 +405,39 @@ export function createMt5UiEntryAdapter(options = {}) {
       const prepareTask = buildPrepareTask(task);
       const prepareEnvelope = normalizedEnvelope(await dispatchEa(prepareTask), "entry_prepare");
       if (!prepareEnvelope?.result?.ok) {
-        const envelope = prepareEnvelope?.status === "uncertain"
-          ? uncertain(prepareEnvelope.result?.detail || "EA entry preparation is uncertain")
-          : failed(prepareEnvelope?.result?.detail || "EA entry preparation failed");
+        const envelope = prepareEnvelope?.result?.reversalIncomplete === true
+          ? reversalIncomplete(prepareEnvelope.result, prepareEnvelope.result?.detail, prepareEnvelope.result?.replacementState || "not_submitted")
+          : prepareEnvelope?.status === "uncertain"
+            ? uncertain(prepareEnvelope.result?.detail || "EA entry preparation is uncertain")
+            : failed(prepareEnvelope?.result?.detail || "EA entry preparation failed");
         return await persistFinal(fsOps, files, task, envelope, clock);
       }
 
       uiTask = buildUiTask(task, prepareEnvelope.result);
       if (!uiTask.symbol || !["BUY", "SELL"].includes(uiTask.side) || !Number(uiTask.volumeText) || !Number(uiTask.slText) || !Number(uiTask.tpText) || !uiTask.comment) {
-        return await persistFinal(fsOps, files, task, failed("EA entry preparation returned incomplete UI fields"), clock);
+        const envelope = uiTask.netMutationOccurred
+          ? reversalIncomplete(uiTask, "EA entry preparation returned incomplete UI fields")
+          : failed("EA entry preparation returned incomplete UI fields");
+        return await persistFinal(fsOps, files, task, envelope, clock);
       }
 
       const prepared = await uiRunner.run({ mode: "prepare", task: uiTask, workDir, timeoutMs: uiTimeoutMs });
       if (prepared?.ok !== true) {
-        return await persistFinal(fsOps, files, task, failed(prepared?.error || "MT5 order dialog preparation failed"), clock);
+        const reason = prepared?.error || "MT5 order dialog preparation failed";
+        const envelope = uiTask.netMutationOccurred
+          ? reversalIncomplete(uiTask, reason)
+          : failed(reason);
+        return await persistFinal(fsOps, files, task, envelope, clock);
       }
 
       submitStarted = true;
       const submit = await uiRunner.run({ mode: "submit", task: uiTask, workDir, timeoutMs: uiTimeoutMs });
       if (submit?.ok !== true || submit?.submitted !== true) {
-        return await persistFinal(fsOps, files, task, failed(submit?.error || "MT5 order button was not invoked"), clock);
+        const reason = submit?.error || "MT5 order button was not invoked";
+        const envelope = uiTask.netMutationOccurred
+          ? reversalIncomplete(uiTask, reason)
+          : failed(reason);
+        return await persistFinal(fsOps, files, task, envelope, clock);
       }
       submitted = true;
 
@@ -424,8 +474,10 @@ export function createMt5UiEntryAdapter(options = {}) {
       );
     } catch (error) {
       const envelope = submitStarted
-        ? uncertain(`MT5 UI submit outcome is uncertain: ${safeError(error)}; automatic replay is disabled`)
-        : failed(`MT5 UI entry stopped before submit: ${safeError(error)}`);
+        ? uncertain(`MT5 UI submit outcome is uncertain: ${safeError(error)}${uiTask?.netMutationOccurred ? "; opposite exposure was already modified during entry preparation" : ""}; automatic replay is disabled`)
+        : uiTask?.netMutationOccurred
+          ? reversalIncomplete(uiTask, `MT5 UI entry stopped before submit: ${safeError(error)}`)
+          : failed(`MT5 UI entry stopped before submit: ${safeError(error)}`);
       if (!submitted && uiTask) {
         await uiRunner.run({ mode: "close", task: uiTask, workDir, timeoutMs: uiTimeoutMs }).catch(() => {});
       }

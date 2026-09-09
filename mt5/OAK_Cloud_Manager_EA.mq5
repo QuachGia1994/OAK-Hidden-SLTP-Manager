@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.11"
+#property version   "1.12"
 #property description "OAK local-only MT5 execution manager"
 
 // OAK Local Manager EA
@@ -35,6 +35,7 @@ input bool   InpNetSkipSameDirection       = true;
 input bool   InpNetRemoveOppositePending   = true;
 input double InpMaxLotPerTrade             = 5.0;
 input double InpMaxExposurePerSymbol       = 10.0;
+input int    InpEntryNetSettleTimeoutMs    = 5000;       // Reversal settle wait; clamped 1000..15000ms
 
 input group "Automatic Protection"
 input bool   InpManageOpenPositions        = true;
@@ -59,7 +60,7 @@ input string InpPartialPercents            = "50";      // 1 pct = current-volum
 #define OAK_HEARTBEAT_PREFIX  "oak:mt5:bridge:heartbeat:v1:"
 #define OAK_TASK_TTL          604800
 #define OAK_HEARTBEAT_TTL     45
-#define OAK_EA_VERSION        "1.11"
+#define OAK_EA_VERSION        "1.12"
 #define OAK_LOCAL_DIR         "OAKLocalFailover\\"
 
 string g_profile = "";
@@ -80,6 +81,14 @@ double g_partial_r[];
 double g_partial_pct[];
 string g_pending_final_id = "";
 string g_pending_final_task = "";
+
+struct EntryNetMutationSummary
+{
+   bool mutationOccurred;
+   int closedPositions;
+   double closedLots;
+   int removedPending;
+};
 
 // -----------------------------------------------------------------------------
 // String / JSON helpers (minimal parser for the fixed bridge schema)
@@ -1302,8 +1311,94 @@ bool PrepareEntrySymbol(const string requested, const bool buy, string &symbol, 
    return false;
 }
 
-bool PreEntryNet(const string symbol, bool buy, string &detail)
+void ResetEntryNetMutationSummary(EntryNetMutationSummary &summary)
 {
+   summary.mutationOccurred=false;
+   summary.closedPositions=0;
+   summary.closedLots=0.0;
+   summary.removedPending=0;
+}
+
+double ProjectedExposureAfterNet(const string symbol,const bool buy)
+{
+   double exposure=0.0;
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong ticket=PositionGetTicket(i);
+      if(ticket==0 || PositionGetString(POSITION_SYMBOL)!=symbol) continue;
+      long type=PositionGetInteger(POSITION_TYPE);
+      bool opposite=(buy && type==POSITION_TYPE_SELL) || (!buy && type==POSITION_TYPE_BUY);
+      if(opposite && InpNetCloseOpposite) continue;
+      exposure+=PositionGetDouble(POSITION_VOLUME);
+   }
+   return exposure;
+}
+
+void CurrentSymbolExposure(const string symbol,double &buy_lots,double &sell_lots,int &positions)
+{
+   buy_lots=0.0;
+   sell_lots=0.0;
+   positions=0;
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong ticket=PositionGetTicket(i);
+      if(ticket==0 || PositionGetString(POSITION_SYMBOL)!=symbol) continue;
+      long type=PositionGetInteger(POSITION_TYPE);
+      double volume=PositionGetDouble(POSITION_VOLUME);
+      if(type==POSITION_TYPE_BUY) buy_lots+=volume;
+      else if(type==POSITION_TYPE_SELL) sell_lots+=volume;
+      positions++;
+   }
+}
+
+bool FailReversalIncomplete(
+   const string symbol,
+   const bool buy,
+   const double requested_lots,
+   const string event_key,
+   const string replacement_state,
+   const EntryNetMutationSummary &mutation,
+   const string reason,
+   const bool emit_event,
+   string &detail
+)
+{
+   if(!mutation.mutationOccurred) { detail=reason; return false; }
+   double buy_lots=0.0,sell_lots=0.0;
+   int positions=0;
+   CurrentSymbolExposure(symbol,buy_lots,sell_lots,positions);
+   detail="REVERSAL_INCOMPLETE ["+replacement_state+"]: "+reason
+      +"; net closed "+IntegerToString(mutation.closedPositions)+" position(s) / "+DoubleToString(mutation.closedLots,8)+" lot"
+      +", removed "+IntegerToString(mutation.removedPending)+" pending"
+      +"; current BUY "+DoubleToString(buy_lots,8)+" / SELL "+DoubleToString(sell_lots,8)
+      +"; automatic replay is disabled";
+   Print("[OAK-EA] ",detail);
+   if(emit_event)
+   {
+      string seed=g_provider_account_id+"|"+symbol+"|"+event_key;
+      if(event_key=="") seed+="|"+IntegerToString((long)GetTickCount64());
+      string hash=Sha256HexUtf8(seed);
+      string event_id="reversal:"+(StringLen(hash)==64 ? StringSubstr(hash,0,32) : IntegerToString((long)GetTickCount64()));
+      string fields=",\"symbol\":"+JsonQuote(symbol)
+         +",\"side\":"+JsonQuote(buy?"BUY":"SELL")
+         +",\"requestedLots\":"+DoubleToString(requested_lots,8)
+         +",\"closedPositions\":"+IntegerToString(mutation.closedPositions)
+         +",\"closedLots\":"+DoubleToString(mutation.closedLots,8)
+         +",\"removedPending\":"+IntegerToString(mutation.removedPending)
+         +",\"currentPositions\":"+IntegerToString(positions)
+         +",\"currentBuyLots\":"+DoubleToString(buy_lots,8)
+         +",\"currentSellLots\":"+DoubleToString(sell_lots,8)
+         +",\"replacementState\":"+JsonQuote(replacement_state)
+         +",\"reason\":"+JsonQuote(reason)
+         +",\"automaticReplayDisabled\":true";
+      EmitLocalTradeEvent(event_id,"reversal_incomplete",fields);
+   }
+   return false;
+}
+
+bool PreEntryNet(const string symbol, bool buy, EntryNetMutationSummary &mutation, string &detail)
+{
+   ResetEntryNetMutationSummary(mutation);
    // Same-direction guard first: do not mutate opposite positions if the new
    // entry will be skipped anyway.
    if(InpNetSkipSameDirection)
@@ -1329,9 +1424,13 @@ bool PreEntryNet(const string symbol, bool buy, string &detail)
          long type=PositionGetInteger(POSITION_TYPE);
          bool opposite=(buy && type==POSITION_TYPE_SELL) || (!buy && type==POSITION_TYPE_BUY);
          if(!opposite) continue;
+         double volume=PositionGetDouble(POSITION_VOLUME);
          string close_detail="";
          if(!ClosePositionFull(ticket,close_detail))
          { detail="failed to net opposite #"+IntegerToString((long)ticket)+": "+close_detail; return false; }
+         mutation.mutationOccurred=true;
+         mutation.closedPositions++;
+         mutation.closedLots+=volume;
       }
    }
 
@@ -1347,6 +1446,8 @@ bool PreEntryNet(const string symbol, bool buy, string &detail)
          string remove_detail="";
          if(!DeletePending(ticket,remove_detail))
          { detail="failed to remove opposite pending #"+IntegerToString((long)ticket)+": "+remove_detail; return false; }
+         mutation.mutationOccurred=true;
+         mutation.removedPending++;
       }
    }
    detail="netting ok";
@@ -1356,7 +1457,7 @@ bool PreEntryNet(const string symbol, bool buy, string &detail)
 bool WaitForEntryNetSettled(const string symbol, bool buy, string &detail)
 {
    const ulong started=GetTickCount64();
-   const ulong timeout_ms=2500;
+   const ulong timeout_ms=(ulong)MathMax(1000,MathMin(15000,InpEntryNetSettleTimeoutMs));
    while(GetTickCount64()-started<=timeout_ms)
    {
       bool opposite_found=false;
@@ -1439,14 +1540,18 @@ bool PrepareMarketEntryFields(
    double requested_lots,
    double sl_points,
    double tp_points,
+   const string event_key,
+   const bool emit_reversal_event,
    double &lots,
    double &price,
    double &sl_price,
    double &tp_price,
    int &digits,
+   EntryNetMutationSummary &mutation,
    string &detail
 )
 {
+   ResetEntryNetMutationSummary(mutation);
    if(requested_lots<=0) { detail="lot must be positive"; return false; }
    if(InpMaxLotPerTrade>0 && requested_lots>InpMaxLotPerTrade+1e-10) { detail="lot exceeds EA max-lot guard"; return false; }
    double minv=SymbolInfoDouble(symbol,SYMBOL_VOLUME_MIN);
@@ -1458,19 +1563,27 @@ bool PrepareMarketEntryFields(
    if(sl_points<=0 || tp_points<=0) DefaultProtection(symbol,sl_points,tp_points);
    if(sl_points<=0 || tp_points<=0) { detail="SL/TP points must be positive"; return false; }
 
-   // Validate market data before any netting mutation. Exposure is intentionally
-   // checked only after opposite-side positions are broker-confirmed gone; doing
-   // it earlier can reject a reversal because the old hedge still counts.
+   // Preflight every non-mutating field we can before touching opposite exposure.
    MqlTick tick;
    if(!WaitForUsableTick(symbol,tick,detail)) return false;
    double point=SymbolInfoDouble(symbol,SYMBOL_POINT);
    digits=(int)SymbolInfoInteger(symbol,SYMBOL_DIGITS);
    if(point<=0) { detail="price/point unavailable"; return false; }
 
-   string net_detail="";
-   if(!PreEntryNet(symbol,buy,net_detail)) { detail=net_detail; return false; }
-   if(!WaitForEntryNetSettled(symbol,buy,net_detail)) { detail=net_detail; return false; }
+   if(InpMaxExposurePerSymbol>0)
+   {
+      double projected=ProjectedExposureAfterNet(symbol,buy);
+      if(projected+lots>InpMaxExposurePerSymbol+1e-10)
+      { detail="symbol exposure guard would be exceeded after netting"; return false; }
+   }
 
+   string net_detail="";
+   if(!PreEntryNet(symbol,buy,mutation,net_detail))
+      return FailReversalIncomplete(symbol,buy,lots,event_key,"not_submitted",mutation,net_detail,emit_reversal_event,detail);
+   if(!WaitForEntryNetSettled(symbol,buy,net_detail))
+      return FailReversalIncomplete(symbol,buy,lots,event_key,"not_submitted",mutation,net_detail,emit_reversal_event,detail);
+
+   // Re-check after netting to catch races that happened after the preflight.
    if(InpMaxExposurePerSymbol>0)
    {
       double exposure=0;
@@ -1479,14 +1592,18 @@ bool PrepareMarketEntryFields(
          ulong t=PositionGetTicket(i); if(t==0) continue;
          if(PositionGetString(POSITION_SYMBOL)==symbol) exposure+=PositionGetDouble(POSITION_VOLUME);
       }
-      if(exposure+lots>InpMaxExposurePerSymbol+1e-10) { detail="symbol exposure guard exceeded after netting"; return false; }
+      if(exposure+lots>InpMaxExposurePerSymbol+1e-10)
+         return FailReversalIncomplete(symbol,buy,lots,event_key,"not_submitted",mutation,"symbol exposure guard exceeded after netting",emit_reversal_event,detail);
    }
 
    // Refresh the tick after closing the opposite side so UI SL/TP is based on the
    // current post-net market price rather than the pre-close snapshot.
-   if(!WaitForUsableTick(symbol,tick,detail)) return false;
+   string post_tick_detail="";
+   if(!WaitForUsableTick(symbol,tick,post_tick_detail))
+      return FailReversalIncomplete(symbol,buy,lots,event_key,"not_submitted",mutation,post_tick_detail,emit_reversal_event,detail);
    price=(buy?tick.ask:tick.bid);
-   if(price<=0) { detail="price/point unavailable"; return false; }
+   if(price<=0)
+      return FailReversalIncomplete(symbol,buy,lots,event_key,"not_submitted",mutation,"price/point unavailable after netting",emit_reversal_event,detail);
    sl_price=NormalizeDouble(buy ? price-sl_points*point : price+sl_points*point,digits);
    tp_price=NormalizeDouble(buy ? price+tp_points*point : price-tp_points*point,digits);
    detail="entry fields prepared after opposite netting settled";
@@ -1501,7 +1618,8 @@ bool SendMarketEntry(const string symbol, bool buy, double requested_lots, doubl
 
    double lots=0,price=0,sl_price=0,tp_price=0;
    int digits=0;
-   if(!PrepareMarketEntryFields(symbol,buy,requested_lots,sl_points,tp_points,lots,price,sl_price,tp_price,digits,detail)) return false;
+   EntryNetMutationSummary mutation;
+   if(!PrepareMarketEntryFields(symbol,buy,requested_lots,sl_points,tp_points,comment,true,lots,price,sl_price,tp_price,digits,mutation,detail)) return false;
 
    MqlTradeRequest req; MqlTradeResult res; ZeroMemory(req); ZeroMemory(res);
    req.action=TRADE_ACTION_DEAL;
@@ -1515,9 +1633,25 @@ bool SendMarketEntry(const string symbol, bool buy, double requested_lots, doubl
    req.magic=(ulong)InpTradeMagic;
    req.type_time=ORDER_TIME_GTC;
    req.comment=comment;
-   bool ok=SendTradeRequest(req,res,detail);
-   if(ok) broker_ref=(res.order>0?res.order:res.deal);
-   return ok;
+   string send_detail="";
+   bool ok=SendTradeRequest(req,res,send_detail);
+   if(ok)
+   {
+      broker_ref=(res.order>0?res.order:res.deal);
+      detail=send_detail;
+      return true;
+   }
+   return FailReversalIncomplete(
+      symbol,
+      buy,
+      lots,
+      comment,
+      "not_confirmed",
+      mutation,
+      "replacement entry did not receive confirmed success: "+send_detail,
+      true,
+      detail
+   );
 }
 
 // -----------------------------------------------------------------------------
@@ -1710,6 +1844,7 @@ string ResultJson(bool ok, const string action, const string detail, bool uncert
 {
    string json="{\"ok\":"+(ok?"true":"false")+",\"action\":"+JsonQuote(action)+",\"detail\":"+JsonQuote(detail);
    if(uncertain) json+=",\"uncertain\":true";
+   if(StringFind(detail,"REVERSAL_INCOMPLETE")==0) json+=",\"reversalIncomplete\":true";
    if(broker_ref!="") json+=",\"brokerRef\":"+JsonQuote(broker_ref);
    if(positions_raw!="") json+=",\"positions\":"+positions_raw;
    json+="}";
@@ -1780,9 +1915,34 @@ string ExecuteEntryPrepareTask(const string task)
    double lots=0,price=0,sl_price=0,tp_price=0;
    int digits=0;
    string detail="";
-   if(!PrepareMarketEntryFields(symbol,side=="BUY",requested_lots,slp,tpp,lots,price,sl_price,tp_price,digits,detail))
+   EntryNetMutationSummary mutation;
+   if(!PrepareMarketEntryFields(symbol,side=="BUY",requested_lots,slp,tpp,comment,false,lots,price,sl_price,tp_price,digits,mutation,detail))
+   {
+      if(StringFind(detail,"REVERSAL_INCOMPLETE")==0)
+      {
+         double current_buy=0.0,current_sell=0.0;
+         int current_positions=0;
+         CurrentSymbolExposure(symbol,current_buy,current_sell,current_positions);
+         return "{\"ok\":false"
+            +",\"action\":\"entry_prepare\""
+            +",\"detail\":"+JsonQuote(detail)
+            +",\"reversalIncomplete\":true"
+            +",\"replacementState\":\"not_submitted\""
+            +",\"netMutationOccurred\":true"
+            +",\"netClosedPositions\":"+IntegerToString(mutation.closedPositions)
+            +",\"netClosedLots\":"+DoubleToString(mutation.closedLots,8)
+            +",\"netRemovedPending\":"+IntegerToString(mutation.removedPending)
+            +",\"currentPositions\":"+IntegerToString(current_positions)
+            +",\"currentBuyLots\":"+DoubleToString(current_buy,8)
+            +",\"currentSellLots\":"+DoubleToString(current_sell,8)
+            +"}";
+      }
       return ResultJson(false,"entry_prepare",detail);
+   }
 
+   double current_buy=0.0,current_sell=0.0;
+   int current_positions=0;
+   CurrentSymbolExposure(symbol,current_buy,current_sell,current_positions);
    return "{\"ok\":true"
       +",\"action\":\"entry_prepare\""
       +",\"detail\":\"EA guards passed; MT5 UI fields prepared\""
@@ -1792,6 +1952,13 @@ string ExecuteEntryPrepareTask(const string task)
       +",\"slText\":"+JsonQuote(DoubleToString(sl_price,digits))
       +",\"tpText\":"+JsonQuote(DoubleToString(tp_price,digits))
       +",\"comment\":"+JsonQuote(comment)
+      +",\"netMutationOccurred\":"+(mutation.mutationOccurred?"true":"false")
+      +",\"netClosedPositions\":"+IntegerToString(mutation.closedPositions)
+      +",\"netClosedLots\":"+DoubleToString(mutation.closedLots,8)
+      +",\"netRemovedPending\":"+IntegerToString(mutation.removedPending)
+      +",\"currentPositions\":"+IntegerToString(current_positions)
+      +",\"currentBuyLots\":"+DoubleToString(current_buy,8)
+      +",\"currentSellLots\":"+DoubleToString(current_sell,8)
       +"}";
 }
 

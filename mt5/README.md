@@ -17,7 +17,7 @@ The local controller owns Telegram timing and durable intent state. The website 
 
 - Local `entry`, `close`, `closeall`, `modify`, `partial`, and `positions` through FILE_COMMON; EA v1.08 introduced internal `entry_prepare` for scheduled UI entry. The current source also exposes non-broker `symbol_prepare` so the controller can resolve/select a broker symbol in Market Watch and reject disabled, close-only, or wrong-direction `SYMBOL_TRADE_MODE` before Telegram saves/arms a timed UI intent. EA v1.09 closes every matching broker prefix/suffix variant for a base FX/metal root, including the XAUUSD/GOLD alias.
 - Automatic SL/TP on managed positions opened by EA, manual, mobile, or other permitted sources when protection is missing.
-- Entry netting policy: skip same direction, close opposite positions, remove opposite pending orders before a new entry.
+- Entry netting policy: skip same direction, close opposite positions, remove opposite pending orders before a new entry. EA v1.12 preflights projected post-net exposure before the first broker mutation, tracks every successful opposite close/pending delete, and emits `REVERSAL_INCOMPLETE` evidence if the replacement entry cannot safely continue after netting changed the account.
 - Break-even at configurable R with optional point offset.
 - Full close at configurable R (`InpCloseAtR`).
 - R-level partial closes using `InpPartialRLevels` and `InpPartialPercents`.
@@ -25,10 +25,10 @@ The local controller owns Telegram timing and durable intent state. The website 
 - Per-position management state persists in MT5 terminal Global Variables using `POSITION_IDENTIFIER`.
 - Runtime identity is derived locally from terminal login/server. Blank `InpLocalProfile` becomes `local_<login>`; blank `InpLocalProviderAccountId` becomes deterministic `mt5:<sha256-32>`.
 - Broker mutations pass through a durable FILE_COMMON per-origin claim/result ledger. A retained result is reconciled without re-execution; a retained claim without a result is `UNCERTAIN` and is never replayed automatically.
-- Market entry waits up to 2.5 seconds for symbol synchronization and a usable bid/ask before building the broker request. There is no blind broker retry after an ambiguous transport result.
+- Market entry waits up to 2.5 seconds for symbol synchronization and a usable bid/ask before building the broker request. Opposite-side settlement has a separate `InpEntryNetSettleTimeoutMs` guard (default 5000ms, clamped 1000..15000ms). There is no blind broker retry after an ambiguous transport result.
 - EA v1.06 removed all cloud bridge settings from MT5 Properties and stopped cloud polling from `OnTimer`.
 - EA v1.07 lowers the local FILE_COMMON poll default to `100ms` and makes all partial closes round DOWN to broker volume step while always retaining at least one broker minimum-volume remainder.
-- EA v1.08 adds internal `entry_prepare`: it preserves the existing same-direction skip, opposite-position/pending cleanup, exposure/lot/symbol/tick guards and absolute SL/TP calculation, then returns exact fields for the controller. Only a due scheduled entry may use those fields to click the exact MT5 Buy/Sell control via targeted window messages; immediate entries and all management actions remain EA-executed. No global mouse or keyboard injection is used.
+- EA v1.08 adds internal `entry_prepare`: it preserves the existing same-direction skip, opposite-position/pending cleanup, exposure/lot/symbol/tick guards and absolute SL/TP calculation, then returns exact fields for the controller. EA v1.12 additionally returns net-mutation/current-exposure evidence. If netting changed exposure but the replacement UI order is not submitted, the controller reports `REVERSAL_INCOMPLETE`, requires manual broker inspection, and never auto-replays the order. Only a due scheduled entry may use those fields to click the exact MT5 Buy/Sell control via targeted window messages; immediate entries and all management actions remain EA-executed. No global mouse or keyboard injection is used.
 - `symbol_prepare` runs before a timed MT5 UI intent is persisted. It uses broker-wide symbol discovery plus `SymbolSelect(..., true)` to add a missing symbol to Market Watch, returns the resolved prefix/suffix symbol for the Telegram confirmation, and checks the requested side against `SYMBOL_TRADE_MODE`. It does not send/close/modify an order. The same trade-mode check runs again at due-time `entry_prepare`/`entry` execution.
 
 ## Install
@@ -41,7 +41,7 @@ The local controller owns Telegram timing and durable intent state. The website 
    - `InpLocalProfile`: leave blank for `local_<login>` unless a stable local label is explicitly required.
    - `InpLocalProviderAccountId`: leave blank for deterministic terminal-derived identity.
    - `InpLocalPollMsV107`: default `100`; clamped to `100..5000` ms. The v1.07 variable name intentionally changed so already-attached charts do not preserve the old 250ms value.
-6. Configure SL/TP, netting, BE/R and exposure guards as required.
+6. Configure SL/TP, netting, BE/R and exposure guards as required. `InpEntryNetSettleTimeoutMs` defaults to 5000ms; increase it only for a demonstrably slower broker/terminal because timeout extension does not replace the `REVERSAL_INCOMPLETE` safety path.
 7. Keep the PC local controller running 24/5. Use `/status`, `/profiles`, and `/positions @ACCOUNT` for read-only verification before any broker mutation.
 8. For `scheduledEntryExecution: "mt5-ui"`, run the controller and each MT5 terminal at the same Windows integrity level. Prefer opening MT5 normally rather than **Run as administrator**; Windows blocks targeted messages from a lower-integrity controller to an elevated terminal.
 

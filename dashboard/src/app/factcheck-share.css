@@ -102,6 +102,102 @@
   font-weight: 900;
   letter-spacing: -.04em;
 }
+.oak-fact-public-text .oak-verdict-panel {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 1rem;
+  padding: clamp(.95rem, 2vw, 1.25rem);
+  border-color: color-mix(in srgb, var(--oak-verdict-color) 42%, var(--panel-border));
+  background:
+    linear-gradient(125deg, color-mix(in srgb, var(--oak-verdict-color) 5%, var(--surface)), var(--surface) 62%),
+    var(--surface);
+}
+.oak-public-result-metrics {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: .55rem;
+  width: min(16rem, 26vw);
+  min-width: 13rem;
+}
+.oak-public-confidence {
+  display: grid;
+  min-height: 7.5rem;
+  place-content: center;
+  padding: .85rem;
+  border: 1px solid color-mix(in srgb, var(--oak-verdict-color) 34%, var(--panel-border));
+  border-radius: .8rem;
+  color: var(--oak-verdict-color);
+  background: color-mix(in srgb, var(--oak-verdict-color) 6%, var(--surface-raised));
+  text-align: center;
+}
+.oak-public-confidence small {
+  color: var(--muted);
+  font: 800 .58rem "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.oak-public-confidence b {
+  margin-top: .3rem;
+  font: 950 clamp(2rem, 4vw, 2.8rem)/1 "Cascadia Mono", Consolas, monospace;
+}
+.oak-public-confidence b span {
+  margin-left: .12rem;
+  color: var(--muted);
+  font-size: .8rem;
+  font-weight: 800;
+}
+.oak-public-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .55rem;
+}
+.oak-public-metric-grid article {
+  display: grid;
+  gap: .2rem;
+  min-width: 0;
+  padding: .65rem;
+  border: 1px solid var(--panel-border);
+  border-radius: .7rem;
+  background: var(--surface-raised);
+}
+.oak-public-metric-grid b {
+  color: var(--foreground);
+  font: 900 1rem "Cascadia Mono", Consolas, monospace;
+}
+.oak-public-metric-grid span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: .6rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+.oak-fact-public .oak-summary-card p {
+  font-size: .86rem;
+}
+.oak-fact-public .oak-claim-heading > b {
+  font-size: .8rem;
+}
+.oak-fact-public .oak-claim-body > p {
+  font-size: .72rem;
+}
+.oak-fact-public .oak-source-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.oak-fact-public .oak-source-card {
+  min-height: 10.25rem;
+}
+.oak-fact-public .oak-source-card :is(h3,h4) {
+  overflow-wrap: anywhere;
+  font-size: .8rem;
+}
+.oak-fact-public .oak-source-meta {
+  overflow-wrap: anywhere;
+  font-size: .62rem;
+  line-height: 1.4;
+}
+.oak-fact-public .oak-source-card > p {
+  font-size: .7rem;
+}
 .oak-limitations-panel {
   padding: .85rem 1rem;
   border: 1px solid var(--panel-border);
@@ -227,6 +323,27 @@
 .oak-media-technical small { color: var(--muted); font: 750 .48rem "Cascadia Mono", Consolas, monospace; letter-spacing: .07em; }
 .oak-media-technical b { margin-top: .25rem; overflow-wrap: anywhere; font-size: .68rem; }
 .oak-media-limitations { display: grid; gap: .35rem; margin: .45rem 0 0; padding-left: 1rem; color: var(--muted); font-size: .68rem; line-height: 1.5; }
+
+@media (max-width: 760px) {
+  .oak-fact-public-text .oak-verdict-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .oak-public-result-metrics {
+    grid-template-columns: minmax(7rem, .75fr) minmax(0, 1.25fr);
+    grid-template-rows: auto;
+    width: 100%;
+    min-width: 0;
+  }
+  .oak-public-confidence {
+    min-height: 6.25rem;
+  }
+  .oak-fact-public .oak-source-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .oak-fact-public .oak-source-card {
+    min-height: 0;
+  }
+}
 
 @media (max-width: 640px) {
   .oak-share-actions {

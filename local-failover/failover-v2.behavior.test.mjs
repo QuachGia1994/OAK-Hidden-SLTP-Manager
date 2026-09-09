@@ -79,7 +79,7 @@ test("local failover Scheduled Task keeps user context but launches Node hidden"
 function localPrimaryStatusFor(account = ACCOUNT_A, overrides = {}, now = BASE_NOW) {
   return statusFor(account, {
     providerAccountId: LOCAL_PRIMARY_PROVIDER_ACCOUNT_ID,
-    eaVersion: "1.11",
+    eaVersion: "1.12",
     localPrimary: true,
     localReady: true,
     fxSlPoints: 500,
@@ -1491,22 +1491,24 @@ test("EA trade events are delivered to Telegram once and duplicate files are sup
       { eventId: "sl:601", eventType: "stop_loss", deal: 601, positionId: 5001, symbol: "XAUUSD", side: "BUY", volume: 0.01, price: 2490.0, profit: -10.0 },
       { eventId: "pending_fill:701:702", eventType: "pending_fill", order: 701, deal: 702, positionId: 7001, symbol: "GBPAUD", side: "BUY", volume: 0.05, price: 1.95 },
       { eventId: "partial:801", eventType: "partial_close", deal: 801, positionId: 8001, symbol: "GBPUSD", side: "SELL", closedVolume: 0.02, remainingVolume: 0.03, price: 1.31, profit: 5.0 },
-      { eventId: "neotech_c5:901", eventType: "neotech_c5_reentry", deal: 901, symbol: "EURUSD", text: "⏱ NeoTech E5/C5 · EURUSD\nĐược vào lại sớm nhất theo C5: phiên ÂU · 15:00 VN" },
+      { eventId: "reversal:901", eventType: "reversal_incomplete", symbol: "EURUSD", side: "BUY", requestedLots: 0.05, closedPositions: 1, closedLots: 0.05, removedPending: 0, currentBuyLots: 0, currentSellLots: 0, replacementState: "not_submitted", reason: "netting settlement timeout", automaticReplayDisabled: true },
+      { eventId: "neotech_c5:902", eventType: "neotech_c5_reentry", deal: 902, symbol: "EURUSD", text: "⏱ NeoTech E5/C5 · EURUSD\nĐược vào lại sớm nhất theo C5: phiên ÂU · 15:00 VN" },
     ];
     for (const event of events) await writeTradeEvent(h, event);
 
     await h.runtime.runOneIteration(h.config, state);
-    assert.equal(h.sent.length, 5);
+    assert.equal(h.sent.length, 6);
     assert.ok(h.sent.some((text) => /BE.*acct-a/i.test(text)));
     assert.ok(h.sent.some((text) => /SL.*acct-a/i.test(text)));
     assert.ok(h.sent.some((text) => /Pending.*filled.*acct-a/i.test(text)));
     assert.ok(h.sent.some((text) => /Partial.*close.*acct-a/i.test(text)));
+    assert.ok(h.sent.some((text) => /REVERSAL INCOMPLETE.*acct-a/i.test(text) && /EURUSD/i.test(text) && /automatic replay is disabled/i.test(text)));
     assert.ok(h.sent.some((text) => /NeoTech E5\/C5.*EURUSD/i.test(text)));
-    assert.equal(state.deliveredTradeEventIds.length, 5);
+    assert.equal(state.deliveredTradeEventIds.length, 6);
 
     for (const event of events) await writeTradeEvent(h, event);
     await h.runtime.runOneIteration(h.config, state);
-    assert.equal(h.sent.length, 5);
+    assert.equal(h.sent.length, 6);
   } finally { await h.cleanup(); }
 });
 
@@ -1617,6 +1619,54 @@ test("failed scheduled MT5 UI entry immediately notifies Telegram with the execu
     assert.ok(h.sent.some((text) => /Scheduled execution failed.*acct-a/i.test(text)));
     assert.ok(h.sent.some((text) => /BUY XAUUSD 0\.01 lot/i.test(text) && /MetaTrader top-level window/i.test(text)));
     assert.equal(state.deliveredTradeEventIds.filter((value) => value === `scheduled_failed:${id}`).length, 1);
+  } finally { await h.cleanup(); }
+});
+
+test("scheduled reversal gap gets a dedicated Telegram warning and is never replayed", { concurrency: false }, async () => {
+  const h = await createHarness("scheduled-reversal-gap-notice", {
+    controlMode: "local-primary",
+    webhook: "",
+    scheduledEntryExecution: "mt5-ui",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+    mt5UiDispatch: async () => ({
+      status: "failed",
+      result: {
+        ok: false,
+        action: "entry",
+        reversalIncomplete: true,
+        replacementState: "not_submitted",
+        netClosedPositions: 1,
+        netClosedLots: 0.05,
+        netRemovedPending: 0,
+        currentBuyLots: 0,
+        currentSellLots: 0,
+        detail: "REVERSAL_INCOMPLETE [not_submitted]: synthetic UI prepare failure; automatic replay is disabled",
+      },
+    }),
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 4161, message: { chat: { id: 123 }, text: "/buy EURUSD 0.05 23:59 @acct-a" } }, statuses);
+    const [id] = Object.keys(state.intents);
+    h.setNow(state.intents[id].dueAt + 1);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    await h.runtime.runOneIteration(h.config, state);
+
+    assert.equal(state.intents[id].status, "failed");
+    assert.equal(h.mt5UiTasks.length, 1);
+    const notices = h.sent.filter((text) => /REVERSAL INCOMPLETE.*acct-a/i.test(text));
+    assert.equal(notices.length, 1);
+    assert.match(notices[0], /BUY EURUSD 0\.05 lot/i);
+    assert.match(notices[0], /Current broker exposure: BUY 0 \/ SELL 0 lot/i);
+    assert.match(notices[0], /automatic replay is disabled/i);
+    assert.equal(state.deliveredTradeEventIds.filter((value) => value === `scheduled_reversal_incomplete:${id}`).length, 1);
+
+    h.advance(1_000);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(h.mt5UiTasks.length, 1);
+    assert.equal(h.sent.filter((text) => /REVERSAL INCOMPLETE.*acct-a/i.test(text)).length, 1);
   } finally { await h.cleanup(); }
 });
 

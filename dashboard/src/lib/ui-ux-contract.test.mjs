@@ -11,6 +11,9 @@ const accountSource = readFileSync(new URL("../components/ProviderAccountsPanel.
 const dialogHookSource = readFileSync(new URL("../hooks/useDialogFocusTrap.ts", import.meta.url), "utf8");
 const neoTechSource = readFileSync(new URL("../app/neotech/NeoTechPublicDashboard.tsx", import.meta.url), "utf8");
 const factCheckSharedSource = readFileSync(new URL("../app/factcheck/[id]/page.tsx", import.meta.url), "utf8");
+const factCheckPublicSource = readFileSync(new URL("../components/factcheck/FactCheckPublicView.tsx", import.meta.url), "utf8");
+const factCheckWorkspaceCss = readFileSync(new URL("../components/factcheck/factcheck-workspace.module.css", import.meta.url), "utf8");
+const factCheckShareCss = readFileSync(new URL("../app/factcheck-share.css", import.meta.url), "utf8");
 const oakCss = readFileSync(new URL("../app/oak-redesign.css", import.meta.url), "utf8");
 const neotechCss = readFileSync(new URL("../app/neotech/neotech.module.css", import.meta.url), "utf8");
 const globalsCss = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
@@ -117,6 +120,26 @@ test("NeoTech and shared FactCheck states follow the global locale", () => {
   assert.match(neoTechSource, /fmtDate\(profile\.generatedAtUtc, locale\)/);
   assert.match(factCheckSharedSource, /detectServerLocaleFromCookie/);
   assert.doesNotMatch(factCheckSharedSource, /const locale: "VN" \| "EN" = "VN"/);
+});
+
+test("shared FactCheck result uses the current workspace theme and balanced public layout", () => {
+  assert.match(factCheckSharedSource, /factcheck-workspace\.module\.css/);
+  assert.match(factCheckSharedSource, /styles\.routeShell/);
+  assert.match(factCheckSharedSource, /factcheck-route-shell page-shell oak-fact-screen/);
+  assert.ok((factCheckSharedSource.match(/styles\.routeShell/g) || []).length >= 2);
+  assert.match(factCheckWorkspaceCss, /\.routeShell \{[\s\S]*--fact-canvas: var\(--engine-canvas/);
+  assert.match(factCheckWorkspaceCss, /\.primaryAction \{[\s\S]*color: var\(--fact-canvas\)/);
+  assert.doesNotMatch(factCheckWorkspaceCss, /color: #092117/);
+  assert.match(oakCss, /\.oak-section-head :is\(h2,h3\)/);
+  assert.match(oakCss, /\.oak-source-card :is\(h3,h4\)/);
+  assert.match(factCheckPublicSource, /oak-public-confidence/);
+  assert.match(factCheckPublicSource, /oak-public-result-metrics/);
+  assert.match(factCheckPublicSource, /function cleanPublicText/);
+  assert.match(factCheckPublicSource, /&\(\?:amp;\)\?nbsp;/);
+  assert.match(factCheckShareCss, /\.oak-fact-public-text \.oak-verdict-panel \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) auto/);
+  assert.match(factCheckShareCss, /\.oak-fact-public \.oak-source-grid \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(factCheckShareCss, /@media \(max-width: 760px\)[\s\S]*\.oak-fact-public-text \.oak-verdict-panel[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(factCheckShareCss, /@media \(max-width: 760px\)[\s\S]*\.oak-fact-public \.oak-source-grid[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
 });
 
 test("spatial HUD layer stays below DOM UI and respects performance guards", () => {

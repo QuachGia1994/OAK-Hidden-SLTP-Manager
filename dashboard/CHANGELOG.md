@@ -6,6 +6,10 @@ All notable changes to the dashboard are recorded here.
 
 ### Changed
 
+- Synchronized public FactCheck share pages with the current OAK workspace theme. Shared `/factcheck/[id]` now applies the same graphite/mint route-shell tokens as the main FactCheck tool across Light/Dark/Contrast, which also removes the unrelated spatial HUD on shared results. Public text results now normalize heading/source-card typography, add a compact confidence + claim/source metrics rail, show a two-column source grid on desktop with a one-column mobile fallback, and clean retained `&nbsp;`/zero-width display artifacts without altering evidence records.
+
+- Hardened the local MT5 scheduled-entry boundary for EA v1.12. Reversal preparation now preflights projected post-net exposure, carries net-mutation/current-exposure evidence through the no-mouse UI adapter, and emits a dedicated Telegram `REVERSAL INCOMPLETE` warning when opposite exposure changed but the replacement entry cannot safely reach submit. The controller requires EA v1.12+ for scheduled UI entry and preserves the existing no-auto-replay/UNCERTAIN boundary after an ambiguous submit.
+
 - Replaced the legacy loading/logo treatment with the shared Orbit 3D brand system. H1 hero and loading card now reuse the same horizontal/vertical/diagonal orbit markup; the vertical orbit has an independent 8s 3D rotation, mobile keeps motion unless Reduce Motion is requested, and favicon/header/PWA icons are regenerated from the same canonical Orbit artwork. OpenGraph/Twitter preview now uses the new `oak-share-v4.png` Orbit card.
 
 - Restored lightweight H1 geometric-core motion on iPhone/Android mobile browsers by removing the mobile/coarse-pointer animation kill switch; only `prefers-reduced-motion` disables it. Also fixed NeoTech Advanced setup content/CTA wrapping so expanded mobile copy no longer overlaps.

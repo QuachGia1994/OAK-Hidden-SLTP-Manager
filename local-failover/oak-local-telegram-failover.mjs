@@ -528,6 +528,16 @@ export function createLocalFailoverRuntime(options = {}) {
         `• Deal #${event.deal || "?"} @ ${compactNumber(event.price)} · P/L ${compactNumber(event.profit)}`,
       ].join("\n");
     }
+    if (event.eventType === "reversal_incomplete") {
+      return [
+        `🚨 REVERSAL INCOMPLETE @${label}`,
+        `• Replacement: ${side} ${symbol} ${compactVolume(event.requestedLots)} lot · ${String(event.replacementState || "not_submitted").replaceAll("_", " ")}`,
+        `• Net changed: closed ${Number(event.closedPositions || 0)} position(s) / ${compactVolume(event.closedLots)} lot · removed ${Number(event.removedPending || 0)} pending`,
+        `• Current broker exposure: BUY ${compactVolume(event.currentBuyLots)} / SELL ${compactVolume(event.currentSellLots)} lot`,
+        `• Reason: ${String(event.reason || "replacement entry did not complete").slice(0, 700)}`,
+        `• Manual broker check required; automatic replay is disabled.`,
+      ].join("\n");
+    }
     if (event.eventType === "neotech_c5_reentry") return String(event.text || "").slice(0, 3800);
     return "";
   }
@@ -544,6 +554,25 @@ export function createLocalFailoverRuntime(options = {}) {
 
   function queueScheduledIntentNotification(state, intent) {
     if (!Number.isFinite(Number(intent?.dueAt)) || Number(intent.dueAt) <= 0) return false;
+    if (intent.status === "failed" && intent.executionResult?.reversalIncomplete === true) {
+      const result = intent.executionResult;
+      const side = String(intent.payload?.side || "").toUpperCase();
+      const symbol = String(intent.resolvedSymbol || intent.payload?.symbol || "");
+      return queueTradeNotification(
+        state,
+        `scheduled_reversal_incomplete:${intent.id}`,
+        [
+          `🚨 REVERSAL INCOMPLETE @${intent.accountLabel}`,
+          `• Replacement: ${side} ${symbol} ${compactVolume(intent.payload?.lot)} lot · ${String(result.replacementState || "not_submitted").replaceAll("_", " ")}`,
+          `• Net changed: closed ${Number(result.netClosedPositions || 0)} position(s) / ${compactVolume(result.netClosedLots)} lot · removed ${Number(result.netRemovedPending || 0)} pending`,
+          `• Current broker exposure: BUY ${compactVolume(result.currentBuyLots)} / SELL ${compactVolume(result.currentSellLots)} lot`,
+          `• ${String(result.detail || "Replacement entry did not complete").slice(0, 900)}`,
+          `• Manual broker check required; automatic replay is disabled.`,
+          `• Intent #${shortIntentId(intent)}`,
+        ].join("\n"),
+        Number(intent.executionFinishedAt || clock()),
+      );
+    }
     if (intent.status === "failed" || intent.status === "uncertain") {
       const uncertain = intent.status === "uncertain";
       const detail = String(intent.executionResult?.detail || intent.executionError || "Scheduled execution did not complete").slice(0, 900);
@@ -606,7 +635,7 @@ export function createLocalFailoverRuntime(options = {}) {
       const event = await readJson(file, null);
       const eventId = String(event?.eventId || "");
       const deliveryId = tradeEventDeliveryId(event);
-      if (!event || Number(event.version) !== 1 || !eventId || !deliveryId || !["break_even", "stop_loss", "pending_fill", "partial_close", "neotech_c5_reentry"].includes(String(event.eventType || ""))) continue;
+      if (!event || Number(event.version) !== 1 || !eventId || !deliveryId || !["break_even", "stop_loss", "pending_fill", "partial_close", "reversal_incomplete", "neotech_c5_reentry"].includes(String(event.eventType || ""))) continue;
       if (!name.toLowerCase().endsWith(`_${tradeEventDigest(eventId)}.json`)) continue;
       if ((state.deliveredTradeEventIds || []).includes(deliveryId)) {
         await unlinkIfExists(file);
@@ -1315,10 +1344,10 @@ export function createLocalFailoverRuntime(options = {}) {
       && intent.kind === "entry"
       && Number.isFinite(Number(intent.dueAt))
       && Number(intent.dueAt) > 0;
-    if (scheduledUiEntry && !versionAtLeast(selection.heartbeat?.eaVersion, 1, 11)) {
+    if (scheduledUiEntry && !versionAtLeast(selection.heartbeat?.eaVersion, 1, 12)) {
       intent.status = "failed";
       intent.executionFinishedAt = clock();
-      intent.executionError = `EA v1.11+ is required for safe scheduled opposite-side netting; current heartbeat reports ${String(selection.heartbeat?.eaVersion || "unknown")}.`;
+      intent.executionError = `EA v1.12+ is required for safe scheduled reversal handling and REVERSAL_INCOMPLETE evidence; current heartbeat reports ${String(selection.heartbeat?.eaVersion || "unknown")}.`;
       intent.executionResult = { ok: false, action: intent.kind, detail: intent.executionError };
       queueScheduledIntentNotification(state, intent);
       await saveState(state);

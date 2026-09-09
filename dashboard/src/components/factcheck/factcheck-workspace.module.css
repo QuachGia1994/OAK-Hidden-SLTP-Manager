@@ -376,7 +376,7 @@
   padding: .6rem .9rem;
   border: 1px solid var(--fact-mint);
   border-radius: .65rem;
-  color: #092117;
+  color: var(--fact-canvas);
   background: var(--fact-mint);
   cursor: pointer;
   font-size: .78rem;

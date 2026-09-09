@@ -3,6 +3,14 @@ import type { FactCheckResult } from "@/lib/factcheck/types";
 import { TEXT } from "@/lib/factcheck/locale-copy";
 import { formatCheckedAt, verdictLabel } from "@/lib/factcheck/presentation";
 
+function cleanPublicText(value: string): string {
+  return value
+    .replace(/&(?:amp;)?nbsp;|&#160;|&#xA0;/gi, " ")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function FactCheckPublicView({
   result,
   locale,
@@ -21,7 +29,7 @@ export function FactCheckPublicView({
   const doc = result.sourceDocument;
 
   return (
-    <div className="oak-fact-results oak-fact-public">
+    <div className="oak-fact-results oak-fact-public oak-fact-public-text">
       <section className="oak-verdict-panel" data-verdict={result.verdict}>
         <div className="oak-verdict-copy">
           <span className="oak-eyebrow">{t.publicEyebrow}</span>
@@ -32,12 +40,12 @@ export function FactCheckPublicView({
           {doc && (
             <div className="oak-source-article">
               <small>{t.sourceArticle}</small>
-              <b>{doc.title}</b>
-              <span>{doc.publisher || ""}</span>
+              <b>{cleanPublicText(doc.title)}</b>
+              <span>{cleanPublicText(doc.publisher || "")}</span>
             </div>
           )}
           {claimText && !doc && (
-            <p className="oak-claim-lead"><small>{t.claimLabel}</small>{claimText}</p>
+            <p className="oak-claim-lead"><small>{t.claimLabel}</small>{cleanPublicText(claimText)}</p>
           )}
           <p className="oak-model-line">
             {t.checkedAt}: <b>{formatCheckedAt(result.checkedAt, locale)}</b>
@@ -46,9 +54,20 @@ export function FactCheckPublicView({
           </p>
           <div className="oak-summary-card">
             <small>{t.summaryTitle}</small>
-            <p>{result.summary}</p>
+            <p>{cleanPublicText(result.summary)}</p>
           </div>
         </div>
+
+        <aside className="oak-public-result-metrics" aria-label={`${t.confidence}: ${confidence}%`}>
+          <div className="oak-public-confidence">
+            <small>{t.confidence}</small>
+            <b>{confidence}<span>%</span></b>
+          </div>
+          <div className="oak-public-metric-grid">
+            <article><b>{result.claims.length}</b><span>{t.claims}</span></article>
+            <article><b>{result.sources.length}</b><span>{t.sources}</span></article>
+          </div>
+        </aside>
       </section>
 
       {result.claims.length > 0 && (
@@ -63,12 +82,12 @@ export function FactCheckPublicView({
                 <div className="oak-claim-index">{String(index + 1).padStart(2, "0")}</div>
                 <div className="oak-claim-body">
                   <div className="oak-claim-heading">
-                    <b>{claim.claim}</b>
+                    <b>{cleanPublicText(claim.claim)}</b>
                     <span className="oak-verdict-badge" data-verdict={claim.verdict}>
                       {verdictLabel(claim.verdict, locale)} · {claim.confidence}%
                     </span>
                   </div>
-                  <p>{claim.explanation}</p>
+                  <p>{cleanPublicText(claim.explanation)}</p>
                 </div>
               </article>
             ))}
@@ -95,11 +114,11 @@ export function FactCheckPublicView({
                   <span>SOURCE #{source.id}</span>
                   <i>↗</i>
                 </div>
-                <h3>{source.title}</h3>
+                <h3>{cleanPublicText(source.title)}</h3>
                 {(source.publisher || source.published_at) && (
-                  <div className="oak-source-meta">{[source.publisher, source.published_at].filter(Boolean).join(" · ")}</div>
+                  <div className="oak-source-meta">{[source.publisher, source.published_at].filter(Boolean).map((value) => cleanPublicText(String(value))).join(" · ")}</div>
                 )}
-                {source.snippet && <p>{source.snippet}</p>}
+                {source.snippet && <p>{cleanPublicText(source.snippet)}</p>}
               </a>
             ))}
           </div>

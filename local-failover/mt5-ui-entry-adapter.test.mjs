@@ -27,21 +27,25 @@ test("EA symbol readiness preflight selects Market Watch and gates entry trade m
   assert.match(managerEaSource, /ExecuteSymbolPrepareTask/);
 });
 
-test("EA scheduled reversal nets the opposite side before the post-net exposure guard", () => {
-  assert.match(managerEaSource, /#property version\s+"1\.11"/);
-  assert.match(managerEaSource, /bool WaitForEntryNetSettled\(/);
-  assert.match(managerEaSource, /ClosePositionFull\(ticket,close_detail\)/);
+test("EA v1.12 preflights reversal exposure and surfaces post-net gaps without replay", () => {
+  assert.match(managerEaSource, /#property version\s+"1\.12"/);
+  assert.match(managerEaSource, /struct EntryNetMutationSummary/);
+  assert.match(managerEaSource, /ProjectedExposureAfterNet/);
+  assert.match(managerEaSource, /InpEntryNetSettleTimeoutMs/);
+  assert.match(managerEaSource, /REVERSAL_INCOMPLETE/);
+  assert.match(managerEaSource, /reversal_incomplete/);
   const prepareStart = managerEaSource.indexOf("bool PrepareMarketEntryFields(");
   const prepareEnd = managerEaSource.indexOf("bool SendMarketEntry(", prepareStart);
   const prepare = managerEaSource.slice(prepareStart, prepareEnd);
-  const netIndex = prepare.indexOf("PreEntryNet(symbol,buy,net_detail)");
+  const projectedIndex = prepare.indexOf("ProjectedExposureAfterNet(symbol,buy)");
+  const netIndex = prepare.indexOf("PreEntryNet(symbol,buy,mutation,net_detail)");
   const settleIndex = prepare.indexOf("WaitForEntryNetSettled(symbol,buy,net_detail)");
-  const exposureIndex = prepare.indexOf("if(InpMaxExposurePerSymbol>0)");
-  assert.ok(netIndex >= 0 && settleIndex > netIndex && exposureIndex > settleIndex);
-  assert.match(prepare, /symbol exposure guard exceeded after netting/);
+  const postExposureIndex = prepare.indexOf("symbol exposure guard exceeded after netting");
+  assert.ok(projectedIndex >= 0 && netIndex > projectedIndex && settleIndex > netIndex && postExposureIndex > settleIndex);
+  assert.match(prepare, /FailReversalIncomplete/);
 });
 
-test("EA emits local trade-event evidence for BE, SL, pending fills and partial closes", () => {
+test("EA emits local trade-event evidence for lifecycle events and reversal gaps", () => {
   assert.match(managerEaSource, /event_id="be:"\+IntegerToString\(position_id\);/);
   assert.match(managerEaSource, /EmitLocalTradeEvent\(event_id,"break_even"/);
   assert.match(managerEaSource, /TRADE_TRANSACTION_POSITION/);
@@ -52,6 +56,7 @@ test("EA emits local trade-event evidence for BE, SL, pending fills and partial 
   assert.match(managerEaSource, /"pending_fill"/);
   assert.match(managerEaSource, /RemainingVolumeForPositionId/);
   assert.match(managerEaSource, /"partial:"\+IntegerToString\(\(long\)deal\),"partial_close"/);
+  assert.match(managerEaSource, /EmitLocalTradeEvent\([^\n]+,"reversal_incomplete"/);
   assert.doesNotMatch(managerEaSource, /EmitPartialCloseEvent/);
   assert.match(managerEaSource, /LocalEventPath/);
 });
@@ -137,6 +142,12 @@ async function harness(name, options = {}) {
           slText: "1.10000",
           tpText: "1.20500",
           comment: `OAK:${task.ledgerKey.slice(0, 16)}`,
+          netMutationOccurred: options.netMutationOccurred === true,
+          netClosedPositions: options.netClosedPositions || 0,
+          netClosedLots: options.netClosedLots || 0,
+          netRemovedPending: options.netRemovedPending || 0,
+          currentBuyLots: options.currentBuyLots || 0,
+          currentSellLots: options.currentSellLots || 0,
         },
       };
     }
@@ -203,6 +214,37 @@ test("scheduled entry uses EA preparation, no-mouse UI submit and EA snapshot ve
     h.eaTasks.length = 0;
     const replay = await h.adapter.dispatch(h.args);
     assert.equal(replay.status, "done");
+    assert.deepEqual(h.uiCalls, []);
+    assert.deepEqual(h.eaTasks, []);
+  } finally { await h.cleanup(); }
+});
+
+test("UI failure after EA net mutation becomes REVERSAL_INCOMPLETE and never replays", { concurrency: false }, async () => {
+  const h = await harness("reversal-gap", {
+    netMutationOccurred: true,
+    netClosedPositions: 1,
+    netClosedLots: 0.05,
+    currentBuyLots: 0,
+    currentSellLots: 0,
+    uiRun(args) {
+      if (args.mode === "prepare") return { ok: false, error: "synthetic MT5 dialog failure" };
+      return { ok: true };
+    },
+  });
+  try {
+    const result = await h.adapter.dispatch(h.args);
+    assert.equal(result.status, "failed");
+    assert.equal(result.result.reversalIncomplete, true);
+    assert.equal(result.result.replacementState, "not_submitted");
+    assert.match(result.result.detail, /REVERSAL_INCOMPLETE/);
+    assert.match(result.result.detail, /automatic replay is disabled/i);
+    assert.deepEqual(h.uiCalls, ["prepare"]);
+
+    h.uiCalls.length = 0;
+    h.eaTasks.length = 0;
+    const replay = await h.adapter.dispatch(h.args);
+    assert.equal(replay.status, "failed");
+    assert.equal(replay.result.reversalIncomplete, true);
     assert.deepEqual(h.uiCalls, []);
     assert.deepEqual(h.eaTasks, []);
   } finally { await h.cleanup(); }

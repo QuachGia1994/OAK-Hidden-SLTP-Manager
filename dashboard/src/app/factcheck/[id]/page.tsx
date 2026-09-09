@@ -12,6 +12,7 @@ import { buildOgDescription, buildOgTitle } from "@/lib/factcheck/presentation";
 import { buildMediaOgDescription, buildMediaOgTitle } from "@/lib/factcheck/media-presentation";
 import { isValidShareId, publicSharePath } from "@/lib/factcheck/share-id";
 import { getSharedFactCheck } from "@/lib/factcheck/share-store";
+import styles from "@/components/factcheck/factcheck-workspace.module.css";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -86,7 +87,7 @@ export default async function SharedFactCheckPage({ params }: PageProps) {
     const t = TEXT[locale];
     const isExpired = lookup.status === "expired";
     return (
-      <div className="page-shell oak-fact-screen">
+      <div className={`${styles.routeShell} factcheck-route-shell page-shell oak-fact-screen`}>
         <div className="oak-fact-public-state">
           <span className="oak-eyebrow">{t.publicEyebrow}</span>
           <h1>{isExpired ? t.expiredTitle : t.notFoundTitle}</h1>
@@ -100,7 +101,7 @@ export default async function SharedFactCheckPage({ params }: PageProps) {
   if (lookup.status !== "ok") notFound();
 
   return (
-    <div className="page-shell oak-fact-screen">
+    <div className={`${styles.routeShell} factcheck-route-shell page-shell oak-fact-screen`}>
       {lookup.record.resultKind === "media_authenticity"
         ? <FactCheckMediaPublicView result={lookup.record.result as ImageAuthenticityResult} />
         : (
