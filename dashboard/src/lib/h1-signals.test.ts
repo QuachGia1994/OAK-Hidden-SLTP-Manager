@@ -537,6 +537,7 @@ test("populated H1 cells expose synchronized XAU entry-pattern plus block-specif
   assert.match(nativeModelsSource, /H1 BASE ·/);
   assert.match(androidModelsSource, /H1 BASE ·/);
   assert.match(nativeModelsSource, /ENTRY-BLOCK/);
+  assert.match(nativeModelsSource, /postSignalInverted \?\? false/);
   assert.match(androidModelsSource, /ENTRY-BLOCK/);
   assert.doesNotMatch(nativeModelsSource + androidModelsSource, /M15 entry-2h15|sourceAlert\.symbol == "USDCAD"|sourceAlert\.symbol == "USDJPY"/);
   assert.match(evidencePanelSource, /M15 candlestick pattern evidence/);

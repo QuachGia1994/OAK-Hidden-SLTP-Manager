@@ -288,7 +288,7 @@ extension H1SignalPayload {
             : "\(signalSource) H1 \(baseTime) · \(sourceAlert.baseDirection) → \(baseSignal)"
         let delta = sourceAlert.entryHour.map { $0 - sourceAlert.slotHour }
         let lookup = delta == 1 ? "ENTRY-2" : delta == 2 ? "ENTRY-1" : "—"
-        let rule = delta.map { "ENTRY-BLOCK \($0) · \(lookup) · \(sourceAlert.postSignalInverted ? "INVERT" : "KEEP")" } ?? "H1 BASE —"
+        let rule = delta.map { "ENTRY-BLOCK \($0) · \(lookup) · \((sourceAlert.postSignalInverted ?? false) ? "INVERT" : "KEEP")" } ?? "H1 BASE —"
 
         return H1EvidenceFacts(
             patternSource: sourceAlert.scannerSource ?? "XAUUSD",
