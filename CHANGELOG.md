@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Redesigned the native iOS and Android workspaces to match the current web hierarchy: three primary tabs (`H1 Live`, `NeoTech`, `Công cụ/Tools`), unified Live + retained History navigation, the web-style H1 command hero and metadata strip, a lightweight animated 3D orbit that respects system reduced-motion/animation settings, and the shared `ENTRY TIME + 5 signal rows` v90 matrix with H12/H14 emphasis. NeoTech now has a native standalone C5 overview, while Signals/Reports/System remain available as Tools drill-downs. Feed, evidence, account, and broker-execution contracts are unchanged.
+
 - Fixed mobile H1 geometric-core motion and NeoTech setup-card flow: iPhone/Android coarse-pointer browsers now keep lightweight transform-only orbit/sphere animation unless the OS requests reduced motion, while the expanded NeoTech Advanced setup content stays in normal document flow and its CTA/text wrap without overlap.
 
 - Fixed H1 image exports: Copy PNG now uses a more balanced matrix, split metadata lines so the v90 rule text cannot run off-canvas, and lighter H12/H14 emphasis. Copy Chart now labels XAUUSD as the Entry-pattern source separately from the selected row's own-symbol M15 signal base, prints pattern plot/read direction explicitly, expands the header area for unclipped evidence, shows the intrinsic UC/UJ inversion result, the human H3 selector/date, base OHLC and final signal. Trading/signal computation is unchanged.

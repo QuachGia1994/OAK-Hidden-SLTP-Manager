@@ -23,20 +23,11 @@ struct H1BoardScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                OAKPageHeader(
-                    eyebrow: mode == .live ? "TRADING / H1 LIVE" : "TRADING / HISTORY",
-                    title: mode == .live ? state.text(vn: "H1 Live", en: "H1 Live") : state.text(vn: "Lịch sử H1", en: "H1 History"),
-                    subtitle: mode == .live
-                        ? state.text(vn: "Ngày broker hiện tại · entry pattern M15 ICMarkets local", en: "Current broker day · local ICMarkets M15 pattern entries")
-                        : state.text(vn: "Xem lại các ngày broker đã lưu mà không cần quay về màn hình live.", en: "Review retained broker days without returning to the live screen.")
-                )
-
                 if let h1 = state.payload?.h1, let date = effectiveDate(h1) {
+                    H1NativeCommandHero(h1: h1, locale: state.locale)
+                    H1NativeMetadataStrip(h1: h1)
                     boardHeader(h1: h1, date: date)
-
-                    if mode == .history {
-                        historyPicker(h1: h1, date: date)
-                    }
+                    historyPicker(h1: h1, date: date)
 
                     H1MatrixView(
                         h1: h1,
@@ -95,13 +86,13 @@ struct H1BoardScreen: View {
 
     private func syncSelectedDate() {
         guard let h1 = state.payload?.h1 else { return }
-        if mode == .live || selectedDate.isEmpty || h1.days[selectedDate] == nil {
+        if selectedDate.isEmpty || h1.days[selectedDate] == nil {
             selectedDate = h1.latestDate
         }
     }
 
     private func effectiveDate(_ h1: H1SignalPayload) -> String? {
-        let candidate = mode == .live ? h1.latestDate : (selectedDate.isEmpty ? h1.latestDate : selectedDate)
+        let candidate = selectedDate.isEmpty ? h1.latestDate : selectedDate
         return h1.days[candidate] == nil ? h1.latestDate.nilIfEmpty : candidate.nilIfEmpty
     }
 
@@ -111,8 +102,8 @@ struct H1BoardScreen: View {
             VStack(alignment: .leading, spacing: 13) {
                 HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 5) {
-                        OAKEyebrow(text: mode == .live ? "H1 / LIVE" : "H1 / HISTORY")
-                        Text(state.text(vn: "Lịch block H1", en: "H1 Block Schedule"))
+                        OAKEyebrow(text: date == h1.latestDate ? "H1 / LIVE" : "H1 / HISTORY")
+                        Text(state.text(vn: "H1 Live + Lịch sử", en: "H1 Live + History"))
                             .font(.title2.bold())
                             .foregroundStyle(OAKColor.text)
                     }
@@ -239,6 +230,140 @@ struct H1BoardScreen: View {
     }
 }
 
+@MainActor
+private struct H1NativeCommandHero: View {
+    let h1: H1SignalPayload
+    let locale: OAKLocale
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 9) {
+                OAKEyebrow(text: "OAK / TRÍ TUỆ THUẬT TOÁN")
+                HStack(alignment: .firstTextBaseline, spacing: 9) {
+                    Text("01")
+                        .font(.system(size: 13, weight: .black, design: .monospaced))
+                        .foregroundStyle(OAKColor.accent)
+                    Text("H1 LIVE")
+                        .font(.system(size: 30, weight: .black, design: .rounded))
+                        .foregroundStyle(OAKColor.text)
+                }
+                Text(locale == .vn ? "Bám sát tín hiệu. Giao dịch có kỷ luật." : "Track the signal. Trade with discipline.")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(OAKColor.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 7) {
+                    OAKPill(label: locale == .vn ? "DỮ LIỆU ĐÃ LƯU" : "RETAINED DATA", tone: .success)
+                    Text("v\(h1.signalRuleVersion ?? 0)")
+                        .font(.system(size: 11, weight: .black, design: .monospaced))
+                        .foregroundStyle(OAKColor.muted)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            OAKNativeOrbitCore()
+                .frame(width: 118, height: 118)
+        }
+        .padding(16)
+        .background(
+            LinearGradient(
+                colors: [OAKColor.surface, OAKColor.canvas],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(OAKColor.border.opacity(0.72), lineWidth: 1)
+        }
+    }
+}
+
+@MainActor
+private struct H1NativeMetadataStrip: View {
+    let h1: H1SignalPayload
+    private let columns = [GridItem(.flexible(), spacing: 0), GridItem(.flexible(), spacing: 0)]
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 0) {
+            metadata(label: "NGUỒN DỮ LIỆU", value: "MT5 ICMarkets Local")
+            metadata(label: "NHỊP DỮ LIỆU", value: "H03–H14 · M15 → H1")
+            metadata(label: "NGÀY ĐÃ LƯU", value: "\(h1.orderedDatesDescending.count) ngày")
+            metadata(label: "NGÀY MỚI NHẤT", value: h1.latestDate)
+        }
+        .background(OAKColor.surface, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 15).stroke(OAKColor.border.opacity(0.7), lineWidth: 1) }
+    }
+
+    private func metadata(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(label)
+                .font(.system(size: 10, weight: .black, design: .monospaced))
+                .tracking(1.1)
+                .foregroundStyle(OAKColor.muted)
+            Text(value)
+                .font(.system(size: 13, weight: .black, design: .monospaced))
+                .foregroundStyle(OAKColor.text)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
+        .overlay(alignment: .bottom) { Rectangle().fill(OAKColor.border.opacity(0.45)).frame(height: 0.5) }
+    }
+}
+
+@MainActor
+private struct OAKNativeOrbitCore: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion)) { context in
+            let phase = context.date.timeIntervalSinceReferenceDate
+            let orbitAngle = Angle.degrees(phase * 30)
+            let reverseOrbitAngle = Angle.degrees(-phase * 30)
+            let sphereAngle = Angle.degrees(phase * 13)
+
+            ZStack {
+                Circle()
+                    .stroke(OAKColor.accent.opacity(0.35), lineWidth: 1)
+                    .frame(width: 108, height: 108)
+                    .rotation3DEffect(.degrees(66), axis: (x: 1, y: 0, z: 0))
+                    .rotationEffect(orbitAngle)
+
+                Circle()
+                    .stroke(OAKColor.accent.opacity(0.55), style: StrokeStyle(lineWidth: 1, dash: [5, 5]))
+                    .frame(width: 92, height: 92)
+                    .rotation3DEffect(.degrees(66), axis: (x: 1, y: 0, z: 0))
+                    .rotationEffect(reverseOrbitAngle)
+
+                ZStack {
+                    ForEach(0..<6, id: \.self) { index in
+                        Circle()
+                            .stroke(OAKColor.accent.opacity(0.62), lineWidth: 0.9)
+                            .frame(width: 64, height: 64)
+                            .rotation3DEffect(.degrees(Double(index) * 30), axis: (x: 0, y: 1, z: 0))
+                    }
+                    Circle()
+                        .stroke(OAKColor.accent.opacity(0.7), lineWidth: 1)
+                        .frame(width: 64, height: 64)
+                        .rotation3DEffect(.degrees(90), axis: (x: 1, y: 0, z: 0))
+                }
+                .rotation3DEffect(.degrees(-18), axis: (x: 1, y: 0, z: 0))
+                .rotationEffect(sphereAngle)
+
+                Text("H1")
+                    .font(.system(size: 15, weight: .black, design: .monospaced))
+                    .foregroundStyle(OAKColor.text)
+                    .frame(width: 42, height: 42)
+                    .background(OAKColor.surface.opacity(0.92), in: Circle())
+                    .overlay { Circle().stroke(OAKColor.accent, lineWidth: 1) }
+            }
+            .shadow(color: OAKColor.accent.opacity(0.18), radius: 12)
+        }
+    }
+}
+
 private extension String {
     var nilIfEmpty: String? { isEmpty ? nil : self }
 }
@@ -270,14 +395,10 @@ private struct H1MatrixView: View {
 
                 HStack(alignment: .top, spacing: 6) {
                     VStack(spacing: 6) {
-                        matrixHeaderLabel("SYMBOL", width: symbolWidth)
+                        matrixHeaderLabel("", width: symbolWidth)
+                        matrixRowLabel("ENTRY TIME")
                         ForEach(symbols, id: \.self) { symbol in
-                            Text(symbol)
-                                .font(.system(size: 14, weight: .black, design: .monospaced))
-                                .foregroundStyle(OAKColor.text)
-                                .frame(width: symbolWidth, height: rowHeight, alignment: .leading)
-                                .padding(.leading, 10)
-                                .background(OAKColor.raised, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                            matrixRowLabel(symbol)
                         }
                     }
                     .zIndex(2)
@@ -289,13 +410,24 @@ private struct H1MatrixView: View {
                                     matrixHourHeader(hour)
                                 }
                             }
+                            HStack(spacing: 6) {
+                                ForEach(h1.hours, id: \.self) { hour in
+                                    H1EntryTimeCell(
+                                        alert: h1.alert(date: date, symbol: "XAUUSD", hour: hour),
+                                        width: cellWidth,
+                                        height: rowHeight,
+                                        highlighted: hour == 12 || hour == 14
+                                    )
+                                }
+                            }
                             ForEach(symbols, id: \.self) { symbol in
                                 HStack(spacing: 6) {
                                     ForEach(h1.hours, id: \.self) { hour in
-                                        H1MatrixCell(
+                                        H1SignalCell(
                                             alert: h1.alert(date: date, symbol: symbol, hour: hour),
                                             width: cellWidth,
                                             height: rowHeight,
+                                            highlighted: hour == 12 || hour == 14,
                                             onSelect: onSelect
                                         )
                                     }
@@ -327,31 +459,62 @@ private struct H1MatrixView: View {
             .padding(.leading, 10)
             .background(OAKColor.raised, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
     }
+
+    @ViewBuilder
+    private func matrixRowLabel(_ label: String) -> some View {
+        Text(label)
+            .font(.system(size: label == "ENTRY TIME" ? 12 : 14, weight: .black, design: .monospaced))
+            .foregroundStyle(OAKColor.text)
+            .lineLimit(1)
+            .frame(width: symbolWidth, height: rowHeight, alignment: .leading)
+            .padding(.leading, 10)
+            .background(OAKColor.raised, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+    }
 }
 
 @MainActor
-private struct H1MatrixCell: View {
+private struct H1EntryTimeCell: View {
     let alert: H1SignalAlert?
     let width: CGFloat
     let height: CGFloat
+    let highlighted: Bool
+
+    var body: some View {
+        Group {
+            if let entry = alert?.entryHour {
+                Text("H\(String(format: "%02d", entry))")
+                    .font(.system(size: 18, weight: .black, design: .monospaced))
+                    .foregroundStyle(OAKColor.accent)
+            } else {
+                Text("—")
+                    .font(.system(size: 15, weight: .black, design: .monospaced))
+                    .foregroundStyle(OAKColor.muted.opacity(0.55))
+            }
+        }
+        .frame(width: width, height: height)
+        .background((highlighted ? OAKColor.warning.opacity(0.11) : OAKColor.surface), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 11)
+                .stroke(highlighted ? OAKColor.warning.opacity(0.75) : OAKColor.border.opacity(0.45), lineWidth: highlighted ? 1.5 : 0.8)
+        }
+    }
+}
+
+@MainActor
+private struct H1SignalCell: View {
+    let alert: H1SignalAlert?
+    let width: CGFloat
+    let height: CGFloat
+    let highlighted: Bool
     let onSelect: (H1SignalAlert) -> Void
 
     var body: some View {
         Group {
-            if let alert, let entry = alert.entryHour {
+            if let alert, let signal = alert.signal {
                 Button { onSelect(alert) } label: {
-                    VStack(spacing: 7) {
-                        Text("H\(String(format: "%02d", entry))")
-                            .font(.system(size: 16, weight: .black, design: .monospaced))
-                            .foregroundStyle(OAKColor.text)
-                        if let signal = alert.signal {
-                            OAKPill(label: signal.rawValue, tone: signal == .buy ? .buy : .sell)
-                        } else {
-                            Text("—").foregroundStyle(OAKColor.muted)
-                        }
-                    }
-                    .frame(width: width, height: height)
-                    .contentShape(Rectangle())
+                    OAKPill(label: signal.rawValue, tone: signal == .buy ? .buy : .sell)
+                        .frame(width: width, height: height)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             } else {
@@ -361,7 +524,11 @@ private struct H1MatrixCell: View {
                     .frame(width: width, height: height)
             }
         }
-        .background(OAKColor.surface, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .background((highlighted ? OAKColor.warning.opacity(0.08) : OAKColor.surface), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 11)
+                .stroke(highlighted ? OAKColor.warning.opacity(0.65) : OAKColor.border.opacity(0.35), lineWidth: highlighted ? 1.4 : 0.7)
+        }
     }
 }
 

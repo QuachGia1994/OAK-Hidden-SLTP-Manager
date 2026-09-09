@@ -39,6 +39,8 @@ const layoutSource = readFileSync(new URL("../app/layout.tsx", import.meta.url),
 const manifestSource = readFileSync(new URL("../app/manifest.ts", import.meta.url), "utf8");
 const tabAutoRefreshSource = readFileSync(new URL("../components/TabAutoRefresh.tsx", import.meta.url), "utf8");
 const nativeH1BoardSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/H1BoardView.swift", import.meta.url), "utf8");
+const nativeMainTabSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/MainTabView.swift", import.meta.url), "utf8");
+const nativeWorkspaceSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/NativeWorkspaceViews.swift", import.meta.url), "utf8");
 const nativeImageTransferSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/ImageTransfer.swift", import.meta.url), "utf8");
 const nativeModelsSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/Models.swift", import.meta.url), "utf8");
 const nativeSignalsSource = readFileSync(new URL("../../../ios-native/Sources/OAKGatekeeper/SignalsView.swift", import.meta.url), "utf8");
@@ -180,10 +182,12 @@ test("light theme keeps normal BUY/SELL signal pills high-contrast across every 
 });
 
 test("native iOS polish keeps H1 matrix clean, image clipboard, sparse report dates, distinct contrast, and live account toggles", () => {
-  const matrixCellStart = nativeH1BoardSource.indexOf("private struct H1MatrixCell");
-  const matrixCellEnd = nativeH1BoardSource.indexOf("private struct BrokerCalendarSheet");
-  const matrixCellSource = nativeH1BoardSource.slice(matrixCellStart, matrixCellEnd);
+  const signalCellStart = nativeH1BoardSource.indexOf("private struct H1SignalCell");
+  const signalCellEnd = nativeH1BoardSource.indexOf("private struct BrokerCalendarSheet");
+  const matrixCellSource = nativeH1BoardSource.slice(signalCellStart, signalCellEnd);
   assert.match(nativeH1BoardSource, /HStack\(alignment: \.top, spacing: 6\)/);
+  assert.match(nativeH1BoardSource, /matrixRowLabel\("ENTRY TIME"\)/);
+  assert.match(nativeH1BoardSource, /H1EntryTimeCell/);
   assert.match(matrixCellSource, /RoundedRectangle\(cornerRadius: 11/);
   assert.doesNotMatch(matrixCellSource, /overlay\(alignment: \.trailing\)|overlay\(alignment: \.bottom\)|Divider\(\)/);
 
@@ -347,18 +351,30 @@ test("mobile app backend exposes one authenticated app payload without leaking s
   assert.doesNotMatch(mobileAppRouteSource + mobileAppBackendSource, /CTRADER_CLIENT_SECRET|DASHBOARD_API_KEY|UPSTASH_REDIS_REST_TOKEN/);
 });
 
-test("native Android mirrors the iOS five-tab hierarchy and removes the legacy Dashboard/VIP surface", () => {
+test("native iOS and Android mirror the web three-tab hierarchy with animated H1 geometry", () => {
+  assert.match(nativeMainTabSource, /AppState\.Tab\.live/);
+  assert.match(nativeMainTabSource, /AppState\.Tab\.neotech/);
+  assert.match(nativeMainTabSource, /AppState\.Tab\.tools/);
+  assert.doesNotMatch(nativeMainTabSource, /AppState\.Tab\.history|AppState\.Tab\.signals|AppState\.Tab\.reports|AppState\.Tab\.more/);
+  assert.match(nativeH1BoardSource, /H1NativeCommandHero/);
+  assert.match(nativeH1BoardSource, /OAKNativeOrbitCore/);
+  assert.match(nativeH1BoardSource, /TimelineView\(\.animation/);
+  assert.match(nativeH1BoardSource, /rotation3DEffect/);
+  assert.match(nativeWorkspaceSource, /struct NeoTechNativeView/);
+  assert.match(nativeWorkspaceSource, /struct NativeToolsView/);
+
   assert.match(androidMainSource, /OAKTab\.LIVE/);
-  assert.match(androidMainSource, /OAKTab\.HISTORY/);
-  assert.match(androidMainSource, /OAKTab\.SIGNALS/);
-  assert.match(androidMainSource, /OAKTab\.REPORTS/);
-  assert.match(androidMainSource, /OAKTab\.MORE/);
+  assert.match(androidMainSource, /OAKTab\.NEOTECH/);
+  assert.match(androidMainSource, /OAKTab\.TOOLS/);
+  assert.doesNotMatch(androidMainSource, /OAKTab\.HISTORY|OAKTab\.SIGNALS|OAKTab\.REPORTS|OAKTab\.MORE/);
   assert.match(androidMainSource, /NavigationBarItem/);
-  assert.match(androidScreensSource, /TRADING \/ H1 LIVE/);
-  assert.match(androidScreensSource, /TRADING \/ HISTORY/);
-  assert.match(androidScreensSource, /TRADING \/ SIGNALS/);
-  assert.match(androidScreensSource, /TRADING \/ REPORTS/);
-  assert.match(androidScreensSource, /OAK \/ SYSTEM/);
+  assert.match(androidScreensSource, /fun H1BoardScreen\(state: OAKAppState\)/);
+  assert.match(androidScreensSource, /H1CommandHero/);
+  assert.match(androidScreensSource, /OAKOrbitCore/);
+  assert.match(androidScreensSource, /rememberInfiniteTransition/);
+  assert.match(androidScreensSource, /graphicsLayer \{ rotationX = 66f; rotationZ = safeOrbit \}/);
+  assert.match(androidScreensSource, /fun NeoTechScreen/);
+  assert.match(androidScreensSource, /fun ToolsScreen/);
   assert.doesNotMatch(androidScreensSource + androidMainSource, /VIP UNLOCKED|HỆ THỐNG ONLINE|DashboardScreen|OAK SLTP/);
 });
 
@@ -399,9 +415,7 @@ test("native Android copies the iOS H1 presentation, evidence, reports, themes a
   assert.match(androidScreensSource, /© 2026 QuachGia/);
   assert.match(androidScreensSource, /MIT License/);
   assert.match(androidMainSource, /R\.drawable\.ic_tab_live/);
-  assert.match(androidMainSource, /R\.drawable\.ic_tab_history/);
   assert.match(androidMainSource, /R\.drawable\.ic_tab_signals/);
-  assert.match(androidMainSource, /R\.drawable\.ic_tab_reports/);
   assert.match(androidMainSource, /R\.drawable\.ic_tab_more/);
 });
 

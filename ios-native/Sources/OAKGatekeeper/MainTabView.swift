@@ -7,24 +7,16 @@ struct MainTabView: View {
     var body: some View {
         @Bindable var state = state
         TabView(selection: $state.selectedTab) {
-            Tab(state.text(vn: "Live", en: "Live"), systemImage: "waveform.path.ecg", value: AppState.Tab.live) {
+            Tab(state.text(vn: "H1 Live", en: "H1 Live"), systemImage: "chart.xyaxis.line", value: AppState.Tab.live) {
                 NavigationStack { H1BoardScreen(mode: .live) }
             }
 
-            Tab(state.text(vn: "Lịch sử", en: "History"), systemImage: "calendar", value: AppState.Tab.history) {
-                NavigationStack { H1BoardScreen(mode: .history) }
+            Tab(state.text(vn: "NeoTech", en: "NeoTech"), systemImage: "scope", value: AppState.Tab.neotech) {
+                NavigationStack { NeoTechNativeView() }
             }
 
-            Tab(state.text(vn: "Tín hiệu", en: "Signals"), systemImage: "bolt.horizontal.fill", value: AppState.Tab.signals) {
-                NavigationStack { SignalsView() }
-            }
-
-            Tab(state.text(vn: "Báo cáo", en: "Reports"), systemImage: "chart.bar.xaxis", value: AppState.Tab.reports) {
-                NavigationStack { ReportsView() }
-            }
-
-            Tab(state.text(vn: "Thêm", en: "More"), systemImage: "ellipsis.circle", value: AppState.Tab.more) {
-                NavigationStack { MoreView() }
+            Tab(state.text(vn: "Công cụ", en: "Tools"), systemImage: "slider.horizontal.3", value: AppState.Tab.tools) {
+                NavigationStack { NativeToolsView() }
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)

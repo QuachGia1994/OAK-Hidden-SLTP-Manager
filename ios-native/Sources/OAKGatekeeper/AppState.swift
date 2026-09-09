@@ -5,7 +5,7 @@ import Observation
 @Observable
 final class AppState {
     enum Tab: Hashable, Sendable {
-        case live, history, signals, reports, more
+        case live, neotech, tools
     }
 
     var selectedTab: Tab = .live

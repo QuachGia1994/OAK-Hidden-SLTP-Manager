@@ -23,7 +23,7 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-enum class OAKTab { LIVE, HISTORY, SIGNALS, REPORTS, MORE }
+enum class OAKTab { LIVE, NEOTECH, TOOLS }
 enum class OAKThemeMode { LIGHT, DARK, CONTRAST }
 enum class OAKLocale { VN, EN }
 

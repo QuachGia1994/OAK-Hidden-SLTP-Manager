@@ -3,7 +3,13 @@
 package uk.oakgatekeeper.mobile
 
 import android.content.Intent
+import android.provider.Settings
 import android.widget.Toast
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -49,6 +55,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -130,45 +137,41 @@ fun UnlockScreen(state: OAKAppState) {
 }
 
 @Composable
-fun H1BoardScreen(state: OAKAppState, history: Boolean) {
+fun H1BoardScreen(state: OAKAppState) {
     val p = LocalOAKPalette.current
     val context = LocalContext.current
     val h1 = state.payload?.h1
     var selectedDate by remember(h1?.latestDate) { mutableStateOf(h1?.latestDate.orEmpty()) }
     var selectedAlert by remember { mutableStateOf<H1SignalAlert?>(null) }
     var calendarOpen by remember { mutableStateOf(false) }
-    var copiedSchedule by remember(h1?.latestDate, history, selectedDate) { mutableStateOf(false) }
+    var copiedSchedule by remember(h1?.latestDate, selectedDate) { mutableStateOf(false) }
     LaunchedEffect(copiedSchedule) {
         if (copiedSchedule) {
             delay(1_400)
             copiedSchedule = false
         }
     }
-    if (!history && h1 != null && selectedDate != h1.latestDate) selectedDate = h1.latestDate
-    if (history && h1 != null && (selectedDate.isBlank() || h1.days[selectedDate] == null)) selectedDate = h1.latestDate
+    if (h1 != null && (selectedDate.isBlank() || h1.days[selectedDate] == null)) selectedDate = h1.latestDate
 
-    val date = if (history) selectedDate else h1?.latestDate.orEmpty()
+    val date = selectedDate.ifBlank { h1?.latestDate.orEmpty() }
 
     OAKScreen(
         state = state,
-        eyebrow = if (history) "TRADING / HISTORY" else "TRADING / H1 LIVE",
-        title = if (history) state.text("Lịch sử H1", "H1 History") else "H1 Live",
-        subtitle = if (history) state.text(
-            "Xem lại các ngày broker đã lưu mà không cần quay về màn hình live.",
-            "Review retained broker days without returning to the live screen.",
-        ) else state.text(
-            "Ngày broker hiện tại · entry pattern M15 ICMarkets local",
-            "Current broker day · local ICMarkets M15 pattern entries",
-        ),
+        eyebrow = "",
+        title = "",
+        subtitle = "",
+        showHeader = false,
     ) {
         if (h1 != null && date.isNotBlank()) {
+            item { H1CommandHero(state, h1) }
+            item { H1MetadataStrip(h1) }
             item {
                 OAKCard {
                     Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
                         Row(verticalAlignment = Alignment.Top) {
                             Column {
-                                OAKEyebrow(if (history) "H1 / HISTORY" else "H1 / LIVE")
-                                Text(state.text("Lịch block H1", "H1 Block Schedule"), color = p.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                OAKEyebrow(if (date == h1.latestDate) "H1 / LIVE" else "H1 / HISTORY")
+                                Text(state.text("H1 Live + Lịch sử", "H1 Live + History"), color = p.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.weight(1f))
                             Column(horizontalAlignment = Alignment.End) {
@@ -209,28 +212,26 @@ fun H1BoardScreen(state: OAKAppState, history: Boolean) {
                     }
                 }
             }
-            if (history) {
-                item {
-                    OAKCard {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text(state.text("NGÀY BROKER", "BROKER DATE"), color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(p.raised, RoundedCornerShape(14.dp))
-                                    .border(1.dp, p.border, RoundedCornerShape(14.dp))
-                                    .clickable { calendarOpen = true }
-                                    .padding(13.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Icon(Icons.Default.DateRange, contentDescription = null, tint = p.accent, modifier = Modifier.size(20.dp))
-                                Spacer(Modifier.width(10.dp))
-                                Text(displayDate(date), color = p.text, fontSize = 17.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
-                                Spacer(Modifier.weight(1f))
-                                Text("▾", color = p.muted)
-                            }
-                            Text("${h1.orderedDatesDescending.size} ${state.text("ngày giao dịch", "trading days")} · ${h1.orderedDatesDescending.lastOrNull() ?: "—"} → ${h1.latestDate}", color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+            item {
+                OAKCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(state.text("NGÀY BROKER", "BROKER DATE"), color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(p.raised, RoundedCornerShape(14.dp))
+                                .border(1.dp, p.border, RoundedCornerShape(14.dp))
+                                .clickable { calendarOpen = true }
+                                .padding(13.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Default.DateRange, contentDescription = null, tint = p.accent, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Text(displayDate(date), color = p.text, fontSize = 17.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                            Spacer(Modifier.weight(1f))
+                            Text("▾", color = p.muted)
                         }
+                        Text("${h1.orderedDatesDescending.size} ${state.text("ngày giao dịch", "trading days")} · ${h1.orderedDatesDescending.lastOrNull() ?: "—"} → ${h1.latestDate}", color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                     }
                 }
             }
@@ -257,6 +258,126 @@ fun H1BoardScreen(state: OAKAppState, history: Boolean) {
     selectedAlert?.let { alert ->
         h1?.let { payload ->
             EvidenceSheet(h1 = payload, alert = alert, brokerDate = date, onDismiss = { selectedAlert = null })
+        }
+    }
+}
+
+@Composable
+private fun H1CommandHero(state: OAKAppState, h1: H1SignalPayload) {
+    val p = LocalOAKPalette.current
+    OAKCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(9.dp),
+            ) {
+                OAKEyebrow("OAK / TRÍ TUỆ THUẬT TOÁN")
+                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Text("01", color = p.accent, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                    Text("H1 LIVE", color = p.text, fontSize = 30.sp, lineHeight = 32.sp, fontWeight = FontWeight.Black)
+                }
+                Text(
+                    state.text("Bám sát tín hiệu. Giao dịch có kỷ luật.", "Track the signal. Trade with discipline."),
+                    color = p.muted,
+                    fontSize = 14.sp,
+                    lineHeight = 19.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OAKPill(state.text("DỮ LIỆU ĐÃ LƯU", "RETAINED DATA"), PillTone.SUCCESS)
+                    Text("v${h1.signalRuleVersion}", color = p.muted, fontSize = 11.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                }
+            }
+            OAKOrbitCore(Modifier.size(118.dp))
+        }
+    }
+}
+
+@Composable
+private fun H1MetadataStrip(h1: H1SignalPayload) {
+    val p = LocalOAKPalette.current
+    OAKCard {
+        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+            Row(Modifier.fillMaxWidth()) {
+                H1MetaCell("NGUỒN DỮ LIỆU", "MT5 ICMarkets Local", Modifier.weight(1f))
+                Box(Modifier.width(1.dp).height(58.dp).background(p.border.copy(alpha = .5f)))
+                H1MetaCell("NHỊP DỮ LIỆU", "H03–H14 · M15 → H1", Modifier.weight(1f))
+            }
+            HorizontalDivider(color = p.border.copy(alpha = .5f))
+            Row(Modifier.fillMaxWidth()) {
+                H1MetaCell("NGÀY ĐÃ LƯU", "${h1.orderedDatesDescending.size} ngày", Modifier.weight(1f))
+                Box(Modifier.width(1.dp).height(58.dp).background(p.border.copy(alpha = .5f)))
+                H1MetaCell("NGÀY MỚI NHẤT", h1.latestDate, Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun H1MetaCell(label: String, value: String, modifier: Modifier = Modifier) {
+    val p = LocalOAKPalette.current
+    Column(modifier.padding(horizontal = 8.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text(label, color = p.muted, fontSize = 10.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+        Text(value, color = p.text, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, maxLines = 2)
+    }
+}
+
+@Composable
+private fun OAKOrbitCore(modifier: Modifier = Modifier) {
+    val p = LocalOAKPalette.current
+    val context = LocalContext.current
+    val motionEnabled = remember(context) {
+        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f
+    }
+    val transition = rememberInfiniteTransition(label = "h1-orbit")
+    val orbitAngle by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(durationMillis = 10_000), RepeatMode.Restart),
+        label = "orbit-angle",
+    )
+    val sphereAngle by transition.animateFloat(
+        initialValue = -18f,
+        targetValue = 32f,
+        animationSpec = infiniteRepeatable(tween(durationMillis = 14_000), RepeatMode.Reverse),
+        label = "sphere-angle",
+    )
+    val safeOrbit = if (motionEnabled) orbitAngle else 12f
+    val safeSphere = if (motionEnabled) sphereAngle else -18f
+
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .size(108.dp)
+                .graphicsLayer { rotationX = 66f; rotationZ = safeOrbit }
+                .border(1.dp, p.accent.copy(alpha = .34f), RoundedCornerShape(999.dp)),
+        )
+        Box(
+            Modifier
+                .size(92.dp)
+                .graphicsLayer { rotationX = 66f; rotationZ = -safeOrbit }
+                .border(1.dp, p.accent.copy(alpha = .54f), RoundedCornerShape(999.dp)),
+        )
+        listOf(0f, 30f, 60f, 90f, 120f, 150f).forEach { meridian ->
+            Box(
+                Modifier
+                    .size(64.dp)
+                    .graphicsLayer { rotationY = meridian + safeSphere; rotationX = -18f }
+                    .border(1.dp, p.accent.copy(alpha = .58f), RoundedCornerShape(999.dp)),
+            )
+        }
+        Box(
+            Modifier
+                .size(42.dp)
+                .background(p.surface.copy(alpha = .94f), RoundedCornerShape(999.dp))
+                .border(1.dp, p.accent, RoundedCornerShape(999.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("H1", color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
         }
     }
 }
@@ -370,19 +491,28 @@ private fun H1Matrix(h1: H1SignalPayload, date: String, onSelect: (H1SignalAlert
             SectionTitle("BLOCK MATRIX", "↔ Swipe")
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Top) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    MatrixLabel("SYMBOL", 104)
+                    MatrixLabel("", 104)
+                    MatrixLabel("ENTRY TIME", 104, height = 78)
                     VisibleSymbols.forEach { symbol -> MatrixLabel(symbol, 104, height = 78) }
                 }
                 Column(Modifier.horizontalScroll(horizontal), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         h1.hours.forEach { hour -> MatrixHour(hour) }
                     }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        h1.hours.forEach { hour ->
+                            H1EntryTimeCell(
+                                alert = h1.alert(date, "XAUUSD", hour),
+                                highlighted = hour == 12 || hour == 14,
+                            )
+                        }
+                    }
                     VisibleSymbols.forEach { symbol ->
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             h1.hours.forEach { hour ->
-                                val alert = h1.alert(date, symbol, hour)
-                                H1MatrixCell(
-                                    alert = alert,
+                                H1SignalCell(
+                                    alert = h1.alert(date, symbol, hour),
+                                    highlighted = hour == 12 || hour == 14,
                                     onSelect = onSelect,
                                 )
                             }
@@ -418,35 +548,228 @@ private fun MatrixHour(hour: Int) {
 }
 
 @Composable
-private fun H1MatrixCell(alert: H1SignalAlert?, onSelect: (H1SignalAlert) -> Unit) {
+private fun H1EntryTimeCell(alert: H1SignalAlert?, highlighted: Boolean) {
     val p = LocalOAKPalette.current
-    Column(
+    val shape = RoundedCornerShape(11.dp)
+    Box(
         modifier = Modifier
             .width(82.dp)
             .height(78.dp)
-            .background(p.surface, RoundedCornerShape(11.dp))
-            .then(if (alert?.entryHour != null) Modifier.clickable { onSelect(alert) } else Modifier),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+            .background(if (highlighted) p.warning.copy(alpha = .11f) else p.surface, shape)
+            .border(if (highlighted) 1.5.dp else 1.dp, if (highlighted) p.warning.copy(alpha = .75f) else p.border.copy(alpha = .4f), shape),
+        contentAlignment = Alignment.Center,
     ) {
         if (alert?.entryHour != null) {
-            Text("H${alert.entryHour.toString().padStart(2, '0')}", color = p.text, fontSize = 16.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
-            Spacer(Modifier.height(7.dp))
-            when (alert.signal) {
-                SignalSide.BUY -> OAKPill("BUY", PillTone.BUY)
-                SignalSide.SELL -> OAKPill("SELL", PillTone.SELL)
-                null -> Text("—", color = p.muted)
-            }
+            Text("H${alert.entryHour.toString().padStart(2, '0')}", color = p.accent, fontSize = 18.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
         } else {
             Text("—", color = p.muted.copy(alpha = .55f), fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
         }
     }
 }
 
+@Composable
+private fun H1SignalCell(alert: H1SignalAlert?, highlighted: Boolean, onSelect: (H1SignalAlert) -> Unit) {
+    val p = LocalOAKPalette.current
+    val shape = RoundedCornerShape(11.dp)
+    Box(
+        modifier = Modifier
+            .width(82.dp)
+            .height(78.dp)
+            .background(if (highlighted) p.warning.copy(alpha = .08f) else p.surface, shape)
+            .border(if (highlighted) 1.4.dp else 1.dp, if (highlighted) p.warning.copy(alpha = .65f) else p.border.copy(alpha = .35f), shape)
+            .then(if (alert?.signal != null) Modifier.clickable { onSelect(alert) } else Modifier),
+        contentAlignment = Alignment.Center,
+    ) {
+        when (alert?.signal) {
+            SignalSide.BUY -> OAKPill("BUY", PillTone.BUY)
+            SignalSide.SELL -> OAKPill("SELL", PillTone.SELL)
+            null -> Text("—", color = p.muted.copy(alpha = .55f), fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+        }
+    }
+}
+
+@Composable
+fun NeoTechScreen(state: OAKAppState) {
+    val p = LocalOAKPalette.current
+    val context = LocalContext.current
+    val mt5 = state.payload?.accounts?.accounts.orEmpty().filter { it.provider.equals("mt5", ignoreCase = true) }
+
+    OAKScreen(
+        state,
+        "OAK / NEOTECH",
+        "NeoTech",
+        state.text("C5 standalone · popup local + C5 LOOK · Telegram tùy chọn.", "Standalone C5 · local popup + C5 LOOK · optional Telegram."),
+    ) {
+        item {
+            OAKCard(tint = p.accent) {
+                Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(
+                            Modifier.size(68.dp).border(1.dp, p.accent.copy(alpha = .65f), RoundedCornerShape(999.dp)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("C5", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            OAKEyebrow("VERSION 1.09 · STANDALONE")
+                            Text(state.text("Cài một lần, chạy độc lập", "Install once, run standalone"), color = p.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                state.text(
+                                    "EA tự bind tài khoản MT5. Không cần Node, PowerShell, bot token hay WebRequest để dùng cảnh báo C5 local.",
+                                    "The EA auto-binds the active MT5 account. Local C5 alerts need no Node, PowerShell, bot token or WebRequest.",
+                                ),
+                                color = p.muted,
+                                fontSize = 13.sp,
+                                lineHeight = 19.sp,
+                            )
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        OAKPill("C5 POPUP", PillTone.SUCCESS)
+                        OAKPill("C5 LOOK", PillTone.ACCENT)
+                        OAKPill("READ ONLY", PillTone.MUTED)
+                    }
+                }
+            }
+        }
+        item {
+            OAKCard {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SectionTitle(state.text("MT5 ĐANG THEO DÕI", "MT5 MONITORING"), mt5.size.toString())
+                    if (mt5.isEmpty()) {
+                        Text(state.text("Chưa có account MT5 trong payload.", "No MT5 account is present in the payload yet."), color = p.muted)
+                    } else {
+                        mt5.forEachIndexed { index, account ->
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Box(Modifier.size(8.dp).background(if (account.bridgeOnline == true) p.success else p.warning, RoundedCornerShape(999.dp)))
+                                Column(Modifier.weight(1f)) {
+                                    Text(account.label, color = p.text, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                                    Text("${account.broker} · ${account.traderLogin ?: account.externalAccountId}", color = p.muted, fontSize = 12.sp)
+                                }
+                                OAKPill(if (account.bridgeOnline == true) "ONLINE" else "WAIT", if (account.bridgeOnline == true) PillTone.SUCCESS else PillTone.WARNING)
+                            }
+                            if (index != mt5.lastIndex) HorizontalDivider(color = p.border.copy(alpha = .45f))
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            OAKCard {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SectionTitle("TELEGRAM", state.text("Tùy chọn", "Optional"))
+                    Text(
+                        state.text(
+                            "Nếu PC đã có OAK Local Telegram controller, reminder và /look được chuyển tiếp tự động. Không có Telegram thì C5 local vẫn hoạt động đầy đủ.",
+                            "When the PC already runs the OAK Local Telegram controller, reminders and /look are forwarded automatically. Local C5 remains fully usable without Telegram.",
+                        ),
+                        color = p.muted,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp,
+                    )
+                    Button(
+                        onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, "https://www.oakgatekeeper.uk/neotech".toUri())) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = p.raised, contentColor = p.accent),
+                    ) { Text(state.text("MỞ NEOTECH WEB", "OPEN NEOTECH WEB"), fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace) }
+                }
+            }
+        }
+    }
+}
+
+private enum class NativeToolPanel { DIRECTORY, SIGNALS, REPORTS, SYSTEM }
+
+@Composable
+fun ToolsScreen(state: OAKAppState) {
+    var panel by remember { mutableStateOf(NativeToolPanel.DIRECTORY) }
+    when (panel) {
+        NativeToolPanel.SIGNALS -> {
+            SignalsScreen(state) { panel = NativeToolPanel.DIRECTORY }
+            return
+        }
+        NativeToolPanel.REPORTS -> {
+            ReportsScreen(state) { panel = NativeToolPanel.DIRECTORY }
+            return
+        }
+        NativeToolPanel.SYSTEM -> {
+            MoreScreen(state) { panel = NativeToolPanel.DIRECTORY }
+            return
+        }
+        NativeToolPanel.DIRECTORY -> Unit
+    }
+
+    val p = LocalOAKPalette.current
+    val context = LocalContext.current
+    OAKScreen(
+        state,
+        "OAK / TOOLS",
+        state.text("Công cụ", "Tools"),
+        state.text("Directory gọn cho tín hiệu, báo cáo, hệ thống và các công cụ OAK trên web.", "A compact directory for signals, reports, system controls and OAK web tools."),
+    ) {
+        item { NativeToolCard(state.text("Tín hiệu", "Signals"), state.text("Radar BUY/SELL + evidence M15", "BUY/SELL radar + M15 evidence"), "01") { panel = NativeToolPanel.SIGNALS } }
+        item { NativeToolCard(state.text("Báo cáo", "Reports"), state.text("Tóm tắt dữ liệu H1 đã lưu", "Summary of retained H1 data"), "02") { panel = NativeToolPanel.REPORTS } }
+        item { NativeToolCard(state.text("Hệ thống & tài khoản", "System & Accounts"), state.text("Theme, locale, heartbeat và account toggle", "Theme, locale, heartbeat and account toggles"), "03") { panel = NativeToolPanel.SYSTEM } }
+        item {
+            OAKCard {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SectionTitle("WEB TOOLS", "oakgatekeeper.uk")
+                    NativeWebToolRow(state.text("Xác thực ảnh AI", "Image authenticity"), "/factcheck") { path -> context.startActivity(Intent(Intent.ACTION_VIEW, "https://www.oakgatekeeper.uk$path".toUri())) }
+                    HorizontalDivider(color = p.border.copy(alpha = .45f))
+                    NativeWebToolRow("Tarot", "/tarot") { path -> context.startActivity(Intent(Intent.ACTION_VIEW, "https://www.oakgatekeeper.uk$path".toUri())) }
+                    HorizontalDivider(color = p.border.copy(alpha = .45f))
+                    NativeWebToolRow("Discover", "/discover") { path -> context.startActivity(Intent(Intent.ACTION_VIEW, "https://www.oakgatekeeper.uk$path".toUri())) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NativeToolCard(title: String, detail: String, index: String, onClick: () -> Unit) {
+    val p = LocalOAKPalette.current
+    OAKCard(modifier = Modifier.clickable(onClick = onClick)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(
+                Modifier.size(42.dp).background(p.accent.copy(alpha = .10f), RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(index, color = p.accent, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(title, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(detail, color = p.muted, fontSize = 12.sp, lineHeight = 17.sp)
+            }
+            Text("↗", color = p.accent, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun NativeWebToolRow(title: String, path: String, open: (String) -> Unit) {
+    val p = LocalOAKPalette.current
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { open(path) }.padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, color = p.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.weight(1f))
+        Text("↗", color = p.accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun NativeBackButton(state: OAKAppState, onBack: () -> Unit) {
+    val p = LocalOAKPalette.current
+    TextButton(onClick = onBack) {
+        Text("← ${state.text("Công cụ", "Tools")}", color = p.accent, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+    }
+}
+
 private enum class SignalFilter { ALL, BUY, SELL }
 
 @Composable
-fun SignalsScreen(state: OAKAppState) {
+fun SignalsScreen(state: OAKAppState, onBack: (() -> Unit)? = null) {
     val p = LocalOAKPalette.current
     val h1 = state.payload?.h1
     val date = h1?.latestDate.orEmpty()
@@ -463,6 +786,7 @@ fun SignalsScreen(state: OAKAppState) {
         }
 
     OAKScreen(state, "TRADING / SIGNALS", state.text("Tín hiệu", "Signals"), state.text("Radar BUY/SELL theo H1 và drill-down evidence M15.", "BUY/SELL H1 radar with M15 evidence drill-down.")) {
+        onBack?.let { back -> item { NativeBackButton(state, back) } }
         item {
             SegmentedRow(
                 choices = listOf("ALL", "BUY", "SELL"),
@@ -503,10 +827,11 @@ fun SignalsScreen(state: OAKAppState) {
 }
 
 @Composable
-fun ReportsScreen(state: OAKAppState) {
+fun ReportsScreen(state: OAKAppState, onBack: (() -> Unit)? = null) {
     val p = LocalOAKPalette.current
     val reports = state.payload?.reports
     OAKScreen(state, "TRADING / REPORTS", state.text("Báo cáo", "Reports"), state.text("Tóm tắt tín hiệu H1 trên dữ liệu backend đã lưu.", "Summary of retained H1 backend signals.")) {
+        onBack?.let { back -> item { NativeBackButton(state, back) } }
         if (reports != null) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -578,12 +903,13 @@ private fun ReportBarChart(trend: List<ReportTrend>) {
 }
 
 @Composable
-fun MoreScreen(state: OAKAppState) {
+fun MoreScreen(state: OAKAppState, onBack: (() -> Unit)? = null) {
     val p = LocalOAKPalette.current
     val context = LocalContext.current
     val system = state.payload?.system
     val accounts = state.payload?.accounts?.accounts.orEmpty()
     OAKScreen(state, "OAK / SYSTEM", state.text("Hệ thống", "System"), state.text("Trạng thái backend, H1 feed, providers và account routing.", "Backend, H1 feed, provider and account-routing status.")) {
+        onBack?.let { back -> item { NativeBackButton(state, back) } }
         item {
             OAKCard {
                 Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
@@ -905,6 +1231,7 @@ private fun OAKScreen(
     eyebrow: String,
     title: String,
     subtitle: String,
+    showHeader: Boolean = true,
     content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit,
 ) {
     val p = LocalOAKPalette.current
@@ -913,7 +1240,7 @@ private fun OAKScreen(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item { OAKPageHeader(eyebrow, title, subtitle) }
+        if (showHeader) item { OAKPageHeader(eyebrow, title, subtitle) }
         if (state.errorMessage.isNotBlank()) item { Text(state.errorMessage, color = p.danger, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
         content()
         item {

@@ -84,11 +84,9 @@ private fun OAKLaunchLoading(state: OAKAppState) {
 private data class TabSpec(val tab: OAKTab, val vn: String, val en: String, @DrawableRes val iconRes: Int)
 
 private val tabs = listOf(
-    TabSpec(OAKTab.LIVE, "Live", "Live", R.drawable.ic_tab_live),
-    TabSpec(OAKTab.HISTORY, "Lịch sử", "History", R.drawable.ic_tab_history),
-    TabSpec(OAKTab.SIGNALS, "Tín hiệu", "Signals", R.drawable.ic_tab_signals),
-    TabSpec(OAKTab.REPORTS, "Báo cáo", "Reports", R.drawable.ic_tab_reports),
-    TabSpec(OAKTab.MORE, "Thêm", "More", R.drawable.ic_tab_more),
+    TabSpec(OAKTab.LIVE, "H1 Live", "H1 Live", R.drawable.ic_tab_live),
+    TabSpec(OAKTab.NEOTECH, "NeoTech", "NeoTech", R.drawable.ic_tab_signals),
+    TabSpec(OAKTab.TOOLS, "Công cụ", "Tools", R.drawable.ic_tab_more),
 )
 
 @Composable
@@ -151,11 +149,9 @@ private fun OAKRoot(state: OAKAppState) {
     ) { inner ->
         Box(Modifier.fillMaxSize().padding(inner)) {
             when (state.selectedTab) {
-                OAKTab.LIVE -> H1BoardScreen(state, history = false)
-                OAKTab.HISTORY -> H1BoardScreen(state, history = true)
-                OAKTab.SIGNALS -> SignalsScreen(state)
-                OAKTab.REPORTS -> ReportsScreen(state)
-                OAKTab.MORE -> MoreScreen(state)
+                OAKTab.LIVE -> H1BoardScreen(state)
+                OAKTab.NEOTECH -> NeoTechScreen(state)
+                OAKTab.TOOLS -> ToolsScreen(state)
             }
         }
     }
