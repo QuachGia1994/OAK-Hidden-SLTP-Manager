@@ -218,7 +218,7 @@ jobs:
             DEVELOPMENT_TEAM='' \
             build
 
-      - name: Package unsigned IPA
+      - name: Package raw unsigned and zsign-ready IPAs
         working-directory: ios-native
         shell: bash
         run: |
@@ -228,6 +228,8 @@ jobs:
             echo "No unsigned native iPhoneOS app produced" >&2
             exit 1
           fi
+
+          # Keep a truly unsigned IPA for diagnostics/archive use.
           rm -rf ipa-payload
           mkdir -p ipa-payload/Payload
           ditto "$APP_PATH" "ipa-payload/Payload/$(basename "$APP_PATH")"
@@ -235,14 +237,43 @@ jobs:
           find ipa-payload/Payload -name 'embedded.mobileprovision' -delete
           (
             cd ipa-payload
-            /usr/bin/zip -qry ../OAK-Gatekeeper-native-unsigned.ipa Payload
+            /usr/bin/zip -qry ../OAK-Gatekeeper-native-raw-unsigned.ipa Payload
           )
-          test -s OAK-Gatekeeper-native-unsigned.ipa
+          test -s OAK-Gatekeeper-native-raw-unsigned.ipa
 
-      - name: Upload native iOS IPA
+          # zsign is a re-signer. Some older/mobile wrappers fail when Xcode emits
+          # a Mach-O with no LC_CODE_SIGNATURE at all because they must realloc a
+          # signature segment from zero. Seed an ad-hoc signature so zsign only
+          # has to replace an existing signature/provisioning context.
+          rm -rf zsign-payload
+          mkdir -p zsign-payload/Payload
+          ditto "$APP_PATH" "zsign-payload/Payload/$(basename "$APP_PATH")"
+          ZSIGN_APP="zsign-payload/Payload/$(basename "$APP_PATH")"
+          find "$ZSIGN_APP" -type d -name '_CodeSignature' -prune -exec rm -rf {} +
+          find "$ZSIGN_APP" -name 'embedded.mobileprovision' -delete
+          /usr/bin/codesign --force --deep --sign - --timestamp=none "$ZSIGN_APP"
+          /usr/bin/codesign --verify --deep --strict "$ZSIGN_APP"
+          EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$ZSIGN_APP/Info.plist")
+          otool -l "$ZSIGN_APP/$EXECUTABLE" | grep -A 3 'LC_CODE_SIGNATURE'
+          test -s "$ZSIGN_APP/_CodeSignature/CodeResources"
+          (
+            cd zsign-payload
+            /usr/bin/zip -qry ../OAK-Gatekeeper-native-zsign-ready.ipa Payload
+          )
+          test -s OAK-Gatekeeper-native-zsign-ready.ipa
+
+      - name: Upload zsign-ready native iOS IPA
         uses: actions/upload-artifact@v4
         with:
-          name: OAK-Gatekeeper-iOS27-native-unsigned
-          path: ios-native/OAK-Gatekeeper-native-unsigned.ipa
+          name: OAK-Gatekeeper-iOS27-native-zsign-ready
+          path: ios-native/OAK-Gatekeeper-native-zsign-ready.ipa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload raw unsigned native iOS IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: OAK-Gatekeeper-iOS27-native-raw-unsigned
+          path: ios-native/OAK-Gatekeeper-native-raw-unsigned.ipa
           if-no-files-found: error
           retention-days: 14
