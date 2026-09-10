@@ -15,6 +15,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +36,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -51,6 +53,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,10 +62,16 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -166,9 +175,10 @@ fun H1BoardScreen(state: OAKAppState) {
         subtitle = "",
         showHeader = false,
     ) {
+        item { H1GettingStartedTips(state) }
         if (h1 != null && date.isNotBlank()) {
             item { H1CommandHero(state, h1) }
-            item { H1MetadataStrip(h1) }
+            item { H1MetadataStrip(state, h1) }
             item {
                 OAKCard {
                     Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
@@ -205,9 +215,9 @@ fun H1BoardScreen(state: OAKAppState) {
                             }
                         }
                         Row(Modifier.fillMaxWidth()) {
-                            OAKMetric("BROKER DAY", date, modifier = Modifier.weight(1f))
+                            OAKMetric(state.text("NGÀY BROKER", "BROKER DAY"), date, modifier = Modifier.weight(1f))
                             MetricDivider()
-                            OAKMetric("UPDATED", shortPublished(h1.publishedAt), modifier = Modifier.weight(1f))
+                            OAKMetric(state.text("CẬP NHẬT", "UPDATED"), shortPublished(h1.publishedAt), modifier = Modifier.weight(1f))
                         }
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OAKPill("FREE ACCESS", PillTone.SUCCESS)
@@ -225,25 +235,44 @@ fun H1BoardScreen(state: OAKAppState) {
                                 .fillMaxWidth()
                                 .background(p.raised, RoundedCornerShape(14.dp))
                                 .border(1.dp, p.border, RoundedCornerShape(14.dp))
-                                .clickable { calendarOpen = true }
+                                .heightIn(min = 48.dp)
+                                .clickable(role = Role.Button) { calendarOpen = true }
+                                .semantics(mergeDescendants = true) {
+                                    contentDescription = "${state.text("Ngày broker", "Broker date")}: ${displayDate(date)}"
+                                }
                                 .padding(13.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(Icons.Default.DateRange, contentDescription = state.text("Chọn ngày broker", "Choose broker date"), tint = p.accent, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.DateRange, contentDescription = null, tint = p.accent, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(10.dp))
                             Text(displayDate(date), color = p.text, fontSize = 17.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
                             Spacer(Modifier.weight(1f))
-                            Text("▾", color = p.muted)
+                            Text("▾", color = p.muted, modifier = Modifier.clearAndSetSemantics { })
                         }
                         Text("${h1.orderedDatesDescending.size} ${state.text("ngày giao dịch", "trading days")} · ${h1.orderedDatesDescending.lastOrNull() ?: "—"} → ${h1.latestDate}", color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                     }
                 }
             }
-            item { H1Matrix(h1, date, onSelect = { selectedAlert = it }) }
+            item { H1Matrix(state, h1, date, onSelect = { selectedAlert = it }) }
         } else {
             item {
-                OAKCard(tint = p.warning) {
-                    Text(if (state.isLoading) state.text("Đang tải H1…", "Loading H1…") else state.text("Đang chờ feed H1 local.", "Awaiting the local H1 feed."), color = p.muted)
+                if (state.isLoading) {
+                    OAKCard(tint = p.warning) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Text(state.text("Đang tải H1…", "Loading H1…"), color = p.muted)
+                        }
+                    }
+                } else {
+                    OAKEmptyState(
+                        title = state.text("Chưa có dữ liệu H1", "No H1 data yet"),
+                        message = state.text(
+                            "Đang chờ feed H1 local từ backend. Hãy kiểm tra bridge MT5/local đang chạy rồi làm mới.",
+                            "Waiting for the local H1 feed from the backend. Make sure the MT5/local bridge is running, then refresh.",
+                        ),
+                        actionLabel = state.text("LÀM MỚI", "REFRESH"),
+                        onAction = { state.refreshAsync() },
+                    )
                 }
             }
         }
@@ -261,8 +290,51 @@ fun H1BoardScreen(state: OAKAppState) {
 
     selectedAlert?.let { alert ->
         h1?.let { payload ->
-            EvidenceSheet(h1 = payload, alert = alert, brokerDate = date, onDismiss = { selectedAlert = null })
+            EvidenceSheet(state = state, h1 = payload, alert = alert, brokerDate = date, onDismiss = { selectedAlert = null })
         }
+    }
+}
+
+@Composable
+private fun H1GettingStartedTips(state: OAKAppState) {
+    var visible by rememberSaveable { mutableStateOf(true) }
+    if (!visible) return
+    val p = LocalOAKPalette.current
+    OAKCard(tint = p.accent) {
+        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    state.text("BẮT ĐẦU NHANH", "QUICK START"),
+                    color = p.accent,
+                    style = OAKType.label,
+                    modifier = Modifier.semantics { heading() },
+                )
+                Spacer(Modifier.weight(1f))
+                TextButton(
+                    onClick = { visible = false },
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .semantics { contentDescription = state.text("Ẩn hướng dẫn bắt đầu", "Dismiss getting-started tips") },
+                ) {
+                    Text(state.text("ĐÃ HIỂU", "GOT IT"), color = p.accent, style = OAKType.pill)
+                }
+            }
+            TipLine(state.text("Chạm ô BUY/SELL để xem bằng chứng M15.", "Tap a BUY/SELL cell to open its M15 evidence."))
+            TipLine(state.text("Đổi NGÀY BROKER để xem lịch sử H1 đã lưu.", "Change the BROKER DATE to review retained H1 history."))
+            TipLine(state.text("Kéo xuống hoặc bấm LÀM MỚI để cập nhật feed.", "Pull down or press REFRESH to update the feed."))
+        }
+    }
+}
+
+@Composable
+private fun TipLine(text: String) {
+    val p = LocalOAKPalette.current
+    Row(
+        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("•", color = p.accent, style = OAKType.bodySm, modifier = Modifier.clearAndSetSemantics { })
+        Text(text, color = p.muted, style = OAKType.bodySm, modifier = Modifier.weight(1f))
     }
 }
 
@@ -300,20 +372,20 @@ private fun H1CommandHero(state: OAKAppState, h1: H1SignalPayload) {
 }
 
 @Composable
-private fun H1MetadataStrip(h1: H1SignalPayload) {
+private fun H1MetadataStrip(state: OAKAppState, h1: H1SignalPayload) {
     val p = LocalOAKPalette.current
     OAKCard {
         Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
             Row(Modifier.fillMaxWidth()) {
-                H1MetaCell("NGUỒN DỮ LIỆU", "MT5 ICMarkets Local", Modifier.weight(1f))
+                H1MetaCell(state.text("NGUỒN DỮ LIỆU", "DATA SOURCE"), "MT5 ICMarkets Local", Modifier.weight(1f))
                 Box(Modifier.width(1.dp).height(58.dp).background(p.border.copy(alpha = .5f)))
-                H1MetaCell("NHỊP DỮ LIỆU", "H03–H16 · M15 ENTRY + H1 BASE", Modifier.weight(1f))
+                H1MetaCell(state.text("NHỊP DỮ LIỆU", "DATA CADENCE"), "H03–H16 · M15 ENTRY + H1 BASE", Modifier.weight(1f))
             }
             HorizontalDivider(color = p.border.copy(alpha = .5f))
             Row(Modifier.fillMaxWidth()) {
-                H1MetaCell("NGÀY ĐÃ LƯU", "${h1.orderedDatesDescending.size} ngày", Modifier.weight(1f))
+                H1MetaCell(state.text("NGÀY ĐÃ LƯU", "STORED DAYS"), "${h1.orderedDatesDescending.size} ${state.text("ngày", "days")}", Modifier.weight(1f))
                 Box(Modifier.width(1.dp).height(58.dp).background(p.border.copy(alpha = .5f)))
-                H1MetaCell("NGÀY MỚI NHẤT", h1.latestDate, Modifier.weight(1f))
+                H1MetaCell(state.text("NGÀY MỚI NHẤT", "LATEST DAY"), h1.latestDate, Modifier.weight(1f))
             }
         }
     }
@@ -322,7 +394,7 @@ private fun H1MetadataStrip(h1: H1SignalPayload) {
 @Composable
 private fun H1MetaCell(label: String, value: String, modifier: Modifier = Modifier) {
     val p = LocalOAKPalette.current
-    Column(modifier.padding(horizontal = 8.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+    Column(modifier.padding(horizontal = 8.dp, vertical = 9.dp).semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Text(label, color = p.muted, style = OAKType.label)
         Text(value, color = p.text, style = OAKType.mono, maxLines = 2)
     }
@@ -365,7 +437,7 @@ fun OAKOrbitCore(modifier: Modifier = Modifier, label: String = "H1") {
     val diagonal = if (motionEnabled) diagonalAngle else -18f
     val sphere = if (motionEnabled) sphereAngle else -18f
 
-    Box(modifier, contentAlignment = Alignment.Center) {
+    Box(modifier.clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
         OrbitRing(
             size = 108,
             alpha = .42f,
@@ -504,15 +576,19 @@ private fun BrokerCalendarSheet(
                         val foreground = when {
                             selected -> Color.White
                             active -> p.text
-                            inMonth -> p.muted.copy(alpha = .35f)
-                            else -> p.muted.copy(alpha = .20f)
+                            inMonth -> p.muted.copy(alpha = .55f)
+                            else -> p.muted.copy(alpha = .35f)
                         }
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(42.dp)
+                                .heightIn(min = 44.dp)
                                 .background(background, RoundedCornerShape(10.dp))
-                                .clickable(enabled = active) { onSelect(key) },
+                                .clickable(enabled = active, role = Role.RadioButton) { onSelect(key) }
+                                .semantics {
+                                    this.selected = (key == selectedDate)
+                                    contentDescription = "${cellDate.dayOfMonth}/${monthAnchor.monthValue}/${monthAnchor.year}"
+                                },
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(cellDate.dayOfMonth.toString(), color = foreground, fontSize = 14.sp, fontWeight = if (selected) FontWeight.Black else FontWeight.SemiBold)
@@ -525,16 +601,16 @@ private fun BrokerCalendarSheet(
 }
 
 @Composable
-private fun H1Matrix(h1: H1SignalPayload, date: String, onSelect: (H1SignalAlert) -> Unit) {
+private fun H1Matrix(state: OAKAppState, h1: H1SignalPayload, date: String, onSelect: (H1SignalAlert) -> Unit) {
     val p = LocalOAKPalette.current
     val horizontal = rememberScrollState()
     OAKCard {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SectionTitle("BLOCK MATRIX", "↔ Swipe")
+            SectionTitle(state.text("MA TRẬN BLOCK", "BLOCK MATRIX"), state.text("↔ Vuốt", "↔ Swipe"))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Top) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     MatrixLabel("", 104)
-                    MatrixLabel("ENTRY TIME", 104, height = 78)
+                    MatrixLabel(state.text("GIỜ VÀO", "ENTRY TIME"), 104, height = 78)
                     VisibleSymbols.forEach { symbol -> MatrixLabel(symbol, 104, height = 78) }
                 }
                 Column(Modifier.horizontalScroll(horizontal), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -619,13 +695,21 @@ private fun H1SignalCell(alert: H1SignalAlert?, highlighted: Boolean, onSelect: 
             .heightIn(min = 78.dp)
             .background(if (highlighted) p.warning.copy(alpha = .08f) else p.surface, shape)
             .border(if (highlighted) 1.4.dp else 1.dp, if (highlighted) p.warning.copy(alpha = .65f) else p.border.copy(alpha = .35f), shape)
-            .then(if (alert?.signal != null) Modifier.clickable { onSelect(alert) }.semantics { contentDescription = "${alert.symbol} H${alert.slotHour.toString().padStart(2, '0')} ${alert.signal}" } else Modifier),
+            .then(
+                if (alert?.signal != null) Modifier
+                    .clickable(role = Role.Button) { onSelect(alert) }
+                    .semantics {
+                        contentDescription = "${alert.symbol} H${alert.slotHour.toString().padStart(2, '0')}"
+                        stateDescription = alert.signal.name
+                    }
+                else Modifier,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         when (alert?.signal) {
             SignalSide.BUY -> OAKPill("BUY", PillTone.BUY)
             SignalSide.SELL -> OAKPill("SELL", PillTone.SELL)
-            null -> Text("—", color = p.muted.copy(alpha = .55f), fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+            null -> Text("—", color = p.muted.copy(alpha = .55f), fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, modifier = Modifier.clearAndSetSemantics { })
         }
     }
 }
@@ -682,8 +766,12 @@ fun NeoTechScreen(state: OAKAppState) {
                         Text(state.text("Chưa có account MT5 trong payload.", "No MT5 account is present in the payload yet."), color = p.muted)
                     } else {
                         mt5.forEachIndexed { index, account ->
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Box(Modifier.size(8.dp).semantics { contentDescription = "${account.label} ${if (account.bridgeOnline == true) "online" else "offline"}" }.background(if (account.bridgeOnline == true) p.success else p.warning, RoundedCornerShape(999.dp)))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.semantics(mergeDescendants = true) {},
+                            ) {
+                                Box(Modifier.size(8.dp).clearAndSetSemantics { }.background(if (account.bridgeOnline == true) p.success else p.warning, RoundedCornerShape(999.dp)))
                                 Column(Modifier.weight(1f)) {
                                     Text(account.label, color = p.text, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                                     Text("${account.broker} · ${account.traderLogin ?: account.externalAccountId}", color = p.muted, fontSize = 12.sp)
@@ -758,7 +846,7 @@ fun ToolsScreen(state: OAKAppState) {
         item {
             OAKCard {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SectionTitle("WEB TOOLS", "oakgatekeeper.uk")
+                    SectionTitle(state.text("CÔNG CỤ WEB", "WEB TOOLS"), "oakgatekeeper.uk")
                     NativeWebToolRow(state.text("Xác thực ảnh AI", "Image authenticity"), "/factcheck") { path -> context.startActivity(Intent(Intent.ACTION_VIEW, "https://www.oakgatekeeper.uk$path".toUri())) }
                     HorizontalDivider(color = p.border.copy(alpha = .45f))
                     NativeWebToolRow("Tarot", "/tarot") { path -> context.startActivity(Intent(Intent.ACTION_VIEW, "https://www.oakgatekeeper.uk$path".toUri())) }
@@ -773,7 +861,7 @@ fun ToolsScreen(state: OAKAppState) {
 @Composable
 private fun NativeToolCard(title: String, detail: String, index: String, onClick: () -> Unit) {
     val p = LocalOAKPalette.current
-    OAKCard(modifier = Modifier.clickable(onClick = onClick)) {
+    OAKCard(modifier = Modifier.clickable(onClick = onClick, role = Role.Button)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(
                 Modifier.size(42.dp).background(p.accent.copy(alpha = .10f), RoundedCornerShape(12.dp)),
@@ -785,7 +873,7 @@ private fun NativeToolCard(title: String, detail: String, index: String, onClick
                 Text(title, color = p.text, style = OAKType.toolTitle)
                 Text(detail, color = p.muted, style = OAKType.bodySm)
             }
-            Text("↗", color = p.accent, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text("↗", color = p.accent, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clearAndSetSemantics { })
         }
     }
 }
@@ -794,12 +882,12 @@ private fun NativeToolCard(title: String, detail: String, index: String, onClick
 private fun NativeWebToolRow(title: String, path: String, open: (String) -> Unit) {
     val p = LocalOAKPalette.current
     Row(
-        modifier = Modifier.fillMaxWidth().clickable { open(path) }.padding(vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button) { open(path) }.padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(title, color = p.text, style = OAKType.webTitle)
         Spacer(Modifier.weight(1f))
-        Text("↗", color = p.accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text("↗", color = p.accent, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clearAndSetSemantics { })
     }
 }
 
@@ -839,10 +927,18 @@ fun SignalsScreen(state: OAKAppState, onBack: (() -> Unit)? = null) {
                 onSelect = { filter = SignalFilter.valueOf(it) },
             )
         }
-        item { SectionTitle("H1 ACTIVITY", date) }
+        item { SectionTitle(state.text("HOẠT ĐỘNG H1", "H1 ACTIVITY"), date) }
         items(rows, key = { it.id }) { alert ->
             val tint = if (alert.signal == SignalSide.BUY) p.buy else if (alert.signal == SignalSide.SELL) p.sell else null
-            OAKCard(modifier = Modifier.clickable { selectedAlert = alert }, tint = tint) {
+            OAKCard(
+                modifier = Modifier
+                    .clickable(role = Role.Button) { selectedAlert = alert }
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = "${alert.symbol} H${alert.slotHour.toString().padStart(2, '0')}, " +
+                            (alert.signal?.name ?: state.text("Không tín hiệu", "No signal"))
+                    },
+                tint = tint,
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
@@ -858,16 +954,27 @@ fun SignalsScreen(state: OAKAppState, onBack: (() -> Unit)? = null) {
                     when (alert.signal) {
                         SignalSide.BUY -> OAKPill("BUY", PillTone.BUY)
                         SignalSide.SELL -> OAKPill("SELL", PillTone.SELL)
-                        null -> Text("—", color = p.muted)
+                        null -> Text("—", color = p.muted, modifier = Modifier.clearAndSetSemantics { })
                     }
                 }
             }
         }
-        if (rows.isEmpty()) item { OAKCard { Text("No matching alerts", color = p.muted) } }
+        if (rows.isEmpty()) item {
+            val filtered = filter != SignalFilter.ALL
+            OAKEmptyState(
+                title = state.text("Không có tín hiệu khớp", "No matching alerts"),
+                message = if (filtered)
+                    state.text("Không có tín hiệu ${filter.name} cho ngày này. Thử xem tất cả.", "No ${filter.name} alerts for this day. Try viewing all.")
+                else
+                    state.text("Chưa có tín hiệu BUY/SELL cho ngày H1 mới nhất.", "No BUY/SELL alerts for the latest H1 day yet."),
+                actionLabel = if (filtered) state.text("XEM TẤT CẢ", "VIEW ALL") else null,
+                onAction = if (filtered) ({ filter = SignalFilter.ALL }) else null,
+            )
+        }
     }
 
     if (h1 != null) {
-        selectedAlert?.let { alert -> EvidenceSheet(h1, alert, date) { selectedAlert = null } }
+        selectedAlert?.let { alert -> EvidenceSheet(state, h1, alert, date) { selectedAlert = null } }
     }
 }
 
@@ -881,8 +988,8 @@ fun ReportsScreen(state: OAKAppState, onBack: (() -> Unit)? = null) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        MetricCard("TOTAL", reports.totalSignals.toString(), p.accent, Modifier.weight(1f))
-                        MetricCard("BALANCE", "%.1f%%".format(reports.signalBalancePct), p.text, Modifier.weight(1f))
+                        MetricCard(state.text("TỔNG", "TOTAL"), reports.totalSignals.toString(), p.accent, Modifier.weight(1f))
+                        MetricCard(state.text("CÂN BẰNG", "BALANCE"), "%.1f%%".format(reports.signalBalancePct), p.text, Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         MetricCard("BUY", reports.buySignals.toString(), p.buy, Modifier.weight(1f))
@@ -893,7 +1000,7 @@ fun ReportsScreen(state: OAKAppState, onBack: (() -> Unit)? = null) {
             item {
                 OAKCard {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        SectionTitle(state.text("10 NGÀY GẦN NHẤT", "LAST 10 DAYS"), "SIGNAL VOLUME")
+                        SectionTitle(state.text("10 NGÀY GẦN NHẤT", "LAST 10 DAYS"), state.text("KHỐI LƯỢNG TÍN HIỆU", "SIGNAL VOLUME"))
                         ReportBarChart(reports.trend)
                     }
                 }
@@ -910,7 +1017,7 @@ fun ReportsScreen(state: OAKAppState, onBack: (() -> Unit)? = null) {
 @Composable
 private fun MetricCard(label: String, value: String, color: Color, modifier: Modifier = Modifier) {
     OAKCard(modifier = modifier, tint = color) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val p = LocalOAKPalette.current
             Text(label, color = p.muted, style = OAKType.label)
             Text(value, color = color, style = OAKType.metricBig)
@@ -958,6 +1065,7 @@ fun MoreScreen(state: OAKAppState, onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
     val system = state.payload?.system
     val accounts = state.payload?.accounts?.accounts.orEmpty()
+    var confirmSignOut by remember { mutableStateOf(false) }
     OAKScreen(state, "OAK / SYSTEM", state.text("Hệ thống", "System"), state.text("Trạng thái backend, H1 feed, providers và account routing.", "Backend, H1 feed, provider and account-routing status.")) {
         onBack?.let { back -> item { NativeBackButton(state, back) } }
         item {
@@ -986,8 +1094,8 @@ fun MoreScreen(state: OAKAppState, onBack: (() -> Unit)? = null) {
                             OAKPill(system.apiStatus, PillTone.SUCCESS)
                         }
                         Row {
-                            OAKMetric("API LATENCY", "${system.latencyMs}ms", modifier = Modifier.weight(1f), valueColor = p.accent)
-                            OAKMetric("H1 FEED", if (system.h1.ready) "READY" else "WAIT", modifier = Modifier.weight(1f), valueColor = if (system.h1.ready) p.success else p.warning)
+                            OAKMetric(state.text("ĐỘ TRỄ API", "API LATENCY"), "${system.latencyMs}ms", modifier = Modifier.weight(1f), valueColor = p.accent)
+                            OAKMetric(state.text("NGUỒN H1", "H1 FEED"), if (system.h1.ready) "READY" else "WAIT", modifier = Modifier.weight(1f), valueColor = if (system.h1.ready) p.success else p.warning)
                         }
                     }
                 }
@@ -995,12 +1103,12 @@ fun MoreScreen(state: OAKAppState, onBack: (() -> Unit)? = null) {
             item {
                 OAKCard {
                     Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
-                        SectionTitle("H1 FEED", system.h1.brokerDate)
+                        SectionTitle(state.text("NGUỒN H1", "H1 FEED"), system.h1.brokerDate)
                         Row {
-                            OAKMetric("SCHEMA", "v${system.h1.schemaVersion}", modifier = Modifier.weight(1f))
-                            OAKMetric("RULE", "v${system.h1.signalRuleVersion}", modifier = Modifier.weight(1f))
-                            OAKMetric("HISTORY", "${system.h1.historyDays} days", modifier = Modifier.weight(1f), valueColor = p.accent)
-                            OAKMetric("SYMBOLS/BLOCKS", "${system.h1.symbolCount} / ${system.h1.blockCount}", modifier = Modifier.weight(1f))
+                            OAKMetric(state.text("LƯỢC ĐỒ", "SCHEMA"), "v${system.h1.schemaVersion}", modifier = Modifier.weight(1f))
+                            OAKMetric(state.text("LUẬT", "RULE"), "v${system.h1.signalRuleVersion}", modifier = Modifier.weight(1f))
+                            OAKMetric(state.text("LỊCH SỬ", "HISTORY"), "${system.h1.historyDays} ${state.text("ngày", "days")}", modifier = Modifier.weight(1f), valueColor = p.accent)
+                            OAKMetric(state.text("SYMBOL / BLOCK", "SYMBOLS / BLOCKS"), "${system.h1.symbolCount} / ${system.h1.blockCount}", modifier = Modifier.weight(1f))
                         }
                         HorizontalDivider(color = p.border.copy(alpha = .55f))
                         Text(system.h1.profile.ifBlank { "—" }, color = p.text, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
@@ -1010,7 +1118,7 @@ fun MoreScreen(state: OAKAppState, onBack: (() -> Unit)? = null) {
             item {
                 OAKCard {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        SectionTitle("PROVIDERS", "${system.accounts.enabled}/${system.accounts.total} enabled")
+                        SectionTitle(state.text("NHÀ CUNG CẤP", "PROVIDERS"), "${system.accounts.enabled}/${system.accounts.total} ${state.text("bật", "enabled")}")
                         ProviderRow("cTrader", "Scope: ${system.providers.ctraderScope}", system.providers.ctraderConnected)
                         HorizontalDivider(color = p.border.copy(alpha = .55f))
                         ProviderRow("MT5", "${system.providers.mt5OnlineAccounts}/${system.providers.mt5TotalAccounts} local heartbeat online", system.providers.mt5Connected)
@@ -1022,7 +1130,7 @@ fun MoreScreen(state: OAKAppState, onBack: (() -> Unit)? = null) {
             item {
                 OAKCard {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        SectionTitle("ACCOUNTS", "${accounts.size} total")
+                        SectionTitle(state.text("TÀI KHOẢN", "ACCOUNTS"), "${accounts.size} ${state.text("tổng", "total")}")
                         accounts.forEachIndexed { index, account ->
                             AccountRow(state, account)
                             if (index != accounts.lastIndex) HorizontalDivider(color = p.border.copy(alpha = .55f))
@@ -1040,7 +1148,7 @@ fun MoreScreen(state: OAKAppState, onBack: (() -> Unit)? = null) {
                         colors = ButtonDefaults.buttonColors(containerColor = p.raised, contentColor = p.accent),
                     ) { Text(state.text("MỞ WEB", "OPEN WEB"), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Black) }
                     Button(
-                        onClick = { state.signOut() },
+                        onClick = { confirmSignOut = true },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = p.raised, contentColor = p.danger),
                     ) { Text(state.text("ĐĂNG XUẤT", "SIGN OUT"), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Black) }
@@ -1048,13 +1156,31 @@ fun MoreScreen(state: OAKAppState, onBack: (() -> Unit)? = null) {
             }
         }
     }
+    if (confirmSignOut) {
+        AlertDialog(
+            onDismissRequest = { confirmSignOut = false },
+            title = { Text(state.text("Đăng xuất?", "Sign out?")) },
+            text = { Text(state.text("Bạn sẽ cần nhập lại Dashboard API key để mở khóa lại.", "You'll need to re-enter the Dashboard API key to unlock again.")) },
+            confirmButton = {
+                TextButton(onClick = { confirmSignOut = false; state.signOut() }) {
+                    Text(state.text("ĐĂNG XUẤT", "SIGN OUT"), color = p.danger, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmSignOut = false }) { Text(state.text("HỦY", "CANCEL")) }
+            },
+        )
+    }
 }
 
 @Composable
 private fun ProviderRow(name: String, detail: String, online: Boolean) {
     val p = LocalOAKPalette.current
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(9.dp).semantics { contentDescription = "$name ${if (online) "online" else "offline"}" }.background(if (online) p.success else p.warning, RoundedCornerShape(999.dp)))
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.semantics(mergeDescendants = true) {},
+    ) {
+        Box(Modifier.size(9.dp).clearAndSetSemantics { }.background(if (online) p.success else p.warning, RoundedCornerShape(999.dp)))
         Spacer(Modifier.width(11.dp))
         Column {
             Text(name, color = p.text, style = OAKType.toolTitle)
@@ -1086,7 +1212,13 @@ private fun AccountRow(state: OAKAppState, account: ProviderAccount) {
             Text("${account.provider.uppercase()} · ${account.broker} · ${account.traderLogin ?: account.externalAccountId}", color = p.muted, fontSize = 13.sp)
             status?.let { Text(it, color = if (account.bridgeOnline == true) p.success else p.warning, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
         }
-        Switch(checked = account.enabled, onCheckedChange = { state.toggleAccount(account.id, it) })
+        Switch(
+            checked = account.enabled,
+            onCheckedChange = { state.toggleAccount(account.id, it) },
+            modifier = Modifier.semantics {
+                contentDescription = "${state.text("Bật tài khoản", "Enable account")} ${account.label}"
+            },
+        )
     }
 }
 
@@ -1102,8 +1234,9 @@ private fun SegmentedRow(choices: List<String>, selected: String, onSelect: (Str
             Box(
                 modifier = Modifier
                     .weight(1f)
+                    .heightIn(min = 48.dp)
                     .background(if (active) p.surface else Color.Transparent, RoundedCornerShape(999.dp))
-                    .clickable { onSelect(choice) }
+                    .selectable(selected = active, role = Role.RadioButton) { onSelect(choice) }
                     .padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -1114,7 +1247,7 @@ private fun SegmentedRow(choices: List<String>, selected: String, onSelect: (Str
 }
 
 @Composable
-private fun EvidenceSheet(h1: H1SignalPayload, alert: H1SignalAlert, brokerDate: String, onDismiss: () -> Unit) {
+private fun EvidenceSheet(state: OAKAppState, h1: H1SignalPayload, alert: H1SignalAlert, brokerDate: String, onDismiss: () -> Unit) {
     val p = LocalOAKPalette.current
     val context = LocalContext.current
     val facts = h1.evidenceFacts(brokerDate, alert)
@@ -1138,40 +1271,64 @@ private fun EvidenceSheet(h1: H1SignalPayload, alert: H1SignalAlert, brokerDate:
                         Text("${alert.symbol} · H${alert.slotHour.toString().padStart(2, '0')}", color = p.text, style = OAKType.metricBig)
                     }
                     Spacer(Modifier.weight(1f))
-                    TextButton(onClick = onDismiss) { Text("Đóng") }
+                    TextButton(onClick = onDismiss, modifier = Modifier.semantics { contentDescription = state.text("Đóng chi tiết", "Close evidence") }) { Text(state.text("Đóng", "Close")) }
                 }
             }
-            item { CandlestickChart(alert.sampleBars) }
+            item { CandlestickChart(state, alert.sampleBars) }
             item {
                 OAKCard {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SectionTitle("KEY FACTS")
-                        Fact("BROKER DAY", brokerDate)
+                        var glossaryOpen by remember { mutableStateOf(false) }
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(state.text("THÔNG TIN CHÍNH", "KEY FACTS"), color = p.text, style = OAKType.sectionTitle, modifier = Modifier.semantics { heading() })
+                            Spacer(Modifier.weight(1f))
+                            TextButton(
+                                onClick = { glossaryOpen = !glossaryOpen },
+                                modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = state.text("Chú giải thuật ngữ", "Term glossary") },
+                            ) {
+                                Text(state.text(if (glossaryOpen) "ẨN CHÚ GIẢI" else "CHÚ GIẢI", if (glossaryOpen) "HIDE GLOSSARY" else "GLOSSARY"), color = p.accent, style = OAKType.pill)
+                            }
+                        }
+                        Fact(state.text("NGÀY BROKER", "BROKER DAY"), brokerDate)
                         Fact("BLOCK", "H${alert.slotHour}")
-                        Fact("ENTRY", alert.entryHour?.let { "H$it" } ?: "—")
-                        Fact("GROUP", alert.patternGroup ?: "—")
-                        Fact("FAMILY", evidenceFamilyLabel(alert.patternFamily))
-                        Fact("PATTERN", evidencePatternLabel(alert.pattern))
-                        Fact("PATTERN SRC", facts.patternSource)
-                        Fact("BASE CANDLE", facts.rawBase)
-                        if (facts.signalSource.isNotBlank()) Fact("FINAL SOURCE", facts.signalSource)
-                        Fact("RULE", facts.rule)
-                        Fact("FINAL", facts.finalSignal)
+                        Fact(state.text("VÀO LỆNH", "ENTRY"), alert.entryHour?.let { "H$it" } ?: "—")
+                        Fact(state.text("NHÓM", "GROUP"), alert.patternGroup ?: "—")
+                        Fact(state.text("HỌ MẪU", "FAMILY"), evidenceFamilyLabel(alert.patternFamily))
+                        Fact(state.text("MẪU HÌNH", "PATTERN"), evidencePatternLabel(alert.pattern))
+                        Fact(state.text("NGUỒN MẪU", "PATTERN SRC"), facts.patternSource)
+                        Fact(state.text("NẾN GỐC", "BASE CANDLE"), facts.rawBase)
+                        if (facts.signalSource.isNotBlank()) Fact(state.text("NGUỒN CUỐI", "FINAL SOURCE"), facts.signalSource)
+                        Fact(state.text("LUẬT", "RULE"), facts.rule)
+                        Fact(state.text("KẾT LUẬN", "FINAL"), facts.finalSignal)
+                        if (glossaryOpen) {
+                            HorizontalDivider(color = p.border.copy(alpha = .45f))
+                            GlossaryLine("BLOCK", state.text("Khung giờ H1 của tín hiệu.", "The signal's H1 hour block."))
+                            GlossaryLine(state.text("VÀO LỆNH", "ENTRY"), state.text("Giờ H1 khuyến nghị vào lệnh.", "Recommended H1 entry hour."))
+                            GlossaryLine(state.text("HỌ MẪU", "FAMILY"), state.text("Nhóm cấu trúc nến (GT/TG · TT/GG).", "Candle-structure family (GT/TG · TT/GG)."))
+                            GlossaryLine(state.text("MẪU HÌNH", "PATTERN"), state.text("Chuỗi nến tạo ra tín hiệu.", "The candle sequence forming the signal."))
+                            GlossaryLine(state.text("NẾN GỐC", "BASE CANDLE"), state.text("Nến H1 gốc dùng để suy tín hiệu.", "The base H1 candle the signal derives from."))
+                            GlossaryLine(state.text("KẾT LUẬN", "FINAL"), state.text("Hướng BUY/SELL sau khi áp luật.", "The BUY/SELL call after the rule is applied."))
+                        }
                     }
                 }
             }
             item {
                 OAKCard {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SectionTitle("PATTERN BARS", "NEWEST → OLDEST")
+                        SectionTitle(state.text("NẾN MẪU HÌNH", "PATTERN BARS"), state.text("MỚI → CŨ", "NEWEST → OLDEST"))
                         alert.sampleBars.forEachIndexed { index, bar ->
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
                                 Text("#${index + 1}", modifier = Modifier.width(42.dp), color = p.muted, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
                                 Column(Modifier.weight(1f)) {
                                     Text("${bar.brokerDate} · ${bar.brokerTime}", color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Black)
                                     Text("O ${bar.open} · H ${bar.high} · L ${bar.low} · C ${bar.close}", color = p.muted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                                 }
-                                OAKPill(bar.direction, if (bar.direction == "T") PillTone.BUY else PillTone.SELL)
+                                Box(modifier = Modifier.clearAndSetSemantics { contentDescription = if (bar.direction == "T") state.text("Tăng", "Up (BUY)") else state.text("Giảm", "Down (SELL)") }) {
+                                    OAKPill(bar.direction, if (bar.direction == "T") PillTone.BUY else PillTone.SELL)
+                                }
                             }
                             if (index != alert.sampleBars.lastIndex) HorizontalDivider(color = p.border.copy(alpha = .45f))
                         }
@@ -1186,7 +1343,7 @@ private fun EvidenceSheet(h1: H1SignalPayload, alert: H1SignalAlert, brokerDate:
                             copiedChart = copied
                             Toast.makeText(
                                 context,
-                                if (copied) "Chart PNG copied · ready to paste in Telegram" else "Unable to copy chart PNG",
+                                if (copied) state.text("Đã copy chart PNG · dán sang Telegram", "Chart PNG copied · ready to paste in Telegram") else state.text("Không thể copy chart PNG", "Unable to copy chart PNG"),
                                 Toast.LENGTH_SHORT,
                             ).show()
                         },
@@ -1195,7 +1352,7 @@ private fun EvidenceSheet(h1: H1SignalPayload, alert: H1SignalAlert, brokerDate:
                     Button(
                         onClick = {
                             if (!ShareStore.shareChart(context, alert, brokerDate)) {
-                                Toast.makeText(context, "Unable to open chart sharing", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, state.text("Không thể mở chia sẻ chart", "Unable to open chart sharing"), Toast.LENGTH_SHORT).show()
                             }
                         },
                         modifier = Modifier.weight(1f),
@@ -1217,16 +1374,25 @@ private fun evidencePatternLabel(value: String?): String =
     value?.takeIf { it.isNotBlank() }?.toCharArray()?.joinToString(" ") ?: "—"
 
 @Composable
+private fun GlossaryLine(term: String, meaning: String) {
+    val p = LocalOAKPalette.current
+    Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(term, color = p.accent, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+        Text(meaning, color = p.muted, style = OAKType.bodySm)
+    }
+}
+
+@Composable
 private fun Fact(label: String, value: String) {
     val p = LocalOAKPalette.current
-    Row(Modifier.fillMaxWidth()) {
+    Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
         Text(label, modifier = Modifier.width(94.dp), color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
         Text(value, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
     }
 }
 
 @Composable
-private fun CandlestickChart(bars: List<H1SampleBar>) {
+private fun CandlestickChart(state: OAKAppState, bars: List<H1SampleBar>) {
     val p = LocalOAKPalette.current
     val safe = bars.sortedWith(
         compareBy<H1SampleBar> { it.brokerDate }
@@ -1235,9 +1401,9 @@ private fun CandlestickChart(bars: List<H1SampleBar>) {
     ).take(6)
     OAKCard {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SectionTitle("M15 CHART", "OLDEST → NEWEST")
+            SectionTitle(state.text("BIỂU ĐỒ M15", "M15 CHART"), state.text("CŨ → MỚI", "OLDEST → NEWEST"))
             if (safe.isEmpty()) {
-                Text("No M15 bars", color = p.muted)
+                Text(state.text("Không có nến M15", "No M15 bars"), color = p.muted)
                 return@Column
             }
             val maxPrice = safe.maxOf { it.high }
@@ -1301,7 +1467,26 @@ private fun OAKScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         if (showHeader) item { OAKPageHeader(eyebrow, title, subtitle) }
-        if (state.errorMessage.isNotBlank()) item { Text(state.errorMessage, color = p.danger, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+        if (state.errorMessage.isNotBlank()) item {
+            OAKCard(tint = p.danger) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(state.text("Lỗi kết nối", "Connection error"), color = p.danger, style = OAKType.label)
+                        Text(state.errorMessage, color = p.text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                    TextButton(
+                        onClick = { state.refreshAsync() },
+                        modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = state.text("Thử lại", "Retry") },
+                    ) {
+                        Text(state.text("THỬ LẠI", "RETRY"), color = p.accent, style = OAKType.pill)
+                    }
+                }
+            }
+        }
         content()
         item {
             TextButton(
