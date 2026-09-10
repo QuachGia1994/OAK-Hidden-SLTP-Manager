@@ -6,6 +6,8 @@ All notable changes to the dashboard are recorded here.
 
 ### Changed
 
+- Advanced H1 to v93 without changing public schema 18/state v56. H9 now keeps its GBPUSD H1 base instead of inverting it; H3/H6/H12/H14/H16 and the current weekday block highlights are unchanged. Stale v92 payloads fail closed until the local ICMarkets history rebuild republishes v93 data.
+
 - Advanced H1 to v92 without changing public schema 18/state v56. H12 now keeps USDJPY H1 and H14 now inverts USDCAD H1; H3/H6/H9/H16 retain their v91 policy. The web board and PNG export highlight broker-day blocks by weekday: Monday H3/H9/H12/H16, Tuesday H14, Wednesday H14/H16, Thursday all six blocks, and Friday H3/H6/H9. Stale v91 payloads fail closed until the local ICMarkets history rebuild republishes v92 data; Telegram scheduling still caps at H14.
 
 - Advanced H1 to v91. The dashboard now renders only the shared `ENTRY TIME` row and final `XAUUSD` row for H03/H06/H09/H12/H14/H16. XAUUSD M15 remains the entry-pattern owner, while each final signal reads a closed H1 base selected from the entry/block gap (`+1` uses `entry-2`, `+2` uses `entry-1`): H3 AUDUSD keep, H6 GBPUSD keep, H9 GBPUSD invert, H12 USDJPY invert, H14 USDCAD keep and H16 GBPUSD keep. Local snapshot protocol v2 carries both M15 and H1 OHLC; web/native evidence, PNG export and mobile fallbacks use the same contract. H16 is calculation-only and does not extend the Telegram H14 appointment cutoff.

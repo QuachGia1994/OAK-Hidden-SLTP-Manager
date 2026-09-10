@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced H1 to v93 while keeping public schema 18 and state v56. H9 now uses its GBPUSD H1 base with KEEP instead of INVERT; H3/H6/H12/H14/H16 and weekday highlight scheduling remain unchanged. Stale v92 public payloads are rejected so retained History can be rebuilt from the local ICMarkets source after deployment.
+
 - Fixed PC-local Telegram untargeted close fan-out when one configured MT5 profile is inactive/stale. `Đóng <SYMBOL> <time>` and untargeted `/close` now schedule every fresh enabled MT5 profile, explicitly report stale/unavailable profiles as `SKIPPED`, and return a durable no-op summary when none are fresh instead of aborting the whole command on the first missing heartbeat. Explicit `@ACCOUNT` close remains fail-closed and never falls through to another profile.
 
 - Advanced H1 to v92 while keeping public schema 18 and state v56. H12 now keeps its USDJPY H1 base and H14 now inverts its USDCAD H1 base; H3/H6/H9/H16 are unchanged. H1 Live/History and PNG exports now highlight broker-day blocks by weekday: Monday H3/H9/H12/H16, Tuesday H14, Wednesday H14/H16, Thursday all six blocks, and Friday H3/H6/H9. Stale v91 public payloads are rejected so retained History can be rebuilt from the local ICMarkets source after deployment; the Telegram H14 appointment cutoff remains unchanged.

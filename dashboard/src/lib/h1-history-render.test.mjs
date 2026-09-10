@@ -115,7 +115,7 @@ test("unified H1 keeps the calendar month grid out of the normal closed DOM", ()
   assert.doesNotMatch(h1SignalBoardSource, /embedded|data-embedded/);
 });
 
-test("v92 table renders six equal blocks with only Entry time and XAUUSD rows", () => {
+test("v93 table renders six equal blocks with only Entry time and XAUUSD rows", () => {
   const data = payload();
   data.days["2026-02-03"].symbols.XAUUSD.alerts = [alert(3, 5, "BUY"), alert(16, 17, "SELL")];
   const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data, locale: "VN", unlocked: true }));

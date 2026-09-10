@@ -14,7 +14,7 @@ import {
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 92;
+export const H1_SIGNAL_RULE_VERSION = 93;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
@@ -83,7 +83,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 92;
+  signalRuleVersion: 93;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -208,7 +208,7 @@ export type H1BlockSignalPlan = {
 const H1_BLOCK_BASE_POLICY: Record<number, { baseSymbol: H1LocalSource; inverted: boolean }> = {
   3: { baseSymbol: "AUDUSD", inverted: false },
   6: { baseSymbol: "GBPUSD", inverted: false },
-  9: { baseSymbol: "GBPUSD", inverted: true },
+  9: { baseSymbol: "GBPUSD", inverted: false },
   12: { baseSymbol: "USDJPY", inverted: false },
   14: { baseSymbol: "USDCAD", inverted: true },
   16: { baseSymbol: "GBPUSD", inverted: false },

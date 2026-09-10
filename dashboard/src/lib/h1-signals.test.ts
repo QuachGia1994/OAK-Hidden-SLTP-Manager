@@ -93,7 +93,7 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 v92 uses six blocks, one XAU row and block-specific H1 bases", () => {
+test("H1 v93 uses six blocks, one XAU row and block-specific H1 bases", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD"\]/);
   assert.match(localPatternsSource, /H1_SIGNAL_BASE_SOURCES = \["GBPUSD", "AUDUSD", "USDCAD", "USDJPY"\]/);
@@ -101,13 +101,13 @@ test("H1 v92 uses six blocks, one XAU row and block-specific H1 bases", () => {
   assert.match(mobileAppBackendSource, /FALLBACK_HOURS = \[3, 6, 9, 12, 14, 16\]/);
   assert.match(mobileAppBackendSource, /FALLBACK_SYMBOLS = \["XAUUSD"\]/);
   assert.match(nativeSignalsSource, /visibleSymbols = \["XAUUSD"\]/);
-  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 92/);
+  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 93/);
   assert.match(scannerSource, /H1_SIGNAL_END_HOUR = 16/);
   assert.match(scannerSource, /includes\(hour\) \? H1_TARGET_BASES : \[\]/);
   assert.match(localMarketRouteSource, /evaluateLocalH1PatternsForTarget/);
   assert.match(scannerSource, /3: \{ baseSymbol: "AUDUSD", inverted: false \}/);
   assert.match(scannerSource, /6: \{ baseSymbol: "GBPUSD", inverted: false \}/);
-  assert.match(scannerSource, /9: \{ baseSymbol: "GBPUSD", inverted: true \}/);
+  assert.match(scannerSource, /9: \{ baseSymbol: "GBPUSD", inverted: false \}/);
   assert.match(scannerSource, /12: \{ baseSymbol: "USDJPY", inverted: false \}/);
   assert.match(scannerSource, /14: \{ baseSymbol: "USDCAD", inverted: true \}/);
   assert.match(scannerSource, /16: \{ baseSymbol: "GBPUSD", inverted: false \}/);
@@ -139,7 +139,7 @@ test("H16 is restored for calculation while Telegram scheduling keeps the existi
   assert.doesNotMatch(boardSource + androidScreensSource, /order_send|closePosition|dispatchTask|\/approve/);
 });
 
-test("web and native clients expose only shared Entry time plus the XAUUSD v92 signal row", () => {
+test("web and native clients expose only shared Entry time plus the XAUUSD v93 signal row", () => {
   assert.match(boardSource, /<b>ENTRY TIME<\/b>/);
   assert.match(boardSource, /entryByHour = new Map\(\(day\?\.symbols\?\.XAUUSD\?\.alerts/);
   assert.match(boardSource, /H1_SIGNAL_ROWS = \["XAUUSD"\]/);
@@ -310,7 +310,7 @@ test("unified H1 uses a deterministic Sunday-first history calendar without week
   assert.doesNotMatch(boardSource, /oak-h1-history-dates/);
 });
 
-test("legacy weekday/CẦU/H3-selector presentation stays hidden while v92 H1-base evidence is explicit", () => {
+test("legacy weekday/CẦU/H3-selector presentation stays hidden while v93 H1-base evidence is explicit", () => {
   assert.doesNotMatch(boardSource, /inversionBadge|data-post-signal-inverted|ĐẢO/);
   assert.doesNotMatch(boardSource, /isMonthEndBridgeCell|oak-h1-bridge-badge|data-month-end-bridge|CẦU/);
   assert.doesNotMatch(evidencePanelSource, /Weekday:|WEEKDAY|ĐẢO|GIỮ|h3-prev-|h3-today-|H3 ENTRY/);
