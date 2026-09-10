@@ -17,6 +17,7 @@ import {
   ensureSymbolDay,
   evaluateLocalH1PatternsForTarget,
   h1BlockSignalPlan,
+  highlightedH1BlockHoursForBrokerDate,
   h1TargetBaseFromSymbol,
   mergeH1CloudStateHistory,
   parseCloudState,
@@ -76,10 +77,10 @@ function alertFor(snapshot: H1LocalMarketSnapshot, date: string, slotHour: numbe
   return evaluateLocalH1PatternsForTarget("XAUUSD", date, snapshot, [slotHour], slotHour)[0];
 }
 
-test("rule v91 keeps schema/state stable, exposes one XAU row and restores H16", () => {
+test("rule v92 keeps schema/state stable, exposes one XAU row and restores H16", () => {
   assert.equal(H1_CLOUD_STATE_VERSION, 56);
   assert.equal(H1_PUBLIC_SCHEMA, 18);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 91);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 92);
   assert.equal(H1_CLOUD_PROFILE, "MT5 ICMarkets Local");
   assert.equal(H1_SCAN_END_HOUR, 16);
   assert.equal(H1_SIGNAL_END_HOUR, 16);
@@ -101,8 +102,8 @@ test("all six blocks use the requested H1 source and KEEP/INVERT policy", () => 
     { slot: 3, source: "AUDUSD" as const, inverted: false, direction: "T" as const, expected: "BUY" },
     { slot: 6, source: "GBPUSD" as const, inverted: false, direction: "T" as const, expected: "BUY" },
     { slot: 9, source: "GBPUSD" as const, inverted: true, direction: "G" as const, expected: "BUY" },
-    { slot: 12, source: "USDJPY" as const, inverted: true, direction: "T" as const, expected: "SELL" },
-    { slot: 14, source: "USDCAD" as const, inverted: false, direction: "G" as const, expected: "SELL" },
+    { slot: 12, source: "USDJPY" as const, inverted: false, direction: "T" as const, expected: "BUY" },
+    { slot: 14, source: "USDCAD" as const, inverted: true, direction: "G" as const, expected: "BUY" },
     { slot: 16, source: "GBPUSD" as const, inverted: false, direction: "T" as const, expected: "BUY" },
   ];
   for (const item of cases) {
@@ -115,6 +116,16 @@ test("all six blocks use the requested H1 source and KEEP/INVERT policy", () => 
       [item.slot + 1, item.source, baseHour, 0, item.inverted, item.expected, `${String(baseHour).padStart(2, "0")}:00`],
     );
   }
+});
+
+test("weekday highlight schedule matches the requested broker-day blocks", () => {
+  assert.deepEqual(highlightedH1BlockHoursForBrokerDate("2026-09-07"), [3, 6]);
+  assert.deepEqual(highlightedH1BlockHoursForBrokerDate("2026-09-08"), [14]);
+  assert.deepEqual(highlightedH1BlockHoursForBrokerDate("2026-09-09"), [14]);
+  assert.deepEqual(highlightedH1BlockHoursForBrokerDate("2026-09-10"), [3, 6, 9, 12, 14, 16]);
+  assert.deepEqual(highlightedH1BlockHoursForBrokerDate("2026-09-11"), [3, 6, 9]);
+  assert.deepEqual(highlightedH1BlockHoursForBrokerDate("2026-09-12"), []);
+  assert.deepEqual(highlightedH1BlockHoursForBrokerDate("2026-09-13"), []);
 });
 
 test("SW delta 2 uses entry-1 H1 rather than the delta-1 candle", () => {
@@ -145,33 +156,33 @@ test("H16 is calculation-only while Telegram table annotation keeps the existing
   assert.equal(h1TargetBaseFromSymbol("GBPAUD"), null);
 });
 
-test("cloud state v56 round-trips v91 H1 base evidence", () => {
+test("cloud state v56 round-trips v92 H1 base evidence", () => {
   const date = "2026-09-09";
   const snapshot = market(date, 12, "TTGTTT");
   setH1(snapshot, "USDJPY", date, 11, "T");
   const state = emptyCloudState();
   ensureSymbolDay(state, date, "XAUUSD").symbol.alerts.push(alertFor(snapshot, date, 12));
   const stored = parseCloudState(JSON.stringify(state)).days[date].symbols.XAUUSD?.alerts[0];
-  assert.deepEqual([stored?.baseSymbol, stored?.baseHour, stored?.baseMinute, stored?.baseH1Signal, stored?.symbolH1Signal, stored?.postSignalRule], ["USDJPY", 11, 0, "BUY", "SELL", "block-base-invert"]);
+  assert.deepEqual([stored?.baseSymbol, stored?.baseHour, stored?.baseMinute, stored?.baseH1Signal, stored?.symbolH1Signal, stored?.postSignalRule], ["USDJPY", 11, 0, "BUY", "BUY", "block-base-keep"]);
   assert.equal(stored?.signalBaseBar?.brokerTime, "11:00");
 });
 
-test("public feed schema 18 exposes v91 one-row six-block contract", () => {
+test("public feed schema 18 exposes v92 one-row six-block contract", () => {
   const date = "2026-09-09";
   const snapshot = market(date, 14, "TTGTTT");
   setH1(snapshot, "USDCAD", date, 13, "G");
   const state = emptyCloudState();
   ensureSymbolDay(state, date, "XAUUSD").symbol.alerts.push(alertFor(snapshot, date, 14));
   const feed = buildPublicFeed(state, "2026-09-09T01:00:00.000Z");
-  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours, feed.symbols], [18, 91, [3, 6, 9, 12, 14, 16], ["XAUUSD"]]);
+  assert.deepEqual([feed.schemaVersion, feed.signalRuleVersion, feed.hours, feed.symbols], [18, 92, [3, 6, 9, 12, 14, 16], ["XAUUSD"]]);
   const row = feed.days[date].symbols.XAUUSD?.alerts[0];
-  assert.deepEqual([row?.baseSymbol, row?.baseSignal, row?.signal, row?.postSignalRule, row?.postSignalInverted], ["USDCAD", "SELL", "SELL", "block-base-keep", false]);
+  assert.deepEqual([row?.baseSymbol, row?.baseSignal, row?.signal, row?.postSignalRule, row?.postSignalInverted], ["USDCAD", "SELL", "BUY", "block-base-invert", true]);
   const seeded = parsePublicFeedCloudState(feed);
   const seededRow = seeded?.days[date].symbols.XAUUSD?.alerts[0];
-  assert.deepEqual([seededRow?.baseSymbol, seededRow?.baseH1Signal, seededRow?.symbolH1Signal], ["USDCAD", "SELL", "SELL"]);
+  assert.deepEqual([seededRow?.baseSymbol, seededRow?.baseH1Signal, seededRow?.symbolH1Signal], ["USDCAD", "SELL", "BUY"]);
 });
 
-test("v91 migration drops retired FX rows and rejects stale v90 XAU calculations", () => {
+test("v92 migration drops retired FX rows and rejects stale v91 XAU calculations", () => {
   const date = "2026-09-09";
   const stale = emptyCloudState();
   stale.days[date] = {
@@ -191,7 +202,7 @@ test("v91 migration drops retired FX rows and rejects stale v90 XAU calculations
   const parsed = parseCloudState(JSON.stringify(stale));
   assert.deepEqual(parsed.days[date].symbols.XAUUSD?.alerts, []);
   assert.deepEqual(Object.keys(parsed.days[date].symbols), ["XAUUSD"]);
-  assert.equal(parsePublicFeedCloudState({ ...buildPublicFeed(emptyCloudState()), signalRuleVersion: 90 }), null);
+  assert.equal(parsePublicFeedCloudState({ ...buildPublicFeed(emptyCloudState()), signalRuleVersion: 91 }), null);
 });
 
 test("rule bumps keep H1 history on schema-stable state key and merge dates", () => {
