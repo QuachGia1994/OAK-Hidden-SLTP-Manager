@@ -65,6 +65,27 @@ extension Color {
     }
 }
 
+/// Centralized OAK typography. Built on system text styles so every size honours
+/// Dynamic Type (system font-scaling) instead of fixed points. Mirrors the
+/// Android `OAKType` scale; smallest style is `.caption2` (~11pt) so nothing
+/// renders below the 11pt legibility floor.
+enum OAKFont {
+    static let display = Font.system(.largeTitle, design: .rounded).weight(.black)
+    static let heroTitle = Font.system(.title, design: .rounded).weight(.black)
+    static let cardTitle = Font.system(.title2).weight(.bold)
+    static let toolTitle = Font.system(.title3).weight(.bold)
+    static let body = Font.system(.subheadline).weight(.medium)
+    static let bodySm = Font.system(.footnote).weight(.medium)
+    static let caption = Font.system(.caption).weight(.bold)
+    static let sectionTitle = Font.system(.footnote, design: .monospaced).weight(.black)
+    static let label = Font.system(.caption2, design: .monospaced).weight(.black)
+    static let metricValue = Font.system(.body, design: .monospaced).weight(.black)
+    static let metricBig = Font.system(.title, design: .rounded).weight(.black)
+    static let mono = Font.system(.footnote, design: .monospaced).weight(.black)
+    static let pill = Font.system(.caption2, design: .monospaced).weight(.black)
+    static let eyebrow = Font.system(.caption2, design: .monospaced).weight(.black)
+}
+
 struct OAKCard<Content: View>: View {
     let content: Content
     var tint: Color? = nil
@@ -91,7 +112,7 @@ struct OAKEyebrow: View {
 
     var body: some View {
         Text(text.uppercased())
-            .font(.system(size: 11, weight: .black, design: .monospaced))
+            .font(OAKFont.eyebrow)
             .tracking(2)
             .foregroundStyle(OAKColor.accent)
     }
@@ -106,10 +127,11 @@ struct OAKPageHeader: View {
         VStack(alignment: .leading, spacing: 7) {
             OAKEyebrow(text: eyebrow)
             Text(title)
-                .font(.system(size: 34, weight: .black, design: .rounded))
+                .font(OAKFont.display)
                 .foregroundStyle(OAKColor.text)
+                .accessibilityAddTraits(.isHeader)
             Text(subtitle)
-                .font(.system(size: 15, weight: .medium))
+                .font(OAKFont.body)
                 .foregroundStyle(OAKColor.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -138,7 +160,7 @@ struct OAKPill: View {
 
     var body: some View {
         Text(label)
-            .font(.system(size: 11, weight: .black, design: .monospaced))
+            .font(OAKFont.pill)
             .tracking(0.7)
             .foregroundStyle(color)
             .padding(.horizontal, 9)
@@ -156,13 +178,55 @@ struct OAKMetric: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(label.uppercased())
-                .font(.system(size: 10, weight: .black, design: .monospaced))
+                .font(OAKFont.label)
                 .tracking(1.2)
                 .foregroundStyle(OAKColor.muted)
             Text(value)
-                .font(.system(size: 18, weight: .black, design: .monospaced))
+                .font(OAKFont.metricValue)
                 .foregroundStyle(valueColor)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Reusable guided empty-state: decorative glyph, heading, supporting line and an
+/// optional primary action. Turns blank/loading screens into helpful next steps.
+struct OAKEmptyState: View {
+    let title: String
+    let message: String
+    var actionLabel: String? = nil
+    var onAction: (() -> Void)? = nil
+
+    var body: some View {
+        OAKCard(tint: OAKColor.accent) {
+            VStack(spacing: 11) {
+                Text("i")
+                    .font(OAKFont.metricValue)
+                    .foregroundStyle(OAKColor.accent)
+                    .frame(width: 46, height: 46)
+                    .background(OAKColor.accent.opacity(0.12), in: Circle())
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(OAKFont.toolTitle)
+                    .foregroundStyle(OAKColor.text)
+                    .multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.isHeader)
+                Text(message)
+                    .font(OAKFont.bodySm)
+                    .foregroundStyle(OAKColor.muted)
+                    .multilineTextAlignment(.center)
+                if let actionLabel, let onAction {
+                    Button(action: onAction) {
+                        Text(actionLabel)
+                            .font(.system(.subheadline, design: .monospaced).weight(.black))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
     }
 }

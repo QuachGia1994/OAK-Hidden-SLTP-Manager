@@ -3,6 +3,7 @@ import SwiftUI
 @MainActor
 struct MoreView: View {
     @Environment(AppState.self) private var state
+    @State private var confirmSignOut = false
 
     var body: some View {
         ScrollView {
@@ -31,20 +32,20 @@ struct MoreView: View {
                                 OAKPill(label: system.apiStatus, tone: .success)
                             }
                             HStack(spacing: 8) {
-                                OAKMetric(label: "API LATENCY", value: "\(system.latencyMs)ms", valueColor: OAKColor.accent)
-                                OAKMetric(label: "H1 FEED", value: system.h1.ready ? "READY" : "WAIT", valueColor: system.h1.ready ? OAKColor.success : OAKColor.warning)
+                                OAKMetric(label: state.text(vn: "ĐỘ TRỄ API", en: "API LATENCY"), value: "\(system.latencyMs)ms", valueColor: OAKColor.accent)
+                                OAKMetric(label: state.text(vn: "NGUỒN H1", en: "H1 FEED"), value: system.h1.ready ? "READY" : "WAIT", valueColor: system.h1.ready ? OAKColor.success : OAKColor.warning)
                             }
                         }
                     }
 
                     OAKCard {
                         VStack(alignment: .leading, spacing: 13) {
-                            sectionTitle("H1 FEED", meta: system.h1.brokerDate)
+                            sectionTitle(state.text(vn: "NGUỒN H1", en: "H1 FEED"), meta: system.h1.brokerDate)
                             HStack(spacing: 8) {
-                                OAKMetric(label: "SCHEMA", value: "v\(system.h1.schemaVersion ?? 0)")
-                                OAKMetric(label: "RULE", value: "v\(system.h1.signalRuleVersion ?? 0)")
-                                OAKMetric(label: "HISTORY", value: "\(system.h1.historyDays) days", valueColor: OAKColor.accent)
-                                OAKMetric(label: "SYMBOLS/BLOCKS", value: "\(system.h1.symbolCount) / \(system.h1.blockCount)")
+                                OAKMetric(label: state.text(vn: "LƯỢC ĐỒ", en: "SCHEMA"), value: "v\(system.h1.schemaVersion ?? 0)")
+                                OAKMetric(label: state.text(vn: "LUẬT", en: "RULE"), value: "v\(system.h1.signalRuleVersion ?? 0)")
+                                OAKMetric(label: state.text(vn: "LỊCH SỬ", en: "HISTORY"), value: "\(system.h1.historyDays) \(state.text(vn: "ngày", en: "days"))", valueColor: OAKColor.accent)
+                                OAKMetric(label: state.text(vn: "SYMBOL / BLOCK", en: "SYMBOLS / BLOCKS"), value: "\(system.h1.symbolCount) / \(system.h1.blockCount)")
                             }
                             Divider()
                             Text(system.h1.profile ?? "—")
@@ -55,7 +56,7 @@ struct MoreView: View {
 
                     OAKCard {
                         VStack(alignment: .leading, spacing: 12) {
-                            sectionTitle("PROVIDERS", meta: "\(system.accounts.enabled)/\(system.accounts.total) enabled")
+                            sectionTitle(state.text(vn: "NHÀ CUNG CẤP", en: "PROVIDERS"), meta: "\(system.accounts.enabled)/\(system.accounts.total) \(state.text(vn: "bật", en: "enabled"))")
                             providerRow(name: "cTrader", detail: "Scope: \(system.providers.ctrader.scope ?? "—")", online: system.providers.ctrader.connected)
                             Divider()
                             providerRow(name: "MT5", detail: "\(system.providers.mt5.onlineAccounts)/\(system.providers.mt5.totalAccounts) local heartbeat online", online: system.providers.mt5.connected)
@@ -66,7 +67,7 @@ struct MoreView: View {
                 if let accounts = state.payload?.accounts.accounts {
                     OAKCard {
                         VStack(alignment: .leading, spacing: 12) {
-                            sectionTitle("ACCOUNTS", meta: "\(accounts.count) total")
+                            sectionTitle(state.text(vn: "TÀI KHOẢN", en: "ACCOUNTS"), meta: "\(accounts.count) \(state.text(vn: "tổng", en: "total"))")
                             ForEach(accounts) { account in
                                 accountRow(account)
                                 if account.id != accounts.last?.id { Divider() }
@@ -85,7 +86,7 @@ struct MoreView: View {
                         }
                         .buttonStyle(.glass)
 
-                        Button(role: .destructive) { state.signOut() } label: {
+                        Button(role: .destructive) { confirmSignOut = true } label: {
                             Label(state.text(vn: "ĐĂNG XUẤT", en: "SIGN OUT"), systemImage: "rectangle.portrait.and.arrow.right")
                                 .font(.system(size: 12, weight: .black, design: .monospaced))
                                 .frame(maxWidth: .infinity)
@@ -96,15 +97,36 @@ struct MoreView: View {
                 }
 
                 if !state.errorMessage.isEmpty {
-                    Text(state.errorMessage)
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(OAKColor.danger)
+                    OAKCard(tint: OAKColor.danger) {
+                        HStack(spacing: 10) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(state.text(vn: "Lỗi kết nối", en: "Connection error"))
+                                    .font(OAKFont.label)
+                                    .foregroundStyle(OAKColor.danger)
+                                Text(state.errorMessage)
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(OAKColor.text)
+                            }
+                            Spacer()
+                            Button { Task { await state.refresh() } } label: {
+                                Text(state.text(vn: "THỬ LẠI", en: "RETRY")).font(OAKFont.pill)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
                 }
             }
             .padding(16)
         }
         .background(OAKColor.canvas)
         .refreshable { await state.refresh() }
+        .alert(state.text(vn: "Đăng xuất?", en: "Sign out?"), isPresented: $confirmSignOut) {
+            Button(state.text(vn: "Hủy", en: "Cancel"), role: .cancel) {}
+            Button(state.text(vn: "Đăng xuất", en: "Sign out"), role: .destructive) { state.signOut() }
+        } message: {
+            Text(state.text(vn: "Bạn sẽ cần nhập lại Dashboard API key để mở khóa lại.", en: "You'll need to re-enter the Dashboard API key to unlock again."))
+        }
     }
 
     private var appearanceCard: some View {
@@ -142,9 +164,10 @@ struct MoreView: View {
     private func sectionTitle(_ title: String, meta: String) -> some View {
         HStack {
             Text(title)
-                .font(.system(size: 12, weight: .black, design: .monospaced))
+                .font(OAKFont.sectionTitle)
                 .tracking(1)
                 .foregroundStyle(OAKColor.text)
+                .accessibilityAddTraits(.isHeader)
             Spacer()
             Text(meta)
                 .font(.caption2.bold())
@@ -157,6 +180,7 @@ struct MoreView: View {
             Circle()
                 .fill(online ? OAKColor.success : OAKColor.warning)
                 .frame(width: 9, height: 9)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 Text(name).font(.headline).foregroundStyle(OAKColor.text)
                 Text(detail).font(.caption).foregroundStyle(OAKColor.muted)
@@ -164,6 +188,7 @@ struct MoreView: View {
             Spacer()
             OAKPill(label: online ? "ONLINE" : "OFFLINE", tone: online ? .success : .warning)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private func accountRow(_ account: ProviderAccount) -> some View {
@@ -198,6 +223,7 @@ struct MoreView: View {
                 set: { enabled in Task { await state.toggleAccount(id: account.id, enabled: enabled) } }
             ))
             .labelsHidden()
+            .accessibilityLabel(Text(state.text(vn: "Bật tài khoản \(account.label)", en: "Enable account \(account.label)")))
         }
     }
 }

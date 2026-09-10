@@ -16,8 +16,8 @@ struct ReportsView: View {
 
                 if let reports = state.payload?.reports {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                        metricCard("TOTAL", "\(reports.totalSignals)", OAKColor.accent)
-                        metricCard("BALANCE", String(format: "%.1f%%", reports.signalBalancePct), OAKColor.text)
+                        metricCard(state.text(vn: "TỔNG", en: "TOTAL"), "\(reports.totalSignals)", OAKColor.accent)
+                        metricCard(state.text(vn: "CÂN BẰNG", en: "BALANCE"), String(format: "%.1f%%", reports.signalBalancePct), OAKColor.text)
                         metricCard("BUY", "\(reports.buySignals)", OAKColor.buy)
                         metricCard("SELL", "\(reports.sellSignals)", OAKColor.sell)
                     }
@@ -26,10 +26,11 @@ struct ReportsView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 Text(state.text(vn: "10 NGÀY GẦN NHẤT", en: "LAST 10 DAYS"))
-                                    .font(.system(size: 12, weight: .black, design: .monospaced))
+                                    .font(OAKFont.sectionTitle)
                                     .tracking(1)
+                                    .accessibilityAddTraits(.isHeader)
                                 Spacer()
-                                Text("SIGNAL VOLUME")
+                                Text(state.text(vn: "KHỐI LƯỢNG TÍN HIỆU", en: "SIGNAL VOLUME"))
                                     .font(.caption2.bold())
                                     .foregroundStyle(OAKColor.muted)
                             }
@@ -90,13 +91,14 @@ struct ReportsView: View {
         OAKCard(tint: color) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(label)
-                    .font(.system(size: 10, weight: .black, design: .monospaced))
+                    .font(OAKFont.label)
                     .tracking(1.2)
                     .foregroundStyle(OAKColor.muted)
                 Text(value)
-                    .font(.system(size: 28, weight: .black, design: .rounded))
+                    .font(OAKFont.metricBig)
                     .foregroundStyle(color)
             }
+            .accessibilityElement(children: .combine)
         }
     }
 

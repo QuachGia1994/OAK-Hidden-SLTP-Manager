@@ -4,9 +4,11 @@ import UIKit
 @MainActor
 struct H1EvidenceSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppState.self) private var state
     let h1: H1SignalPayload
     let alert: H1SignalAlert
     let brokerDate: String
+    @State private var glossaryOpen = false
     @State private var copiedChart = false
     @State private var chartShare: OAKShareItem?
     @State private var imageTransferFailed = false
@@ -18,7 +20,7 @@ struct H1EvidenceSheet: View {
                     OAKPageHeader(
                         eyebrow: "H1 / EVIDENCE",
                         title: "\(alert.symbol) · H\(String(format: "%02d", alert.slotHour))",
-                        subtitle: "M15 candlestick chart · oldest → newest"
+                        subtitle: state.text(vn: "Biểu đồ nến M15 · cũ → mới", en: "M15 candlestick chart · oldest → newest")
                     )
 
                     HStack(spacing: 8) {
@@ -32,9 +34,10 @@ struct H1EvidenceSheet: View {
                     OAKCard {
                         VStack(alignment: .leading, spacing: 11) {
                             HStack {
-                                Text("M15 CHART")
-                                    .font(.system(size: 12, weight: .black, design: .monospaced))
+                                Text(state.text(vn: "BIỂU ĐỒ M15", en: "M15 CHART"))
+                                    .font(OAKFont.sectionTitle)
                                     .foregroundStyle(OAKColor.text)
+                                    .accessibilityAddTraits(.isHeader)
                                 Spacer()
                                 Text(alert.scannerSource ?? alert.symbol)
                                     .font(.caption.bold())
@@ -47,30 +50,50 @@ struct H1EvidenceSheet: View {
 
                     OAKCard {
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("KEY FACTS")
-                                .font(.system(size: 12, weight: .black, design: .monospaced))
-                                .foregroundStyle(OAKColor.text)
-                            fact("BROKER DAY", brokerDate)
+                            HStack {
+                                Text(state.text(vn: "THÔNG TIN CHÍNH", en: "KEY FACTS"))
+                                    .font(OAKFont.sectionTitle)
+                                    .foregroundStyle(OAKColor.text)
+                                    .accessibilityAddTraits(.isHeader)
+                                Spacer()
+                                Button { glossaryOpen.toggle() } label: {
+                                    Text(state.text(vn: glossaryOpen ? "ẨN CHÚ GIẢI" : "CHÚ GIẢI", en: glossaryOpen ? "HIDE GLOSSARY" : "GLOSSARY"))
+                                        .font(OAKFont.pill)
+                                }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel(Text(state.text(vn: "Chú giải thuật ngữ", en: "Term glossary")))
+                            }
+                            fact(state.text(vn: "NGÀY BROKER", en: "BROKER DAY"), brokerDate)
                             fact("BLOCK", "H\(alert.slotHour)")
-                            fact("ENTRY", alert.entryHour.map { "H\($0)" } ?? "—")
+                            fact(state.text(vn: "VÀO LỆNH", en: "ENTRY"), alert.entryHour.map { "H\($0)" } ?? "—")
                             let facts = h1.evidenceFacts(date: brokerDate, sourceAlert: alert)
-                            fact("GROUP", alert.patternGroup ?? "—")
-                            fact("FAMILY", familyLabel(alert.patternFamily))
-                            fact("PATTERN", patternLabel(alert.pattern))
-                            fact("PATTERN SRC", facts.patternSource)
-                            fact("BASE CANDLE", facts.rawBase)
-                            if !facts.signalSource.isEmpty { fact("FINAL SOURCE", facts.signalSource) }
-                            fact("RULE", facts.rule)
-                            fact("FINAL", facts.finalSignal)
+                            fact(state.text(vn: "NHÓM", en: "GROUP"), alert.patternGroup ?? "—")
+                            fact(state.text(vn: "HỌ MẪU", en: "FAMILY"), familyLabel(alert.patternFamily))
+                            fact(state.text(vn: "MẪU HÌNH", en: "PATTERN"), patternLabel(alert.pattern))
+                            fact(state.text(vn: "NGUỒN MẪU", en: "PATTERN SRC"), facts.patternSource)
+                            fact(state.text(vn: "NẾN GỐC", en: "BASE CANDLE"), facts.rawBase)
+                            if !facts.signalSource.isEmpty { fact(state.text(vn: "NGUỒN CUỐI", en: "FINAL SOURCE"), facts.signalSource) }
+                            fact(state.text(vn: "LUẬT", en: "RULE"), facts.rule)
+                            fact(state.text(vn: "KẾT LUẬN", en: "FINAL"), facts.finalSignal)
+                            if glossaryOpen {
+                                Divider()
+                                glossaryLine("BLOCK", state.text(vn: "Khung giờ H1 của tín hiệu.", en: "The signal's H1 hour block."))
+                                glossaryLine(state.text(vn: "VÀO LỆNH", en: "ENTRY"), state.text(vn: "Giờ H1 khuyến nghị vào lệnh.", en: "Recommended H1 entry hour."))
+                                glossaryLine(state.text(vn: "HỌ MẪU", en: "FAMILY"), state.text(vn: "Nhóm cấu trúc nến (GT/TG · TT/GG).", en: "Candle-structure family (GT/TG · TT/GG)."))
+                                glossaryLine(state.text(vn: "MẪU HÌNH", en: "PATTERN"), state.text(vn: "Chuỗi nến tạo ra tín hiệu.", en: "The candle sequence forming the signal."))
+                                glossaryLine(state.text(vn: "NẾN GỐC", en: "BASE CANDLE"), state.text(vn: "Nến H1 gốc dùng để suy tín hiệu.", en: "The base H1 candle the signal derives from."))
+                                glossaryLine(state.text(vn: "KẾT LUẬN", en: "FINAL"), state.text(vn: "Hướng BUY/SELL sau khi áp luật.", en: "The BUY/SELL call after the rule is applied."))
+                            }
                         }
                     }
 
                     if let bars = alert.sampleBars, !bars.isEmpty {
                         OAKCard {
                             VStack(alignment: .leading, spacing: 10) {
-                                Text("PATTERN BARS · NEWEST → OLDEST")
-                                    .font(.system(size: 12, weight: .black, design: .monospaced))
+                                Text(state.text(vn: "NẾN MẪU HÌNH · MỚI → CŨ", en: "PATTERN BARS · NEWEST → OLDEST"))
+                                    .font(OAKFont.sectionTitle)
                                     .foregroundStyle(OAKColor.text)
+                                    .accessibilityAddTraits(.isHeader)
                                 ForEach(Array(bars.enumerated()), id: \.offset) { index, bar in
                                     HStack(spacing: 10) {
                                         Text("#\(index + 1)")
@@ -124,7 +147,7 @@ struct H1EvidenceSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Đóng") { dismiss() }
+                    Button(state.text(vn: "Đóng", en: "Close")) { dismiss() }
                 }
             }
         }
@@ -132,7 +155,7 @@ struct H1EvidenceSheet: View {
         .sheet(item: $chartShare) { item in
             OAKActivityView(items: [item.url])
         }
-        .alert("Unable to export PNG", isPresented: $imageTransferFailed) {
+        .alert(state.text(vn: "Không thể xuất ảnh PNG", en: "Unable to export PNG"), isPresented: $imageTransferFailed) {
             Button("OK", role: .cancel) {}
         }
     }
@@ -140,14 +163,28 @@ struct H1EvidenceSheet: View {
     private func fact(_ label: String, _ value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(label)
-                .font(.system(size: 10, weight: .black, design: .monospaced))
+                .font(OAKFont.label)
                 .foregroundStyle(OAKColor.muted)
                 .frame(width: 88, alignment: .leading)
             Text(value)
-                .font(.system(size: 13, weight: .bold, design: .monospaced))
+                .font(OAKFont.mono)
                 .foregroundStyle(OAKColor.text)
             Spacer(minLength: 0)
         }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func glossaryLine(_ term: String, _ meaning: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(term)
+                .font(OAKFont.label)
+                .foregroundStyle(OAKColor.accent)
+            Text(meaning)
+                .font(OAKFont.bodySm)
+                .foregroundStyle(OAKColor.muted)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
     private func familyLabel(_ value: String?) -> String {
