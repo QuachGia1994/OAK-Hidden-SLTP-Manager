@@ -178,7 +178,7 @@ test("native iOS polish keeps H1 matrix clean, image clipboard, sparse report da
   const signalCellEnd = nativeH1BoardSource.indexOf("private struct BrokerCalendarSheet");
   const matrixCellSource = nativeH1BoardSource.slice(signalCellStart, signalCellEnd);
   assert.match(nativeH1BoardSource, /HStack\(alignment: \.top, spacing: 6\)/);
-  assert.match(nativeH1BoardSource, /matrixRowLabel\("ENTRY TIME"\)/);
+  assert.match(nativeH1BoardSource, /matrixRowLabel\(state\.text\(vn: "GIỜ VÀO", en: "ENTRY TIME"\), compact: true\)/);
   assert.match(nativeH1BoardSource, /H1EntryTimeCell/);
   assert.match(matrixCellSource, /RoundedRectangle\(cornerRadius: 11/);
   assert.doesNotMatch(matrixCellSource, /overlay\(alignment: \.trailing\)|overlay\(alignment: \.bottom\)|Divider\(\)/);
@@ -410,7 +410,7 @@ test("native Android copies the iOS H1 presentation, evidence, reports, themes a
   assert.match(androidStateSource, /val initialPayload = api\.fetchApp\(key\)/);
   assert.doesNotMatch(androidScreensSource, /rememberCoroutineScope/);
   assert.doesNotMatch(androidStateSource, /refresh\(forceLoading = true\)/);
-  assert.match(androidScreensSource, /Switch\(checked = account\.enabled/);
+  assert.match(androidScreensSource, /Switch\(\s*checked = account\.enabled,/);
   assert.match(androidScreensSource, /© 2026 QuachGia/);
   assert.match(androidScreensSource, /MIT License/);
   assert.match(androidMainSource, /R\.drawable\.ic_tab_live/);
