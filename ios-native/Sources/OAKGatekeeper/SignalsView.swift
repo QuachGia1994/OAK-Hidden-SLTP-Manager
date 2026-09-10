@@ -34,9 +34,10 @@ struct SignalsView: View {
                     let rows = filteredAlerts(h1: h1, date: date)
 
                     HStack {
-                        Text("H1 ACTIVITY")
-                            .font(.system(size: 13, weight: .black, design: .monospaced))
+                        Text(state.text(vn: "HOẠT ĐỘNG H1", en: "H1 ACTIVITY"))
+                            .font(OAKFont.sectionTitle)
                             .tracking(1)
+                            .accessibilityAddTraits(.isHeader)
                         Spacer()
                         Text(date)
                             .font(.caption.bold())
@@ -70,15 +71,24 @@ struct SignalsView: View {
                             }
                         }
                         .buttonStyle(.plain)
+                        .accessibilityElement(children: .combine)
                     }
 
                     if rows.isEmpty {
-                        OAKCard {
-                            ContentUnavailableView("No matching alerts", systemImage: "waveform.path.ecg")
-                        }
+                        OAKEmptyState(
+                            title: state.text(vn: "Không có tín hiệu khớp", en: "No matching alerts"),
+                            message: filter == .all
+                                ? state.text(vn: "Chưa có tín hiệu BUY/SELL cho ngày H1 mới nhất.", en: "No BUY/SELL alerts for the latest H1 day yet.")
+                                : state.text(vn: "Không có tín hiệu \(filter.rawValue) cho ngày này. Thử xem tất cả.", en: "No \(filter.rawValue) alerts for this day. Try viewing all."),
+                            actionLabel: filter == .all ? nil : state.text(vn: "XEM TẤT CẢ", en: "VIEW ALL"),
+                            onAction: filter == .all ? nil : ({ filter = .all })
+                        )
                     }
                 } else {
-                    OAKCard { ContentUnavailableView("No H1 feed", systemImage: "antenna.radiowaves.left.and.right.slash") }
+                    OAKEmptyState(
+                        title: state.text(vn: "Chưa có feed H1", en: "No H1 feed"),
+                        message: state.text(vn: "Đang chờ dữ liệu H1 từ backend.", en: "Waiting for H1 data from the backend.")
+                    )
                 }
             }
             .padding(16)

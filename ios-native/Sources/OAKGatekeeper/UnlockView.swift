@@ -33,6 +33,7 @@ struct UnlockView: View {
                             Image(systemName: "lock.shield.fill")
                                 .font(.title2)
                                 .foregroundStyle(OAKColor.accent)
+                                .accessibilityHidden(true)
                         }
 
                         SecureField("Dashboard API key", text: $key)

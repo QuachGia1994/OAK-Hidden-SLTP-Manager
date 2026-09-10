@@ -69,6 +69,7 @@ struct NeoTechNativeView: View {
                                         Circle()
                                             .fill(account.bridgeOnline == true ? OAKColor.success : OAKColor.warning)
                                             .frame(width: 8, height: 8)
+                                            .accessibilityHidden(true)
                                         VStack(alignment: .leading, spacing: 3) {
                                             Text(account.label)
                                                 .font(.headline)
@@ -83,6 +84,7 @@ struct NeoTechNativeView: View {
                                             tone: account.bridgeOnline == true ? .success : .warning
                                         )
                                     }
+                                    .accessibilityElement(children: .combine)
                                 }
                             }
                         }
@@ -194,7 +196,9 @@ struct NativeToolsView: View {
                     Spacer()
                     Image(systemName: "arrow.up.right")
                         .foregroundStyle(OAKColor.accent)
+                        .accessibilityHidden(true)
                 }
+                .accessibilityElement(children: .combine)
             }
         }
         .buttonStyle(.plain)
@@ -206,14 +210,17 @@ struct NativeToolsView: View {
                 Image(systemName: symbol)
                     .foregroundStyle(OAKColor.accent)
                     .frame(width: 24)
+                    .accessibilityHidden(true)
                 Text(title)
                     .font(.headline)
                     .foregroundStyle(OAKColor.text)
                 Spacer()
                 Image(systemName: "arrow.up.right")
                     .foregroundStyle(OAKColor.muted)
+                    .accessibilityHidden(true)
             }
             .padding(.vertical, 4)
+            .accessibilityElement(children: .combine)
         }
     }
 }
@@ -221,9 +228,10 @@ struct NativeToolsView: View {
 private func nativeSectionTitle(_ title: String, meta: String) -> some View {
     HStack {
         Text(title)
-            .font(.system(size: 12, weight: .black, design: .monospaced))
+            .font(OAKFont.sectionTitle)
             .tracking(1)
             .foregroundStyle(OAKColor.text)
+            .accessibilityAddTraits(.isHeader)
         Spacer()
         Text(meta)
             .font(.caption2.bold())

@@ -30,10 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -81,9 +78,9 @@ private fun OAKLaunchLoading(state: OAKAppState) {
             ) {
                 OAKOrbitCore(Modifier.size(118.dp), label = "OAK")
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text("OAK GATEKEEPER", color = p.accent, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, letterSpacing = 1.2.sp)
-                    Text(state.text("Đang mở OAK", "Preparing OAK"), color = p.text, fontSize = 20.sp, fontWeight = FontWeight.Black)
-                    Text(state.text("Đang tải dữ liệu…", "Loading data…"), color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace)
+                    Text("OAK GATEKEEPER", color = p.accent, style = OAKType.label)
+                    Text(state.text("Đang mở OAK", "Preparing OAK"), color = p.text, style = OAKType.cardTitle)
+                    Text(state.text("Đang tải dữ liệu…", "Loading data…"), color = p.muted, style = OAKType.monoSm)
                 }
             }
         }

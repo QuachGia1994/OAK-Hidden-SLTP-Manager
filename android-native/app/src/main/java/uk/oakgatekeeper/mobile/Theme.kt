@@ -9,9 +9,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
@@ -21,8 +24,13 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -69,6 +77,29 @@ private val ContrastPalette = OAKPalette(
 
 val LocalOAKPalette = staticCompositionLocalOf { LightPalette }
 
+/**
+ * Single source of truth for OAK typography. Sizes stay in `sp` so they honour
+ * the user's system font-scaling; call sites keep only their `color`.
+ */
+object OAKType {
+    val display = TextStyle(fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black)
+    val heroTitle = TextStyle(fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Black)
+    val cardTitle = TextStyle(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold)
+    val toolTitle = TextStyle(fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
+    val webTitle = TextStyle(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.Bold)
+    val body = TextStyle(fontSize = 15.sp, lineHeight = 22.sp, fontWeight = FontWeight.Medium)
+    val bodySm = TextStyle(fontSize = 13.sp, lineHeight = 19.sp, fontWeight = FontWeight.Medium)
+    val caption = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold)
+    val eyebrow = TextStyle(fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp)
+    val sectionTitle = TextStyle(fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+    val label = TextStyle(fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, letterSpacing = 1.2.sp)
+    val metricValue = TextStyle(fontSize = 18.sp, lineHeight = 22.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+    val metricBig = TextStyle(fontSize = 28.sp, lineHeight = 32.sp, fontWeight = FontWeight.Black)
+    val mono = TextStyle(fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+    val monoSm = TextStyle(fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+    val pill = TextStyle(fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, letterSpacing = .7.sp)
+}
+
 @Composable
 fun OAKTheme(mode: OAKThemeMode, content: @Composable () -> Unit) {
     val palette = when (mode) {
@@ -105,22 +136,15 @@ fun OAKPageHeader(eyebrow: String, title: String, subtitle: String) {
     val p = LocalOAKPalette.current
     Column(verticalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
         OAKEyebrow(eyebrow)
-        Text(title, color = p.text, fontSize = 34.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black)
-        Text(subtitle, color = p.muted, fontSize = 15.sp, lineHeight = 22.sp, fontWeight = FontWeight.Medium)
+        Text(title, color = p.text, style = OAKType.display, modifier = Modifier.semantics { heading() })
+        Text(subtitle, color = p.muted, style = OAKType.body)
     }
 }
 
 @Composable
 fun OAKEyebrow(text: String) {
     val p = LocalOAKPalette.current
-    Text(
-        text.uppercase(),
-        color = p.accent,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Black,
-        fontFamily = FontFamily.Monospace,
-        letterSpacing = 2.sp,
-    )
+    Text(text.uppercase(), color = p.accent, style = OAKType.eyebrow)
 }
 
 @Composable
@@ -160,34 +184,16 @@ fun OAKPill(label: String, tone: PillTone = PillTone.MUTED) {
             .border(1.6.dp, color.copy(alpha = .9f), RoundedCornerShape(999.dp))
             .padding(horizontal = 9.dp, vertical = 5.dp),
         color = color,
-        fontSize = 11.sp,
-        lineHeight = 13.sp,
-        fontWeight = FontWeight.Black,
-        fontFamily = FontFamily.Monospace,
-        letterSpacing = .7.sp,
+        style = OAKType.pill,
     )
 }
 
 @Composable
 fun OAKMetric(label: String, value: String, modifier: Modifier = Modifier, valueColor: Color? = null) {
     val p = LocalOAKPalette.current
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text(
-            label.uppercase(),
-            color = p.muted,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Black,
-            fontFamily = FontFamily.Monospace,
-            letterSpacing = 1.2.sp,
-        )
-        Text(
-            value,
-            color = valueColor ?: p.text,
-            fontSize = 18.sp,
-            lineHeight = 22.sp,
-            fontWeight = FontWeight.Black,
-            fontFamily = FontFamily.Monospace,
-        )
+    Column(modifier = modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text(label.uppercase(), color = p.muted, style = OAKType.label)
+        Text(value, color = valueColor ?: p.text, style = OAKType.metricValue)
     }
 }
 
@@ -195,9 +201,9 @@ fun OAKMetric(label: String, value: String, modifier: Modifier = Modifier, value
 fun SectionTitle(title: String, meta: String = "") {
     val p = LocalOAKPalette.current
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(title.uppercase(), color = p.text, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+        Text(title.uppercase(), color = p.text, style = OAKType.sectionTitle, modifier = Modifier.semantics { heading() })
         Spacer(Modifier.weight(1f))
-        if (meta.isNotBlank()) Text(meta, color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        if (meta.isNotBlank()) Text(meta, color = p.muted, style = OAKType.caption)
     }
 }
 
@@ -207,4 +213,44 @@ fun MetricDivider() {
     Spacer(Modifier.width(9.dp))
     Box(Modifier.width(1.dp).height(42.dp).background(p.border.copy(alpha = .55f)))
     Spacer(Modifier.width(9.dp))
+}
+
+/**
+ * Reusable guided empty-state: an eyebrow glyph, a heading, a supporting line and
+ * an optional primary action. Used to turn blank/loading screens into helpful,
+ * next-step guidance (Nielsen: help & documentation, error recovery).
+ */
+@Composable
+fun OAKEmptyState(
+    title: String,
+    message: String,
+    modifier: Modifier = Modifier,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    val p = LocalOAKPalette.current
+    OAKCard(modifier = modifier, tint = p.accent) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(11.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                Modifier
+                    .size(46.dp)
+                    .background(p.accent.copy(alpha = .12f), RoundedCornerShape(999.dp))
+                    .clearAndSetSemantics { },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("i", color = p.accent, style = OAKType.metricValue)
+            }
+            Text(title, color = p.text, style = OAKType.toolTitle, textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() })
+            Text(message, color = p.muted, style = OAKType.bodySm, textAlign = TextAlign.Center)
+            if (actionLabel != null && onAction != null) {
+                Button(onClick = onAction, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Text(actionLabel, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Black)
+                }
+            }
+        }
+    }
 }

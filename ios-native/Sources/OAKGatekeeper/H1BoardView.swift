@@ -23,6 +23,7 @@ struct H1BoardScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                H1TipsCard()
                 if let h1 = state.payload?.h1, let date = effectiveDate(h1) {
                     H1NativeCommandHero(h1: h1, locale: state.locale)
                     H1NativeMetadataStrip(h1: h1)
@@ -39,16 +40,39 @@ struct H1BoardScreen: View {
                 } else if state.isLoading {
                     OAKCard { ProgressView(state.text(vn: "Đang tải H1…", en: "Loading H1…")) }
                 } else {
-                    OAKCard(tint: OAKColor.warning) {
-                        Text(state.text(vn: "Đang chờ feed H1 local.", en: "Awaiting the local H1 feed."))
-                            .foregroundStyle(OAKColor.muted)
-                    }
+                    OAKEmptyState(
+                        title: state.text(vn: "Chưa có dữ liệu H1", en: "No H1 data yet"),
+                        message: state.text(
+                            vn: "Đang chờ feed H1 local từ backend. Kiểm tra bridge MT5/local đang chạy rồi làm mới.",
+                            en: "Waiting for the local H1 feed from the backend. Make sure the MT5/local bridge is running, then refresh."
+                        ),
+                        actionLabel: state.text(vn: "LÀM MỚI", en: "REFRESH"),
+                        onAction: { Task { await state.refresh(forceLoading: true) } }
+                    )
                 }
 
                 if !state.errorMessage.isEmpty {
-                    Text(state.errorMessage)
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(OAKColor.danger)
+                    OAKCard(tint: OAKColor.danger) {
+                        HStack(spacing: 10) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(state.text(vn: "Lỗi kết nối", en: "Connection error"))
+                                    .font(OAKFont.label)
+                                    .foregroundStyle(OAKColor.danger)
+                                Text(state.errorMessage)
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(OAKColor.text)
+                            }
+                            Spacer()
+                            Button {
+                                Task { await state.refresh() }
+                            } label: {
+                                Text(state.text(vn: "THỬ LẠI", en: "RETRY"))
+                                    .font(OAKFont.pill)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
                 }
             }
             .padding(16)
@@ -127,9 +151,9 @@ struct H1BoardScreen: View {
                 }
 
                 HStack(spacing: 0) {
-                    OAKMetric(label: "BROKER DAY", value: date)
+                    OAKMetric(label: state.text(vn: "NGÀY BROKER", en: "BROKER DAY"), value: date)
                     Divider().frame(height: 42).padding(.horizontal, 9)
-                    OAKMetric(label: "UPDATED", value: shortPublished(h1.publishedAt))
+                    OAKMetric(label: state.text(vn: "CẬP NHẬT", en: "UPDATED"), value: shortPublished(h1.publishedAt))
                 }
 
                 HStack(spacing: 8) {
@@ -168,6 +192,7 @@ struct H1BoardScreen: View {
                     .overlay { RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(OAKColor.border, lineWidth: 1) }
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(Text(state.text(vn: "Chọn ngày broker, hiện tại \(displayDate(date))", en: "Choose broker date, currently \(displayDate(date))")))
 
                 Text("\(h1.orderedDatesDescending.count) \(state.text(vn: "ngày giao dịch", en: "trading days")) · \(h1.orderedDatesDescending.last ?? "—") → \(h1.latestDate)")
                     .font(.system(size: 12, weight: .bold, design: .monospaced))
@@ -231,6 +256,46 @@ struct H1BoardScreen: View {
 }
 
 @MainActor
+private struct H1TipsCard: View {
+    @Environment(AppState.self) private var state
+    @AppStorage("oak.h1.tipsDismissed") private var dismissed = false
+
+    var body: some View {
+        if !dismissed {
+            OAKCard(tint: OAKColor.accent) {
+                VStack(alignment: .leading, spacing: 9) {
+                    HStack {
+                        Text(state.text(vn: "BẮT ĐẦU NHANH", en: "QUICK START"))
+                            .font(OAKFont.label)
+                            .tracking(1.2)
+                            .foregroundStyle(OAKColor.accent)
+                            .accessibilityAddTraits(.isHeader)
+                        Spacer()
+                        Button { dismissed = true } label: {
+                            Text(state.text(vn: "ĐÃ HIỂU", en: "GOT IT"))
+                                .font(OAKFont.pill)
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel(Text(state.text(vn: "Ẩn hướng dẫn bắt đầu", en: "Dismiss getting-started tips")))
+                    }
+                    tip(state.text(vn: "Chạm ô BUY/SELL để xem bằng chứng M15.", en: "Tap a BUY/SELL cell to open its M15 evidence."))
+                    tip(state.text(vn: "Đổi NGÀY BROKER để xem lịch sử H1 đã lưu.", en: "Change the BROKER DATE to review retained H1 history."))
+                    tip(state.text(vn: "Kéo xuống để làm mới feed.", en: "Pull down to refresh the feed."))
+                }
+            }
+        }
+    }
+
+    private func tip(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text("•").foregroundStyle(OAKColor.accent).accessibilityHidden(true)
+            Text(text).font(OAKFont.bodySm).foregroundStyle(OAKColor.muted)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+@MainActor
 private struct H1NativeCommandHero: View {
     let h1: H1SignalPayload
     let locale: OAKLocale
@@ -262,6 +327,7 @@ private struct H1NativeCommandHero: View {
 
             OAKNativeOrbitCore()
                 .frame(width: 118, height: 118)
+                .accessibilityHidden(true)
         }
         .padding(16)
         .background(
@@ -281,15 +347,16 @@ private struct H1NativeCommandHero: View {
 
 @MainActor
 private struct H1NativeMetadataStrip: View {
+    @Environment(AppState.self) private var state
     let h1: H1SignalPayload
     private let columns = [GridItem(.flexible(), spacing: 0), GridItem(.flexible(), spacing: 0)]
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: 0) {
-            metadata(label: "NGUỒN DỮ LIỆU", value: "MT5 ICMarkets Local")
-            metadata(label: "NHỊP DỮ LIỆU", value: "H03–H16 · M15 ENTRY + H1 BASE")
-            metadata(label: "NGÀY ĐÃ LƯU", value: "\(h1.orderedDatesDescending.count) ngày")
-            metadata(label: "NGÀY MỚI NHẤT", value: h1.latestDate)
+            metadata(label: state.text(vn: "NGUỒN DỮ LIỆU", en: "DATA SOURCE"), value: "MT5 ICMarkets Local")
+            metadata(label: state.text(vn: "NHỊP DỮ LIỆU", en: "DATA CADENCE"), value: "H03–H16 · M15 ENTRY + H1 BASE")
+            metadata(label: state.text(vn: "NGÀY ĐÃ LƯU", en: "STORED DAYS"), value: "\(h1.orderedDatesDescending.count) \(state.text(vn: "ngày", en: "days"))")
+            metadata(label: state.text(vn: "NGÀY MỚI NHẤT", en: "LATEST DAY"), value: h1.latestDate)
         }
         .background(OAKColor.surface, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
         .overlay { RoundedRectangle(cornerRadius: 15).stroke(OAKColor.border.opacity(0.7), lineWidth: 1) }
@@ -298,11 +365,11 @@ private struct H1NativeMetadataStrip: View {
     private func metadata(label: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(label)
-                .font(.system(size: 10, weight: .black, design: .monospaced))
+                .font(OAKFont.label)
                 .tracking(1.1)
                 .foregroundStyle(OAKColor.muted)
             Text(value)
-                .font(.system(size: 13, weight: .black, design: .monospaced))
+                .font(OAKFont.mono)
                 .foregroundStyle(OAKColor.text)
                 .lineLimit(2)
         }
@@ -310,6 +377,7 @@ private struct H1NativeMetadataStrip: View {
         .padding(.horizontal, 11)
         .padding(.vertical, 9)
         .overlay(alignment: .bottom) { Rectangle().fill(OAKColor.border.opacity(0.45)).frame(height: 0.5) }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -382,6 +450,7 @@ private extension String {
 
 @MainActor
 private struct H1MatrixView: View {
+    @Environment(AppState.self) private var state
     let h1: H1SignalPayload
     let date: String
     let symbols: [String]
@@ -395,12 +464,13 @@ private struct H1MatrixView: View {
         OAKCard {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("BLOCK MATRIX")
-                        .font(.system(size: 13, weight: .black, design: .monospaced))
+                    Text(state.text(vn: "MA TRẬN BLOCK", en: "BLOCK MATRIX"))
+                        .font(OAKFont.sectionTitle)
                         .tracking(1.1)
                         .foregroundStyle(OAKColor.text)
+                        .accessibilityAddTraits(.isHeader)
                     Spacer()
-                    Text("↔ \(String(localized: "Swipe"))")
+                    Text("↔ \(state.text(vn: "Vuốt", en: "Swipe"))")
                         .font(.caption2.bold())
                         .foregroundStyle(OAKColor.muted)
                 }
@@ -408,7 +478,7 @@ private struct H1MatrixView: View {
                 HStack(alignment: .top, spacing: 6) {
                     VStack(spacing: 6) {
                         matrixHeaderLabel("", width: symbolWidth)
-                        matrixRowLabel("ENTRY TIME")
+                        matrixRowLabel(state.text(vn: "GIỜ VÀO", en: "ENTRY TIME"), compact: true)
                         ForEach(symbols, id: \.self) { symbol in
                             matrixRowLabel(symbol)
                         }
@@ -437,6 +507,8 @@ private struct H1MatrixView: View {
                                     ForEach(h1.hours, id: \.self) { hour in
                                         H1SignalCell(
                                             alert: h1.alert(date: date, symbol: symbol, hour: hour),
+                                            symbol: symbol,
+                                            hour: hour,
                                             width: cellWidth,
                                             height: rowHeight,
                                             highlighted: false,
@@ -473,11 +545,12 @@ private struct H1MatrixView: View {
     }
 
     @ViewBuilder
-    private func matrixRowLabel(_ label: String) -> some View {
+    private func matrixRowLabel(_ label: String, compact: Bool = false) -> some View {
         Text(label)
-            .font(.system(size: label == "ENTRY TIME" ? 12 : 14, weight: .black, design: .monospaced))
+            .font(.system(size: compact ? 12 : 14, weight: .black, design: .monospaced))
             .foregroundStyle(OAKColor.text)
             .lineLimit(1)
+            .minimumScaleFactor(0.8)
             .frame(width: symbolWidth, height: rowHeight, alignment: .leading)
             .padding(.leading, 10)
             .background(OAKColor.raised, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
@@ -515,6 +588,8 @@ private struct H1EntryTimeCell: View {
 @MainActor
 private struct H1SignalCell: View {
     let alert: H1SignalAlert?
+    let symbol: String
+    let hour: Int
     let width: CGFloat
     let height: CGFloat
     let highlighted: Bool
@@ -529,11 +604,13 @@ private struct H1SignalCell: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(Text("\(symbol) H\(String(format: "%02d", hour)) \(signal.rawValue)"))
             } else {
                 Text("—")
                     .font(.system(size: 15, weight: .black, design: .monospaced))
                     .foregroundStyle(OAKColor.muted.opacity(0.55))
                     .frame(width: width, height: height)
+                    .accessibilityHidden(true)
             }
         }
         .background((highlighted ? OAKColor.warning.opacity(0.08) : OAKColor.surface), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
