@@ -119,9 +119,9 @@ test("all six blocks use the requested H1 source and KEEP/INVERT policy", () => 
 });
 
 test("weekday highlight schedule matches the requested broker-day blocks", () => {
-  assert.deepEqual(highlightedH1BlockHoursForBrokerDate("2026-09-07"), [3, 6]);
+  assert.deepEqual(highlightedH1BlockHoursForBrokerDate("2026-09-07"), [3, 9, 12, 16]);
   assert.deepEqual(highlightedH1BlockHoursForBrokerDate("2026-09-08"), [14]);
-  assert.deepEqual(highlightedH1BlockHoursForBrokerDate("2026-09-09"), [14]);
+  assert.deepEqual(highlightedH1BlockHoursForBrokerDate("2026-09-09"), [14, 16]);
   assert.deepEqual(highlightedH1BlockHoursForBrokerDate("2026-09-10"), [3, 6, 9, 12, 14, 16]);
   assert.deepEqual(highlightedH1BlockHoursForBrokerDate("2026-09-11"), [3, 6, 9]);
   assert.deepEqual(highlightedH1BlockHoursForBrokerDate("2026-09-12"), []);
