@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,6 +43,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -59,6 +61,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -99,7 +103,7 @@ fun UnlockScreen(state: OAKAppState) {
                 OAKCard(tint = p.accent) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         OAKEyebrow("SECURE ACCESS")
-                        Text(state.text("Mở khóa dashboard", "Unlock dashboard"), color = p.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        Text(state.text("Mở khóa dashboard", "Unlock dashboard"), color = p.text, style = OAKType.cardTitle)
                         OutlinedTextField(
                             value = key,
                             onValueChange = { key = it },
@@ -127,8 +131,7 @@ fun UnlockScreen(state: OAKAppState) {
                                 "The API key is encrypted with Android Keystore and is never embedded in the binary.",
                             ),
                             color = p.muted,
-                            fontSize = 13.sp,
-                            lineHeight = 19.sp,
+                            style = OAKType.bodySm,
                         )
                     }
                 }
@@ -172,7 +175,7 @@ fun H1BoardScreen(state: OAKAppState) {
                         Row(verticalAlignment = Alignment.Top) {
                             Column {
                                 OAKEyebrow(if (date == h1.latestDate) "H1 / LIVE" else "H1 / HISTORY")
-                                Text(state.text("H1 Live + Lịch sử", "H1 Live + History"), color = p.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                Text(state.text("H1 Live + Lịch sử", "H1 Live + History"), color = p.text, style = OAKType.cardTitle)
                             }
                             Spacer(Modifier.weight(1f))
                             Column(horizontalAlignment = Alignment.End) {
@@ -226,7 +229,7 @@ fun H1BoardScreen(state: OAKAppState) {
                                 .padding(13.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(Icons.Default.DateRange, contentDescription = null, tint = p.accent, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.DateRange, contentDescription = state.text("Chọn ngày broker", "Choose broker date"), tint = p.accent, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(10.dp))
                             Text(displayDate(date), color = p.text, fontSize = 17.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
                             Spacer(Modifier.weight(1f))
@@ -278,15 +281,13 @@ private fun H1CommandHero(state: OAKAppState, h1: H1SignalPayload) {
             ) {
                 OAKEyebrow("OAK / TRÍ TUỆ THUẬT TOÁN")
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Text("01", color = p.accent, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
-                    Text("H1 LIVE", color = p.text, fontSize = 30.sp, lineHeight = 32.sp, fontWeight = FontWeight.Black)
+                    Text("01", color = p.accent, style = OAKType.mono)
+                    Text("H1 LIVE", color = p.text, style = OAKType.heroTitle)
                 }
                 Text(
                     state.text("Bám sát tín hiệu. Giao dịch có kỷ luật.", "Track the signal. Trade with discipline."),
                     color = p.muted,
-                    fontSize = 14.sp,
-                    lineHeight = 19.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = OAKType.body,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
                     OAKPill(state.text("DỮ LIỆU ĐÃ LƯU", "RETAINED DATA"), PillTone.SUCCESS)
@@ -322,8 +323,8 @@ private fun H1MetadataStrip(h1: H1SignalPayload) {
 private fun H1MetaCell(label: String, value: String, modifier: Modifier = Modifier) {
     val p = LocalOAKPalette.current
     Column(modifier.padding(horizontal = 8.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text(label, color = p.muted, fontSize = 10.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
-        Text(value, color = p.text, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, maxLines = 2)
+        Text(label, color = p.muted, style = OAKType.label)
+        Text(value, color = p.text, style = OAKType.mono, maxLines = 2)
     }
 }
 
@@ -454,18 +455,24 @@ private fun BrokerCalendarSheet(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(state.text("Chọn ngày H1", "Choose H1 date"), color = p.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(state.text("Chọn ngày H1", "Choose H1 date"), color = p.text, style = OAKType.cardTitle)
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = onDismiss) { Text(state.text("Đóng", "Close")) }
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { monthAnchor = monthAnchor.minusMonths(1) }) {
+                TextButton(
+                    onClick = { monthAnchor = monthAnchor.minusMonths(1) },
+                    modifier = Modifier.semantics { contentDescription = state.text("Tháng trước", "Previous month") },
+                ) {
                     Text("‹", color = p.accent, fontSize = 30.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.weight(1f))
-                Text(monthTitle, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(monthTitle, color = p.text, style = OAKType.toolTitle)
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = { monthAnchor = monthAnchor.plusMonths(1) }) {
+                TextButton(
+                    onClick = { monthAnchor = monthAnchor.plusMonths(1) },
+                    modifier = Modifier.semantics { contentDescription = state.text("Tháng sau", "Next month") },
+                ) {
                     Text("›", color = p.accent, fontSize = 30.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold)
                 }
             }
@@ -475,7 +482,7 @@ private fun BrokerCalendarSheet(
                         weekday,
                         modifier = Modifier.weight(1f),
                         color = p.muted,
-                        fontSize = if (state.locale == OAKLocale.VN) 11.sp else 9.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -563,7 +570,7 @@ private fun H1Matrix(h1: H1SignalPayload, date: String, onSelect: (H1SignalAlert
 private fun MatrixLabel(value: String, width: Int, height: Int = 52) {
     val p = LocalOAKPalette.current
     Box(
-        Modifier.width(width.dp).height(height.dp).background(p.raised, RoundedCornerShape(11.dp)).padding(start = 10.dp),
+        Modifier.width(width.dp).heightIn(min = height.dp).background(p.raised, RoundedCornerShape(11.dp)).padding(start = 10.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
         Text(value, color = p.text, fontSize = if (height > 60) 14.sp else 12.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
@@ -574,7 +581,7 @@ private fun MatrixLabel(value: String, width: Int, height: Int = 52) {
 private fun MatrixHour(hour: Int) {
     val p = LocalOAKPalette.current
     Column(
-        modifier = Modifier.width(82.dp).height(52.dp).background(p.raised, RoundedCornerShape(11.dp)),
+        modifier = Modifier.width(82.dp).heightIn(min = 52.dp).background(p.raised, RoundedCornerShape(11.dp)),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -589,7 +596,7 @@ private fun H1EntryTimeCell(alert: H1SignalAlert?, highlighted: Boolean) {
     Box(
         modifier = Modifier
             .width(82.dp)
-            .height(78.dp)
+            .heightIn(min = 78.dp)
             .background(if (highlighted) p.warning.copy(alpha = .11f) else p.surface, shape)
             .border(if (highlighted) 1.5.dp else 1.dp, if (highlighted) p.warning.copy(alpha = .75f) else p.border.copy(alpha = .4f), shape),
         contentAlignment = Alignment.Center,
@@ -609,10 +616,10 @@ private fun H1SignalCell(alert: H1SignalAlert?, highlighted: Boolean, onSelect: 
     Box(
         modifier = Modifier
             .width(82.dp)
-            .height(78.dp)
+            .heightIn(min = 78.dp)
             .background(if (highlighted) p.warning.copy(alpha = .08f) else p.surface, shape)
             .border(if (highlighted) 1.4.dp else 1.dp, if (highlighted) p.warning.copy(alpha = .65f) else p.border.copy(alpha = .35f), shape)
-            .then(if (alert?.signal != null) Modifier.clickable { onSelect(alert) } else Modifier),
+            .then(if (alert?.signal != null) Modifier.clickable { onSelect(alert) }.semantics { contentDescription = "${alert.symbol} H${alert.slotHour.toString().padStart(2, '0')} ${alert.signal}" } else Modifier),
         contentAlignment = Alignment.Center,
     ) {
         when (alert?.signal) {
@@ -647,7 +654,7 @@ fun NeoTechScreen(state: OAKAppState) {
                         }
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             OAKEyebrow("VERSION 1.10 · STANDALONE")
-                            Text(state.text("Cài một lần, chạy độc lập", "Install once, run standalone"), color = p.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                            Text(state.text("Cài một lần, chạy độc lập", "Install once, run standalone"), color = p.text, style = OAKType.cardTitle)
                             Text(
                                 state.text(
                                     "EA tự bind tài khoản MT5. Không cần Node, PowerShell, bot token hay WebRequest để dùng cảnh báo C5 local.",
@@ -676,7 +683,7 @@ fun NeoTechScreen(state: OAKAppState) {
                     } else {
                         mt5.forEachIndexed { index, account ->
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Box(Modifier.size(8.dp).background(if (account.bridgeOnline == true) p.success else p.warning, RoundedCornerShape(999.dp)))
+                                Box(Modifier.size(8.dp).semantics { contentDescription = "${account.label} ${if (account.bridgeOnline == true) "online" else "offline"}" }.background(if (account.bridgeOnline == true) p.success else p.warning, RoundedCornerShape(999.dp)))
                                 Column(Modifier.weight(1f)) {
                                     Text(account.label, color = p.text, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                                     Text("${account.broker} · ${account.traderLogin ?: account.externalAccountId}", color = p.muted, fontSize = 12.sp)
@@ -775,8 +782,8 @@ private fun NativeToolCard(title: String, detail: String, index: String, onClick
                 Text(index, color = p.accent, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(title, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text(detail, color = p.muted, fontSize = 12.sp, lineHeight = 17.sp)
+                Text(title, color = p.text, style = OAKType.toolTitle)
+                Text(detail, color = p.muted, style = OAKType.bodySm)
             }
             Text("↗", color = p.accent, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         }
@@ -790,7 +797,7 @@ private fun NativeWebToolRow(title: String, path: String, open: (String) -> Unit
         modifier = Modifier.fillMaxWidth().clickable { open(path) }.padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, color = p.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(title, color = p.text, style = OAKType.webTitle)
         Spacer(Modifier.weight(1f))
         Text("↗", color = p.accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
     }
@@ -905,8 +912,8 @@ private fun MetricCard(label: String, value: String, color: Color, modifier: Mod
     OAKCard(modifier = modifier, tint = color) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val p = LocalOAKPalette.current
-            Text(label, color = p.muted, fontSize = 10.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, letterSpacing = 1.2.sp)
-            Text(value, color = color, fontSize = 28.sp, fontWeight = FontWeight.Black)
+            Text(label, color = p.muted, style = OAKType.label)
+            Text(value, color = color, style = OAKType.metricBig)
         }
     }
 }
@@ -916,7 +923,12 @@ private fun ReportBarChart(trend: List<ReportTrend>) {
     val p = LocalOAKPalette.current
     val maxValue = max(1, trend.maxOfOrNull { it.value } ?: 1)
     Column {
-        Canvas(Modifier.fillMaxWidth().height(210.dp)) {
+        Canvas(
+            Modifier
+                .fillMaxWidth()
+                .height(210.dp)
+                .semantics { contentDescription = "Signal volume · ${trend.size} days" },
+        ) {
             if (trend.isEmpty()) return@Canvas
             val gap = 8.dp.toPx()
             val usable = size.width - gap * (trend.size - 1)
@@ -934,7 +946,7 @@ private fun ReportBarChart(trend: List<ReportTrend>) {
         Row(Modifier.fillMaxWidth()) {
             trend.forEachIndexed { index, point ->
                 val show = index == 0 || index == trend.lastIndex || index % 2 == 0
-                Text(if (show) shortDate(point.date) else "", modifier = Modifier.weight(1f), color = p.muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                Text(if (show) shortDate(point.date) else "", modifier = Modifier.weight(1f), color = p.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
             }
         }
     }
@@ -967,8 +979,8 @@ fun MoreScreen(state: OAKAppState, onBack: (() -> Unit)? = null) {
                     Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column {
-                                Text("© 2026 QuachGia", color = p.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                                Text("MIT License · Kotlin · Jetpack Compose · Android", color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("© 2026 QuachGia", color = p.text, style = OAKType.cardTitle)
+                                Text("MIT License · Kotlin · Jetpack Compose · Android", color = p.muted, style = OAKType.caption)
                             }
                             Spacer(Modifier.weight(1f))
                             OAKPill(system.apiStatus, PillTone.SUCCESS)
@@ -1042,11 +1054,11 @@ fun MoreScreen(state: OAKAppState, onBack: (() -> Unit)? = null) {
 private fun ProviderRow(name: String, detail: String, online: Boolean) {
     val p = LocalOAKPalette.current
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(9.dp).background(if (online) p.success else p.warning, RoundedCornerShape(999.dp)))
+        Box(Modifier.size(9.dp).semantics { contentDescription = "$name ${if (online) "online" else "offline"}" }.background(if (online) p.success else p.warning, RoundedCornerShape(999.dp)))
         Spacer(Modifier.width(11.dp))
         Column {
-            Text(name, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text(detail, color = p.muted, fontSize = 13.sp)
+            Text(name, color = p.text, style = OAKType.toolTitle)
+            Text(detail, color = p.muted, style = OAKType.bodySm)
         }
         Spacer(Modifier.weight(1f))
         OAKPill(if (online) "ONLINE" else "OFFLINE", if (online) PillTone.SUCCESS else PillTone.WARNING)
@@ -1068,7 +1080,7 @@ private fun AccountRow(state: OAKAppState, account: ProviderAccount) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(account.label, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(account.label, color = p.text, style = OAKType.toolTitle)
                 if (account.isDefault) OAKPill("DEFAULT", PillTone.ACCENT)
             }
             Text("${account.provider.uppercase()} · ${account.broker} · ${account.traderLogin ?: account.externalAccountId}", color = p.muted, fontSize = 13.sp)
@@ -1123,7 +1135,7 @@ private fun EvidenceSheet(h1: H1SignalPayload, alert: H1SignalAlert, brokerDate:
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column {
                         OAKEyebrow("H1 / EVIDENCE")
-                        Text("${alert.symbol} · H${alert.slotHour.toString().padStart(2, '0')}", color = p.text, fontSize = 28.sp, fontWeight = FontWeight.Black)
+                        Text("${alert.symbol} · H${alert.slotHour.toString().padStart(2, '0')}", color = p.text, style = OAKType.metricBig)
                     }
                     Spacer(Modifier.weight(1f))
                     TextButton(onClick = onDismiss) { Text("Đóng") }
@@ -1231,7 +1243,12 @@ private fun CandlestickChart(bars: List<H1SampleBar>) {
             val maxPrice = safe.maxOf { it.high }
             val minPrice = safe.minOf { it.low }
             val range = (maxPrice - minPrice).takeIf { it > 0 } ?: 1.0
-            Canvas(Modifier.fillMaxWidth().height(160.dp)) {
+            Canvas(
+                Modifier
+                    .fillMaxWidth()
+                    .height(160.dp)
+                    .semantics { contentDescription = "M15 chart · ${safe.size} bars" },
+            ) {
                 val slot = size.width / safe.size
                 safe.forEachIndexed { index, bar ->
                     val centerX = slot * index + slot / 2
@@ -1251,7 +1268,7 @@ private fun CandlestickChart(bars: List<H1SampleBar>) {
                         bar.brokerTime,
                         modifier = Modifier.weight(1f),
                         color = p.muted,
-                        fontSize = 9.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -1273,8 +1290,13 @@ private fun OAKScreen(
     content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit,
 ) {
     val p = LocalOAKPalette.current
-    LazyColumn(
+    PullToRefreshBox(
+        isRefreshing = state.isRefreshing,
+        onRefresh = { state.refreshAsync() },
         modifier = Modifier.fillMaxSize().background(p.canvas),
+    ) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -1282,11 +1304,15 @@ private fun OAKScreen(
         if (state.errorMessage.isNotBlank()) item { Text(state.errorMessage, color = p.danger, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
         content()
         item {
-            TextButton(onClick = { state.refreshAsync() }, modifier = Modifier.fillMaxWidth()) {
+            TextButton(
+                onClick = { state.refreshAsync() },
+                modifier = Modifier.fillMaxWidth().semantics { contentDescription = state.text("Làm mới dữ liệu", "Refresh data") },
+            ) {
                 Text(if (state.isRefreshing) state.text("ĐANG LÀM MỚI…", "REFRESHING…") else state.text("LÀM MỚI", "REFRESH"), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Black)
             }
         }
         item { Spacer(Modifier.height(8.dp)) }
+    }
     }
 }
 
