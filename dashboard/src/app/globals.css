@@ -190,7 +190,7 @@ body {
 .terminal-kicker {
   color: var(--muted);
   font-family: "Cascadia Mono", Consolas, monospace;
-  font-size: 0.66rem;
+  font-size: var(--oak-text-meta);
   font-weight: 800;
   letter-spacing: 0.19em;
   text-transform: uppercase;
@@ -231,7 +231,7 @@ body {
 }
 .oak-share-heading > span {
   color: var(--muted);
-  font-size: .72rem;
+  font-size: var(--oak-text-meta);
   line-height: 1.45;
 }
 .oak-share-actions {
@@ -255,16 +255,16 @@ body {
 /* Tarot reflection */
 .tarot-form { display: grid; gap: .8rem; }
 .tarot-form fieldset { display: grid; gap: .4rem; padding: 0; border: 0; }
-.tarot-form fieldset > legend { margin-bottom: .1rem; color: var(--muted); font: 800 .62rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.tarot-form fieldset > legend { margin-bottom: .1rem; color: var(--muted); font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
 .tarot-domain-options { display: flex; flex-wrap: wrap; gap: .4rem; }
 .tarot-domain-options button, .tarot-spread-options button { min-height: var(--oak-touch-min); border: 1px solid var(--panel-border); border-radius: var(--oak-radius-md); color: var(--foreground); background: var(--surface-raised); cursor: pointer; }
-.tarot-domain-options button { padding: .5rem .7rem; font: 800 .68rem "Cascadia Mono", Consolas, monospace; }
+.tarot-domain-options button { padding: .5rem .7rem; font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .tarot-domain-options button[aria-pressed="true"], .tarot-spread-options button[aria-pressed="true"] { border-color: color-mix(in srgb, var(--terminal-accent) 58%, var(--panel-border)); color: var(--terminal-accent); background: color-mix(in srgb, var(--terminal-accent) 8%, var(--surface)); }
 .tarot-domain-options button:disabled, .tarot-spread-options button:disabled { opacity: .5; cursor: not-allowed; }
 .tarot-spread-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
 .tarot-spread-options button { display: grid; gap: .15rem; padding: .6rem .7rem; text-align: left; }
 .tarot-spread-options button b { font-size: .76rem; }
-.tarot-option-detail { color: var(--muted); font-size: .62rem; line-height: 1.4; }
+.tarot-option-detail { color: var(--muted); font-size: var(--oak-text-meta); line-height: 1.4; }
 .tarot-result { position: relative; border: 1px solid var(--panel-border); border-radius: .9rem; background: var(--surface); box-shadow: var(--terminal-shadow); }
 .tarot-spinner { width: .9rem; height: .9rem; border: 2px solid color-mix(in srgb, var(--background) 35%, transparent); border-top-color: var(--background); border-radius: 999px; animation: tarot-spin .8s linear infinite; }
 .tarot-status { min-height: .1rem; }
@@ -273,28 +273,28 @@ body {
 .tarot-result { display: grid; gap: 1rem; padding: 1rem; }
 .tarot-result > header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding-bottom: .8rem; border-bottom: 1px solid var(--panel-border); }
 .tarot-result > header h2 { margin-top: .25rem; font-size: 1rem; font-weight: 850; }
-.tarot-result > header button { min-height: 2.5rem; padding: .55rem .7rem; border: 1px solid var(--panel-border); border-radius: .55rem; color: var(--foreground); background: var(--surface-raised); font: 800 .7rem "Cascadia Mono", Consolas, monospace; }
+.tarot-result > header button { min-height: 2.5rem; padding: .55rem .7rem; border: 1px solid var(--panel-border); border-radius: .55rem; color: var(--foreground); background: var(--surface-raised); font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .tarot-card-frame { position: relative; width: 100%; height: 100%; padding: .2rem; border: 1px solid color-mix(in srgb, var(--terminal-accent) 32%, var(--panel-border)); border-radius: .45rem; background: var(--surface); overflow: hidden; }
 .tarot-card-art { position: relative; display: grid; width: 100%; height: 100%; place-items: center; overflow: hidden; border-radius: .25rem; background: var(--surface-raised); transition: transform 320ms ease; }
 .tarot-card-art[data-reversed="true"] { transform: rotate(180deg); }
 .tarot-card-art img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .tarot-card-caption { text-align: center; }
-.tarot-card-caption p { color: var(--muted); font: 800 .62rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
-.tarot-card-caption span { display: inline-flex; margin-top: .4rem; padding: .2rem .45rem; border: 1px solid var(--panel-border); border-radius: 999px; color: var(--muted); font: 800 .62rem "Cascadia Mono", Consolas, monospace; }
+.tarot-card-caption p { color: var(--muted); font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.tarot-card-caption span { display: inline-flex; margin-top: .4rem; padding: .2rem .45rem; border: 1px solid var(--panel-border); border-radius: 999px; color: var(--muted); font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .tarot-card-caption span[data-reversed="true"] { color: var(--reverse-text); border-color: var(--reverse-border); background: var(--reverse-bg); }
 .tarot-reading { display: grid; gap: .75rem; }
 .tarot-reading > section { padding: .9rem; border: 1px solid var(--panel-border); border-radius: .75rem; background: var(--surface-raised); }
 .tarot-reading > section > p:last-child { margin-top: .55rem; color: var(--foreground); font-size: .86rem; line-height: 1.65; }
 .tarot-insights { display: grid; gap: .5rem; margin-top: .6rem; }
 .tarot-insights article { padding: .75rem; border-left: 2px solid var(--terminal-accent); background: var(--surface); }
-.tarot-insights h3 { color: var(--terminal-accent); font: 850 .72rem "Cascadia Mono", Consolas, monospace; }
+.tarot-insights h3 { color: var(--terminal-accent); font: 850 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .tarot-insights p { margin-top: .35rem; font-size: .82rem; line-height: 1.6; }
 .tarot-reading ul { display: grid; gap: .45rem; margin-top: .6rem; }
 .tarot-reading li { position: relative; padding-left: 1.1rem; font-size: .82rem; line-height: 1.55; }
 .tarot-reading li::before { content: "✦"; position: absolute; left: 0; color: var(--terminal-accent); }
 .tarot-reflection { border-color: color-mix(in srgb, var(--terminal-accent) 48%, var(--panel-border)) !important; background: color-mix(in srgb, var(--terminal-accent) 7%, var(--surface)) !important; }
 .tarot-reflection blockquote { margin-top: .55rem; font-size: 1rem; font-weight: 750; line-height: 1.55; }
-.tarot-disclaimer { padding-inline: .2rem; color: var(--muted); text-align: center; font-size: .68rem; line-height: 1.5; }
+.tarot-disclaimer { padding-inline: .2rem; color: var(--muted); text-align: center; font-size: var(--oak-text-meta); line-height: 1.5; }
 
 @keyframes tarot-spin { to { transform: rotate(360deg); } }
 @keyframes tarot-pulse { from { opacity: .5; } to { opacity: 1; } }
@@ -317,19 +317,19 @@ body {
 .oak-account-panel { display: grid; gap: 1rem; width: min(100%, 1080px); margin-inline: auto; }
 .oak-account-panel > header h1 { margin-top: .3rem; font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 900; letter-spacing: -.035em; }
 .oak-account-panel > header p { max-width: 52rem; margin-top: .45rem; color: var(--oak-fg-muted); font-size: .86rem; line-height: 1.6; }
-.oak-account-panel > header small { color: var(--oak-accent-command); font: 800 .66rem "Cascadia Mono", Consolas, monospace; letter-spacing: .14em; }
+.oak-account-panel > header small { color: var(--oak-accent-command); font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .14em; }
 .oak-account-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 1rem; padding: 1rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-lg); background: var(--oak-bg-surface); box-shadow: var(--oak-shadow-1); }
 .oak-account-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .oak-account-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; padding: .35rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-md); background: var(--oak-bg-raised); }
-.oak-account-tabs button { display: flex; min-height: 2.7rem; align-items: center; justify-content: center; gap: .45rem; padding: .5rem .75rem; border: 1px solid transparent; border-radius: var(--oak-radius-sm); color: var(--oak-fg-muted); background: transparent; font: 850 .72rem "Cascadia Mono", Consolas, monospace; letter-spacing: .04em; }
-.oak-account-tabs button span { display: inline-grid; min-width: 1.4rem; height: 1.4rem; place-items: center; padding-inline: .28rem; border-radius: 999px; color: var(--oak-fg-muted); background: var(--oak-bg-surface); font-size: .6rem; }
+.oak-account-tabs button { display: flex; min-height: 2.7rem; align-items: center; justify-content: center; gap: .45rem; padding: .5rem .75rem; border: 1px solid transparent; border-radius: var(--oak-radius-sm); color: var(--oak-fg-muted); background: transparent; font: 850 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .04em; }
+.oak-account-tabs button span { display: inline-grid; min-width: 1.4rem; height: 1.4rem; place-items: center; padding-inline: .28rem; border-radius: 999px; color: var(--oak-fg-muted); background: var(--oak-bg-surface); font-size: var(--oak-text-meta); }
 .oak-account-tabs button[data-active="true"] { color: var(--oak-fg-primary); border-color: color-mix(in srgb, var(--oak-accent-command) 52%, var(--oak-border-subtle)); background: var(--oak-bg-surface); box-shadow: var(--oak-shadow-1); }
 .oak-account-tabs button[data-active="true"] span { color: var(--oak-bg-surface); background: var(--oak-accent-command); }
 .oak-account-actions button, .oak-account-card button, .oak-account-login button { min-height: 2.5rem; padding: .55rem .8rem; border: 1px solid var(--oak-border-strong); border-radius: var(--oak-radius-sm); color: var(--oak-fg-primary); background: var(--oak-bg-raised); font-size: .76rem; font-weight: 800; }
 .oak-account-actions button:first-child, .oak-account-card footer button, .oak-account-login button { color: var(--oak-bg-surface); border-color: var(--oak-accent-command); background: var(--oak-accent-command); }
 .oak-account-actions button:disabled, .oak-account-card button:disabled, .oak-account-login button:disabled { opacity: .5; cursor: not-allowed; }
 .oak-account-status { display: flex; flex-wrap: wrap; gap: .5rem; }
-.oak-account-status span { padding: .45rem .65rem; border: 1px solid var(--oak-border-subtle); border-radius: 999px; color: var(--oak-fg-muted); background: var(--oak-bg-surface); font: 700 .68rem "Cascadia Mono", Consolas, monospace; }
+.oak-account-status span { padding: .45rem .65rem; border: 1px solid var(--oak-border-subtle); border-radius: 999px; color: var(--oak-fg-muted); background: var(--oak-bg-surface); font: 700 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .oak-account-status b { color: var(--oak-fg-primary); }
 .oak-account-warning, .oak-account-error, .oak-account-empty { padding: .75rem .85rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-md); font-size: .78rem; line-height: 1.5; }
 .oak-account-warning { color: var(--oak-status-warning); border-color: color-mix(in srgb, var(--oak-status-warning) 40%, var(--oak-border-subtle)); background: color-mix(in srgb, var(--oak-status-warning) 7%, var(--oak-bg-surface)); }
@@ -340,10 +340,10 @@ body {
 .oak-account-card > header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }
 .oak-account-card > header div { display: grid; gap: .2rem; }
 .oak-account-card > header b { font-size: .9rem; }
-.oak-account-card > header span { color: var(--oak-fg-muted); font: 700 .67rem "Cascadia Mono", Consolas, monospace; }
+.oak-account-card > header span { color: var(--oak-fg-muted); font: 700 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .oak-account-card > header label { display: flex; align-items: center; gap: .45rem; font-size: .75rem; font-weight: 800; }
 .oak-account-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .65rem; }
-.oak-account-fields label, .oak-account-login label { display: grid; gap: .3rem; color: var(--oak-fg-muted); font: 700 .67rem "Cascadia Mono", Consolas, monospace; }
+.oak-account-fields label, .oak-account-login label { display: grid; gap: .3rem; color: var(--oak-fg-muted); font: 700 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .oak-account-fields input, .oak-account-fields select, .oak-account-login input { min-height: 2.35rem; width: 100%; padding: .45rem .6rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-sm); color: var(--oak-fg-primary); background: var(--oak-bg-raised); font: 700 .76rem "Cascadia Mono", Consolas, monospace; }
 .oak-account-card footer { display: flex; justify-content: flex-end; }
 .oak-account-login { max-width: 34rem; margin-inline: auto; padding: 1rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-lg); background: var(--oak-bg-surface); box-shadow: var(--oak-shadow-2); }

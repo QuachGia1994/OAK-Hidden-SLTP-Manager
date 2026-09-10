@@ -29,10 +29,10 @@ background:
 
 /* Shared motion primitives */
 .oak-eyebrow {
-  font: 850 .62rem "Cascadia Mono", Consolas, monospace;
+  font: 850 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace;
   text-transform: uppercase;
 
-color: var(--oak-accent-command); font-size: .5rem; letter-spacing: .15em;
+color: var(--oak-accent-command); font-size: var(--oak-text-meta); letter-spacing: .15em;
 }
 
 .oak-primary-action {
@@ -47,7 +47,7 @@ color: var(--oak-accent-command); font-size: .5rem; letter-spacing: .15em;
   padding: .7rem 1rem;
   border: 1px solid color-mix(in srgb, var(--terminal-accent) 68%, var(--panel-border));
   border-radius: .75rem;
-  font: 900 .7rem "Cascadia Mono", Consolas, monospace;
+  font: 900 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace;
   letter-spacing: .07em;
   text-transform: uppercase;
   transition: transform .36s cubic-bezier(.2,.8,.2,1), box-shadow .36s ease, opacity .24s ease;
@@ -155,19 +155,19 @@ width: 2rem; height: 2rem; border-radius: var(--oak-radius-sm);
   animation: oak-spin 10s linear infinite;
 }
 .oak-access-copy { min-width: 0; }
-.oak-access-copy small { color: var(--muted); font: 800 .52rem "Cascadia Mono", Consolas, monospace; letter-spacing: .14em;
+.oak-access-copy small { color: var(--muted); font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .14em;
 
-font-size: .44rem;
+font-size: var(--oak-text-meta);
 }
 .oak-access-copy b { display: block; margin-top: .1rem; color: var(--oak-access-color); font: 900 .75rem "Cascadia Mono", Consolas, monospace; letter-spacing: .07em;
 
-font-size: .64rem;
+font-size: var(--oak-text-meta);
 }
 .oak-access-copy p { margin-top: .1rem; color: var(--muted);
 
-font-size: .58rem;
+font-size: var(--oak-text-meta);
 }
-.oak-access-state { display: flex; align-items: center; gap: .45rem; color: var(--muted); font: 800 .62rem "Cascadia Mono", Consolas, monospace; }
+.oak-access-state { display: flex; align-items: center; gap: .45rem; color: var(--muted); font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .oak-access-state i { width: .42rem; height: .42rem; border-radius: 50%; background: var(--oak-access-color);
 
 animation: none; box-shadow: none;
@@ -177,7 +177,7 @@ animation: none; box-shadow: none;
   border-radius: .65rem;
   color: var(--oak-access-color);
   background: color-mix(in srgb, var(--oak-access-color) 7%, var(--surface));
-  font: 850 .62rem "Cascadia Mono", Consolas, monospace;
+  font: 850 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace;
   transition: transform .28s ease, background-color .28s ease;
 
 min-height: 2rem; padding: .35rem .6rem;
@@ -185,46 +185,52 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-access-panel > button:hover:not(:disabled) { transform: translateY(-1px); background: color-mix(in srgb, var(--oak-access-color) 12%, var(--surface)); }
 
 /* H1 intraday signal matrix */
-.oak-h1-meta small { color: var(--oak-fg-muted); font: 800 .44rem "Cascadia Mono", Consolas, monospace; letter-spacing: .1em; }
+.oak-h1-meta small { color: var(--oak-fg-muted); font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .1em; }
 .oak-h1-share-png { display: inline-flex; min-width: 3.4rem; min-height: 2.4rem; align-items: center; justify-content: center; gap: .28rem; padding: .35rem .5rem; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-subtle)); border-radius: var(--oak-radius-sm); color: var(--oak-accent-command); background: color-mix(in srgb, var(--oak-accent-command) 7%, var(--oak-bg-raised)); transition: border-color var(--oak-motion-fast) ease, background-color var(--oak-motion-fast) ease, opacity var(--oak-motion-fast) ease; }
 .oak-h1-share-png svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.oak-h1-share-png b { font: 900 .5rem "Cascadia Mono", Consolas, monospace; letter-spacing: .05em; }
+.oak-h1-share-png b { font: 900 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .05em; }
 .oak-h1-share-png:hover:not(:disabled) { border-color: var(--oak-accent-command); background: color-mix(in srgb, var(--oak-accent-command) 12%, var(--oak-bg-raised)); }
 .oak-h1-share-png:focus-visible { outline: 2px solid var(--oak-accent-command); outline-offset: 2px; }
 .oak-h1-share-png:disabled { opacity: .38; cursor: wait; }
 .oak-h1-share-png[data-copied="true"] { color: var(--oak-status-success); border-color: color-mix(in srgb, var(--oak-status-success) 70%, var(--oak-border-subtle)); background: color-mix(in srgb, var(--oak-status-success) 10%, var(--oak-bg-raised)); }
 .oak-h1-share-png[data-failed="true"] { color: var(--oak-status-danger); border-color: color-mix(in srgb, var(--oak-status-danger) 70%, var(--oak-border-subtle)); background: color-mix(in srgb, var(--oak-status-danger) 10%, var(--oak-bg-raised)); }
-.oak-h1-locked { padding: .48rem .75rem; border-bottom: 1px solid var(--oak-border-subtle); color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 6%, var(--oak-bg-surface)); font: 800 .58rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-locked { padding: .48rem .75rem; border-bottom: 1px solid var(--oak-border-subtle); color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 6%, var(--oak-bg-surface)); font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .oak-h1-locked-preview { display: flex; align-items: center; gap: .7rem; min-height: 5rem; padding: .8rem; border: 1px dashed var(--oak-border-subtle); border-radius: var(--oak-radius-sm); color: var(--oak-fg-muted); background: var(--oak-bg-raised); }
 .oak-h1-locked-preview-icon { color: var(--oak-accent-command); font: 900 1.15rem "Cascadia Mono", Consolas, monospace; }
-.oak-h1-locked-preview p { font-size: .66rem; line-height: 1.45; }
+.oak-h1-locked-preview p { font-size: var(--oak-text-meta); line-height: 1.45; }
 .oak-h1-locked-preview { margin: .7rem .8rem .8rem; border-color: color-mix(in srgb, var(--oak-status-warning) 32%, var(--oak-border-subtle)); }
-.oak-h1-locked-preview b { display: block; color: var(--oak-fg-primary); font-size: .7rem; }
+.oak-h1-locked-preview b { display: block; color: var(--oak-fg-primary); font-size: var(--oak-text-meta); }
 .oak-h1-locked-preview p { margin-top: .2rem; color: var(--oak-fg-muted); }
 .oak-h1-history { position: relative; z-index: 30; display: grid; gap: .42rem; padding: .55rem .7rem; overflow: visible; border-bottom: 1px solid var(--oak-border-subtle); background: var(--oak-bg-surface); }
 .oak-h1-history[data-empty="true"] { background: color-mix(in srgb, var(--oak-bg-raised) 42%, var(--oak-bg-surface)); }
 .oak-h1-history-row { display: grid; grid-template-columns: 5.8rem minmax(0, 1fr); gap: .55rem; align-items: center; min-width: 0; }
-.oak-h1-history-label { color: var(--oak-fg-muted); font: 800 .46rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.oak-h1-history-label { color: var(--oak-fg-muted); font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
 .oak-h1-history-options { display: flex; gap: .35rem; min-width: 0; }
 .oak-h1-history-options { flex-wrap: wrap; }
 .oak-h1-calendar-picker { display: flex; align-items: center; gap: .45rem; min-width: 0; width: min(100%, 22rem); padding: .22rem .35rem .22rem .45rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-sm); background: var(--oak-bg-raised); }
 .oak-h1-calendar-icon { flex: 0 0 auto; color: var(--oak-accent-command); font-size: .9rem; line-height: 1; }
-.oak-h1-calendar-picker input { min-width: 0; flex: 0 1 11rem; height: 1.85rem; padding: .2rem .3rem; border: 0; border-radius: .35rem; color: var(--oak-fg-primary); background: transparent; font: 850 .58rem "Cascadia Mono", Consolas, monospace; color-scheme: light dark; }
+.oak-h1-calendar-picker input { min-width: 0; flex: 0 1 11rem; height: 1.85rem; padding: .2rem .3rem; border: 0; border-radius: .35rem; color: var(--oak-fg-primary); background: transparent; font: 850 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; color-scheme: light dark; }
 .oak-h1-calendar-picker input:focus-visible { outline: 2px solid var(--oak-accent-command); outline-offset: 1px; }
 .oak-h1-calendar-picker input:disabled { cursor: not-allowed; opacity: .52; }
 .oak-h1-calendar-picker input::-webkit-calendar-picker-indicator { cursor: pointer; opacity: .8; filter: invert(65%) sepia(88%) saturate(1200%) hue-rotate(185deg); }
-.oak-h1-calendar-picker small { min-width: 0; overflow: hidden; color: var(--oak-fg-muted); font: 750 .46rem "Cascadia Mono", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
-.oak-h1-history-chip { flex: 0 0 auto; min-height: 1.9rem; padding: .3rem .52rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-sm); color: var(--oak-fg-muted); background: var(--oak-bg-raised); font: 800 .52rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-calendar-picker small { min-width: 0; overflow: hidden; color: var(--oak-fg-muted); font: 750 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.oak-h1-history-chip { flex: 0 0 auto; min-height: 1.9rem; padding: .3rem .52rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-sm); color: var(--oak-fg-muted); background: var(--oak-bg-raised); font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .oak-h1-history-chip[aria-pressed="true"] { border-color: var(--oak-accent-command); color: var(--oak-accent-command); background: color-mix(in srgb, var(--oak-accent-command) 8%, var(--oak-bg-raised)); }
 .oak-h1-history-chip:focus-visible { outline: 2px solid var(--oak-accent-command); outline-offset: 2px; }
-.oak-h1-history-coverage { color: var(--oak-fg-muted); font: 750 .5rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-history-coverage { color: var(--oak-fg-muted); font: 750 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
+.oak-h1-quick-row .oak-h1-quick-options { display: flex; flex-wrap: wrap; gap: .4rem; min-width: 0; }
+.oak-h1-session-row th { padding: .28rem .2rem; text-align: center; border-right: 1px solid var(--oak-border-subtle); border-bottom: 1px solid var(--oak-border-subtle); font: 800 var(--oak-text-meta)/1 "Cascadia Mono", Consolas, monospace; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.oak-h1-session-corner { background: var(--oak-bg-raised) !important; }
+.oak-h1-session-row th[data-session="ASIA"] { color: var(--oak-accent-command); background: color-mix(in srgb, var(--oak-accent-command) 12%, var(--oak-bg-surface)); }
+.oak-h1-session-row th[data-session="EUROPE"] { color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 12%, var(--oak-bg-surface)); }
+.oak-h1-session-row th[data-session="US"] { color: var(--oak-status-online); background: color-mix(in srgb, var(--oak-status-online) 12%, var(--oak-bg-surface)); }
 .oak-h1-history-empty { margin: .7rem; min-height: 5rem; }
 .oak-h1-empty { min-height: 5.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .8rem; }
 .oak-h1-empty h2 { margin-top: .15rem; font-size: .9rem; font-weight: 900; }
-.oak-h1-empty p { color: var(--oak-fg-muted); font-size: .7rem; }
-.oak-h1-degraded { color: var(--oak-status-warning) !important; font: 800 .58rem "Cascadia Mono", Consolas, monospace !important; letter-spacing: .02em; }
-.oak-h1-awaiting { padding: .5rem .7rem; border-bottom: 1px solid var(--oak-border-subtle); color: var(--oak-fg-muted); font-size: .66rem; }
-.oak-h1-scroll-hint { display: none; margin: 0; padding: .32rem .7rem; border-bottom: 1px solid var(--oak-border-subtle); color: var(--oak-fg-muted); background: var(--oak-bg-raised); font: 750 .48rem "Cascadia Mono", Consolas, monospace; letter-spacing: .02em; }
+.oak-h1-empty p { color: var(--oak-fg-muted); font-size: var(--oak-text-meta); }
+.oak-h1-degraded { color: var(--oak-status-warning) !important; font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace !important; letter-spacing: .02em; }
+.oak-h1-awaiting { padding: .5rem .7rem; border-bottom: 1px solid var(--oak-border-subtle); color: var(--oak-fg-muted); font-size: var(--oak-text-meta); }
+.oak-h1-scroll-hint { display: none; margin: 0; padding: .32rem .7rem; border-bottom: 1px solid var(--oak-border-subtle); color: var(--oak-fg-muted); background: var(--oak-bg-raised); font: 750 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .02em; }
 .oak-h1-table-scroll { max-width: 100%; overflow-x: auto; overflow-y: hidden; border-radius: 0 0 calc(var(--oak-radius-md) - 1px) calc(var(--oak-radius-md) - 1px); overscroll-behavior-inline: contain; -webkit-overflow-scrolling: touch; }
 .oak-h1-table { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
 .oak-h1-table th, .oak-h1-table td { width: 4.45rem; min-width: 4.45rem; border-right: 1px solid var(--oak-border-subtle); border-bottom: 1px solid var(--oak-border-subtle); }
@@ -237,18 +243,11 @@ min-height: 2rem; padding: .35rem .6rem;
   .oak-h1-table th, .oak-h1-table td { width: auto; min-width: 0; }
   .oak-h1-symbol-sticky { width: clamp(8rem, 10vw, 11rem) !important; min-width: clamp(8rem, 10vw, 11rem); }
 }
-.oak-h1-table tbody .oak-h1-symbol-sticky b { color: var(--oak-fg-primary); font: 900 .67rem "Cascadia Mono", Consolas, monospace; white-space: nowrap; }
-.oak-h1-table tbody .oak-h1-symbol-sticky small { display: block; margin-top: .22rem; color: var(--oak-fg-muted); font: 800 .43rem/1.25 "Cascadia Mono", Consolas, monospace; letter-spacing: .02em; white-space: nowrap; }
+.oak-h1-table tbody .oak-h1-symbol-sticky b { color: var(--oak-fg-primary); font: 900 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; white-space: nowrap; }
+.oak-h1-table tbody .oak-h1-symbol-sticky small { display: block; margin-top: .22rem; color: var(--oak-fg-muted); font: 800 var(--oak-text-meta)/1.25 "Cascadia Mono", Consolas, monospace; letter-spacing: .02em; white-space: nowrap; }
 .oak-h1-table thead th[data-post-signal-inverted="true"],
 .oak-h1-table tbody td[data-post-signal-inverted="true"] { background: color-mix(in srgb, var(--oak-status-warning) 12%, var(--oak-bg-surface)); }
 .oak-h1-table thead th[data-post-signal-inverted="true"] { color: var(--oak-status-warning); box-shadow: inset 0 -3px 0 var(--oak-status-warning); }
-.oak-h1-table thead th[data-block-highlight="true"],
-.oak-h1-table tbody td[data-block-highlight="true"] {
-  background: color-mix(in srgb, var(--oak-status-warning) 18%, var(--oak-bg-surface));
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--oak-status-warning) 72%, transparent), inset 0 0 20px color-mix(in srgb, var(--oak-status-warning) 10%, transparent);
-}
-.oak-h1-table thead th[data-block-highlight="true"] { color: var(--oak-status-warning); }
-.oak-h1-table tbody td[data-block-highlight="true"] .oak-h1-cell-entry b { color: var(--oak-status-warning); }
 .oak-h1-table thead th[data-month-end-bridge="true"],
 .oak-h1-table tbody td[data-month-end-bridge="true"] {
   background:
@@ -257,19 +256,19 @@ min-height: 2rem; padding: .35rem .6rem;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oak-accent-command) 55%, transparent), inset 0 0 22px color-mix(in srgb, var(--oak-accent-command) 14%, transparent);
 }
 .oak-h1-table thead th[data-month-end-bridge="true"] { color: var(--oak-accent-command); }
-.oak-h1-block-invert-badge, .oak-h1-bridge-badge { display: block; margin-top: .12rem; color: var(--oak-status-warning); font: 900 .4rem "Cascadia Mono", Consolas, monospace; letter-spacing: .03em; line-height: 1.1; }
+.oak-h1-block-invert-badge, .oak-h1-bridge-badge { display: block; margin-top: .12rem; color: var(--oak-status-warning); font: 900 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .03em; line-height: 1.1; }
 .oak-h1-bridge-badge { color: var(--oak-accent-command); }
-.oak-h1-cell-empty { display: grid; min-height: 3.1rem; place-items: center; color: color-mix(in srgb, var(--oak-fg-muted) 45%, transparent); font-size: .68rem; }
-.oak-h1-cell-locked { display: grid; min-height: 3.1rem; place-items: center; color: var(--oak-status-warning); font: 900 .5rem/1 "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.oak-h1-cell-empty { display: grid; min-height: 3.1rem; place-items: center; color: color-mix(in srgb, var(--oak-fg-muted) 45%, transparent); font-size: var(--oak-text-meta); }
+.oak-h1-cell-locked { display: grid; min-height: 3.1rem; place-items: center; color: var(--oak-status-warning); font: 900 var(--oak-text-meta)/1 "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
 .oak-h1-block-button { position: relative; display: grid; width: 100%; min-height: 3.7rem; place-content: center; padding: .35rem; text-align: center; transition: background-color var(--oak-motion-fast) ease; }
-.oak-h1-block-button b { color: var(--oak-accent-command); font: 950 .72rem "Cascadia Mono", Consolas, monospace; letter-spacing: .04em; }
+.oak-h1-block-button b { color: var(--oak-accent-command); font: 950 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .04em; }
 .oak-h1-cell-signal {
   display: grid;
   width: 100%;
   min-height: 3.1rem;
   place-items: center;
   color: var(--oak-fg-primary);
-  font: 900 .72rem/1 "Cascadia Mono", Consolas, monospace;
+  font: 900 var(--oak-text-meta)/1 "Cascadia Mono", Consolas, monospace;
   letter-spacing: .04em;
   text-align: center;
   white-space: nowrap;
@@ -305,20 +304,20 @@ html.light .oak-h1-cell-entry small[data-signal="BUY"] {
 html.light .oak-h1-cell-entry small[data-signal="SELL"] {
   background: color-mix(in srgb, var(--oak-signal-sell) 15%, #fff);
 }
-.oak-h1-pattern-badge { position: absolute; top: .2rem; right: .24rem; padding: .08rem .18rem; border: 1px solid color-mix(in srgb, var(--oak-accent) 42%, transparent); border-radius: .22rem; color: var(--oak-accent); background: color-mix(in srgb, var(--oak-accent) 9%, var(--oak-bg-surface)); font: 900 .42rem "Cascadia Mono", Consolas, monospace; letter-spacing: .03em; line-height: 1.2; white-space: nowrap; }
-.oak-h1-pattern6-warning { position: absolute; top: .2rem; left: .24rem; padding: .08rem .18rem; border: 1px solid color-mix(in srgb, var(--oak-status-warning) 62%, transparent); border-radius: .22rem; color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 12%, var(--oak-bg-surface)); font: 900 .4rem "Cascadia Mono", Consolas, monospace; letter-spacing: .02em; line-height: 1.2; white-space: nowrap; }
+.oak-h1-pattern-badge { position: absolute; top: .2rem; right: .24rem; padding: .08rem .18rem; border: 1px solid color-mix(in srgb, var(--oak-accent) 42%, transparent); border-radius: .22rem; color: var(--oak-accent); background: color-mix(in srgb, var(--oak-accent) 9%, var(--oak-bg-surface)); font: 900 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .03em; line-height: 1.2; white-space: nowrap; }
+.oak-h1-pattern6-warning { position: absolute; top: .2rem; left: .24rem; padding: .08rem .18rem; border: 1px solid color-mix(in srgb, var(--oak-status-warning) 62%, transparent); border-radius: .22rem; color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 12%, var(--oak-bg-surface)); font: 900 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .02em; line-height: 1.2; white-space: nowrap; }
 .oak-h1-table td[data-pattern-kind="pattern6"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oak-status-warning) 46%, transparent); }
-.oak-h1-entry-badge { position: absolute; bottom: .18rem; left: 50%; transform: translateX(-50%); color: var(--oak-fg-muted); font: 800 .44rem "Cascadia Mono", Consolas, monospace; letter-spacing: .04em; white-space: nowrap; }
+.oak-h1-entry-badge { position: absolute; bottom: .18rem; left: 50%; transform: translateX(-50%); color: var(--oak-fg-muted); font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .04em; white-space: nowrap; }
 .oak-h1-block-button:hover { background: color-mix(in srgb, var(--oak-accent-command) 7%, var(--oak-bg-raised)); }
 .oak-h1-detail-modal { box-sizing: border-box; width: min(43rem, 100%); max-width: 100%; max-height: calc(100dvh - 1.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)); padding: 1rem; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-lg); background: var(--oak-bg-surface); box-shadow: var(--oak-shadow-2); }
 .oak-h1-detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; margin-top: .8rem; }
 .oak-h1-detail-grid > div { min-width: 0; padding: .6rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-sm); background: var(--oak-bg-raised); }
-.oak-h1-detail-grid small { display: block; color: var(--oak-fg-muted); font: 800 .46rem "Cascadia Mono", Consolas, monospace; letter-spacing: .09em; }
-.oak-h1-detail-grid b { display: block; margin-top: .22rem; overflow-wrap: anywhere; font: 850 .65rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-detail-grid small { display: block; color: var(--oak-fg-muted); font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .09em; }
+.oak-h1-detail-grid b { display: block; margin-top: .22rem; overflow-wrap: anywhere; font: 850 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .oak-h1-explain { display: grid; gap: .48rem; margin-top: .7rem; }
 .oak-h1-explain p { display: grid; grid-template-columns: minmax(8.5rem, .55fr) minmax(0, 1.45fr); gap: .75rem; align-items: baseline; padding: .6rem .7rem; border-left: 2px solid var(--oak-accent-command); background: var(--oak-bg-raised); }
-.oak-h1-explain span { color: var(--oak-fg-muted); font-size: .62rem; }
-.oak-h1-explain b { min-width: 0; overflow-wrap: anywhere; font: 850 .66rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-explain span { color: var(--oak-fg-muted); font-size: var(--oak-text-meta); }
+.oak-h1-explain b { min-width: 0; overflow-wrap: anywhere; font: 850 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .oak-h1-explain b[data-side="buy"] { color: var(--oak-signal-buy); }
 .oak-h1-explain b[data-side="sell"] { color: var(--oak-signal-sell); }
 .oak-h1-explain b[data-trade-state="blocked"] { color: var(--oak-status-warning); }
@@ -374,7 +373,7 @@ border-radius: var(--oak-radius-lg); background: var(--oak-bg-surface); box-shad
   border-bottom: 1px solid var(--panel-border);
 }
 .oak-modal-header h2 { margin-top: .25rem; font-size: 1.05rem; font-weight: 850; letter-spacing: -.02em; }
-.oak-modal-header p { margin-top: .25rem; color: var(--muted); font-size: .65rem; line-height: 1.45; }
+.oak-modal-header p { margin-top: .25rem; color: var(--muted); font-size: var(--oak-text-meta); line-height: 1.45; }
 .oak-modal-header > button {
   display: grid;
   width: 2.1rem;
@@ -390,7 +389,7 @@ border-radius: var(--oak-radius-lg); background: var(--oak-bg-surface); box-shad
 }
 .oak-modal-header > button:hover { transform: rotate(90deg); color: var(--foreground); border-color: color-mix(in srgb, var(--terminal-accent) 40%, var(--panel-border)); }
 .oak-vip-field { display: grid; gap: .4rem; margin-top: .9rem; }
-.oak-vip-field span { color: var(--muted); font: 850 .55rem "Cascadia Mono", Consolas, monospace; letter-spacing: .09em; }
+.oak-vip-field span { color: var(--muted); font: 850 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .09em; }
 .oak-vip-field input {
   width: 100%;
   height: 3rem;
@@ -405,7 +404,7 @@ border-radius: var(--oak-radius-lg); background: var(--oak-bg-surface); box-shad
 }
 .oak-vip-field input:focus { border-color: color-mix(in srgb, var(--terminal-accent) 60%, var(--panel-border)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--terminal-accent) 9%, transparent); }
 .oak-vip-modal .oak-primary-action { width: 100%; margin-top: .75rem; }
-.oak-form-error { margin-top: .6rem; color: var(--terminal-danger); font-size: .68rem; line-height: 1.45; }
+.oak-form-error { margin-top: .6rem; color: var(--terminal-danger); font-size: var(--oak-text-meta); line-height: 1.45; }
 
 /* Fact Check */
 .oak-fact-screen {
@@ -436,7 +435,7 @@ border-radius: var(--oak-radius-lg); background: var(--oak-bg-surface); box-shad
 max-width: 36rem; font-size: clamp(1.8rem,4vw,2.7rem); line-height: 1; letter-spacing: -.05em;
 }
 .oak-fact-hero-main > p { max-width: 38rem; margin-top: .75rem; color: var(--muted); font-size: .8rem; line-height: 1.6; }
-.oak-fact-live { display: inline-flex; width: fit-content; align-items: center; gap: .45rem; margin-top: 1rem; padding: .35rem .55rem; border: 1px solid color-mix(in srgb, var(--terminal-accent) 22%, var(--panel-border)); border-radius: 999px; color: var(--muted); background: color-mix(in srgb, var(--terminal-accent) 4%, var(--surface)); font: 750 .55rem "Cascadia Mono", Consolas, monospace; }
+.oak-fact-live { display: inline-flex; width: fit-content; align-items: center; gap: .45rem; margin-top: 1rem; padding: .35rem .55rem; border: 1px solid color-mix(in srgb, var(--terminal-accent) 22%, var(--panel-border)); border-radius: 999px; color: var(--muted); background: color-mix(in srgb, var(--terminal-accent) 4%, var(--surface)); font: 750 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .oak-fact-live i { width: .42rem; height: .42rem; border-radius: 50%; background: var(--terminal-accent); box-shadow: 0 0 10px var(--terminal-accent); }
 .oak-fact-process {
   position: relative;
@@ -458,7 +457,7 @@ max-width: 36rem; font-size: clamp(1.8rem,4vw,2.7rem); line-height: 1; letter-sp
   padding: .75rem;
 }
 .oak-fact-process article:hover { transform: translateX(3px); border-color: color-mix(in srgb, var(--terminal-accent) 28%, var(--panel-border)); background: color-mix(in srgb, var(--terminal-accent) 4%, var(--surface-raised)); }
-.oak-fact-process article > span { color: var(--terminal-accent); font: 900 .56rem "Cascadia Mono", Consolas, monospace; }
+.oak-fact-process article > span { color: var(--terminal-accent); font: 900 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .oak-fact-process b {
   display: block;
   font-size: var(--oak-text-secondary);
@@ -473,7 +472,7 @@ max-width: 36rem; font-size: clamp(1.8rem,4vw,2.7rem); line-height: 1; letter-sp
 .oak-fact-process article:hover > i { color: var(--terminal-accent); transform: translate(2px,-2px); }
 .oak-char-meter {
   color: var(--muted);
-  font: 750 .55rem "Cascadia Mono", Consolas, monospace;
+  font: 750 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace;
   font-size: var(--oak-text-meta);
 }
 .oak-claim-editor {
@@ -497,12 +496,12 @@ max-width: 36rem; font-size: clamp(1.8rem,4vw,2.7rem); line-height: 1; letter-sp
   color: color-mix(in srgb, var(--muted) 58%, transparent);
   background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
   text-align: center;
-  font: 700 .46rem "Cascadia Mono", Consolas, monospace;
+  font: 700 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace;
   display: none;
 }
 .oak-claim-editor textarea::placeholder { color: color-mix(in srgb, var(--muted) 72%, transparent); }
 .oak-ocr-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: .6rem; background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(10px); color: var(--terminal-accent); }
-.oak-ocr-overlay b { font: 850 .65rem "Cascadia Mono", Consolas, monospace; }
+.oak-ocr-overlay b { font: 850 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .oak-ocr-spinner,
 .oak-button-spinner { width: .8rem; height: .8rem; border: 2px solid color-mix(in srgb, currentColor 25%, transparent); border-top-color: currentColor; border-radius: 50%; animation: oak-spin 1s linear infinite; }
 .oak-fact-actions { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: stretch; gap: .65rem; margin-top: .7rem; }
@@ -522,13 +521,13 @@ max-width: 36rem; font-size: clamp(1.8rem,4vw,2.7rem); line-height: 1; letter-sp
 }
 .oak-upload-action:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--terminal-accent) 38%, var(--panel-border)); background: color-mix(in srgb, var(--terminal-accent) 4%, var(--surface-raised)); }
 .oak-upload-action svg { grid-row: 1 / 3; width: 1.1rem; height: 1.1rem; fill: none; stroke: var(--terminal-accent); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-.oak-upload-action span { font-size: .68rem; font-weight: 800; }
-.oak-upload-action small { color: var(--muted); font-size: .55rem; }
+.oak-upload-action span { font-size: var(--oak-text-meta); font-weight: 800; }
+.oak-upload-action small { color: var(--muted); font-size: var(--oak-text-meta); }
 .oak-fact-submit { min-width: 9.5rem; }
 
 .oak-global-error { display: flex; align-items: center; gap: .65rem; padding: .8rem .9rem; border: 1px solid color-mix(in srgb, var(--terminal-danger) 38%, var(--panel-border)); border-radius: .85rem; color: var(--terminal-danger); background: color-mix(in srgb, var(--terminal-danger) 6%, var(--surface)); animation: oak-shake-in .45s ease both; }
 .oak-global-error > span { display: grid; width: 1.6rem; height: 1.6rem; place-items: center; border: 1px solid currentColor; border-radius: 50%; font-weight: 900; }
-.oak-global-error p { font-size: .7rem; font-weight: 700; }
+.oak-global-error p { font-size: var(--oak-text-meta); font-weight: 700; }
 
 .oak-fact-results { display: grid; gap: 1rem; margin-top: .15rem; }
 .oak-verdict-panel { --oak-verdict-color: var(--muted); display: grid; min-width: 0; gap: .75rem; padding: .85rem; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-strong)); border-radius: var(--oak-radius-md); background: var(--oak-bg-surface); }
@@ -538,32 +537,32 @@ max-width: 36rem; font-size: clamp(1.8rem,4vw,2.7rem); line-height: 1; letter-sp
 .oak-verdict-copy { min-width: 0; }
 .oak-verdict-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; margin-top: .35rem; }
 .oak-verdict-title-row h2 { font-size: 1.25rem; font-weight: 800; letter-spacing: -.025em; }
-.oak-verdict-badge { display: inline-flex; align-items: center; min-height: 1.75rem; padding: .28rem .55rem; border: 1px solid currentColor; border-radius: 999px; font: 900 .54rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.oak-verdict-badge { display: inline-flex; align-items: center; min-height: 1.75rem; padding: .28rem .55rem; border: 1px solid currentColor; border-radius: 999px; font: 900 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
 .oak-verdict-badge[data-verdict="supported"] { color: var(--terminal-accent); background: color-mix(in srgb, var(--terminal-accent) 7%, var(--surface)); }
 .oak-verdict-badge[data-verdict="contradicted"] { color: var(--terminal-danger); background: color-mix(in srgb, var(--terminal-danger) 7%, var(--surface)); }
 .oak-verdict-badge[data-verdict="mixed"] { color: var(--terminal-warning); background: color-mix(in srgb, var(--terminal-warning) 7%, var(--surface)); }
 .oak-verdict-badge[data-verdict="insufficient"] { color: var(--muted); background: var(--surface-raised); }
-.oak-model-line { margin-top: .35rem; color: var(--muted); font: 650 .58rem "Cascadia Mono", Consolas, monospace; }
+.oak-model-line { margin-top: .35rem; color: var(--muted); font: 650 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .oak-model-line b { color: var(--foreground); }
 .oak-summary-card { margin-top: .85rem; padding: .8rem .9rem; border-left: 2px solid var(--oak-verdict-color); background: color-mix(in srgb, var(--oak-verdict-color) 4%, var(--surface-raised)); }
-.oak-summary-card small { color: var(--muted); font: 850 .52rem "Cascadia Mono", Consolas, monospace; letter-spacing: .1em; }
+.oak-summary-card small { color: var(--muted); font: 850 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .1em; }
 .oak-summary-card p { margin-top: .35rem; font-size: .78rem; line-height: 1.65; }
 .oak-confidence-block { display: flex; align-items: center; gap: 1rem; }
 .oak-confidence-ring { display: grid; width: 5.5rem; height: 5.5rem; place-items: center; flex: 0 0 auto; border-radius: 50%; box-shadow: 0 0 40px color-mix(in srgb, var(--oak-verdict-color) 8%, transparent); animation: oak-ring-enter .8s .1s cubic-bezier(.16,1,.3,1) both; }
 .oak-confidence-ring > div { display: grid; width: calc(100% - .55rem); height: calc(100% - .55rem); place-content: center; border-radius: 50%; background: var(--oak-panel-solid); text-align: center; }
 .oak-confidence-ring b { color: var(--oak-verdict-color); font: 950 2rem "Cascadia Mono", Consolas, monospace; line-height: 1; }
-.oak-confidence-ring > div > span { margin-left: .15rem; color: var(--muted); font: 750 .65rem "Cascadia Mono", Consolas, monospace; }
-.oak-confidence-ring small { display: block; margin-top: .25rem; color: var(--muted); font: 750 .48rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.oak-confidence-ring > div > span { margin-left: .15rem; color: var(--muted); font: 750 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
+.oak-confidence-ring small { display: block; margin-top: .25rem; color: var(--muted); font: 750 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
 .oak-result-metrics { display: grid; gap: .45rem; flex: 1; }
 .oak-result-metrics article { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; padding: .58rem .65rem; border-bottom: 1px solid var(--panel-border); }
 .oak-result-metrics b { color: var(--oak-verdict-color); font: 900 1rem "Cascadia Mono", Consolas, monospace; }
-.oak-result-metrics span { color: var(--muted); font-size: .6rem; }
+.oak-result-metrics span { color: var(--muted); font-size: var(--oak-text-meta); }
 
 .oak-claims-panel,
 .oak-sources-panel { min-width: 0; overflow: hidden; border: 1px solid color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border-strong)); border-radius: var(--oak-radius-md); background: var(--oak-bg-surface); }
 .oak-section-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem 1rem; border-bottom: 1px solid var(--panel-border); background: color-mix(in srgb, var(--surface-raised) 70%, transparent); }
 .oak-section-head :is(h2,h3) { margin-top: .18rem; font-size: .95rem; font-weight: 850; }
-.oak-section-head > span { color: var(--terminal-accent); font: 900 .72rem "Cascadia Mono", Consolas, monospace; }
+.oak-section-head > span { color: var(--terminal-accent); font: 900 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .oak-claims-list { display: grid; }
 .oak-claim-row { --oak-claim-color: var(--muted); display: grid; grid-template-columns: 3rem minmax(0,1fr); border-bottom: 1px solid var(--panel-border); transition: background-color .28s ease; animation: oak-row-enter .55s cubic-bezier(.16,1,.3,1) both; }
 .oak-claim-row:last-child { border-bottom: 0; }
@@ -571,28 +570,28 @@ max-width: 36rem; font-size: clamp(1.8rem,4vw,2.7rem); line-height: 1; letter-sp
 .oak-claim-row[data-verdict="contradicted"] { --oak-claim-color: var(--terminal-danger); }
 .oak-claim-row[data-verdict="mixed"] { --oak-claim-color: var(--terminal-warning); }
 .oak-claim-row:hover { background: color-mix(in srgb, var(--oak-claim-color) 3.5%, var(--surface)); }
-.oak-claim-index { display: grid; place-items: center; border-right: 1px solid var(--panel-border); color: var(--oak-claim-color); font: 900 .58rem "Cascadia Mono", Consolas, monospace; }
+.oak-claim-index { display: grid; place-items: center; border-right: 1px solid var(--panel-border); color: var(--oak-claim-color); font: 900 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .oak-claim-body { padding: .85rem .9rem; }
 .oak-claim-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .65rem; }
 .oak-claim-heading > b { max-width: 54rem; font-size: .75rem; line-height: 1.45; }
-.oak-claim-body > p { margin-top: .45rem; color: var(--muted); font-size: .67rem; line-height: 1.6; }
+.oak-claim-body > p { margin-top: .45rem; color: var(--muted); font-size: var(--oak-text-meta); line-height: 1.6; }
 .oak-claim-sources { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin-top: .55rem; }
-.oak-claim-sources small { color: var(--muted); font: 800 .48rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; }
-.oak-claim-sources span { padding: .15rem .3rem; border: 1px solid color-mix(in srgb, var(--oak-claim-color) 28%, var(--panel-border)); border-radius: .35rem; color: var(--oak-claim-color); font: 800 .5rem "Cascadia Mono", Consolas, monospace; }
+.oak-claim-sources small { color: var(--muted); font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; }
+.oak-claim-sources span { padding: .15rem .3rem; border: 1px solid color-mix(in srgb, var(--oak-claim-color) 28%, var(--panel-border)); border-radius: .35rem; color: var(--oak-claim-color); font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .oak-source-grid { display: grid; gap: .65rem; padding: .85rem; }
 .oak-source-card { position: relative; overflow: hidden; padding: .85rem; border: 1px solid var(--panel-border); border-radius: .8rem; background: var(--surface-raised); transition: transform .35s cubic-bezier(.2,.8,.2,1), border-color .3s ease, box-shadow .3s ease; animation: oak-row-enter .55s cubic-bezier(.16,1,.3,1) both; }
 .oak-source-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 2px; background: var(--terminal-accent); opacity: .55; }
 .oak-source-card:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--terminal-accent) 30%, var(--panel-border)); box-shadow: 0 15px 35px rgba(0,0,0,.1); }
-.oak-source-topline { display: flex; align-items: center; justify-content: space-between; gap: .5rem; color: var(--terminal-accent); font: 850 .52rem "Cascadia Mono", Consolas, monospace; letter-spacing: .07em; }
+.oak-source-topline { display: flex; align-items: center; justify-content: space-between; gap: .5rem; color: var(--terminal-accent); font: 850 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .07em; }
 .oak-source-topline i { font-style: normal; transition: transform .3s ease; }
 .oak-source-card:hover .oak-source-topline i { transform: translate(2px,-2px); }
-.oak-source-card :is(h3,h4) { margin-top: .45rem; font-size: .74rem; font-weight: 800; line-height: 1.45; }
-.oak-source-meta { margin-top: .28rem; color: var(--muted); font-size: .55rem; }
-.oak-source-card > p { margin-top: .5rem; color: var(--muted); font-size: .64rem; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.oak-source-card :is(h3,h4) { margin-top: .45rem; font-size: var(--oak-text-meta); font-weight: 800; line-height: 1.45; }
+.oak-source-meta { margin-top: .28rem; color: var(--muted); font-size: var(--oak-text-meta); }
+.oak-source-card > p { margin-top: .5rem; color: var(--muted); font-size: var(--oak-text-meta); line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .oak-query-strip { padding: .8rem .9rem; border-top: 1px solid var(--panel-border); background: color-mix(in srgb, var(--surface-raised) 64%, transparent); }
-.oak-query-strip > small { color: var(--muted); font: 850 .5rem "Cascadia Mono", Consolas, monospace; letter-spacing: .09em; }
+.oak-query-strip > small { color: var(--muted); font: 850 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .09em; }
 .oak-query-strip > div { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .45rem; }
-.oak-query-strip span { padding: .24rem .4rem; border: 1px solid var(--panel-border); border-radius: .45rem; color: var(--muted); background: var(--surface); font-size: .55rem; }
+.oak-query-strip span { padding: .24rem .4rem; border: 1px solid var(--panel-border); border-radius: .45rem; color: var(--muted); background: var(--surface); font-size: var(--oak-text-meta); }
 
 /* Tarot — same OAK language, intentionally more atmospheric */
 .tarot-result {
@@ -621,15 +620,15 @@ max-width: 36rem; font-size: clamp(1.8rem,4vw,2.7rem); line-height: 1; letter-sp
 /* Discover playground */
 .discover-card:nth-child(2) { animation-delay: .05s; }.discover-card:nth-child(3) { animation-delay: .1s; }.discover-card:nth-child(4) { animation-delay: .15s; }.discover-card:nth-child(5) { animation-delay: .2s; }
 .discover-daily-result article { padding: .72rem .8rem; border: 1px solid var(--panel-border); border-radius: .75rem; background: var(--surface-raised); }
-.discover-daily-result small,.discover-result-strip small,.compat-lists small { display: block; color: var(--terminal-accent); font: 850 .5rem "Cascadia Mono", Consolas, monospace; letter-spacing: .09em; text-transform: uppercase; }
-.discover-daily-result b { display: block; margin-top: .2rem; font-size: 1rem; }.discover-daily-result p { margin-top: .2rem; color: var(--muted); font-size: .72rem; line-height: 1.55; }
+.discover-daily-result small,.discover-result-strip small,.compat-lists small { display: block; color: var(--terminal-accent); font: 850 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .09em; text-transform: uppercase; }
+.discover-daily-result b { display: block; margin-top: .2rem; font-size: 1rem; }.discover-daily-result p { margin-top: .2rem; color: var(--muted); font-size: var(--oak-text-meta); line-height: 1.55; }
 .discover-daily-result blockquote { padding: .8rem .9rem; border-left: 2px solid var(--terminal-accent); color: var(--foreground); background: color-mix(in srgb, var(--terminal-accent) 5%, var(--surface-raised)); font-size: .78rem; line-height: 1.55; }
-.discover-complete { color: var(--muted); font: 800 .56rem "Cascadia Mono", Consolas, monospace; }
+.discover-complete { color: var(--muted); font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .mood-note button:hover { transform: translateY(-1px); }
 .discover-ai-result { display: grid; gap: .65rem; margin-top: .85rem; animation: oak-panel-enter .55s cubic-bezier(.16,1,.3,1) both; }
 .discover-summary { padding: .8rem .9rem; border-left: 2px solid var(--terminal-accent); background: color-mix(in srgb, var(--terminal-accent) 4%, var(--surface-raised)); font-size: .76rem; line-height: 1.65; }
-.discover-symbols { display: grid; gap: .55rem; }.discover-symbols article { padding: .7rem .75rem; border: 1px solid var(--panel-border); border-radius: .7rem; background: var(--surface-raised); }.discover-symbols b { color: var(--terminal-accent); font-size: .72rem; }.discover-symbols p { margin-top: .25rem; color: var(--muted); font-size: .67rem; line-height: 1.55; }
-.discover-result-strip { padding: .72rem .8rem; border: 1px solid var(--panel-border); border-radius: .72rem; background: var(--surface-raised); }.discover-result-strip p { margin-top: .3rem; color: var(--muted); font-size: .7rem; line-height: 1.55; }.discover-result-strip.accent { background: color-mix(in srgb, var(--terminal-accent) 5%, var(--surface-raised)); border-color: color-mix(in srgb, var(--terminal-accent) 25%, var(--panel-border)); }.oracle-result { display: grid; justify-items: center; gap: .65rem; margin-top: 1rem; padding: 1rem; text-align: center; }.oracle-ring { position: relative; display: grid; width: 8rem; height: 8rem; place-items: center; border: 1px solid color-mix(in srgb, var(--terminal-accent) 40%, var(--panel-border)); border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--terminal-accent) 12%, var(--surface)), var(--surface)); box-shadow: 0 0 50px var(--oak-glow); }.oracle-ring i { position: absolute; inset: .7rem; border: 1px dashed color-mix(in srgb, var(--terminal-accent) 30%, transparent); border-radius: 50%; animation: oak-spin 13s linear infinite; }.oracle-ring b { position: relative; z-index: 1; max-width: 6rem; color: var(--terminal-accent); font: 950 .8rem "Cascadia Mono", Consolas, monospace; }.oracle-result p { max-width: 34rem; color: var(--foreground); font-size: .73rem; line-height: 1.55; }.oracle-result small { color: var(--muted); font-size: .6rem; }.compat-metrics { display: grid; gap: .45rem; }.discover-metric { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: .35rem .6rem; align-items: center; padding: .55rem .65rem; border: 1px solid var(--panel-border); border-radius: .65rem; background: var(--surface-raised); }.discover-metric span { color: var(--muted); font-size: .62rem; }.discover-metric b { color: var(--terminal-accent); font: 900 .7rem "Cascadia Mono", Consolas, monospace; }.discover-metric i { grid-column: 1 / -1; height: .28rem; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--panel-border) 70%, transparent); }.discover-metric em { display: block; height: 100%; border-radius: inherit; background: var(--terminal-accent); animation: oak-line-grow .8s cubic-bezier(.16,1,.3,1) both; }.compat-lists { display: grid; gap: .55rem; }.compat-lists article { padding: .7rem .8rem; border: 1px solid var(--panel-border); border-radius: .72rem; background: var(--surface-raised); }.compat-lists ul { display: grid; gap: .3rem; margin-top: .4rem; padding-left: 1rem; color: var(--muted); font-size: .66rem; line-height: 1.45; }
+.discover-symbols { display: grid; gap: .55rem; }.discover-symbols article { padding: .7rem .75rem; border: 1px solid var(--panel-border); border-radius: .7rem; background: var(--surface-raised); }.discover-symbols b { color: var(--terminal-accent); font-size: var(--oak-text-meta); }.discover-symbols p { margin-top: .25rem; color: var(--muted); font-size: var(--oak-text-meta); line-height: 1.55; }
+.discover-result-strip { padding: .72rem .8rem; border: 1px solid var(--panel-border); border-radius: .72rem; background: var(--surface-raised); }.discover-result-strip p { margin-top: .3rem; color: var(--muted); font-size: var(--oak-text-meta); line-height: 1.55; }.discover-result-strip.accent { background: color-mix(in srgb, var(--terminal-accent) 5%, var(--surface-raised)); border-color: color-mix(in srgb, var(--terminal-accent) 25%, var(--panel-border)); }.oracle-result { display: grid; justify-items: center; gap: .65rem; margin-top: 1rem; padding: 1rem; text-align: center; }.oracle-ring { position: relative; display: grid; width: 8rem; height: 8rem; place-items: center; border: 1px solid color-mix(in srgb, var(--terminal-accent) 40%, var(--panel-border)); border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--terminal-accent) 12%, var(--surface)), var(--surface)); box-shadow: 0 0 50px var(--oak-glow); }.oracle-ring i { position: absolute; inset: .7rem; border: 1px dashed color-mix(in srgb, var(--terminal-accent) 30%, transparent); border-radius: 50%; animation: oak-spin 13s linear infinite; }.oracle-ring b { position: relative; z-index: 1; max-width: 6rem; color: var(--terminal-accent); font: 950 .8rem "Cascadia Mono", Consolas, monospace; }.oracle-result p { max-width: 34rem; color: var(--foreground); font-size: var(--oak-text-meta); line-height: 1.55; }.oracle-result small { color: var(--muted); font-size: var(--oak-text-meta); }.compat-metrics { display: grid; gap: .45rem; }.discover-metric { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: .35rem .6rem; align-items: center; padding: .55rem .65rem; border: 1px solid var(--panel-border); border-radius: .65rem; background: var(--surface-raised); }.discover-metric span { color: var(--muted); font-size: var(--oak-text-meta); }.discover-metric b { color: var(--terminal-accent); font: 900 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }.discover-metric i { grid-column: 1 / -1; height: .28rem; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--panel-border) 70%, transparent); }.discover-metric em { display: block; height: 100%; border-radius: inherit; background: var(--terminal-accent); animation: oak-line-grow .8s cubic-bezier(.16,1,.3,1) both; }.compat-lists { display: grid; gap: .55rem; }.compat-lists article { padding: .7rem .8rem; border: 1px solid var(--panel-border); border-radius: .72rem; background: var(--surface-raised); }.compat-lists ul { display: grid; gap: .3rem; margin-top: .4rem; padding-left: 1rem; color: var(--muted); font-size: var(--oak-text-meta); line-height: 1.45; }
 
 @keyframes oak-line-grow { from { width: 0; } }
 
@@ -642,7 +641,7 @@ max-width: 36rem; font-size: clamp(1.8rem,4vw,2.7rem); line-height: 1; letter-sp
   background: color-mix(in srgb, var(--background) 78%, transparent);
   backdrop-filter: blur(18px);
 }
-.oak-footer-inner { display: flex; min-height: 3.2rem; align-items: center; justify-content: space-between; gap: 1rem; color: var(--muted); font: 750 .5rem "Cascadia Mono", Consolas, monospace; letter-spacing: .11em; }
+.oak-footer-inner { display: flex; min-height: 3.2rem; align-items: center; justify-content: space-between; gap: 1rem; color: var(--muted); font: 750 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .11em; }
 .oak-footer-inner span:first-child { color: var(--terminal-accent); }
 
 /* Android performance profile — preserve the OAK look while reducing scroll-time compositing. */
@@ -737,7 +736,7 @@ max-width: 36rem; font-size: clamp(1.8rem,4vw,2.7rem); line-height: 1; letter-sp
 .oak-command-title { min-width: 0; }
 .oak-command-title > div { display: flex; align-items: baseline; gap: .6rem; margin-top: .18rem; }
 .oak-command-title h1 { font-size: 1.15rem; font-weight: 900; letter-spacing: -.035em; }
-.oak-command-title b { color: var(--oak-fg-muted); font: 750 .67rem "Cascadia Mono", Consolas, monospace; }
+.oak-command-title b { color: var(--oak-fg-muted); font: 750 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .oak-command-meta {
   display: flex;
   align-items: stretch;
@@ -747,8 +746,8 @@ max-width: 36rem; font-size: clamp(1.8rem,4vw,2.7rem); line-height: 1; letter-sp
 }
 .oak-command-meta > span { min-width: 7.2rem; padding: .45rem .55rem; border-left: 1px solid var(--oak-border-subtle); }
 .oak-command-meta small, .oak-command-meta b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.oak-command-meta small { color: var(--oak-fg-muted); font: 800 .46rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; }
-.oak-command-meta b { margin-top: .16rem; font: 800 .62rem "Cascadia Mono", Consolas, monospace; }
+.oak-command-meta small { color: var(--oak-fg-muted); font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; }
+.oak-command-meta b { margin-top: .16rem; font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .oak-engine-skeleton { pointer-events: none; }
 .oak-skeleton-copy { display: grid; gap: .35rem; width: 12rem; }
 .oak-skeleton-copy span, .oak-skeleton-copy b, .oak-command-meta > span:empty, .oak-skeleton-access > span, .oak-skeleton-access b, .oak-skeleton-access i, .oak-skeleton-h1 header, .oak-skeleton-h1 > div {
@@ -769,9 +768,9 @@ max-width: 36rem; font-size: clamp(1.8rem,4vw,2.7rem); line-height: 1; letter-sp
 .oak-skeleton-h1 > div { height: 12rem; margin: 1rem; }
 .oak-engine-error { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 1rem; min-height: 10rem; padding: 1rem; border: 1px solid color-mix(in srgb, var(--oak-status-danger) 38%, var(--oak-border-subtle)); border-radius: var(--oak-radius-lg); background: var(--oak-bg-surface); }
 .oak-engine-error > span { display: grid; width: 2.4rem; height: 2.4rem; place-items: center; border-radius: var(--oak-radius-sm); color: var(--oak-status-danger); background: color-mix(in srgb, var(--oak-status-danger) 9%, var(--oak-bg-raised)); font-weight: 900; }
-.oak-engine-error small { color: var(--oak-status-danger); font: 800 .5rem "Cascadia Mono", Consolas, monospace; letter-spacing: .1em; }
+.oak-engine-error small { color: var(--oak-status-danger); font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .1em; }
 .oak-engine-error h1 { margin-top: .18rem; font-size: 1rem; }
-.oak-engine-error p { margin-top: .2rem; color: var(--oak-fg-muted); font-size: .65rem; }
+.oak-engine-error p { margin-top: .2rem; color: var(--oak-fg-muted); font-size: var(--oak-text-meta); }
 .oak-engine-error button { min-height: 2.2rem; padding: .4rem .7rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-sm); color: var(--oak-fg-primary); background: var(--oak-bg-raised); font-weight: 800; }
 .oak-engine-error button:hover { border-color: var(--oak-accent-command); color: var(--oak-accent-command); }
 
@@ -982,11 +981,6 @@ body.oak-body {
 :root:not(.dark):not(.contrast) .oak-h1-symbol-sticky { background: #eef3f8 !important; color: var(--oak-fg-primary) !important; }
 :root:not(.dark):not(.contrast) .oak-h1-table thead th { color: #344054; background: #eef3f8; border-color: #b8c2cf; }
 :root:not(.dark):not(.contrast) .oak-h1-table tbody td { color: var(--oak-fg-primary); background: rgba(255,255,255,.98); border-color: #c3ccd7; }
-:root:not(.dark):not(.contrast) .oak-h1-table thead th[data-block-highlight="true"],
-:root:not(.dark):not(.contrast) .oak-h1-table tbody td[data-block-highlight="true"] {
-  background: color-mix(in srgb, var(--oak-status-warning) 22%, #fff);
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--oak-status-warning) 78%, transparent);
-}
 :root:not(.dark):not(.contrast) .oak-h1-history,
 :root:not(.dark):not(.contrast) .oak-h1-calendar-picker { color: var(--oak-fg-primary); }
 :root:not(.dark):not(.contrast) .oak-h1-calendar-picker { background: #f8fafc; border-color: #aeb9c6; }
@@ -1053,14 +1047,14 @@ body.oak-body {
   color: var(--oak-fg-primary);
   text-align: left;
 }
-.oak-h1-calendar-trigger b { font: 850 .72rem "Cascadia Mono", Consolas, monospace; letter-spacing: .02em; }
+.oak-h1-calendar-trigger b { font: 850 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .02em; }
 .oak-h1-calendar-trigger:disabled { opacity: .52; cursor: not-allowed; }
 .oak-h1-calendar-icon { color: var(--oak-accent-command); font-size: .95rem; }
 .oak-h1-calendar-chevron { color: var(--oak-fg-muted); font-size: .8rem; }
 .oak-h1-calendar-picker > small {
   padding-right: .7rem;
   color: var(--oak-fg-muted);
-  font: 750 .54rem "Cascadia Mono", Consolas, monospace;
+  font: 750 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace;
   white-space: nowrap;
 }
 .oak-h1-calendar-picker[data-open="true"] { border-color: var(--oak-accent-command); box-shadow: 0 0 0 2px color-mix(in srgb, var(--oak-accent-command) 13%, transparent); }
@@ -1084,7 +1078,7 @@ body.oak-body {
   gap: .3rem;
   margin-bottom: .4rem;
 }
-.oak-h1-calendar-popover > header b { text-align: center; font-size: .68rem; text-transform: capitalize; }
+.oak-h1-calendar-popover > header b { text-align: center; font-size: var(--oak-text-meta); text-transform: capitalize; }
 .oak-h1-calendar-popover > header button,
 .oak-h1-calendar-popover > footer button {
   min-height: 1.8rem;
@@ -1104,7 +1098,7 @@ body.oak-body {
   min-height: 1.25rem;
   place-items: center;
   color: var(--oak-fg-muted);
-  font: 800 .5rem "Cascadia Mono", Consolas, monospace;
+  font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace;
 }
 .oak-h1-calendar-weekdays span[data-sunday="true"] { color: var(--oak-status-danger); }
 .oak-h1-calendar-grid button {
@@ -1117,7 +1111,7 @@ body.oak-body {
   border-radius: .42rem;
   color: var(--oak-fg-muted);
   background: transparent;
-  font: 800 .62rem "Cascadia Mono", Consolas, monospace;
+  font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace;
 }
 .oak-h1-calendar-grid button[data-current-month="true"] { color: var(--oak-fg-primary); }
 .oak-h1-calendar-grid button[data-sunday="true"][data-current-month="true"] { color: var(--oak-status-danger); }
@@ -1125,7 +1119,7 @@ body.oak-body {
 .oak-h1-calendar-grid button[data-selected="true"] { color: #fff; border-color: var(--oak-accent-command); background: var(--oak-accent-command); }
 .oak-h1-calendar-grid button:disabled { opacity: .28; cursor: not-allowed; }
 .oak-h1-calendar-popover > footer { display: flex; justify-content: flex-end; margin-top: .4rem; padding-top: .4rem; border-top: 1px solid var(--oak-border-subtle); }
-.oak-h1-calendar-popover > footer button { padding-inline: .6rem; font-size: .55rem; }
+.oak-h1-calendar-popover > footer button { padding-inline: .6rem; font-size: var(--oak-text-meta); }
 
 @media (max-width: 759px) {
   .oak-h1-calendar-picker { width: 100%; min-width: 0; grid-template-columns: minmax(0, 1fr); }
@@ -1151,7 +1145,7 @@ body.oak-body {
 }
 .oak-skip-link:focus { transform: translateY(0); }
 .oak-breadcrumb { border-bottom: 1px solid var(--oak-border-subtle); background: var(--oak-bg-raised); }
-.oak-breadcrumb-inner { display: flex; min-height: 2rem; align-items: center; gap: .4rem; color: var(--oak-fg-muted); font-size: .68rem; }
+.oak-breadcrumb-inner { display: flex; min-height: 2rem; align-items: center; gap: .4rem; color: var(--oak-fg-muted); font-size: var(--oak-text-meta); }
 .oak-breadcrumb-inner > span { display: inline-flex; align-items: center; gap: .4rem; min-width: 0; }
 .oak-breadcrumb-inner a:hover { color: var(--oak-accent-command); }
 .oak-breadcrumb-inner b { color: var(--oak-fg-primary); font-weight: 800; }
@@ -1163,7 +1157,7 @@ body.oak-body {
 .oak-account-empty { display: grid; gap: .65rem; justify-items: start; }
 .oak-account-empty p { margin: 0; }
 .oak-account-empty button,
-.oak-account-empty a { display: inline-flex; min-height: 2.35rem; align-items: center; justify-content: center; padding: .5rem .7rem; border: 1px solid var(--oak-accent-command); border-radius: var(--oak-radius-sm); color: var(--oak-bg-surface); background: var(--oak-accent-command); font-size: .72rem; font-weight: 850; }
+.oak-account-empty a { display: inline-flex; min-height: 2.35rem; align-items: center; justify-content: center; padding: .5rem .7rem; border: 1px solid var(--oak-accent-command); border-radius: var(--oak-radius-sm); color: var(--oak-bg-surface); background: var(--oak-accent-command); font-size: var(--oak-text-meta); font-weight: 850; }
 .oak-account-empty button:disabled { opacity: .5; cursor: not-allowed; }
 .oak-button-spinner {
   display: inline-block;
@@ -1183,7 +1177,7 @@ body.oak-body {
 .oak-command-meta small,
 .oak-h1-meta small,
 .oak-h1-calendar-picker > small,
-.oak-h1-calendar-weekdays span { font-size: .625rem; }
+.oak-h1-calendar-weekdays span { font-size: var(--oak-text-meta); }
 
 @media (max-width: 759px) {
   .page-shell {
@@ -1240,7 +1234,7 @@ body.oak-body {
   border: 1px solid currentColor;
   border-radius: 999px;
   background: color-mix(in srgb, currentColor 9%, var(--oak-bg-surface));
-  font-size: .6875rem;
+  font-size: var(--oak-text-meta);
 }
 
 @media (max-width: 759px) {
@@ -1392,7 +1386,7 @@ body.oak-body {
 }
 .oak-h1-free-access b {
   color: var(--oak-signal-buy);
-  font: 900 .54rem "Cascadia Mono", Consolas, monospace;
+  font: 900 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace;
   letter-spacing: .08em;
   font-size: var(--oak-text-meta);
 }
@@ -1429,7 +1423,7 @@ body.oak-body {
   backdrop-filter: blur(16px);
 }
 .oak-h1-evidence-head h2 { margin-top: .14rem; font-size: 1.18rem; font-weight: 950; }
-.oak-h1-evidence-head p { margin-top: .12rem; color: var(--oak-fg-muted); font-size: .65rem; }
+.oak-h1-evidence-head p { margin-top: .12rem; color: var(--oak-fg-muted); font-size: var(--oak-text-meta); }
 .oak-h1-evidence-actions { display: flex; gap: .38rem; align-items: center; }
 .oak-h1-evidence-copy,
 .oak-h1-evidence-close {
@@ -1439,7 +1433,7 @@ body.oak-body {
   border-radius: var(--oak-radius-sm);
   color: var(--oak-fg-primary);
   background: var(--oak-bg-raised);
-  font: 850 .56rem "Cascadia Mono", Consolas, monospace;
+  font: 850 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace;
 }
 .oak-h1-evidence-copy:hover,
 .oak-h1-evidence-close:hover { border-color: var(--oak-accent-command); }
@@ -1464,11 +1458,11 @@ body.oak-body {
 .oak-h1-evidence-card-head small,
 .oak-h1-evidence-list header small {
   color: var(--oak-fg-muted);
-  font: 800 .43rem "Cascadia Mono", Consolas, monospace;
+  font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace;
   letter-spacing: .08em;
 }
 .oak-h1-evidence-chips b {
-  font: 900 .58rem "Cascadia Mono", Consolas, monospace;
+  font: 900 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace;
   font-size: var(--oak-text-secondary);
 }
 .oak-h1-evidence-chips span[data-kind="group"] { border-color: color-mix(in srgb, var(--oak-accent-command) 45%, var(--oak-border-subtle)); color: var(--oak-accent-command); }
@@ -1491,7 +1485,7 @@ body.oak-body {
   display: block;
   margin-top: .2rem;
   overflow-wrap: anywhere;
-  font: 900 .64rem "Cascadia Mono", Consolas, monospace;
+  font: 900 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace;
   font-size: var(--oak-text-secondary);
 }
 .oak-h1-evidence-chart-card,
@@ -1512,8 +1506,8 @@ body.oak-body {
 }
 .oak-h1-evidence-card-head > div { display: grid; gap: .1rem; }
 .oak-h1-evidence-card-head b,
-.oak-h1-evidence-list header b { font: 900 .62rem "Cascadia Mono", Consolas, monospace; }
-.oak-h1-evidence-card-head > span { color: var(--oak-fg-muted); font: 800 .48rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-evidence-list header b { font: 900 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
+.oak-h1-evidence-card-head > span { color: var(--oak-fg-muted); font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .oak-h1-evidence-chart { display: block; width: 100%; height: auto; min-height: 15rem; }
 .oak-h1-chart-plot { fill: color-mix(in srgb, var(--oak-bg-surface) 80%, transparent); }
 .oak-h1-chart-grid { stroke: var(--oak-border-subtle); stroke-width: 1; opacity: .65; }
@@ -1537,7 +1531,7 @@ body.oak-body {
 .oak-h1-chart-marker-entry { stroke: var(--oak-accent-command); }
 .oak-h1-chart-entry-label { fill: var(--oak-accent-command); }
 .oak-h1-evidence-chart-empty,
-.oak-h1-evidence-empty { padding: 1rem; color: var(--oak-fg-muted); font-size: .65rem; }
+.oak-h1-evidence-empty { padding: 1rem; color: var(--oak-fg-muted); font-size: var(--oak-text-meta); }
 .oak-h1-evidence-list { margin-bottom: .9rem; }
 .oak-h1-evidence-list > div {
   display: grid;
@@ -1550,13 +1544,13 @@ body.oak-body {
 .oak-h1-evidence-list > div:last-child { border-bottom: 0; }
 .oak-h1-evidence-list > div[data-selected="false"] { opacity: .46; }
 .oak-h1-evidence-list span { display: grid; gap: .08rem; }
-.oak-h1-evidence-list span b { font: 900 .6rem "Cascadia Mono", Consolas, monospace; }
-.oak-h1-evidence-list span small { color: var(--oak-fg-muted); font: 700 .46rem "Cascadia Mono", Consolas, monospace; }
-.oak-h1-evidence-list strong { display: grid; width: 1.8rem; height: 1.8rem; place-items: center; border-radius: 999px; font: 950 .58rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-evidence-list span b { font: 900 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
+.oak-h1-evidence-list span small { color: var(--oak-fg-muted); font: 700 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
+.oak-h1-evidence-list strong { display: grid; width: 1.8rem; height: 1.8rem; place-items: center; border-radius: 999px; font: 950 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; }
 .oak-h1-evidence-list strong[data-direction="T"] { color: var(--oak-signal-buy); background: color-mix(in srgb, var(--oak-signal-buy) 12%, transparent); }
 .oak-h1-evidence-list strong[data-direction="G"] { color: var(--oak-signal-sell); background: color-mix(in srgb, var(--oak-signal-sell) 12%, transparent); }
-.oak-h1-evidence-list code { min-width: 0; overflow-wrap: anywhere; color: var(--oak-fg-primary); font: 750 .52rem/1.45 "Cascadia Mono", Consolas, monospace; }
-.oak-h1-evidence-list em { color: var(--oak-status-warning); font: 900 .44rem "Cascadia Mono", Consolas, monospace; font-style: normal; }
+.oak-h1-evidence-list code { min-width: 0; overflow-wrap: anywhere; color: var(--oak-fg-primary); font: 750 var(--oak-text-meta)/1.45 "Cascadia Mono", Consolas, monospace; }
+.oak-h1-evidence-list em { color: var(--oak-status-warning); font: 900 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; font-style: normal; }
 
 @media (max-width: 759px) {
   .oak-h1-evidence-backdrop { align-items: flex-end; padding: 0; }
@@ -1765,14 +1759,14 @@ body.oak-body:has(.oak-workspace-heading) { background: radial-gradient(ellipse 
 .oak-image-intent-summary { align-items: center; grid-row: 1 / 3; display: grid; grid-template-columns: 7rem minmax(0,1fr); gap: .65rem; }
 .oak-image-intent-preview { border: 1px solid var(--panel-border); background: var(--surface); width: 7rem; height: 7rem; object-fit: cover; border-radius: var(--oak-radius-sm); }
 .oak-image-intent-actions { grid-template-columns: repeat(2,minmax(0,1fr)); display: grid; grid-column: 2; grid-row: 1; gap: .5rem; }
-.oak-image-auth-disclosure, .oak-image-analysis-status { margin: 0; color: var(--muted); font-size: .6rem; line-height: 1.5; grid-column: 1 / -1; }
+.oak-image-auth-disclosure, .oak-image-analysis-status { margin: 0; color: var(--muted); font-size: var(--oak-text-meta); line-height: 1.5; grid-column: 1 / -1; }
 .oak-image-intent-actions button {
   padding: .5rem .7rem;
   border: 1px solid var(--panel-border);
   border-radius: .65rem;
   color: var(--foreground);
   background: var(--surface);
-  font: 800 .61rem "Cascadia Mono", Consolas, monospace;
+  font: 800 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace;
   line-height: 1.3; min-height: var(--oak-touch-min); font-size: var(--oak-text-secondary); }
 
 /* Trading density and true calendar cells. */
@@ -1837,7 +1831,7 @@ body.oak-body:has(.oak-workspace-heading) { background: radial-gradient(ellipse 
   .mood-picker svg { width: 1.5rem; height: 1.5rem; }
   .mood-picker span { display: none; }
   .mood-picker button { min-height: var(--oak-touch-min); }
-  .mood-history article span { font-size: .625rem; }
+  .mood-history article span { font-size: var(--oak-text-meta); }
   .tarot-hero { padding: .75rem; }
   .tarot-form { grid-template-columns: minmax(0,1fr); }
   .tarot-form textarea { grid-column: 1; grid-row: 1; }
