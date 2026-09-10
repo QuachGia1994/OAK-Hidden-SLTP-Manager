@@ -243,18 +243,33 @@ jobs:
 
           # zsign is a re-signer. Some older/mobile wrappers fail when Xcode emits
           # a Mach-O with no LC_CODE_SIGNATURE at all because they must realloc a
-          # signature segment from zero. Seed an ad-hoc signature so zsign only
-          # has to replace an existing signature/provisioning context.
+          # signature segment from zero. Seed the bundle with a pinned zsign build
+          # itself so a later zsign pass starts from zsign-sized signature space.
           rm -rf zsign-payload
           mkdir -p zsign-payload/Payload
           ditto "$APP_PATH" "zsign-payload/Payload/$(basename "$APP_PATH")"
           ZSIGN_APP="zsign-payload/Payload/$(basename "$APP_PATH")"
           find "$ZSIGN_APP" -type d -name '_CodeSignature' -prune -exec rm -rf {} +
           find "$ZSIGN_APP" -name 'embedded.mobileprovision' -delete
-          /usr/bin/codesign --force --deep --sign - --timestamp=none "$ZSIGN_APP"
+
+          ZSIGN_VERSION="v1.1.2"
+          ZSIGN_SHA256="3f84a08150c2c41ccf80bfeca9ee6bc86ae1ff771323cd9931c4d8cd438ade0d"
+          ZSIGN_ARCHIVE="$RUNNER_TEMP/zsign-macos-arm64.tar.gz"
+          ZSIGN_DIR="$RUNNER_TEMP/zsign-v1.1.2"
+          curl -fsSL "https://github.com/zhlynn/zsign/releases/download/${ZSIGN_VERSION}/zsign-macos-arm64.tar.gz" -o "$ZSIGN_ARCHIVE"
+          echo "${ZSIGN_SHA256}  ${ZSIGN_ARCHIVE}" | shasum -a 256 -c -
+          mkdir -p "$ZSIGN_DIR"
+          tar -xzf "$ZSIGN_ARCHIVE" -C "$ZSIGN_DIR"
+          ZSIGN_BIN=$(find "$ZSIGN_DIR" -type f -name zsign -print -quit)
+          test -n "$ZSIGN_BIN"
+          chmod +x "$ZSIGN_BIN"
+          "$ZSIGN_BIN" -a -f "$ZSIGN_APP"
+
           /usr/bin/codesign --verify --deep --strict "$ZSIGN_APP"
           EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$ZSIGN_APP/Info.plist")
-          otool -l "$ZSIGN_APP/$EXECUTABLE" | grep -A 3 'LC_CODE_SIGNATURE'
+          SIG_SIZE=$(otool -l "$ZSIGN_APP/$EXECUTABLE" | awk '/LC_CODE_SIGNATURE/{found=1; next} found && $1=="datasize" {print $2; exit}')
+          test -n "$SIG_SIZE"
+          test "$SIG_SIZE" -ge 20000
           test -s "$ZSIGN_APP/_CodeSignature/CodeResources"
           (
             cd zsign-payload

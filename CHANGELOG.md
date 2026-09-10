@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Merged the native mobile accessibility/type-refresh line into `main` (Android Dynamic Type/accessibility/refresh polish plus the matching iOS parity updates). Hardened the iOS CI artifact for third-party zsign workflows: CI now preserves a raw unsigned IPA for diagnostics and emits a separate ad-hoc-signed `zsign-ready` IPA whose Mach-O already contains `LC_CODE_SIGNATURE`, avoiding older zsign wrappers having to allocate signature space from a completely unsigned Xcode 27 binary.
+- Merged the native mobile accessibility/type-refresh line into `main` (Android Dynamic Type/accessibility/refresh polish plus the matching iOS parity updates). Hardened the iOS CI artifact for third-party zsign workflows: CI now preserves a raw unsigned IPA for diagnostics and emits a separate `zsign-ready` IPA pre-seeded by pinned zsign v1.1.2 (SHA-256 verified), then cross-checks it with Apple `codesign` and requires at least 20 KB of `LC_CODE_SIGNATURE` space. This avoids older/mobile zsign wrappers having to allocate signature space from a completely unsigned Xcode 27 binary.
 
 - Revised H1 v93 weekday presentation highlights only: Monday now highlights H3/H6/H12/H16, Thursday H3/H6/H12/H14/H16, and Friday H3/H6. H9 remains GBPUSD KEEP for signal calculation but is no longer highlighted on Monday, Thursday, or Friday. Tuesday H14 and Wednesday H14/H16 are unchanged.
 
