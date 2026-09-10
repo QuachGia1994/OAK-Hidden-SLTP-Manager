@@ -6,6 +6,8 @@ All notable changes to the dashboard are recorded here.
 
 ### Changed
 
+- Advanced H1 to v94 without changing public schema 18/state v56. H16 is removed, XAUUSD M15 remains the entry owner, and final XAUUSD BUY/SELL now uses only the same-day GBPUSD M15 candle at entry minus 15 minutes (entry H4 → GBPUSD 03:45). H3/H12/H14 invert that base; H6/H9 keep it. The local source set is reduced to XAUUSD + GBPUSD, all weekday block highlights are removed from the board/PNG, and Web/native/Expo evidence identifies the M15 base. Stale v93 rows fail closed until history is rebuilt from local MT5.
+
 - Revised H1 v93 weekday highlight presentation only: Monday H3/H6/H12/H16, Tuesday H14, Wednesday H14/H16, Thursday H3/H6/H12/H14/H16, Friday H3/H6. H9 still calculates with GBPUSD KEEP but is no longer visually highlighted on Monday/Thursday/Friday.
 
 - Advanced H1 to v93 without changing public schema 18/state v56. H9 now keeps its GBPUSD H1 base instead of inverting it; H3/H6/H12/H14/H16 and the current weekday block highlights are unchanged. Stale v92 payloads fail closed until the local ICMarkets history rebuild republishes v93 data.

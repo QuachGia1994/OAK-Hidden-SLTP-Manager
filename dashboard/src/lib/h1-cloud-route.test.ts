@@ -31,7 +31,7 @@ test("legacy cloud H1 run/backfill endpoints are authenticated no-ops owned by l
   assert.match(backfillRoute, /skipped: "local-mt5-history-only"/);
 });
 
-test("local MT5 market endpoint is private, ICMarkets-only, stale-guarded, singleton locked and validates M15 + H1 v93 snapshots", () => {
+test("local MT5 market endpoint is private, ICMarkets-only, stale-guarded, singleton locked and validates v94 snapshots", () => {
   assert.match(localRoute, /DASHBOARD_API_KEY/);
   assert.match(localRoute, /x-telegram-bot-api-secret-token/);
   assert.match(localRoute, /timingSafeEqual/);
@@ -54,7 +54,7 @@ test("local MT5 market endpoint is private, ICMarkets-only, stale-guarded, singl
   assert.doesNotMatch(localRoute, /order_send|placeCTraderMarketOrder|SendTradeRequest|closeCTraderPositions/);
 });
 
-test("local ICMarkets reader uses M15 entry patterns plus H1 signal bases without double-shifting MT5 server-wall timestamps", () => {
+test("local ICMarkets reader uses XAUUSD/GBPUSD M15 data without double-shifting MT5 server-wall timestamps", () => {
   assert.match(reader, /TIMEFRAME_M15/);
   assert.match(reader, /TIMEFRAME_H1/);
   assert.match(reader, /copy_rates_from_pos/);
@@ -62,12 +62,12 @@ test("local ICMarkets reader uses M15 entry patterns plus H1 signal bases withou
   assert.match(reader, /datetime\.fromtimestamp\(epoch_seconds, timezone\.utc\)/);
   assert.doesNotMatch(reader, /icmarkets_offset_seconds|timedelta|ZoneInfo/);
   assert.match(reader, /broker_wall_parts/);
-  assert.match(reader, /"XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"/);
+  assert.match(reader, /SOURCES = \("XAUUSD", "GBPUSD"\)/);
   assert.match(reader, /"icmarkets" not in server\.lower\(\)/);
   assert.doesNotMatch(reader, /order_send|positions_get|TRADE_ACTION|ORDER_TYPE_BUY|ORDER_TYPE_SELL/);
 });
 
-test("local publisher sends same-day M15 + H1 v93 evidence and supports bounded 90-day history backfill", () => {
+test("local publisher sends XAUUSD/GBPUSD v94 market evidence and supports bounded 90-day history backfill", () => {
   assert.match(publisher, /MAX_BACKFILL_DAYS = 90/);
   assert.match(publisher, /HISTORICAL_READER_TIMEOUT_MS = 180_000/);
   assert.match(publisher, /HISTORICAL_READER_MAX_BUFFER = 32_000_000/);
@@ -82,7 +82,7 @@ test("local publisher sends same-day M15 + H1 v93 evidence and supports bounded 
   assert.match(publisher, /days > 4 \? HISTORICAL_READER_MAX_BUFFER : LIVE_READER_MAX_BUFFER/);
   assert.match(publisher, /--backfill/);
   assert.match(publisher, /currentDaySnapshot/);
-  assert.match(publisher, /"XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"/);
+  assert.match(publisher, /SOURCE_KEYS = \["XAUUSD", "GBPUSD"\]/);
   assert.match(publisher, /snapshotBarsForSource/);
   assert.match(publisher, /snapshotH1BarsForSource/);
   assert.match(publisher, /h1Bars/);

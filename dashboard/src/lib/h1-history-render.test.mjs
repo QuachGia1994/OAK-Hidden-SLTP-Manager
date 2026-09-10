@@ -57,8 +57,8 @@ function alert(slotHour, entryHour = slotHour + 1, signal = "BUY") {
     profile: "MT5 ICMarkets Local",
     baseSymbol: "GBPUSD",
     baseSignal: signal,
-    baseHour: entryHour - 2,
-    baseMinute: 0,
+    baseHour: entryHour - 1,
+    baseMinute: 45,
     baseDirection: signal === "BUY" ? "T" : "G",
     signal,
     scheduledSignal: null,
@@ -77,10 +77,10 @@ function payload() {
   const dates = ["2025-12-29", "2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02", "2026-01-05", "2026-02-03"];
   return {
     schemaVersion: 18,
-    signalRuleVersion: 91,
+    signalRuleVersion: 94,
     profile: "MT5 ICMarkets Local",
     publishedAt: "2026-02-03T12:00:00.000Z",
-    hours: [3, 6, 9, 12, 14, 16],
+    hours: [3, 6, 9, 12, 14],
     symbols: ["XAUUSD"],
     days: Object.fromEntries(dates.map((date, index) => [date, { symbols: { XAUUSD: { alerts: [alert(3, index % 2 ? 4 : 5, index % 3 === 0 ? "SELL" : "BUY")] } } }])),
   };
@@ -115,16 +115,15 @@ test("unified H1 keeps the calendar month grid out of the normal closed DOM", ()
   assert.doesNotMatch(h1SignalBoardSource, /embedded|data-embedded/);
 });
 
-test("v93 table renders six equal blocks with only Entry time and XAUUSD rows", () => {
+test("v94 table renders five unhighlighted blocks with only Entry time and XAUUSD rows", () => {
   const data = payload();
-  data.days["2026-02-03"].symbols.XAUUSD.alerts = [alert(3, 5, "BUY"), alert(16, 17, "SELL")];
+  data.days["2026-02-03"].symbols.XAUUSD.alerts = [alert(3, 5, "BUY"), alert(14, 15, "SELL")];
   const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data, locale: "VN", unlocked: true }));
-  assert.doesNotMatch(markup, /data-entry-highlight="true"/);
-  assert.match(markup, /id="h1-hour-14" scope="col" data-block-highlight="true"/);
-  assert.doesNotMatch(markup, /id="h1-hour-3" scope="col" data-block-highlight="true"/);
+  assert.doesNotMatch(markup, /data-entry-highlight="true"|data-block-highlight="true"/);
+  for (const hour of [3, 6, 9, 12, 14]) assert.match(markup, new RegExp(`id="h1-hour-${hour}" scope="col"`));
   assert.match(markup, /<b>ENTRY TIME<\/b>/);
   assert.match(markup, /<b>XAUUSD<\/b>/);
-  assert.match(markup, />H16<\/span>/);
+  assert.doesNotMatch(markup, />H16<\/span>|id="h1-hour-16"/);
   for (const symbol of ["GBPUSD", "AUDUSD", "USDCAD", "USDJPY"]) assert.doesNotMatch(markup, new RegExp(`<b>${symbol}<\\/b>`));
 });
 

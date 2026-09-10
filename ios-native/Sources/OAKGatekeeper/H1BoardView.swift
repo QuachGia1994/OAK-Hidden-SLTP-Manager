@@ -354,7 +354,7 @@ private struct H1NativeMetadataStrip: View {
     var body: some View {
         LazyVGrid(columns: columns, spacing: 0) {
             metadata(label: state.text(vn: "NGUỒN DỮ LIỆU", en: "DATA SOURCE"), value: "MT5 ICMarkets Local")
-            metadata(label: state.text(vn: "NHỊP DỮ LIỆU", en: "DATA CADENCE"), value: "H03–H16 · M15 ENTRY + H1 BASE")
+            metadata(label: state.text(vn: "NHỊP DỮ LIỆU", en: "DATA CADENCE"), value: "H03–H14 · M15 ENTRY + GBPUSD M15 E-0:15")
             metadata(label: state.text(vn: "NGÀY ĐÃ LƯU", en: "STORED DAYS"), value: "\(h1.orderedDatesDescending.count) \(state.text(vn: "ngày", en: "days"))")
             metadata(label: state.text(vn: "NGÀY MỚI NHẤT", en: "LATEST DAY"), value: h1.latestDate)
         }

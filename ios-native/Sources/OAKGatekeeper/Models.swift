@@ -285,16 +285,15 @@ extension H1SignalPayload {
         let signalSource = sourceAlert.baseSymbol.isEmpty ? sourceAlert.symbol : sourceAlert.baseSymbol
         let rawBase = sourceAlert.baseDirection.isEmpty
             ? "—"
-            : "\(signalSource) H1 \(baseTime) · \(sourceAlert.baseDirection) → \(baseSignal)"
+            : "\(signalSource) M15 \(baseTime) · \(sourceAlert.baseDirection) → \(baseSignal)"
         let delta = sourceAlert.entryHour.map { $0 - sourceAlert.slotHour }
-        let lookup = delta == 1 ? "ENTRY-2" : delta == 2 ? "ENTRY-1" : "—"
-        let rule = delta.map { "ENTRY-BLOCK \($0) · \(lookup) · \((sourceAlert.postSignalInverted ?? false) ? "INVERT" : "KEEP")" } ?? "H1 BASE —"
+        let rule = delta.map { "ENTRY-BLOCK \($0) · E-0:15 · \((sourceAlert.postSignalInverted ?? false) ? "INVERT" : "KEEP")" } ?? "M15 BASE —"
 
         return H1EvidenceFacts(
             patternSource: sourceAlert.scannerSource ?? "XAUUSD",
             rawBase: rawBase,
             signalSource: signalSource,
-            rule: "H1 BASE · \(rule)",
+            rule: "M15 BASE · \(rule)",
             finalSignal: sourceAlert.signal?.rawValue ?? "—"
         )
     }

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced H1 to v94 while keeping public schema 18/state v56. H16 is retired again, leaving H3/H6/H9/H12/H14. XAUUSD M15 remains the entry-time pattern owner, while every final signal now reads only the same broker day's GBPUSD M15 candle exactly 15 minutes before the resolved entry time (for example entry H4 reads GBPUSD 03:45): H3/H12/H14 invert that base and H6/H9 keep it. AUDUSD/USDCAD/USDJPY are removed from the local H1 market source set, all weekday block highlighting is removed from Web/PNG, and Web/native iOS/native Android/Expo evidence labels now identify the GBPUSD M15 base. Stale v93 rows are rejected until the local 90-day history rebuild republishes v94.
+
 - Merged the native mobile accessibility/type-refresh line into `main` (Android Dynamic Type/accessibility/refresh polish plus the matching iOS parity updates). Hardened the iOS CI artifact for third-party zsign workflows: CI now preserves a raw unsigned IPA for diagnostics and emits a separate `zsign-ready` IPA pre-seeded by pinned zsign v1.1.2 (SHA-256 verified), then cross-checks it with Apple `codesign` and requires at least 20 KB of `LC_CODE_SIGNATURE` space. This avoids older/mobile zsign wrappers having to allocate signature space from a completely unsigned Xcode 27 binary.
 
 - Revised H1 v93 weekday presentation highlights only: Monday now highlights H3/H6/H12/H16, Thursday H3/H6/H12/H14/H16, and Friday H3/H6. H9 remains GBPUSD KEEP for signal calculation but is no longer highlighted on Monday, Thursday, or Friday. Tuesday H14 and Wednesday H14/H16 are unchanged.

@@ -32,10 +32,9 @@ type H1EvidenceFacts = {
 
 function blockBaseRuleLabel(selection: H1EvidenceSelection): string {
   const { alert } = selection;
-  if (!Number.isInteger(alert.entryHour) || !Number.isInteger(alert.baseHour)) return "H1 BASE —";
+  if (!Number.isInteger(alert.entryHour) || !Number.isInteger(alert.baseHour)) return "M15 BASE —";
   const delta = Number(alert.entryHour) - alert.slotHour;
-  const lookup = delta === 1 ? "ENTRY-2" : delta === 2 ? "ENTRY-1" : "—";
-  return `ENTRY-BLOCK ${delta} · ${lookup} · ${alert.postSignalInverted ? "INVERT" : "KEEP"}`;
+  return `ENTRY-BLOCK ${delta} · E-0:15 · ${alert.postSignalInverted ? "INVERT" : "KEEP"}`;
 }
 
 function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload): H1EvidenceFacts {
@@ -45,7 +44,7 @@ function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload)
     ? `${String(alert.baseHour).padStart(2, "0")}:${String(alert.baseMinute).padStart(2, "0")}`
     : "—";
   const rawBase = alert.baseDirection
-    ? `${alert.baseSymbol || base} H1 ${baseTime} · ${alert.baseDirection} → ${alert.baseSignal ?? "—"}`
+    ? `${alert.baseSymbol || base} M15 ${baseTime} · ${alert.baseDirection} → ${alert.baseSignal ?? "—"}`
     : "—";
   const signalBaseBar = alert.signalBaseBar;
   const baseOhlc = signalBaseBar
@@ -56,7 +55,7 @@ function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload)
     rawBase,
     baseOhlc,
     signalSource: alert.baseSymbol || base,
-    rule: `H1 BASE · ${blockBaseRuleLabel(selection)}`,
+    rule: `M15 BASE · ${blockBaseRuleLabel(selection)}`,
     finalSignal: alert.signal ?? "—",
   };
 }
@@ -180,7 +179,7 @@ async function renderEvidenceChartPng(
     46,
   );
   ctx.fillText(
-    `MATCH READ NEWEST→OLDEST · SIGNAL BASE ${selection.alert.baseSymbol || selection.base} H1 ${baseTime} · ${selection.alert.baseDirection || "—"}→${baseSignal}`,
+    `MATCH READ NEWEST→OLDEST · SIGNAL BASE ${selection.alert.baseSymbol || selection.base} M15 ${baseTime} · ${selection.alert.baseDirection || "—"}→${baseSignal}`,
     chartX,
     64,
   );

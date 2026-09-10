@@ -80,21 +80,16 @@ data class H1SignalPayload(
         val rawBase = if (sourceAlert.baseDirection.isBlank()) {
             "—"
         } else {
-            "$signalSource H1 $baseTime · ${sourceAlert.baseDirection} → $baseSignal"
+            "$signalSource M15 $baseTime · ${sourceAlert.baseDirection} → $baseSignal"
         }
         val delta = sourceAlert.entryHour?.minus(sourceAlert.slotHour)
-        val lookup = when (delta) {
-            1 -> "ENTRY-2"
-            2 -> "ENTRY-1"
-            else -> "—"
-        }
-        val rule = delta?.let { "ENTRY-BLOCK $it · $lookup · ${if (sourceAlert.postSignalInverted) "INVERT" else "KEEP"}" } ?: "H1 BASE —"
+        val rule = delta?.let { "ENTRY-BLOCK $it · E-0:15 · ${if (sourceAlert.postSignalInverted) "INVERT" else "KEEP"}" } ?: "M15 BASE —"
 
         return H1EvidenceFacts(
             patternSource = sourceAlert.scannerSource ?: "XAUUSD",
             rawBase = rawBase,
             signalSource = signalSource,
-            rule = "H1 BASE · $rule",
+            rule = "M15 BASE · $rule",
             finalSignal = sourceAlert.signal?.name ?: "—",
         )
     }

@@ -62,7 +62,7 @@ export default function SignalDetailScreen() {
               </GlassCard>
 
               <GlassCard>
-                <Row label="Entry H1 base" value={`${alert.baseSymbol} · H${String(alert.baseHour || 0).padStart(2, "0")}:00 · ${alert.baseDirection || "—"}`} />
+                <Row label="Entry M15 base" value={`${alert.baseSymbol} · ${String(alert.baseHour || 0).padStart(2, "0")}:${String(alert.baseMinute || 0).padStart(2, "0")} · ${alert.baseDirection || "—"}`} />
                 <Row label="Base signal" value={alert.baseSignal || "—"} tone={alert.baseSignal === "SELL" ? "sell" : "buy"} />
                 <Row label="Final signal" value={alert.signal || "—"} tone={alert.signal === "SELL" ? "sell" : "buy"} />
               </GlassCard>

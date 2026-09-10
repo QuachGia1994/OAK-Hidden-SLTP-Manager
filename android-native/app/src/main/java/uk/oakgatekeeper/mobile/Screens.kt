@@ -379,7 +379,7 @@ private fun H1MetadataStrip(state: OAKAppState, h1: H1SignalPayload) {
             Row(Modifier.fillMaxWidth()) {
                 H1MetaCell(state.text("NGUỒN DỮ LIỆU", "DATA SOURCE"), "MT5 ICMarkets Local", Modifier.weight(1f))
                 Box(Modifier.width(1.dp).height(58.dp).background(p.border.copy(alpha = .5f)))
-                H1MetaCell(state.text("NHỊP DỮ LIỆU", "DATA CADENCE"), "H03–H16 · M15 ENTRY + H1 BASE", Modifier.weight(1f))
+                H1MetaCell(state.text("NHỊP DỮ LIỆU", "DATA CADENCE"), "H03–H14 · M15 ENTRY + GBPUSD M15 E-0:15", Modifier.weight(1f))
             }
             HorizontalDivider(color = p.border.copy(alpha = .5f))
             Row(Modifier.fillMaxWidth()) {
