@@ -1442,6 +1442,97 @@ test("39 untargeted close fans out atomically to every enabled MT5 account", { c
   } finally { await h.cleanup(); }
 });
 
+test("untargeted close skips stale MT5 profiles but still schedules every fresh profile", { concurrency: false }, async () => {
+  const fxce = { ...ACCOUNT_A, label: "FXCE", bridgeProfile: "FXCE" };
+  const vantage = { ...ACCOUNT_B, label: "Vantage", bridgeProfile: "Vantage" };
+  const ic = { ...ACCOUNT_B, providerAccountId: "mt5:qrstuvwx", label: "Ic", bridgeProfile: "Ic", login: 1003 };
+  const h = await createHarness("close-skip-stale-profile", {
+    controlMode: "local-primary",
+    webhook: "",
+    accounts: [fxce, vantage, ic],
+    statuses: [
+      localPrimaryStatusFor(fxce, { providerAccountId: "mt5:localfxce01" }),
+      localPrimaryStatusFor(ic, { providerAccountId: "mt5:localic0001" }),
+    ],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, {
+      update_id: 394,
+      message: { chat: { id: 123 }, text: "Đóng GBPUSD 12H25" },
+    }, statuses);
+
+    const intents = Object.values(state.intents);
+    assert.equal(intents.length, 2);
+    assert.deepEqual(intents.map((intent) => intent.accountLabel).sort(), ["FXCE", "Ic"]);
+    assert.ok(intents.every((intent) => intent.kind === "close"));
+    assert.ok(intents.every((intent) => intent.status === "scheduled"));
+    assert.ok(intents.every((intent) => intent.payload.scope === "GBPUSD"));
+    const outcome = state.commands["394:0"].outcome;
+    assert.match(outcome, /Profile: FXCE/);
+    assert.match(outcome, /Profile: Ic/);
+    assert.equal((outcome.match(/Close: GBPUSD/g) || []).length, 2);
+    assert.match(outcome, /inactive profile\(s\) skipped/i);
+    assert.match(outcome, /@Vantage: SKIPPED/i);
+    assert.match(outcome, /MT5 EA heartbeat is not fresh/i);
+    assert.doesNotMatch(outcome, /Local failover: @Vantage/i);
+    assert.equal(h.eaExecutions, 0);
+  } finally { await h.cleanup(); }
+});
+
+test("untargeted close with no fresh MT5 profile returns a durable no-op summary", { concurrency: false }, async () => {
+  const fxce = { ...ACCOUNT_A, label: "FXCE", bridgeProfile: "FXCE" };
+  const vantage = { ...ACCOUNT_B, label: "Vantage", bridgeProfile: "Vantage" };
+  const h = await createHarness("close-no-fresh-profile", {
+    controlMode: "local-primary",
+    webhook: "",
+    accounts: [fxce, vantage],
+    statuses: [],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, {
+      update_id: 395,
+      message: { chat: { id: 123 }, text: "Đóng GBPUSD 12H25" },
+    }, statuses);
+
+    assert.equal(Object.keys(state.intents).length, 0);
+    assert.equal(state.nextIntentSeq, 1);
+    const outcome = state.commands["395:0"].outcome;
+    assert.match(outcome, /Close GBPUSD: not scheduled; no active MT5 profile/i);
+    assert.match(outcome, /@FXCE: SKIPPED/i);
+    assert.match(outcome, /@Vantage: SKIPPED/i);
+    assert.equal(h.eaExecutions, 0);
+  } finally { await h.cleanup(); }
+});
+
+test("targeted close to a stale MT5 profile still fails closed and never falls through to another profile", { concurrency: false }, async () => {
+  const fxce = { ...ACCOUNT_A, label: "FXCE", bridgeProfile: "FXCE" };
+  const vantage = { ...ACCOUNT_B, label: "Vantage", bridgeProfile: "Vantage" };
+  const h = await createHarness("close-target-stale-profile", {
+    controlMode: "local-primary",
+    webhook: "",
+    accounts: [fxce, vantage],
+    statuses: [localPrimaryStatusFor(fxce, { providerAccountId: "mt5:localfxce01" })],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, {
+      update_id: 396,
+      message: { chat: { id: 123 }, text: "Đóng GBPUSD 12H25 @Vantage" },
+    }, statuses);
+
+    assert.equal(Object.keys(state.intents).length, 0);
+    const outcome = state.commands["396:0"].outcome;
+    assert.match(outcome, /@Vantage: MT5 EA heartbeat is not fresh/i);
+    assert.doesNotMatch(outcome, /Profile: FXCE/);
+    assert.equal(h.eaExecutions, 0);
+  } finally { await h.cleanup(); }
+});
+
 test("scheduled MT5 UI entry prepares broker symbol before saving the intent", { concurrency: false }, async () => {
   const account = { ...ACCOUNT_A, terminalId: "mt5term:acct-a" };
   const h = await createHarness("ui-symbol-prepare", {

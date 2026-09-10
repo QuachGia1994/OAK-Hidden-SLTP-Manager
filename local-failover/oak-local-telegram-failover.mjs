@@ -1504,11 +1504,38 @@ export function createLocalFailoverRuntime(options = {}) {
 
   function selectIntentAccounts(config, statuses, parsed) {
     const requested = targetFromPayload(parsed.payload);
-    if (parsed.kind !== "close" || requested) return [selectAccount(config, statuses, requested).account];
+    if (parsed.kind !== "close" || requested) {
+      return { accounts: [selectAccount(config, statuses, requested).account], skipped: [] };
+    }
 
     const enabled = config.accounts.filter((row) => row.provider === "mt5" && row.enabled !== false);
     if (!enabled.length) throw new Error("No local MT5 account is available");
-    return enabled.map((row) => selectAccount(config, statuses, row.label).account);
+
+    const accounts = [];
+    const skipped = [];
+    for (const row of enabled) {
+      try {
+        accounts.push(selectAccount(config, statuses, row.label).account);
+      } catch (error) {
+        const label = String(row.label || row.bridgeProfile || "ACCOUNT");
+        const raw = sanitizeOperatorError(error);
+        const prefix = `@${label}:`;
+        skipped.push({
+          label,
+          reason: raw.toLowerCase().startsWith(prefix.toLowerCase()) ? raw.slice(prefix.length).trim() : raw,
+        });
+      }
+    }
+    return { accounts, skipped };
+  }
+
+  function renderSkippedCloseAccounts(parsed, skipped, { noEligible = false } = {}) {
+    if (!Array.isArray(skipped) || !skipped.length) return "";
+    const scope = String(parsed.payload?.scope || "ALL").toUpperCase();
+    return [
+      `${noEligible ? "⚠️" : "ℹ️"} Close ${scope}: ${noEligible ? "not scheduled; no active MT5 profile" : `${skipped.length} inactive profile(s) skipped`}`,
+      ...skipped.map((item) => `• @${item.label}: SKIPPED · ${item.reason}`),
+    ].join("\n");
   }
 
   function renderCreatedIntent(config, parsed, account, intent, shortId, protection) {
@@ -1636,7 +1663,10 @@ export function createLocalFailoverRuntime(options = {}) {
   }
 
   async function createIntent(config, state, parsed, statuses, updateId, commandIndex) {
-    const accounts = selectIntentAccounts(config, statuses, parsed);
+    const selection = selectIntentAccounts(config, statuses, parsed);
+    const accounts = selection.accounts;
+    const skipped = selection.skipped;
+    if (!accounts.length) return renderSkippedCloseAccounts(parsed, skipped, { noEligible: true });
     if (!state.epoch) state.epoch = newFailoverEpoch(clock());
     const outcomes = [];
 
@@ -1693,6 +1723,8 @@ export function createLocalFailoverRuntime(options = {}) {
       outcomes.push(renderCreatedIntent(config, parsed, account, intent, shortId, protection));
     }
 
+    const skippedSummary = renderSkippedCloseAccounts(parsed, skipped);
+    if (skippedSummary) outcomes.push(skippedSummary);
     await saveState(state);
     return outcomes.join("\n\n");
   }

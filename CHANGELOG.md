@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed PC-local Telegram untargeted close fan-out when one configured MT5 profile is inactive/stale. `Đóng <SYMBOL> <time>` and untargeted `/close` now schedule every fresh enabled MT5 profile, explicitly report stale/unavailable profiles as `SKIPPED`, and return a durable no-op summary when none are fresh instead of aborting the whole command on the first missing heartbeat. Explicit `@ACCOUNT` close remains fail-closed and never falls through to another profile.
+
 - Advanced H1 to v92 while keeping public schema 18 and state v56. H12 now keeps its USDJPY H1 base and H14 now inverts its USDCAD H1 base; H3/H6/H9/H16 are unchanged. H1 Live/History and PNG exports now highlight broker-day blocks by weekday: Monday H3/H9/H12/H16, Tuesday H14, Wednesday H14/H16, Thursday all six blocks, and Friday H3/H6/H9. Stale v91 public payloads are rejected so retained History can be rebuilt from the local ICMarkets source after deployment; the Telegram H14 appointment cutoff remains unchanged.
 
 - Advanced H1 to v91 with one visible signal row (`XAUUSD`) plus the shared `ENTRY TIME` row across H3/H6/H9/H12/H14/H16. XAUUSD M15 still owns BT/SW entry timing; final signal now comes from an exact closed H1 candle selected by `entry-block` distance (`+1` → `entry-2`, `+2` → `entry-1`) and block policy: H3 AUDUSD keep, H6 GBPUSD keep, H9 GBPUSD invert, H12 USDJPY invert, H14 USDCAD keep, H16 GBPUSD keep. Local ICMarkets snapshots now carry both M15 pattern bars and H1 signal-base bars under snapshot v2, evidence/PNG/native/Expo surfaces follow the same H1-base rule, stale v90 FX/XAU rows are retired, and H16 remains calculation-only while Telegram appointment annotation keeps its existing H14 cutoff.
