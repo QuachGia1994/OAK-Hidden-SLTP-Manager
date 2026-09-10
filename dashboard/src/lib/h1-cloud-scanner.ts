@@ -216,11 +216,11 @@ const H1_BLOCK_BASE_POLICY: Record<number, { baseSymbol: H1LocalSource; inverted
 
 export function highlightedH1BlockHoursForBrokerDate(brokerDate: string): readonly number[] {
   const weekday = brokerDateWeekdayIndex(brokerDate);
-  if (weekday === 1) return [3, 9, 12, 16];
+  if (weekday === 1) return [3, 6, 12, 16];
   if (weekday === 2) return [14];
   if (weekday === 3) return [14, 16];
-  if (weekday === 4) return H1_SCAN_HOURS;
-  if (weekday === 5) return [3, 6, 9];
+  if (weekday === 4) return [3, 6, 12, 14, 16];
+  if (weekday === 5) return [3, 6];
   return [];
 }
 
