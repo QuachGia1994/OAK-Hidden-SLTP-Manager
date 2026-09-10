@@ -13,7 +13,7 @@ type ShareArtifact = { date: string; blob: Blob };
 const H1_SHARE_SCALE = 2;
 const H1_SHARE_SYMBOL_WIDTH = 148;
 const H1_SHARE_HOUR_WIDTH = 96;
-const H1_SHARE_ENTRY_ROW_HEIGHT = 72;
+const H1_SHARE_ENTRY_ROW_HEIGHT = 54;
 const H1_SHARE_SIGNAL_ROW_HEIGHT = 54;
 const H1_SHARE_FONT = '"Cascadia Mono", "SFMono-Regular", Consolas, monospace';
 const H1_SIGNAL_ROWS = ["XAUUSD"] as const;
@@ -164,10 +164,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   ctx.font = `900 16px ${H1_SHARE_FONT}`;
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
-  ctx.fillText("ENTRY TIME", tableX + 14, entryRowY + 29);
-  ctx.fillStyle = colors.muted;
-  ctx.font = `800 11px ${H1_SHARE_FONT}`;
-  ctx.fillText("BT +1 · SW +2", tableX + 14, entryRowY + 54);
+  ctx.fillText("ENTRY TIME", tableX + 14, entryRowY + H1_SHARE_ENTRY_ROW_HEIGHT / 2);
 
   hours.forEach((hour, hourIndex) => {
     const x = tableX + H1_SHARE_SYMBOL_WIDTH + hourIndex * H1_SHARE_HOUR_WIDTH;
@@ -499,7 +496,7 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
           <table className="oak-h1-table">
             <thead><H1SessionHeaderRow hours={fallbackHours} locale={locale} /><tr><th id="h1-entry-label-header" scope="col" className="oak-h1-symbol-sticky" aria-label={locale === "EN" ? "Entry time" : "Entry time"}></th>{fallbackHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour}><span>H{String(hour).padStart(2, "0")}</span></th>)}</tr></thead>
             <tbody>
-              <tr><th id="h1-entry-time-row" scope="row" className="oak-h1-symbol-sticky"><b>ENTRY TIME</b><small>BT +1 · SW +2</small></th>{fallbackHours.map((hour) => (
+              <tr><th id="h1-entry-time-row" scope="row" className="oak-h1-symbol-sticky"><b>ENTRY TIME</b></th>{fallbackHours.map((hour) => (
                 <td key={hour} headers={`h1-entry-time-row h1-hour-${hour}`}><span className="oak-h1-cell-empty">—</span></td>
               ))}</tr>
               {H1_SIGNAL_ROWS.map((symbol) => <tr key={symbol}><th id={`h1-signal-row-${symbol}`} scope="row" className="oak-h1-symbol-sticky"><b>{symbol}</b></th>{fallbackHours.map((hour) => (
@@ -571,7 +568,7 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
           <table className="oak-h1-table">
             <thead><H1SessionHeaderRow hours={activeHours} locale={locale} /><tr><th id="h1-entry-label-header" scope="col" className="oak-h1-symbol-sticky" aria-label={locale === "EN" ? "Entry time" : "Entry time"}></th>{activeHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour}><span>H{String(hour).padStart(2, "0")}</span></th>)}</tr></thead>
             <tbody>
-              <tr><th id="h1-entry-time-row" scope="row" className="oak-h1-symbol-sticky"><b>ENTRY TIME</b><small>BT +1 · SW +2</small></th>{activeHours.map((hour) => {
+              <tr><th id="h1-entry-time-row" scope="row" className="oak-h1-symbol-sticky"><b>ENTRY TIME</b></th>{activeHours.map((hour) => {
                 const alert = entryByHour.get(hour);
                 if (!Number.isInteger(alert?.entryHour)) return <td key={hour} headers={`h1-entry-time-row h1-hour-${hour}`}><span className="oak-h1-cell-empty">—</span></td>;
                 return <td key={hour} headers={`h1-entry-time-row h1-hour-${hour}`} data-pattern-group={alert?.patternGroup || undefined} title={`XAUUSD · ${alert?.pattern || ""} · ${alert?.patternGroup || ""}`}><button type="button" className="oak-h1-cell-entry oak-h1-cell-evidence" onClick={() => setEvidenceSelection({ base: "XAUUSD", brokerDate: date, alert: alert! })} aria-label={`H${hour}: ${locale === "EN" ? "view entry-time pattern evidence" : "xem evidence entry time"}`}><b>{entryHourLabel(alert)}</b></button></td>;

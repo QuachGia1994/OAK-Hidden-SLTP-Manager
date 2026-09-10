@@ -153,7 +153,7 @@ test("web H1 table renders the final XAU BUY/SELL row directly under shared Entr
   assert.match(boardSource, /oak-h1-cell-signal oak-h1-cell-evidence/);
   assert.match(boardSource, /signalLabel\(alert\)/);
   assert.match(boardSource, /setEvidenceSelection\(\{ base: symbol/);
-  assert.match(boardSource, /BT \+1 · SW \+2/);
+  assert.doesNotMatch(boardSource, /BT \+1 · SW \+2/);
   assert.doesNotMatch(boardSource, /previousRetainedBrokerDate|H3 HÔM TRƯỚC|PREV H3/);
   assert.doesNotMatch(boardSource, /data-entry-highlight/);
   assert.match(scannerSource, /highlightedH1BlockHoursForBrokerDate/);

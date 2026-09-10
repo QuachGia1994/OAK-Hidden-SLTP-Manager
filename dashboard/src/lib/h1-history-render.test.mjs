@@ -127,13 +127,13 @@ test("v94 table renders five unhighlighted blocks with only Entry time and XAUUS
   for (const symbol of ["GBPUSD", "AUDUSD", "USDCAD", "USDJPY"]) assert.doesNotMatch(markup, new RegExp(`<b>${symbol}<\\/b>`));
 });
 
-test("shared H1 table keeps entry hour and BT/SW timing reference above the XAU signal row", () => {
+test("shared H1 table keeps entry hour above the XAU signal row", () => {
   const data = payload();
   data.days["2026-02-03"].symbols.XAUUSD.alerts = [alert(3, 5, "SELL")];
   const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data, locale: "VN", unlocked: true }));
   assert.match(markup, /data-pattern-group="BT"/);
   assert.match(markup, />H05<\/b>/);
-  assert.match(markup, /BT \+1 · SW \+2/);
+  assert.doesNotMatch(markup, /BT \+1 · SW \+2/);
   assert.doesNotMatch(markup, /H3 HÔM TRƯỚC|PREV H3/);
   assert.doesNotMatch(markup, />SELL<\/small>|data-signal=/);
 });

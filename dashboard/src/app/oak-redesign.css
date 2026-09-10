@@ -244,7 +244,6 @@ min-height: 2rem; padding: .35rem .6rem;
   .oak-h1-symbol-sticky { width: clamp(8rem, 10vw, 11rem) !important; min-width: clamp(8rem, 10vw, 11rem); }
 }
 .oak-h1-table tbody .oak-h1-symbol-sticky b { color: var(--oak-fg-primary); font: 900 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; white-space: nowrap; }
-.oak-h1-table tbody .oak-h1-symbol-sticky small { display: block; margin-top: .22rem; color: var(--oak-fg-muted); font: 800 var(--oak-text-meta)/1.25 "Cascadia Mono", Consolas, monospace; letter-spacing: .02em; white-space: nowrap; }
 .oak-h1-table thead th[data-post-signal-inverted="true"],
 .oak-h1-table tbody td[data-post-signal-inverted="true"] { background: color-mix(in srgb, var(--oak-status-warning) 12%, var(--oak-bg-surface)); }
 .oak-h1-table thead th[data-post-signal-inverted="true"] { color: var(--oak-status-warning); box-shadow: inset 0 -3px 0 var(--oak-status-warning); }
