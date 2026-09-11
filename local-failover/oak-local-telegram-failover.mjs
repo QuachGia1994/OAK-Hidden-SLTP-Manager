@@ -594,6 +594,23 @@ export function createLocalFailoverRuntime(options = {}) {
       );
     }
     if (intent.status !== "executed" || intent.executionResult?.ok !== true) return false;
+    if (intent.kind === "entry" && intent.executionResult?.tpRolled === true) {
+      const side = String(intent.executionResult.side || intent.payload?.side || "").toUpperCase();
+      const symbol = String(intent.executionResult.resolvedSymbol || intent.resolvedSymbol || intent.payload?.symbol || "");
+      const position = String(intent.executionResult.positionId || "");
+      return queueTradeNotification(
+        state,
+        `scheduled_tp_roll:${intent.id}`,
+        [
+          `🎯 TP moved @${intent.accountLabel}`,
+          `• ${side} ${symbol}${position ? ` · Position #${position}` : ""}`,
+          `• TP ${compactNumber(intent.executionResult.oldTp)} → ${compactNumber(intent.executionResult.newTp)}`,
+          `• Step ${compactNumber(intent.executionResult.stepPrice)}`,
+          `• Intent #${shortIntentId(intent)}`,
+        ].join("\n"),
+        Number(intent.executionFinishedAt || clock()),
+      );
+    }
     if (intent.kind === "entry") {
       const side = String(intent.payload?.side || "").toUpperCase();
       const symbol = String(intent.resolvedSymbol || intent.payload?.symbol || "");
@@ -1344,10 +1361,10 @@ export function createLocalFailoverRuntime(options = {}) {
       && intent.kind === "entry"
       && Number.isFinite(Number(intent.dueAt))
       && Number(intent.dueAt) > 0;
-    if (scheduledUiEntry && !versionAtLeast(selection.heartbeat?.eaVersion, 1, 12)) {
+    if (scheduledUiEntry && !versionAtLeast(selection.heartbeat?.eaVersion, 1, 13)) {
       intent.status = "failed";
       intent.executionFinishedAt = clock();
-      intent.executionError = `EA v1.12+ is required for safe scheduled reversal handling and REVERSAL_INCOMPLETE evidence; current heartbeat reports ${String(selection.heartbeat?.eaVersion || "unknown")}.`;
+      intent.executionError = `EA v1.13+ is required for scheduled TP rolling and reversal-safe entry preparation; current heartbeat reports ${String(selection.heartbeat?.eaVersion || "unknown")}.`;
       intent.executionResult = { ok: false, action: intent.kind, detail: intent.executionError };
       queueScheduledIntentNotification(state, intent);
       await saveState(state);

@@ -70,9 +70,9 @@ test("legacy profile alias cannot fan out silently across multiple enabled accou
 
 test("managed account defaults preserve legacy SL TP point contract and unique labels", () => {
   assert.match(accountsSource, /fxSlPoints: 500/);
-  assert.match(accountsSource, /fxTpPoints: 10000/);
+  assert.match(accountsSource, /fxTpPoints: 500/);
   assert.match(accountsSource, /goldSlPoints: 1000/);
-  assert.match(accountsSource, /goldTpPoints: 20000/);
+  assert.match(accountsSource, /goldTpPoints: 2000/);
   assert.match(accountsSource, /Duplicate account label/);
   assert.match(accountsSource, /SL\/TP points must be positive finite numbers/);
 });

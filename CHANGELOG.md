@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced the local MT5 manager to EA v1.13. Default XAU/GOLD TP is now 20.0 price units and default FX TP is 50 pips on the active 2-digit gold/5-digit FX contract. At each later scheduled same-direction entry milestone, one still-open position keeps its SL and moves TP one additional 20.0 price units for XAU/GOLD or 50 pips for FX instead of opening a duplicate position; the durable scheduled result sends a deduplicated Telegram `TP moved` notice with old/new TP. Opposite-direction reversal handling remains fail-closed, and scheduled UI entry now requires EA v1.13+.
+
 - Simplified the H1 matrix presentation by removing the `BT +1 · SW +2` helper line from the shared `ENTRY TIME` row and PNG export. The exported entry row now matches the signal-row height; H1 timing and signal logic are unchanged.
 
 - Advanced H1 to v94 while keeping public schema 18/state v56. H16 is retired again, leaving H3/H6/H9/H12/H14. XAUUSD M15 remains the entry-time pattern owner, while every final signal now reads only the same broker day's GBPUSD M15 candle exactly 15 minutes before the resolved entry time (for example entry H4 reads GBPUSD 03:45): H3/H12/H14 invert that base and H6/H9 keep it. AUDUSD/USDCAD/USDJPY are removed from the local H1 market source set, all weekday block highlighting is removed from Web/PNG, and Web/native iOS/native Android/Expo evidence labels now identify the GBPUSD M15 base. Stale v93 rows are rejected until the local 90-day history rebuild republishes v94.

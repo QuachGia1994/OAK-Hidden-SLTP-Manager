@@ -230,7 +230,7 @@ export async function main({ localPrimary = process.argv.includes("--local-prima
   if (result.localPrimary) {
     console.log(`Local-primary control config (v3) written to ${result.configPath} with ${result.accountCount} MT5 account definition(s).`);
     console.log("The PC controller will take over Telegram (webhook removed) and own MT5 execution; cloud execution is fenced while it runs.");
-    console.log("Attach EA 1.12+ first: scheduled UI entry requires reversal-safe entry_prepare evidence and position-comment verification.");
+    console.log("Attach EA 1.13+ first: scheduled UI entry requires TP-roll support, reversal-safe entry_prepare evidence and position-comment verification.");
   } else {
     console.log(`Local failover config written to ${result.configPath} with ${result.accountCount} MT5 account snapshot(s).`);
     console.log("Secrets were copied locally but were not printed. Re-bootstrap after credential/account changes or when the snapshot expires.");

@@ -95,6 +95,35 @@ function failed(detail) {
   };
 }
 
+function rolledTpEnvelope(prepared) {
+  const oldTp = Number(prepared?.oldTp);
+  const newTp = Number(prepared?.newTp);
+  const stepPrice = Number(prepared?.stepPrice);
+  const positionId = String(prepared?.positionId || "");
+  const symbol = String(prepared?.resolvedSymbol || "");
+  const side = String(prepared?.side || "").toUpperCase();
+  if (!positionId || !symbol || !["BUY", "SELL"].includes(side) || !Number.isFinite(oldTp) || oldTp <= 0 || !Number.isFinite(newTp) || newTp <= 0 || !Number.isFinite(stepPrice) || stepPrice <= 0) {
+    return failed("EA TP-roll result is incomplete");
+  }
+  return {
+    status: "done",
+    result: {
+      ok: true,
+      action: "entry",
+      entrySkipped: true,
+      tpRolled: true,
+      resolvedSymbol: symbol,
+      side,
+      positionId,
+      oldTp,
+      newTp,
+      stepPrice,
+      detail: String(prepared?.detail || "same-direction position remains; TP advanced"),
+      executor: "mt5-ea-tp-roll",
+    },
+  };
+}
+
 function reversalIncomplete(prepared, detail, replacementState = "not_submitted") {
   const buyLots = Number(prepared?.currentBuyLots || 0);
   const sellLots = Number(prepared?.currentSellLots || 0);
@@ -411,6 +440,9 @@ export function createMt5UiEntryAdapter(options = {}) {
             ? uncertain(prepareEnvelope.result?.detail || "EA entry preparation is uncertain")
             : failed(prepareEnvelope?.result?.detail || "EA entry preparation failed");
         return await persistFinal(fsOps, files, task, envelope, clock);
+      }
+      if (prepareEnvelope.result.tpRolled === true && prepareEnvelope.result.entrySkipped === true) {
+        return await persistFinal(fsOps, files, task, rolledTpEnvelope(prepareEnvelope.result), clock);
       }
 
       uiTask = buildUiTask(task, prepareEnvelope.result);

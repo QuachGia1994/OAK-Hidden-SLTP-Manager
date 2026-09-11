@@ -40,7 +40,8 @@ test("MT5 registration normalizes metadata without accepting secret fields", () 
   assert.equal(row.bridgeServer, "Vantage-Live");
   assert.equal(row.login, 778899);
   assert.equal(row.fxSlPoints, 500);
-  assert.equal(row.goldTpPoints, 20000);
+  assert.equal(row.fxTpPoints, 500);
+  assert.equal(row.goldTpPoints, 2000);
 });
 
 test("protection points and labels fail closed", () => {

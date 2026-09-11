@@ -79,13 +79,13 @@ test("local failover Scheduled Task keeps user context but launches Node hidden"
 function localPrimaryStatusFor(account = ACCOUNT_A, overrides = {}, now = BASE_NOW) {
   return statusFor(account, {
     providerAccountId: LOCAL_PRIMARY_PROVIDER_ACCOUNT_ID,
-    eaVersion: "1.12",
+    eaVersion: "1.13",
     localPrimary: true,
     localReady: true,
     fxSlPoints: 500,
-    fxTpPoints: 10000,
+    fxTpPoints: 500,
     goldSlPoints: 1000,
-    goldTpPoints: 20000,
+    goldTpPoints: 2000,
     ...overrides,
   }, now);
 }
@@ -1071,7 +1071,7 @@ test("29 local-primary mutations use runtime EA identity and the local-primary t
     const [id] = Object.keys(state.intents);
     assert.equal(state.intents[id].providerAccountId, LOCAL_PRIMARY_PROVIDER_ACCOUNT_ID);
     assert.equal(state.intents[id].controlMode, "local-primary");
-    assert.deepEqual(state.intents[id].protection, { slPoints: 500, tpPoints: 10000 });
+    assert.deepEqual(state.intents[id].protection, { slPoints: 500, tpPoints: 500 });
     assert.equal(h.eaExecutions, 0);
     await h.runtime.processTelegramUpdate(h.config, state, { update_id: 292, message: { chat: { id: 123 }, text: `/approve ${id}` } }, statuses);
     assert.equal(h.eaExecutions, 1);
@@ -1708,6 +1708,46 @@ test("successful scheduled entry/order notifies Telegram after execution", { con
     await h.runtime.runOneIteration(h.config, state);
     assert.equal(h.eaExecutions, 1);
     assert.equal(h.sent.filter((text) => /Scheduled order executed/i.test(text)).length, 1);
+  } finally { await h.cleanup(); }
+});
+
+test("same-direction scheduled milestone notifies Telegram that TP moved", { concurrency: false }, async () => {
+  const h = await createHarness("scheduled-tp-roll-notice", {
+    controlMode: "local-primary",
+    webhook: "",
+    scheduledEntryExecution: "mt5-ui",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+    mt5UiDispatch: async () => ({
+      status: "done",
+      result: {
+        ok: true,
+        action: "entry",
+        entrySkipped: true,
+        tpRolled: true,
+        resolvedSymbol: "XAUUSD",
+        side: "BUY",
+        positionId: "5001",
+        oldTp: 2520,
+        newTp: 2540,
+        stepPrice: 20,
+        detail: "same-direction position remains; TP advanced by 20 price",
+      },
+    }),
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 415, message: { chat: { id: 123 }, text: "/buy XAUUSD 0.01 23:59 @acct-a" } }, statuses);
+    const [id] = Object.keys(state.intents);
+    h.setNow(state.intents[id].dueAt + 1);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    await h.runtime.runOneIteration(h.config, state);
+
+    assert.equal(state.intents[id].status, "executed");
+    assert.equal(h.mt5UiTasks.length, 1);
+    assert.ok(h.sent.some((text) => /TP moved.*acct-a/i.test(text) && /XAUUSD/i.test(text) && /2520.*2540/i.test(text)));
+    assert.equal(h.sent.some((text) => /Scheduled order executed/i.test(text)), false);
+    assert.equal(state.deliveredTradeEventIds.filter((value) => value === `scheduled_tp_roll:${id}`).length, 1);
   } finally { await h.cleanup(); }
 });
 

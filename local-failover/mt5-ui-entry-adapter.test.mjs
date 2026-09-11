@@ -27,8 +27,8 @@ test("EA symbol readiness preflight selects Market Watch and gates entry trade m
   assert.match(managerEaSource, /ExecuteSymbolPrepareTask/);
 });
 
-test("EA v1.12 preflights reversal exposure and surfaces post-net gaps without replay", () => {
-  assert.match(managerEaSource, /#property version\s+"1\.12"/);
+test("EA v1.13 preflights reversal exposure and surfaces post-net gaps without replay", () => {
+  assert.match(managerEaSource, /#property version\s+"1\.13"/);
   assert.match(managerEaSource, /struct EntryNetMutationSummary/);
   assert.match(managerEaSource, /ProjectedExposureAfterNet/);
   assert.match(managerEaSource, /InpEntryNetSettleTimeoutMs/);
@@ -43,6 +43,18 @@ test("EA v1.12 preflights reversal exposure and surfaces post-net gaps without r
   const postExposureIndex = prepare.indexOf("symbol exposure guard exceeded after netting");
   assert.ok(projectedIndex >= 0 && netIndex > projectedIndex && settleIndex > netIndex && postExposureIndex > settleIndex);
   assert.match(prepare, /FailReversalIncomplete/);
+});
+
+test("EA defaults to 20-price XAU TP, 50-pip FX TP, and rolls same-direction TP at scheduled entry milestones", () => {
+  assert.match(managerEaSource, /InpFxTPPointsV113\s*=\s*500\.0/);
+  assert.match(managerEaSource, /InpGoldTPPointsV113\s*=\s*2000\.0/);
+  assert.match(managerEaSource, /double ScheduledTpRollStepPrice\(/);
+  assert.match(managerEaSource, /if\(IsGold\(symbol\)\) return 20\.0/);
+  assert.match(managerEaSource, /return 50\.0\*pip/);
+  assert.match(managerEaSource, /bool RollSameDirectionTakeProfit\(/);
+  assert.match(managerEaSource, /ModifyPosition\(ticket,sl,new_tp,modify_detail\)/);
+  assert.match(managerEaSource, /tpRolled/);
+  assert.match(managerEaSource, /entrySkipped/);
 });
 
 test("EA emits local trade-event evidence for lifecycle events and reversal gaps", () => {
@@ -69,7 +81,7 @@ function scheduledTask(overrides = {}) {
     lot: 0.01,
     legacyProfile: "acct-a",
   };
-  const protection = { slPoints: 500, tpPoints: 10000 };
+  const protection = { slPoints: 500, tpPoints: 500 };
   const base = {
     version: 2,
     id: "L-900-1",
@@ -215,6 +227,49 @@ test("scheduled entry uses EA preparation, no-mouse UI submit and EA snapshot ve
     const replay = await h.adapter.dispatch(h.args);
     assert.equal(replay.status, "done");
     assert.deepEqual(h.uiCalls, []);
+    assert.deepEqual(h.eaTasks, []);
+  } finally { await h.cleanup(); }
+});
+
+test("same-direction scheduled milestone rolls TP and skips the MT5 Buy/Sell UI", { concurrency: false }, async () => {
+  const h = await harness("tp-roll", {
+    dispatchEa: async (innerTask) => {
+      if (innerTask.action !== "entry_prepare") throw new Error(`unexpected EA action ${innerTask.action}`);
+      return {
+        status: "done",
+        result: {
+          ok: true,
+          action: "entry_prepare",
+          entrySkipped: true,
+          tpRolled: true,
+          resolvedSymbol: "EURUSD",
+          side: "BUY",
+          positionId: "77",
+          oldTp: 1.105,
+          newTp: 1.11,
+          stepPrice: 0.005,
+          detail: "same-direction position remains; TP advanced by 50 pips",
+        },
+      };
+    },
+  });
+  try {
+    const result = await h.adapter.dispatch(h.args);
+    assert.equal(result.status, "done");
+    assert.equal(result.result.action, "entry");
+    assert.equal(result.result.tpRolled, true);
+    assert.equal(result.result.entrySkipped, true);
+    assert.equal(result.result.positionId, "77");
+    assert.equal(result.result.oldTp, 1.105);
+    assert.equal(result.result.newTp, 1.11);
+    assert.equal(result.result.stepPrice, 0.005);
+    assert.deepEqual(h.uiCalls, []);
+    assert.deepEqual(h.eaTasks.map((row) => row.action), ["entry_prepare"]);
+
+    h.eaTasks.length = 0;
+    const replay = await h.adapter.dispatch(h.args);
+    assert.equal(replay.status, "done");
+    assert.equal(replay.result.tpRolled, true);
     assert.deepEqual(h.eaTasks, []);
   } finally { await h.cleanup(); }
 });

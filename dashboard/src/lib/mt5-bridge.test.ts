@@ -43,8 +43,8 @@ test("web accepts only OAK MQL5 EA heartbeats for MT5 bridge execution", () => {
   assert.match(ea, /StateSet\(id,"pp_armed",1\.0\)/);
 });
 
-test("OAK MQL5 EA v1.12 exposes local-only Inputs, reversal-gap evidence and 100ms polling", () => {
-  assert.match(ea, /#property version\s+"1\.12"/);
+test("OAK MQL5 EA v1.13 exposes local-only Inputs, TP rolling, reversal-gap evidence and 100ms polling", () => {
+  assert.match(ea, /#property version\s+"1\.13"/);
   assert.match(ea, /input group "Local PC Control"/);
   assert.match(ea, /InpLocalPollMsV107\s*= 100/);
   assert.doesNotMatch(ea, /input group "OAK Cloud Bridge"/);
@@ -59,6 +59,8 @@ test("OAK MQL5 EA v1.12 exposes local-only Inputs, reversal-gap evidence and 100
   assert.match(ea, /InpEntryNetSettleTimeoutMs/);
   assert.match(ea, /REVERSAL_INCOMPLETE/);
   assert.match(ea, /"reversal_incomplete"/);
+  assert.match(ea, /RollSameDirectionTakeProfit/);
+  assert.match(ea, /tpRolled/);
   assert.doesNotMatch(ea, /PositionClosePartial/);
   assert.doesNotMatch(ea, /const char &input\[\]/);
 });

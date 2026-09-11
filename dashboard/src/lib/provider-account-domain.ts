@@ -76,9 +76,9 @@ export function normalizeMt5Registration(input: Mt5RegistrationInput): Required<
     bridgeProfile: String(input.bridgeProfile || "").trim().replace(/\s+/g, " ").slice(0, 120),
     bridgeServer: String(input.bridgeServer || "").trim().replace(/\s+/g, " ").slice(0, 120),
     fxSlPoints: normalizePositivePoints(input.fxSlPoints, 500),
-    fxTpPoints: normalizePositivePoints(input.fxTpPoints, 10000),
+    fxTpPoints: normalizePositivePoints(input.fxTpPoints, 500),
     goldSlPoints: normalizePositivePoints(input.goldSlPoints, 1000),
-    goldTpPoints: normalizePositivePoints(input.goldTpPoints, 20000),
+    goldTpPoints: normalizePositivePoints(input.goldTpPoints, 2000),
   };
 }
 

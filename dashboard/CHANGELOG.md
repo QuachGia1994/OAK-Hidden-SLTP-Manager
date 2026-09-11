@@ -6,6 +6,8 @@ All notable changes to the dashboard are recorded here.
 
 ### Changed
 
+- Updated default broker protection to XAU/GOLD TP 20.0 price units and FX TP 50 pips, and synchronized the local MT5 scheduled-entry contract with EA v1.13 TP rolling. A later same-direction milestone now advances the existing TP instead of creating a duplicate entry, while Telegram reports the old and new TP.
+
 - Removed the `BT +1 · SW +2` helper line from the shared H1 `ENTRY TIME` row and PNG export, with the PNG entry row compacted to match the signal-row height. H1 timing and signal logic are unchanged.
 
 - Advanced H1 to v94 without changing public schema 18/state v56. H16 is removed, XAUUSD M15 remains the entry owner, and final XAUUSD BUY/SELL now uses only the same-day GBPUSD M15 candle at entry minus 15 minutes (entry H4 → GBPUSD 03:45). H3/H12/H14 invert that base; H6/H9 keep it. The local source set is reduced to XAUUSD + GBPUSD, all weekday block highlights are removed from the board/PNG, and Web/native/Expo evidence identifies the M15 base. Stale v93 rows fail closed until history is rebuilt from local MT5.

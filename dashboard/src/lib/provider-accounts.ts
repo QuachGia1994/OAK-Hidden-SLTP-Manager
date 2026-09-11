@@ -56,9 +56,9 @@ function parseMt5Account(raw: unknown): ManagedMt5Account | null {
       bridgeProfile: String(row.bridgeProfile || "").trim().slice(0, 120),
       bridgeServer: String(row.bridgeServer || "").trim().replace(/\s+/g, " ").slice(0, 120),
       fxSlPoints: normalizePositivePoints(row.fxSlPoints, 500),
-      fxTpPoints: normalizePositivePoints(row.fxTpPoints, 10000),
+      fxTpPoints: normalizePositivePoints(row.fxTpPoints, 500),
       goldSlPoints: normalizePositivePoints(row.goldSlPoints, 1000),
-      goldTpPoints: normalizePositivePoints(row.goldTpPoints, 20000),
+      goldTpPoints: normalizePositivePoints(row.goldTpPoints, 2000),
       createdAt: Number(row.createdAt || Date.now()),
       updatedAt: Number(row.updatedAt || Date.now()),
     };
@@ -141,9 +141,9 @@ export async function syncManagedMt5AccountsFromLocalHeartbeats(rows: Array<{
       bridgeProfile: profile,
       bridgeServer: server,
       fxSlPoints: 500,
-      fxTpPoints: 10000,
+      fxTpPoints: 500,
       goldSlPoints: 1000,
-      goldTpPoints: 20000,
+      goldTpPoints: 2000,
       createdAt: now,
       updatedAt: now,
     };

@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.12"
+#property version   "1.13"
 #property description "OAK local-only MT5 execution manager"
 
 // OAK Local Manager EA
@@ -43,9 +43,9 @@ input long   InpManageMagic                = -1;        // -1 = all positions, i
 input string InpManagedSymbols             = "";        // Empty = all; comma-separated roots allowed
 input bool   InpAutoAttachSLTP              = true;
 input double InpFxSLPoints                 = 500.0;
-input double InpFxTPPoints                 = 10000.0;
+input double InpFxTPPointsV113            = 500.0;
 input double InpGoldSLPoints               = 1000.0;
-input double InpGoldTPPoints               = 20000.0;
+input double InpGoldTPPointsV113          = 2000.0;
 
 input group "R Management"
 input double InpBreakEvenAtR               = 0.0;       // 0 = disabled
@@ -60,7 +60,7 @@ input string InpPartialPercents            = "50";      // 1 pct = current-volum
 #define OAK_HEARTBEAT_PREFIX  "oak:mt5:bridge:heartbeat:v1:"
 #define OAK_TASK_TTL          604800
 #define OAK_HEARTBEAT_TTL     45
-#define OAK_EA_VERSION        "1.12"
+#define OAK_EA_VERSION        "1.13"
 #define OAK_LOCAL_DIR         "OAKLocalFailover\\"
 
 string g_profile = "";
@@ -933,9 +933,9 @@ void WriteLocalStatus(const bool ignored_cloud_ok=false)
       +",\"localReady\":"+((g_profile!="" && g_provider_account_id!="")?"true":"false")
       +",\"localPollMs\":"+IntegerToString(MathMax(100,MathMin(5000,InpLocalPollMsV107)))
       +",\"fxSlPoints\":"+DoubleToString(InpFxSLPoints,2)
-      +",\"fxTpPoints\":"+DoubleToString(InpFxTPPoints,2)
+      +",\"fxTpPoints\":"+DoubleToString(InpFxTPPointsV113,2)
       +",\"goldSlPoints\":"+DoubleToString(InpGoldSLPoints,2)
-      +",\"goldTpPoints\":"+DoubleToString(InpGoldTPPoints,2)
+      +",\"goldTpPoints\":"+DoubleToString(InpGoldTPPointsV113,2)
       +"}";
    WriteCommonText(LocalStatusPath(),json);
 }
@@ -1040,8 +1040,8 @@ bool IsGold(const string symbol)
 
 void DefaultProtection(const string symbol, double &sl_points, double &tp_points)
 {
-   if(IsGold(symbol)) { sl_points=InpGoldSLPoints; tp_points=InpGoldTPPoints; }
-   else { sl_points=InpFxSLPoints; tp_points=InpFxTPPoints; }
+   if(IsGold(symbol)) { sl_points=InpGoldSLPoints; tp_points=InpGoldTPPointsV113; }
+   else { sl_points=InpFxSLPoints; tp_points=InpFxTPPointsV113; }
 }
 
 bool SymbolManaged(const string symbol)
@@ -1677,6 +1677,58 @@ bool PriceAllowsTP(const string symbol, long ptype, double tp)
    return tp <= tick.ask-distance+point*0.1;
 }
 
+double ScheduledTpRollStepPrice(const string symbol)
+{
+   if(IsGold(symbol)) return 20.0;
+   double point=SymbolInfoDouble(symbol,SYMBOL_POINT);
+   int digits=(int)SymbolInfoInteger(symbol,SYMBOL_DIGITS);
+   if(point<=0) return 0.0;
+   double pip=((digits==3 || digits==5) ? point*10.0 : point);
+   return 50.0*pip;
+}
+
+bool RollSameDirectionTakeProfit(const string symbol,bool buy,bool &rolled,long &position_id,double &old_tp,double &new_tp,double &step_price,string &detail)
+{
+   rolled=false;
+   position_id=0;
+   old_tp=0.0;
+   new_tp=0.0;
+   step_price=0.0;
+   detail="";
+   ulong ticket=0;
+   int matches=0;
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong candidate=PositionGetTicket(i);
+      if(candidate==0) continue;
+      if(PositionGetString(POSITION_SYMBOL)!=symbol) continue;
+      long type=PositionGetInteger(POSITION_TYPE);
+      if((buy && type==POSITION_TYPE_BUY) || (!buy && type==POSITION_TYPE_SELL))
+      {
+         ticket=candidate;
+         matches++;
+      }
+   }
+   if(matches==0) return true;
+   if(matches>1) { detail="multiple same-direction positions exist; TP roll is ambiguous"; return false; }
+   if(!PositionSelectByTicket(ticket)) { detail="same-direction position disappeared before TP roll"; return false; }
+   position_id=SelectedPositionId();
+   old_tp=PositionGetDouble(POSITION_TP);
+   if(old_tp<=0) { detail="same-direction position has no TP to advance"; return false; }
+   step_price=ScheduledTpRollStepPrice(symbol);
+   if(step_price<=0) { detail="TP roll step is unavailable for symbol"; return false; }
+   int digits=(int)SymbolInfoInteger(symbol,SYMBOL_DIGITS);
+   new_tp=NormalizeDouble(buy ? old_tp+step_price : old_tp-step_price,digits);
+   long type=PositionGetInteger(POSITION_TYPE);
+   if(new_tp<=0 || !PriceAllowsTP(symbol,type,new_tp)) { detail="next TP is outside broker-valid range"; return false; }
+   double sl=PositionGetDouble(POSITION_SL);
+   string modify_detail="";
+   if(!ModifyPosition(ticket,sl,new_tp,modify_detail)) { detail="failed to advance TP: "+modify_detail; return false; }
+   rolled=true;
+   detail="same-direction position remains; TP advanced";
+   return true;
+}
+
 double CurrentR(long ptype, double open_price, double current_price, double point, double risk_points)
 {
    if(point<=0 || risk_points<=0) return 0.0;
@@ -1911,6 +1963,29 @@ string ExecuteEntryPrepareTask(const string task)
    ulong existing=0;
    if(EntryCommentExists(symbol,comment,existing))
       return ResultJson(false,"entry_prepare","entry comment already exists; UI replay refused",true,IntegerToString((long)existing));
+
+   bool tp_rolled=false;
+   long rolled_position_id=0;
+   double old_tp=0.0,new_tp=0.0,step_price=0.0;
+   string roll_detail="";
+   if(!RollSameDirectionTakeProfit(symbol,side=="BUY",tp_rolled,rolled_position_id,old_tp,new_tp,step_price,roll_detail))
+      return ResultJson(false,"entry_prepare",roll_detail);
+   if(tp_rolled)
+   {
+      int roll_digits=(int)SymbolInfoInteger(symbol,SYMBOL_DIGITS);
+      return "{\"ok\":true"
+         +",\"action\":\"entry_prepare\""
+         +",\"detail\":"+JsonQuote(roll_detail)
+         +",\"resolvedSymbol\":"+JsonQuote(symbol)
+         +",\"side\":"+JsonQuote(side)
+         +",\"entrySkipped\":true"
+         +",\"tpRolled\":true"
+         +",\"positionId\":"+IntegerToString(rolled_position_id)
+         +",\"oldTp\":"+DoubleToString(old_tp,roll_digits)
+         +",\"newTp\":"+DoubleToString(new_tp,roll_digits)
+         +",\"stepPrice\":"+DoubleToString(step_price,roll_digits)
+         +"}";
+   }
 
    double lots=0,price=0,sl_price=0,tp_price=0;
    int digits=0;
