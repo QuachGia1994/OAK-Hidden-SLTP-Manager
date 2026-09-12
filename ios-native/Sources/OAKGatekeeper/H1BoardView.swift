@@ -384,64 +384,200 @@ private struct H1NativeMetadataStrip: View {
 @MainActor
 struct OAKNativeOrbitCore: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var animationStart = Date()
     var label: String = "H1"
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion)) { context in
-            let phase = context.date.timeIntervalSinceReferenceDate
-            let horizontal = Angle.degrees(phase * 36)
-            let vertical = Angle.degrees(phase * 45)
-            let diagonal = Angle.degrees(-phase * 27)
-            let sphere = Angle.degrees(phase * 13)
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion || scenePhase != .active)) { context in
+            let elapsed = reduceMotion || scenePhase != .active
+                ? 0
+                : max(0, context.date.timeIntervalSince(animationStart))
 
             ZStack {
-                orbitRing(size: 108, opacity: 0.42, angle: horizontal)
-                    .rotation3DEffect(.degrees(66), axis: (x: 1, y: 0, z: 0), perspective: 0.72)
-
-                orbitRing(size: 101, opacity: 0.62, angle: vertical)
-                    .rotation3DEffect(.degrees(72), axis: (x: 0, y: 1, z: 0), perspective: 0.72)
-                    .rotation3DEffect(vertical, axis: (x: 1, y: 0, z: 0), perspective: 0.72)
-
-                orbitRing(size: 98, opacity: 0.34, angle: diagonal)
-                    .rotation3DEffect(.degrees(56), axis: (x: 1, y: 1, z: 0), perspective: 0.72)
-
-                ZStack {
-                    ForEach(0..<6, id: \.self) { index in
-                        Circle()
-                            .stroke(OAKColor.accent.opacity(0.58), lineWidth: 0.9)
-                            .frame(width: 64, height: 64)
-                            .rotation3DEffect(.degrees(Double(index) * 30 + sphere.degrees), axis: (x: 0, y: 1, z: 0), perspective: 0.7)
-                    }
-                    Circle()
-                        .stroke(OAKColor.accent.opacity(0.68), lineWidth: 1)
-                        .frame(width: 64, height: 64)
-                        .rotation3DEffect(.degrees(90), axis: (x: 1, y: 0, z: 0), perspective: 0.7)
+                Canvas { context, size in
+                    drawOrbitScene(&context, size: size, elapsed: elapsed)
                 }
-                .rotation3DEffect(.degrees(-18), axis: (x: 1, y: 0, z: 0), perspective: 0.7)
 
                 Text(label)
                     .font(.system(size: label.count > 2 ? 11 : 15, weight: .black, design: .monospaced))
                     .foregroundStyle(OAKColor.text)
-                    .frame(width: 42, height: 42)
-                    .background(OAKColor.surface.opacity(0.92), in: Circle())
+                    .frame(width: 41, height: 41)
+                    .background(OAKColor.surface.opacity(0.90), in: Circle())
                     .overlay { Circle().stroke(OAKColor.accent, lineWidth: 1) }
             }
             .shadow(color: OAKColor.accent.opacity(0.22), radius: 14)
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { animationStart = Date() }
+            }
+            .onChange(of: reduceMotion) { _, _ in
+                animationStart = Date()
+            }
         }
     }
 
-    private func orbitRing(size: CGFloat, opacity: Double, angle: Angle) -> some View {
-        ZStack {
-            Circle().stroke(OAKColor.accent.opacity(opacity), lineWidth: 1)
-            Circle()
-                .fill(OAKColor.accent)
-                .frame(width: 6, height: 6)
-                .offset(y: -size / 2)
-                .rotationEffect(angle)
-                .shadow(color: OAKColor.accent.opacity(0.85), radius: 5)
+    private func drawOrbitScene(_ context: inout GraphicsContext, size: CGSize, elapsed: Double) {
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+
+        drawCircle(&context, center: center, radius: 54, rotation: (66, 0, -14), opacity: 0.70)
+        drawCircle(&context, center: center, radius: 48, rotation: (66, 0, 34), opacity: 0.62, dash: [4, 3])
+        drawCircle(&context, center: center, radius: 25, rotation: (62, 0, -28), opacity: 0.88)
+
+        drawOrbit(&context, center: center, radius: 54, rotation: (64, 0, 12 + cycle(elapsed, duration: 10) * 360), opacity: 0.44, dots: [-90, 18, 156])
+        let vertical = verticalRotation(cycle(elapsed, duration: 8))
+        drawOrbit(&context, center: center, radius: 49.5, rotation: vertical, opacity: 0.58, dots: [-90, 156])
+        drawOrbit(&context, center: center, radius: 51, rotation: (58, 42, 24 - cycle(elapsed, duration: 13) * 360), opacity: 0.32, dots: [-90, 156])
+
+        let globe = globeRotation(elapsed / 18)
+        for longitude in stride(from: 0.0, through: 150.0, by: 30.0) {
+            drawGlobeCircle(&context, center: center, radius: 34, rotation: globe, longitude: longitude, opacity: 0.65)
         }
-        .frame(width: size, height: size)
+        drawEquator(&context, center: center, radius: 34, rotation: globe, opacity: 0.72)
+
     }
+
+    private func drawCircle(
+        _ context: inout GraphicsContext,
+        center: CGPoint,
+        radius: Double,
+        rotation: (Double, Double, Double),
+        opacity: Double,
+        dash: [CGFloat] = []
+    ) {
+        let paths = projectedCircle(radius: radius, rotation: rotation, center: center)
+        stroke(&context, paths.back, opacity: opacity * 0.28, dash: dash)
+        stroke(&context, paths.front, opacity: opacity, dash: dash)
+    }
+
+    private func drawOrbit(
+        _ context: inout GraphicsContext,
+        center: CGPoint,
+        radius: Double,
+        rotation: (Double, Double, Double),
+        opacity: Double,
+        dots: [Double]
+    ) {
+        drawCircle(&context, center: center, radius: radius, rotation: rotation, opacity: opacity)
+        for angle in dots {
+            let point = projected(OAKVector3(x: cos(radians(angle)), y: sin(radians(angle)), z: 0), rotation: rotation, radius: radius, center: center)
+            let dotRadius = 2.05
+            let dot = Path(ellipseIn: CGRect(x: point.location.x - dotRadius, y: point.location.y - dotRadius, width: dotRadius * 2, height: dotRadius * 2))
+            context.fill(dot, with: .color(OAKColor.accent.opacity(point.depth >= 0 ? 0.98 : 0.30)))
+        }
+    }
+
+    private func drawGlobeCircle(
+        _ context: inout GraphicsContext,
+        center: CGPoint,
+        radius: Double,
+        rotation: (Double, Double, Double),
+        longitude: Double,
+        opacity: Double
+    ) {
+        let points = (0..<96).map { index in
+            let angle = Double(index) / 96 * .pi * 2
+            return OAKVector3(x: cos(angle) * cos(radians(longitude)), y: sin(angle), z: -cos(angle) * sin(radians(longitude)))
+        }
+        let paths = projected(points, rotation: rotation, radius: radius, center: center)
+        stroke(&context, paths.back, opacity: opacity * 0.20)
+        stroke(&context, paths.front, opacity: opacity * 0.82)
+    }
+
+    private func drawEquator(
+        _ context: inout GraphicsContext,
+        center: CGPoint,
+        radius: Double,
+        rotation: (Double, Double, Double),
+        opacity: Double
+    ) {
+        let points = (0..<96).map { index in
+            let angle = Double(index) / 96 * .pi * 2
+            return OAKVector3(x: cos(angle), y: 0, z: sin(angle))
+        }
+        let paths = projected(points, rotation: rotation, radius: radius, center: center)
+        stroke(&context, paths.back, opacity: opacity * 0.20)
+        stroke(&context, paths.front, opacity: opacity * 0.88)
+    }
+
+    private func stroke(_ context: inout GraphicsContext, _ path: Path, opacity: Double, dash: [CGFloat] = []) {
+        context.stroke(path, with: .color(OAKColor.accent.opacity(opacity)), style: StrokeStyle(lineWidth: 0.9, lineCap: .round, dash: dash))
+    }
+
+    private func projectedCircle(radius: Double, rotation: (Double, Double, Double), center: CGPoint) -> (back: Path, front: Path) {
+        projected((0..<96).map { index in
+            let angle = Double(index) / 96 * .pi * 2
+            return OAKVector3(x: cos(angle), y: sin(angle), z: 0)
+        }, rotation: rotation, radius: radius, center: center)
+    }
+
+    private func projected(_ points: [OAKVector3], rotation: (Double, Double, Double), radius: Double, center: CGPoint) -> (back: Path, front: Path) {
+        var back = Path()
+        var front = Path()
+        let transformed = points.map { projected($0, rotation: rotation, radius: radius, center: center) }
+        var previousSide: Bool?
+        for index in transformed.indices {
+            let next = transformed[(index + 1) % transformed.count]
+            let current = transformed[index]
+            let isFront = current.depth + next.depth >= 0
+            if isFront {
+                if previousSide == true { front.addLine(to: next.location) }
+                else {
+                    front.move(to: current.location)
+                    front.addLine(to: next.location)
+                }
+            } else if previousSide == false { back.addLine(to: next.location) }
+            else {
+                back.move(to: current.location)
+                back.addLine(to: next.location)
+            }
+            previousSide = isFront
+        }
+        return (back, front)
+    }
+
+    private func projected(_ point: OAKVector3, rotation: (Double, Double, Double), radius: Double, center: CGPoint) -> (location: CGPoint, depth: Double) {
+        let rotated = rotate(point, x: rotation.0, y: rotation.1, z: rotation.2)
+        let scale = 1 + rotated.z * 0.06
+        return (CGPoint(x: center.x + rotated.x * radius * scale, y: center.y + rotated.y * radius * scale), rotated.z)
+    }
+
+    private func verticalRotation(_ progress: Double) -> (Double, Double, Double) {
+        let start = (0.0, 68.0, -16.0)
+        let middle = (180.0, 18.0, 12.0)
+        let end = (360.0, 68.0, -16.0)
+        return progress < 0.5
+            ? interpolate(start, middle, amount: progress * 2)
+            : interpolate(middle, end, amount: (progress - 0.5) * 2)
+    }
+
+    private func globeRotation(_ progress: Double) -> (Double, Double, Double) {
+        let cycle = Int(progress)
+        let fraction = progress - Double(cycle)
+        let eased = 0.5 - 0.5 * cos((cycle.isMultiple(of: 2) ? fraction : 1 - fraction) * .pi)
+        return interpolate((-18, -8, -22), (-10, 34, 14), amount: eased)
+    }
+
+    private func interpolate(_ a: (Double, Double, Double), _ b: (Double, Double, Double), amount: Double) -> (Double, Double, Double) {
+        (a.0 + (b.0 - a.0) * amount, a.1 + (b.1 - a.1) * amount, a.2 + (b.2 - a.2) * amount)
+    }
+
+    private func cycle(_ elapsed: Double, duration: Double) -> Double {
+        elapsed.truncatingRemainder(dividingBy: duration) / duration
+    }
+
+    private func rotate(_ point: OAKVector3, x: Double, y: Double, z: Double) -> OAKVector3 {
+        let zRotated = OAKVector3(x: point.x * cos(radians(z)) - point.y * sin(radians(z)), y: point.x * sin(radians(z)) + point.y * cos(radians(z)), z: point.z)
+        let yRotated = OAKVector3(x: zRotated.x * cos(radians(y)) + zRotated.z * sin(radians(y)), y: zRotated.y, z: -zRotated.x * sin(radians(y)) + zRotated.z * cos(radians(y)))
+        return OAKVector3(x: yRotated.x, y: yRotated.y * cos(radians(x)) - yRotated.z * sin(radians(x)), z: yRotated.y * sin(radians(x)) + yRotated.z * cos(radians(x)))
+    }
+
+    private func radians(_ degrees: Double) -> Double { degrees * .pi / 180 }
+}
+
+private struct OAKVector3 {
+    let x: Double
+    let y: Double
+    let z: Double
 }
 
 private extension String {
