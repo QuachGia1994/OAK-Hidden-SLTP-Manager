@@ -1,4 +1,4 @@
-import { addBrokerCalendarDays, brokerDateWeekdayIndex, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
+import { addBrokerCalendarDays, brokerDateWeekdayIndex, icMarketsBrokerWallEpochMs, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 import {
   H1_LOCAL_SCAN_HOURS,
   H1_LOCAL_SOURCES,
@@ -116,6 +116,15 @@ export type H1PublicFeed = {
   days: Record<string, {
     symbols: Partial<Record<H1PublicSymbol, { alerts: H1PublicAlert[] }>>;
   }>;
+};
+
+export type H1TpRollMilestone = {
+  brokerDate: string;
+  blockHour: number;
+  entryHour: number;
+  symbol: H1PublicSymbol;
+  side: H1Signal;
+  dueAt: number;
 };
 
 export function targetsForBlockHour(hour: number): readonly H1TargetBase[] {
@@ -970,6 +979,30 @@ export function buildPublicFeed(state: H1CloudState, publishedAt = new Date().to
     symbols: [...H1_PUBLIC_SYMBOLS],
     days,
   };
+}
+
+export function h1TpRollMilestonesForBrokerDate(state: H1CloudState, brokerDate: string): H1TpRollMilestone[] {
+  const day = buildPublicFeed(state).days[brokerDate];
+  if (!day) return [];
+  const xauEntryByBlock = new Map((day.symbols.XAUUSD?.alerts || [])
+    .filter((alert) => Number.isInteger(alert.entryHour))
+    .map((alert) => [alert.slotHour, Number(alert.entryHour)]));
+  const milestones: H1TpRollMilestone[] = [];
+  for (const symbol of H1_PUBLIC_SYMBOLS) {
+    for (const alert of day.symbols[symbol]?.alerts || []) {
+      const entryHour = xauEntryByBlock.get(alert.slotHour);
+      if (!alert.signal || !Number.isInteger(entryHour)) continue;
+      milestones.push({
+        brokerDate,
+        blockHour: alert.slotHour,
+        entryHour: Number(entryHour),
+        symbol,
+        side: alert.signal,
+        dueAt: icMarketsBrokerWallEpochMs(brokerDate, Number(entryHour), 0),
+      });
+    }
+  }
+  return milestones.sort((left, right) => left.dueAt - right.dueAt || left.blockHour - right.blockHour || left.symbol.localeCompare(right.symbol));
 }
 
 export function ensureSymbolDay(state: H1CloudState, brokerDate: string, base: H1TargetBase) {

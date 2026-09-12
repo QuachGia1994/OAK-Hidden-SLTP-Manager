@@ -10,6 +10,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP_LOCAL = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
 const CONFIG_PATH = process.env.OAK_LOCAL_FAILOVER_CONFIG || path.join(APP_LOCAL, "OAK Gatekeeper", "telegram-failover-config.json");
 const LOG_PATH = path.join(APP_LOCAL, "OAK Gatekeeper", "h1-scanner.log");
+const H1_TP_MILESTONE_PATH = process.env.OAK_H1_TP_MILESTONE_PATH || path.join(APP_LOCAL, "OAK Gatekeeper", "h1-tp-milestones.json");
 const PYTHON = process.env.OAK_PYTHON || "python";
 const READER = path.join(HERE, "mt5-h1-market-reader.py");
 const DEFAULT_ENDPOINT = "https://www.oakgatekeeper.uk/api/h1-scanner/local-market";
@@ -93,6 +94,49 @@ async function postSnapshot(config, payload, fetchImpl, { retryBusy = false } = 
   throw new Error("local H1 publish retry loop exhausted");
 }
 
+async function writeJsonAtomic(file, value) {
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify(value, null, 2), "utf8");
+  await fs.rename(tmp, file);
+}
+
+function normalizedTpMilestones(result) {
+  if (Number(result?.signalRuleVersion) !== 95 || !Array.isArray(result?.tpMilestones)) {
+    throw new Error("local H1 response is missing v95 TP milestones");
+  }
+  return result.tpMilestones.map((row) => {
+    const brokerDate = String(row?.brokerDate || "");
+    const blockHour = Number(row?.blockHour);
+    const entryHour = Number(row?.entryHour);
+    const symbol = String(row?.symbol || "").toUpperCase();
+    const side = String(row?.side || "").toUpperCase();
+    const dueAt = Number(row?.dueAt);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(brokerDate)
+      || ![3, 6, 9, 12, 14].includes(blockHour)
+      || !Number.isInteger(entryHour) || entryHour < 0 || entryHour > 23
+      || !["XAUUSD", "GBPUSD", "GBPAUD"].includes(symbol)
+      || !["BUY", "SELL"].includes(side)
+      || !Number.isSafeInteger(dueAt) || dueAt <= 0) {
+      throw new Error("local H1 response contains an invalid TP milestone");
+    }
+    return { brokerDate, blockHour, entryHour, symbol, side, dueAt };
+  });
+}
+
+async function persistLiveTpMilestones(result) {
+  const milestones = normalizedTpMilestones(result);
+  await writeJsonAtomic(H1_TP_MILESTONE_PATH, {
+    version: 1,
+    signalRuleVersion: 95,
+    generatedAt: Date.now(),
+    brokerDate: String(result.brokerDate || ""),
+    brokerHour: Number(result.brokerHour),
+    brokerMinute: Number(result.brokerMinute),
+    milestones,
+  });
+}
+
 function addCalendarDays(dateKey, days) {
   const [year, month, day] = dateKey.split("-").map(Number);
   const value = new Date(Date.UTC(year, month - 1, day + days));
@@ -170,7 +214,13 @@ export async function publishIcMarketsM15({ fetchImpl = globalThis.fetch, exec =
     return { ok: true, backfill: true, days: snapshots.length, brokerDate: payload.brokerDate, brokerHour: payload.brokerHour, matched, updated, changedDays };
   }
 
-  return postSnapshot(config, currentDaySnapshot(payload), fetchImpl);
+  const result = await postSnapshot(config, currentDaySnapshot(payload), fetchImpl);
+  if (result?.skipped !== "already-running"
+    && Number(result?.signalRuleVersion) === 95
+    && Array.isArray(result?.tpMilestones)) {
+    await persistLiveTpMilestones(result);
+  }
+  return result;
 }
 
 async function appendRuntimeLog(level, message) {

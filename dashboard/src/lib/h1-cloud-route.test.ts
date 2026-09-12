@@ -51,6 +51,9 @@ test("local MT5 market endpoint is private, ICMarkets-only, stale-guarded, singl
   assert.match(localRoute, /source === "public-seed"/);
   assert.match(localRoute, /saveH1CloudState/);
   assert.match(localRoute, /publishH1CloudState/);
+  assert.match(localRoute, /h1TpRollMilestonesForBrokerDate/);
+  assert.match(localRoute, /signalRuleVersion: H1_SIGNAL_RULE_VERSION/);
+  assert.match(localRoute, /tpMilestones: h1TpRollMilestonesForBrokerDate\(state, parsed\.brokerDate\)/);
   assert.doesNotMatch(localRoute, /order_send|placeCTraderMarketOrder|SendTradeRequest|closeCTraderPositions/);
 });
 
@@ -96,6 +99,10 @@ test("local publisher sends XAUUSD/GBPUSD v95 market evidence and supports bound
   assert.match(publisher, /AbortSignal\.timeout\(20_000\)/);
   assert.match(publisher, /capturedAt: Date\.now\(\)/);
   assert.match(publisher, /h1-scanner\.log/);
+  assert.match(publisher, /H1_TP_MILESTONE_PATH/);
+  assert.match(publisher, /persistLiveTpMilestones/);
+  assert.match(publisher, /signalRuleVersion: 95/);
+  assert.match(publisher, /Array\.isArray\(result\?\.tpMilestones\)/);
   assert.match(publisher, /local H1 publish failed \(\$\{response\.status\}\): \$\{detail\}/);
   assert.doesNotMatch(publisher, /order_send|placeCTraderMarketOrder|closeCTraderPositions/);
 });

@@ -20,8 +20,10 @@ import {
 } from "@/lib/h1-cloud-store";
 import {
   H1_CLOUD_PROFILE,
+  H1_SIGNAL_RULE_VERSION,
   ensureSymbolDay,
   evaluateLocalH1PatternsForTarget,
+  h1TpRollMilestonesForBrokerDate,
   type H1LocalMarketSnapshot,
   type H1StoredAlert,
 } from "@/lib/h1-cloud-scanner";
@@ -220,6 +222,8 @@ export async function POST(request: Request) {
       matched,
       updated,
       changed,
+      signalRuleVersion: H1_SIGNAL_RULE_VERSION,
+      tpMilestones: h1TpRollMilestonesForBrokerDate(state, parsed.brokerDate),
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("[H1 LOCAL MT5 SCANNER]", error instanceof Error ? error.message : String(error));

@@ -6,6 +6,8 @@ All notable changes to the dashboard are recorded here.
 
 ### Changed
 
+- Added H1-calculated automatic TP-roll milestones for local-primary MT5 control. The authenticated local scanner response now carries v95 XAUUSD/GBPUSD/GBPAUD Entry-Time milestones with DST-correct IC Markets due times; the PC controller converts them into durable roll-only EA v1.14 mutations, de-duplicates an operator Telegram entry at the same account/symbol/due time, and never uses this path to open or net a position.
+
 - Advanced H1 to v95 with derived GBPUSD and GBPAUD signal rows while retaining XAUUSD as the only entry/pattern target and GBPUSD M15 as the XAU base source. GBPUSD later blocks select current-vs-previous XAUUSD signal from the previous block's entry delta; GBPAUD applies the requested weekday inversion matrix for H3/H6 and H9/H12, with H14 left blank. Web, PNG and mobile/native row lists and evidence semantics now match the same contract.
 
 - Updated default broker protection to XAU/GOLD TP 20.0 price units and FX TP 50 pips, and synchronized the local MT5 scheduled-entry contract with EA v1.13 TP rolling. A later same-direction milestone now advances the existing TP instead of creating a duplicate entry, while Telegram reports the old and new TP.

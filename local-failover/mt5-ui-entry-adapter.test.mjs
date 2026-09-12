@@ -27,8 +27,8 @@ test("EA symbol readiness preflight selects Market Watch and gates entry trade m
   assert.match(managerEaSource, /ExecuteSymbolPrepareTask/);
 });
 
-test("EA v1.13 preflights reversal exposure and surfaces post-net gaps without replay", () => {
-  assert.match(managerEaSource, /#property version\s+"1\.13"/);
+test("EA v1.14 retains reversal preflight while adding roll-only H1 support", () => {
+  assert.match(managerEaSource, /#property version\s+"1\.14"/);
   assert.match(managerEaSource, /struct EntryNetMutationSummary/);
   assert.match(managerEaSource, /ProjectedExposureAfterNet/);
   assert.match(managerEaSource, /InpEntryNetSettleTimeoutMs/);
@@ -55,6 +55,11 @@ test("EA defaults to 20-price XAU TP, 50-pip FX TP, and rolls same-direction TP 
   assert.match(managerEaSource, /ModifyPosition\(ticket,sl,new_tp,modify_detail\)/);
   assert.match(managerEaSource, /tpRolled/);
   assert.match(managerEaSource, /entrySkipped/);
+  const rollTaskStart = managerEaSource.indexOf("string ExecuteTpRollTask(");
+  const rollTaskEnd = managerEaSource.indexOf("string ExecuteEntryTask(", rollTaskStart);
+  const rollTask = managerEaSource.slice(rollTaskStart, rollTaskEnd);
+  assert.match(rollTask, /RollSameDirectionTakeProfit/);
+  assert.doesNotMatch(rollTask, /SendMarketEntry|PrepareMarketEntryFields|PreEntryNet|ClosePositionFull|DeletePending/);
 });
 
 test("EA emits local trade-event evidence for lifecycle events and reversal gaps", () => {

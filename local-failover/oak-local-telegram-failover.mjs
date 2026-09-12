@@ -4,6 +4,7 @@ import os from "node:os";
 import net from "node:net";
 import { createHash, randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
+import { icMarketsBrokerWallEpochMs } from "../dashboard/src/lib/h1-broker-date.ts";
 import {
   TELEGRAM_MULTI_COMMAND_LIMIT,
   approvedStatusForDueAt,
@@ -14,11 +15,13 @@ import {
 } from "../dashboard/src/lib/telegram-cloud-domain.ts";
 import {
   FAILOVER_MODES,
+  brokerOriginLedgerKey,
   brokerTaskDigest,
   chooseLocalMt5Account,
   classifyWriteProbeFailure,
   commandRecordKey,
   defaultFailoverState,
+  h1TpRollOriginKey,
   isBrokerMutation,
   isTerminalIntentStatus,
   localIntentId,
@@ -56,6 +59,11 @@ const FAILOVER_MODE = "failover";
 const LOCAL_PRIMARY_FENCE_KEY = "oak:telegram:local-primary:active:v1";
 const LOCAL_PRIMARY_FENCE_TTL_SECONDS = 300;
 const FENCE_HEARTBEAT_MIN_INTERVAL_MS = 60_000;
+const H1_TP_MILESTONE_VERSION = 1;
+const H1_TP_SIGNAL_RULE_VERSION = 95;
+const H1_TP_MILESTONE_MAX_AGE_MS = 5 * 60 * 1000;
+const H1_TP_CLOCK_SKEW_MS = 5_000;
+const H1_TP_COLLISION_WINDOW_MS = 1_000;
 
 const CANCELLABLE_INTENT_STATUSES = new Set(["approval_required", "scheduled", "approved"]);
 const ACTIVE_INTENT_STATUSES = new Set([...CANCELLABLE_INTENT_STATUSES, "executing"]);
@@ -67,6 +75,7 @@ export function resolveRuntimePaths(env = process.env) {
     configPath: env.OAK_LOCAL_FAILOVER_CONFIG || path.join(runtimeDir, "telegram-failover-config.json"),
     statePath: env.OAK_LOCAL_FAILOVER_STATE || path.join(runtimeDir, "telegram-failover-state.json"),
     logPath: env.OAK_LOCAL_FAILOVER_LOG || path.join(runtimeDir, "telegram-failover.log"),
+    h1TpMilestonesPath: env.OAK_H1_TP_MILESTONE_PATH || path.join(runtimeDir, "h1-tp-milestones.json"),
     commonDir: env.OAK_MT5_COMMON_FAILOVER_DIR || path.join(APP_ROAMING, "MetaQuotes", "Terminal", "Common", "Files", "OAKLocalFailover"),
   };
 }
@@ -158,6 +167,66 @@ function versionAtLeast(value, minimumMajor, minimumMinor) {
   const major = Number(match[1]);
   const minor = Number(match[2]);
   return major > minimumMajor || (major === minimumMajor && minor >= minimumMinor);
+}
+
+function normalizedScheduledSymbol(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function scheduledSymbolsEquivalent(left, right) {
+  const a = normalizedScheduledSymbol(left);
+  const b = normalizedScheduledSymbol(right);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const goldA = a.includes("XAU") || a.includes("GOLD");
+  const goldB = b.includes("XAU") || b.includes("GOLD");
+  if (goldA && goldB) return true;
+  return a.length >= 6 && b.length >= 6 && (a.includes(b) || b.includes(a));
+}
+
+function h1TpAutomationKey(milestone, providerAccountId) {
+  return ["h1tp", milestone.brokerDate, milestone.blockHour, milestone.symbol, providerAccountId].join("|");
+}
+
+function h1TpIntentId(automationKey) {
+  return `H1TP-${createHash("sha256").update(String(automationKey), "utf8").digest("hex").slice(0, 20)}`;
+}
+
+function normalizeH1TpMilestoneSnapshot(raw, now) {
+  if (!raw || typeof raw !== "object") return null;
+  const generatedAt = Number(raw.generatedAt);
+  if (Number(raw.version) !== H1_TP_MILESTONE_VERSION
+    || Number(raw.signalRuleVersion) !== H1_TP_SIGNAL_RULE_VERSION
+    || !Number.isFinite(generatedAt)
+    || generatedAt <= 0
+    || generatedAt - now > H1_TP_CLOCK_SKEW_MS
+    || now - generatedAt > H1_TP_MILESTONE_MAX_AGE_MS
+    || !/^\d{4}-\d{2}-\d{2}$/.test(String(raw.brokerDate || ""))
+    || !Array.isArray(raw.milestones)) return null;
+  const milestones = [];
+  for (const source of raw.milestones) {
+    const brokerDate = String(source?.brokerDate || "");
+    const blockHour = Number(source?.blockHour);
+    const entryHour = Number(source?.entryHour);
+    const symbol = normalizedScheduledSymbol(source?.symbol);
+    const side = String(source?.side || "").trim().toUpperCase();
+    const dueAt = Number(source?.dueAt);
+    let expectedDueAt = 0;
+    try {
+      expectedDueAt = icMarketsBrokerWallEpochMs(brokerDate, entryHour, 0);
+    } catch {
+      return null;
+    }
+    if (brokerDate !== String(raw.brokerDate)
+      || ![3, 6, 9, 12, 14].includes(blockHour)
+      || !Number.isInteger(entryHour) || entryHour < 0 || entryHour > 23
+      || !["XAUUSD", "GBPUSD", "GBPAUD"].includes(symbol)
+      || !["BUY", "SELL"].includes(side)
+      || !Number.isSafeInteger(dueAt) || dueAt <= 0
+      || dueAt !== expectedDueAt) return null;
+    milestones.push({ brokerDate, blockHour, entryHour, symbol, side, dueAt });
+  }
+  return { generatedAt, brokerDate: String(raw.brokerDate), milestones };
 }
 
 function normalizeEnvelope(value, action) {
@@ -324,6 +393,7 @@ export function createLocalFailoverRuntime(options = {}) {
   const eaAdapter = options.eaAdapter || { dispatch: defaultMailboxDispatch };
   const mt5UiEntryAdapter = options.mt5UiEntryAdapter || createMt5UiEntryAdapter();
   const applyConfigAcl = options.applyConfigAcl || applyWindowsUserOnlyAcl;
+  const h1TpMilestonesPath = paths.h1TpMilestonesPath || path.join(paths.runtimeDir, "h1-tp-milestones.json");
   const webSignal = options.webSignal || {
     async publish(config, signal) {
       if (!config.webSignalUrl || (!config.dashboardApiKey && !config.telegramWebhookSecret)) return { ok: false, skipped: "not-configured" };
@@ -578,7 +648,9 @@ export function createLocalFailoverRuntime(options = {}) {
       const detail = String(intent.executionResult?.detail || intent.executionError || "Scheduled execution did not complete").slice(0, 900);
       const actionLine = intent.kind === "entry"
         ? `${String(intent.payload?.side || "").toUpperCase()} ${String(intent.resolvedSymbol || intent.payload?.symbol || "")} ${compactVolume(intent.payload?.lot)} lot`
-        : `Action: ${intent.kind}`;
+        : intent.kind === "tp_roll"
+          ? `TP roll ${String(intent.payload?.side || "").toUpperCase()} ${String(intent.resolvedSymbol || intent.payload?.symbol || "")} · H1 H${String(intent.payload?.blockHour ?? "?").padStart(2, "0")}`
+          : `Action: ${intent.kind}`;
       return queueTradeNotification(
         state,
         `scheduled_${intent.status}:${intent.id}`,
@@ -594,7 +666,7 @@ export function createLocalFailoverRuntime(options = {}) {
       );
     }
     if (intent.status !== "executed" || intent.executionResult?.ok !== true) return false;
-    if (intent.kind === "entry" && intent.executionResult?.tpRolled === true) {
+    if ((intent.kind === "entry" || intent.kind === "tp_roll") && intent.executionResult?.tpRolled === true) {
       const side = String(intent.executionResult.side || intent.payload?.side || "").toUpperCase();
       const symbol = String(intent.executionResult.resolvedSymbol || intent.resolvedSymbol || intent.payload?.symbol || "");
       const position = String(intent.executionResult.positionId || "");
@@ -606,6 +678,7 @@ export function createLocalFailoverRuntime(options = {}) {
           `• ${side} ${symbol}${position ? ` · Position #${position}` : ""}`,
           `• TP ${compactNumber(intent.executionResult.oldTp)} → ${compactNumber(intent.executionResult.newTp)}`,
           `• Step ${compactNumber(intent.executionResult.stepPrice)}`,
+          ...(intent.kind === "tp_roll" ? [`• H1 H${String(intent.payload?.blockHour ?? "?").padStart(2, "0")} → Entry H${String(intent.payload?.entryHour ?? "?").padStart(2, "0")} · ${String(intent.payload?.brokerDate || "")}`] : []),
           `• Intent #${shortIntentId(intent)}`,
         ].join("\n"),
         Number(intent.executionFinishedAt || clock()),
@@ -762,6 +835,168 @@ export function createLocalFailoverRuntime(options = {}) {
         goldTpPoints: Number(heartbeat.goldTpPoints || selection.account.goldTpPoints || 0),
       },
     };
+  }
+
+  function telegramEntryOwnsH1Milestone(state, account, milestone) {
+    return Object.values(state.intents || {}).some((intent) => {
+      if (intent.kind !== "entry" || !ACTIVE_INTENT_STATUSES.has(intent.status)) return false;
+      if (String(intent.providerAccountId || "") !== String(account.providerAccountId || "")) return false;
+      if (!Number.isFinite(Number(intent.dueAt)) || Math.abs(Number(intent.dueAt) - Number(milestone.dueAt)) > H1_TP_COLLISION_WINDOW_MS) return false;
+      return scheduledSymbolsEquivalent(intent.resolvedSymbol || intent.payload?.symbol, milestone.symbol);
+    });
+  }
+
+  function h1TpRollCollisionForTelegramEntry(state, account, parsed, resolvedSymbol = "") {
+    if (parsed.kind !== "entry" || !Number.isFinite(Number(parsed.dueAt)) || Number(parsed.dueAt) <= 0) return null;
+    return Object.values(state.intents || {}).find((intent) => {
+      if (intent.kind !== "tp_roll" || intent.source !== "H1 Scanner" || !ACTIVE_INTENT_STATUSES.has(intent.status)) return false;
+      if (String(intent.providerAccountId || "") !== String(account.providerAccountId || "")) return false;
+      if (!Number.isFinite(Number(intent.dueAt)) || Math.abs(Number(intent.dueAt) - Number(parsed.dueAt)) > H1_TP_COLLISION_WINDOW_MS) return false;
+      return scheduledSymbolsEquivalent(intent.payload?.symbol, resolvedSymbol || parsed.payload?.symbol);
+    }) || null;
+  }
+
+  function cancelMatchingH1TpRollForTelegramEntry(state, account, parsed, resolvedSymbol = "") {
+    const collision = h1TpRollCollisionForTelegramEntry(state, account, parsed, resolvedSymbol);
+    if (!collision) return false;
+    if (collision.status === "executing") {
+      throw new Error(`@${account.label}: H1 TP-roll is already executing for ${normalizedScheduledSymbol(resolvedSymbol || parsed.payload?.symbol)} at this exact milestone; scheduled entry refused to avoid a double TP mutation`);
+    }
+    collision.status = "cancelled";
+    collision.executionFinishedAt = clock();
+    collision.executionError = "Superseded by operator Telegram scheduled entry at the same account/symbol/due time.";
+    collision.supersededByTelegramEntry = true;
+    return true;
+  }
+
+  function cancelStaleH1TpRollIntents(state, brokerDate = "") {
+    let changed = false;
+    for (const intent of Object.values(state.intents || {})) {
+      if (intent.kind !== "tp_roll" || intent.source !== "H1 Scanner" || !CANCELLABLE_INTENT_STATUSES.has(intent.status)) continue;
+      if (brokerDate && String(intent.payload?.brokerDate || "") !== brokerDate) continue;
+      intent.status = "cancelled";
+      intent.executionFinishedAt = clock();
+      intent.executionError = "Fresh H1 milestone evidence is unavailable; automatic TP roll cancelled fail-closed.";
+      changed = true;
+    }
+    return changed;
+  }
+
+  async function reconcileH1TpRollMilestones(config, state, statuses) {
+    if (config.controlMode !== LOCAL_PRIMARY_MODE) return false;
+    const raw = await readJson(h1TpMilestonesPath, null);
+    const snapshot = normalizeH1TpMilestoneSnapshot(raw, clock());
+    if (!snapshot) {
+      if (cancelStaleH1TpRollIntents(state)) {
+        await saveState(state);
+        return true;
+      }
+      return false;
+    }
+
+    const expected = new Set();
+    let changed = false;
+    const enabledAccounts = config.accounts.filter((row) => row.provider === "mt5" && row.enabled !== false);
+    for (const configured of enabledAccounts) {
+      let account;
+      let heartbeat;
+      try {
+        const selected = selectAccount(config, statuses, configured.label || configured.bridgeProfile || configured.providerAccountId);
+        account = selected.account;
+        heartbeat = selected.heartbeat;
+      } catch {
+        continue;
+      }
+      if (!versionAtLeast(heartbeat?.eaVersion, 1, 14)) continue;
+
+      for (const milestone of snapshot.milestones) {
+        if (milestone.dueAt < clock() - 2 * 60 * 1000) continue;
+        const automationKey = h1TpAutomationKey(milestone, account.providerAccountId);
+        const id = h1TpIntentId(automationKey);
+        if (telegramEntryOwnsH1Milestone(state, account, milestone)) {
+          const prior = state.intents?.[id];
+          if (prior && CANCELLABLE_INTENT_STATUSES.has(prior.status)) {
+            prior.status = "cancelled";
+            prior.executionFinishedAt = clock();
+            prior.executionError = "Superseded by operator Telegram scheduled entry at the same account/symbol/due time.";
+            prior.supersededByTelegramEntry = true;
+            changed = true;
+          }
+          continue;
+        }
+        expected.add(id);
+        const originKey = h1TpRollOriginKey(milestone.brokerDate, milestone.blockHour, milestone.symbol, account.providerAccountId);
+        const ledgerKey = brokerOriginLedgerKey(originKey, account.providerAccountId);
+        const payload = {
+          symbol: milestone.symbol,
+          side: milestone.side,
+          brokerDate: milestone.brokerDate,
+          blockHour: milestone.blockHour,
+          entryHour: milestone.entryHour,
+          automation: "h1-entry-time",
+        };
+        const taskDigest = brokerTaskDigest({
+          originKey,
+          providerAccountId: account.providerAccountId,
+          bridgeProfile: account.bridgeProfile,
+          login: account.login,
+          server: account.server,
+          action: "tp_roll",
+          payload,
+          protection: null,
+        });
+        const existing = state.intents?.[id];
+        if (existing && isTerminalIntentStatus(existing.status) && (existing.status !== "cancelled" || existing.supersededByTelegramEntry === true)) continue;
+        const next = {
+          ...(existing || {}),
+          id,
+          automationKey,
+          source: "H1 Scanner",
+          kind: "tp_roll",
+          status: "scheduled",
+          controlMode: config.controlMode,
+          accountLabel: account.label,
+          providerAccountId: account.providerAccountId,
+          bridgeProfile: account.bridgeProfile,
+          login: account.login,
+          server: account.server,
+          environment: account.environment,
+          terminalId: String(account.terminalId || ""),
+          terminalPath: String(account.terminalPath || ""),
+          originKey,
+          ledgerKey,
+          taskDigest,
+          createdAt: Number(existing?.createdAt || clock()),
+          scheduledAt: Number(existing?.scheduledAt || clock()),
+          dueAt: milestone.dueAt,
+          dueText: `H1 H${String(milestone.blockHour).padStart(2, "0")} → Entry H${String(milestone.entryHour).padStart(2, "0")} · ${milestone.brokerDate}`,
+          payload,
+          resolvedSymbol: milestone.symbol,
+          supersededByTelegramEntry: false,
+          executionFinishedAt: undefined,
+          executionError: undefined,
+          executionResult: undefined,
+        };
+        const priorDigest = JSON.stringify(existing || null);
+        const nextDigest = JSON.stringify(next);
+        if (priorDigest !== nextDigest) {
+          state.intents[id] = next;
+          changed = true;
+        }
+      }
+    }
+
+    for (const intent of Object.values(state.intents || {})) {
+      if (intent.kind !== "tp_roll" || intent.source !== "H1 Scanner" || !CANCELLABLE_INTENT_STATUSES.has(intent.status)) continue;
+      if (String(intent.payload?.brokerDate || "") !== snapshot.brokerDate) continue;
+      if (expected.has(String(intent.id))) continue;
+      intent.status = "cancelled";
+      intent.executionFinishedAt = clock();
+      intent.executionError = "H1 milestone was removed, changed, unavailable on this account, or superseded before due time.";
+      changed = true;
+    }
+    if (changed) await saveState(state);
+    return changed;
   }
 
   async function writeCapabilityProbe(config, state) {
@@ -1370,6 +1605,15 @@ export function createLocalFailoverRuntime(options = {}) {
       await saveState(state);
       return { status: "failed", result: intent.executionResult };
     }
+    if (intent.kind === "tp_roll" && !versionAtLeast(selection.heartbeat?.eaVersion, 1, 14)) {
+      intent.status = "failed";
+      intent.executionFinishedAt = clock();
+      intent.executionError = `EA v1.14+ is required for H1-calculated roll-only milestones; current heartbeat reports ${String(selection.heartbeat?.eaVersion || "unknown")}.`;
+      intent.executionResult = { ok: false, action: intent.kind, detail: intent.executionError };
+      queueScheduledIntentNotification(state, intent);
+      await saveState(state);
+      return { status: "failed", result: intent.executionResult };
+    }
     if (selection.account.providerAccountId !== intent.providerAccountId || Number(selection.account.login) !== Number(intent.login) || String(selection.account.server) !== String(intent.server)) {
       intent.status = "failed";
       intent.executionFinishedAt = clock();
@@ -1645,10 +1889,6 @@ export function createLocalFailoverRuntime(options = {}) {
     return resolvedSymbol;
   }
 
-  function normalizedScheduledSymbol(value) {
-    return String(value || "").trim().toUpperCase();
-  }
-
   function activeScheduledEntryConflict(state, account, parsed, resolvedSymbol = "") {
     if (parsed.kind !== "entry" || !Number.isFinite(Number(parsed.dueAt)) || Number(parsed.dueAt) <= 0) return null;
     const desired = new Set([
@@ -1691,6 +1931,7 @@ export function createLocalFailoverRuntime(options = {}) {
       assertNoActiveScheduledEntryConflict(state, account, parsed);
       const resolvedSymbol = await prepareScheduledUiEntrySymbol(config, account, parsed);
       assertNoActiveScheduledEntryConflict(state, account, parsed, resolvedSymbol);
+      cancelMatchingH1TpRollForTelegramEntry(state, account, parsed, resolvedSymbol);
       const shortId = state.nextIntentSeq++;
       const id = localIntentId(state.epoch, shortId);
       const originKey = telegramMt5OriginKey(updateId, commandIndex, account.providerAccountId);
@@ -1929,6 +2170,7 @@ export function createLocalFailoverRuntime(options = {}) {
     }
     const statuses = await loadEaStatuses();
     await reconcileRuntimeAccounts(config, statuses);
+    await reconcileH1TpRollMilestones(config, state, statuses);
     await reconcileExecutingIntents(config, state);
     await collectEaTradeEvents(config, state, statuses);
     await flushTradeNotifications(config, state);
@@ -1996,6 +2238,7 @@ export function createLocalFailoverRuntime(options = {}) {
 
   async function doctor(config, state, { dryRun = false } = {}) {
     const statuses = await loadEaStatuses();
+    const h1TpSnapshot = normalizeH1TpMilestoneSnapshot(await readJson(h1TpMilestonesPath, null), clock());
     let webhook = { url: "unknown" };
     try {
       webhook = await telegram.getWebhookInfo(config);
@@ -2030,6 +2273,9 @@ export function createLocalFailoverRuntime(options = {}) {
       eaVersions: [...new Set(fresh.map((row) => String(row.eaVersion || "unknown")))],
       webSignalSyncConfigured: Boolean(config.webSignalUrl && (config.dashboardApiKey || config.telegramWebhookSecret)),
       scheduledEntryExecution: config.scheduledEntryExecution,
+      h1TpMilestoneFresh: Boolean(h1TpSnapshot),
+      h1TpMilestoneBrokerDate: h1TpSnapshot?.brokerDate || "",
+      h1TpMilestoneCount: h1TpSnapshot?.milestones?.length || 0,
       pendingWebSync: Object.keys(state.pendingWebSync || {}).length,
       fenceHeartbeatConfigured: Boolean(config.upstashUrl && config.upstashToken),
       lastFenceHeartbeatAt: Number(state.lastFenceHeartbeatAt || 0),

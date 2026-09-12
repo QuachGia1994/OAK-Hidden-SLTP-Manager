@@ -19,6 +19,7 @@ import {
   h1BlockSignalPlan,
   highlightedH1BlockHoursForBrokerDate,
   h1TargetBaseFromSymbol,
+  h1TpRollMilestonesForBrokerDate,
   mergeH1CloudStateHistory,
   parseCloudState,
   parsePublicFeedCloudState,
@@ -28,6 +29,7 @@ import {
   type H1LocalMarketSnapshot,
   type H1StoredAlert,
 } from "./h1-cloud-scanner.ts";
+import { icMarketsBrokerWallEpochMs } from "./h1-broker-date.ts";
 import type { H1M15Bar } from "./h1-local-patterns.ts";
 
 function candle(date: string, hour: number, minute: number, direction: "T" | "G", seed = 100): H1M15Bar {
@@ -225,6 +227,28 @@ test("GBPUSD derived row follows the previous block entry-delta routing rule", (
     [12, "SELL", 9, "xau-previous-block-keep"],
     [14, "SELL", 14, "xau-same-block-keep"],
   ]);
+});
+
+test("v95 TP milestones use each block's shared XAU Entry time and IC Markets DST-aware broker wall clock", () => {
+  const date = "2026-09-10";
+  const state = emptyCloudState();
+  ensureSymbolDay(state, date, "XAUUSD").symbol.alerts.push(
+    storedXauAlert(3, 2, "BUY"),
+    storedXauAlert(6, 1, "SELL"),
+    storedXauAlert(9, 1, "BUY"),
+    storedXauAlert(12, 1, "SELL"),
+    storedXauAlert(14, 1, "BUY"),
+  );
+  const rows = h1TpRollMilestonesForBrokerDate(state, date);
+  const gbpUsdH6 = rows.find((row) => row.symbol === "GBPUSD" && row.blockHour === 6);
+  const gbpAudH6 = rows.find((row) => row.symbol === "GBPAUD" && row.blockHour === 6);
+  assert.deepEqual([gbpUsdH6?.entryHour, gbpAudH6?.entryHour], [7, 7]);
+  assert.equal(gbpUsdH6?.side, "BUY"); // H3 delta=2 routes the H6 GBPUSD signal from XAU H3, but due time stays H6 Entry H7.
+  assert.equal(gbpUsdH6?.dueAt, Date.parse("2026-09-10T04:00:00.000Z"));
+  assert.equal(gbpAudH6?.dueAt, Date.parse("2026-09-10T04:00:00.000Z"));
+  assert.equal(rows.some((row) => row.symbol === "GBPAUD" && row.blockHour === 14), false);
+  assert.equal(icMarketsBrokerWallEpochMs("2026-01-15", 7), Date.parse("2026-01-15T05:00:00.000Z"));
+  assert.equal(icMarketsBrokerWallEpochMs("2026-09-10", 7), Date.parse("2026-09-10T04:00:00.000Z"));
 });
 
 test("GBPAUD derived row applies the weekday/block inversion matrix and leaves H14 blank", () => {

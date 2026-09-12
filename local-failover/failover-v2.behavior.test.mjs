@@ -20,6 +20,7 @@ import {
   reconcileLocalPrimaryAccounts,
   telegramMt5OriginKey,
 } from "./oak-local-failover-domain.mjs";
+import { icMarketsBrokerWallEpochMs } from "../dashboard/src/lib/h1-broker-date.ts";
 import { mt5BrokerTaskDigest } from "../dashboard/src/lib/mt5-origin-domain.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -79,7 +80,7 @@ test("local failover Scheduled Task keeps user context but launches Node hidden"
 function localPrimaryStatusFor(account = ACCOUNT_A, overrides = {}, now = BASE_NOW) {
   return statusFor(account, {
     providerAccountId: LOCAL_PRIMARY_PROVIDER_ACCOUNT_ID,
-    eaVersion: "1.13",
+    eaVersion: "1.14",
     localPrimary: true,
     localReady: true,
     fxSlPoints: 500,
@@ -111,6 +112,7 @@ async function createHarness(name, options = {}) {
     configPath: path.join(runtimeDir, "config.json"),
     statePath: path.join(runtimeDir, "state.json"),
     logPath: path.join(runtimeDir, "controller.log"),
+    h1TpMilestonesPath: path.join(runtimeDir, "h1-tp-milestones.json"),
   };
   const localPrimary = options.controlMode === "local-primary";
   const config = localPrimary ? {
@@ -360,6 +362,19 @@ async function writeTradeEvent(h, event) {
     ...event,
   };
   await writeLedgerJson(tradeEventPath(h, value.eventId, value.profile, value.login), value);
+}
+
+async function writeH1TpMilestones(h, milestones, overrides = {}) {
+  await writeLedgerJson(h.paths.h1TpMilestonesPath, {
+    version: 1,
+    signalRuleVersion: 95,
+    generatedAt: h.now,
+    brokerDate: "2026-08-24",
+    brokerHour: 14,
+    brokerMinute: 30,
+    milestones,
+    ...overrides,
+  });
 }
 
 async function writeLookSnapshot(h, overrides = {}) {
@@ -1748,6 +1763,119 @@ test("same-direction scheduled milestone notifies Telegram that TP moved", { con
     assert.ok(h.sent.some((text) => /TP moved.*acct-a/i.test(text) && /XAUUSD/i.test(text) && /2520.*2540/i.test(text)));
     assert.equal(h.sent.some((text) => /Scheduled order executed/i.test(text)), false);
     assert.equal(state.deliveredTradeEventIds.filter((value) => value === `scheduled_tp_roll:${id}`).length, 1);
+  } finally { await h.cleanup(); }
+});
+
+test("fresh H1 Entry-time milestone creates one durable roll-only mutation and Telegram TP notice", { concurrency: false }, async () => {
+  const dueAt = icMarketsBrokerWallEpochMs("2026-08-24", 14);
+  const h = await createHarness("h1-auto-tp-roll", {
+    now: dueAt - 30_000,
+    controlMode: "local-primary",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A, {}, dueAt - 30_000)],
+    eaDispatch: async (task) => {
+      if (task.action === "tp_roll") return {
+        status: "done",
+        result: {
+          ok: true,
+          action: "tp_roll",
+          entrySkipped: true,
+          tpRolled: true,
+          resolvedSymbol: "XAUUSD",
+          side: "BUY",
+          positionId: "7001",
+          oldTp: 2520,
+          newTp: 2540,
+          stepPrice: 20,
+          detail: "same-direction position remains; TP advanced",
+        },
+      };
+      return { status: "done", result: { ok: true, action: task.action, detail: "synthetic" } };
+    },
+  });
+  try {
+    await writeH1TpMilestones(h, [{ brokerDate: "2026-08-24", blockHour: 12, entryHour: 14, symbol: "XAUUSD", side: "BUY", dueAt }]);
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    await h.runtime.runOneIteration(h.config, state);
+    const [intent] = Object.values(state.intents).filter((row) => row.kind === "tp_roll");
+    assert.ok(intent);
+    assert.equal(intent.status, "scheduled");
+    assert.equal(intent.source, "H1 Scanner");
+    assert.match(intent.originKey, /^h1tp:2026-08-24:12:XAUUSD:mt5:/);
+    assert.equal(h.eaTasks.filter((task) => task.action === "tp_roll").length, 0);
+
+    h.setNow(dueAt + 1);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    await writeH1TpMilestones(h, [{ brokerDate: "2026-08-24", blockHour: 12, entryHour: 14, symbol: "XAUUSD", side: "BUY", dueAt }]);
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(intent.status, "executed");
+    assert.equal(h.eaTasks.filter((task) => task.action === "tp_roll").length, 1);
+    assert.ok(h.sent.some((text) => /TP moved.*acct-a/i.test(text) && /H1 H12.*Entry H14/i.test(text) && /2520.*2540/i.test(text)));
+
+    h.advance(1_000);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    await writeH1TpMilestones(h, [{ brokerDate: "2026-08-24", blockHour: 12, entryHour: 14, symbol: "XAUUSD", side: "BUY", dueAt }]);
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(h.eaTasks.filter((task) => task.action === "tp_roll").length, 1);
+    assert.equal(h.sent.filter((text) => /TP moved.*acct-a/i.test(text)).length, 1);
+  } finally { await h.cleanup(); }
+});
+
+test("H1 roll-only milestone is silent when no same-direction position exists", { concurrency: false }, async () => {
+  const dueAt = icMarketsBrokerWallEpochMs("2026-08-24", 10);
+  const h = await createHarness("h1-auto-tp-no-position", {
+    now: dueAt - 1_000,
+    controlMode: "local-primary",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A, {}, dueAt - 1_000)],
+    eaDispatch: async (task) => task.action === "tp_roll"
+      ? { status: "done", result: { ok: true, action: "tp_roll", entrySkipped: true, tpRolled: false, skipped: true, resolvedSymbol: "GBPUSD", side: "SELL", detail: "no same-direction position; TP roll skipped" } }
+      : { status: "done", result: { ok: true, action: task.action, detail: "synthetic" } },
+  });
+  try {
+    await writeH1TpMilestones(h, [{ brokerDate: "2026-08-24", blockHour: 9, entryHour: 10, symbol: "GBPUSD", side: "SELL", dueAt }]);
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    h.setNow(dueAt + 1);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    await writeH1TpMilestones(h, [{ brokerDate: "2026-08-24", blockHour: 9, entryHour: 10, symbol: "GBPUSD", side: "SELL", dueAt }]);
+    await h.runtime.runOneIteration(h.config, state);
+    const [intent] = Object.values(state.intents).filter((row) => row.kind === "tp_roll");
+    assert.equal(intent?.status, "executed");
+    assert.equal(intent?.executionResult?.tpRolled, false);
+    assert.equal(h.sent.some((text) => /TP moved/i.test(text)), false);
+  } finally { await h.cleanup(); }
+});
+
+test("operator Telegram entry at the same account symbol and due time permanently supersedes H1 auto TP roll", { concurrency: false }, async () => {
+  const dueAt = icMarketsBrokerWallEpochMs("2026-08-24", 16);
+  const h = await createHarness("h1-auto-tp-telegram-collision", {
+    controlMode: "local-primary",
+    webhook: "",
+    scheduledEntryExecution: "mt5-ui",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+  });
+  try {
+    await writeH1TpMilestones(h, [{ brokerDate: "2026-08-24", blockHour: 14, entryHour: 16, symbol: "XAUUSD", side: "BUY", dueAt }]);
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    await h.runtime.runOneIteration(h.config, state);
+    const auto = Object.values(state.intents).find((row) => row.kind === "tp_roll");
+    assert.equal(auto?.status, "scheduled");
+
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 499, message: { chat: { id: 123 }, text: "/buy XAUUSD 0.01 20:00 @acct-a" } }, statuses);
+    const entry = Object.values(state.intents).find((row) => row.kind === "entry");
+    assert.ok(entry);
+    assert.equal(entry.dueAt, dueAt);
+    assert.equal(auto.status, "cancelled");
+    assert.equal(auto.supersededByTelegramEntry, true);
+
+    h.setNow(dueAt + 1);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    await writeH1TpMilestones(h, [{ brokerDate: "2026-08-24", blockHour: 14, entryHour: 16, symbol: "XAUUSD", side: "BUY", dueAt }]);
+    await h.runtime.runOneIteration(h.config, state);
+    assert.equal(h.eaTasks.filter((task) => task.action === "tp_roll").length, 0);
+    assert.equal(auto.status, "cancelled");
+    assert.equal(entry.status, "executed");
   } finally { await h.cleanup(); }
 });
 

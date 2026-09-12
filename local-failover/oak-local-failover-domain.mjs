@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { parseCloudTelegramCommand } from "../dashboard/src/lib/telegram-cloud-domain.ts";
-import { mt5BrokerTaskDigest, mt5OriginLedgerKey, mt5TelegramOriginKey } from "../dashboard/src/lib/mt5-origin-domain.ts";
+import { mt5BrokerOriginLedgerKey, mt5BrokerTaskDigest, mt5H1TpRollOriginKey, mt5OriginLedgerKey, mt5TelegramOriginKey } from "../dashboard/src/lib/mt5-origin-domain.ts";
 
 export const FAILOVER_STATE_VERSION = 2;
 export const FAILOVER_MODES = Object.freeze({
@@ -11,7 +11,7 @@ export const FAILOVER_MODES = Object.freeze({
   BLOCKED_UNCERTAIN: "BLOCKED_UNCERTAIN",
 });
 export const DEFAULT_SNAPSHOT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-const MUTATIONS = new Set(["entry", "entry_prepare", "close", "modify", "partial"]);
+const MUTATIONS = new Set(["entry", "entry_prepare", "close", "modify", "partial", "tp_roll"]);
 const TERMINAL = new Set(["executed", "failed", "uncertain", "cancelled", "expired"]);
 const LOCAL_ID_RE = /^L-(\d+)-(\d+)$/;
 const LOCAL_SHORT_ID_RE = /^\d+$/;
@@ -125,7 +125,9 @@ function isLocalIntentReference(value) {
 }
 
 export const telegramMt5OriginKey = mt5TelegramOriginKey;
+export const h1TpRollOriginKey = mt5H1TpRollOriginKey;
 export const originLedgerKey = mt5OriginLedgerKey;
+export const brokerOriginLedgerKey = mt5BrokerOriginLedgerKey;
 export const brokerTaskDigest = mt5BrokerTaskDigest;
 
 export function commandRecordKey(updateId, commandIndex) {

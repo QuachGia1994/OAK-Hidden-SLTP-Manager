@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { normalizeProviderAccountId } from "./telegram-cloud-domain.ts";
-import { mt5BrokerTaskDigest, mt5OriginLedgerKey, mt5TelegramOriginKey } from "./mt5-origin-domain.ts";
+import { mt5BrokerOriginLedgerKey, mt5BrokerTaskDigest, mt5H1TpRollOriginKey, mt5OriginLedgerKey, mt5TelegramOriginKey } from "./mt5-origin-domain.ts";
 
 const bridge = readFileSync(new URL("./mt5-bridge.ts", import.meta.url), "utf8");
 const execution = readFileSync(new URL("./telegram-cloud-execution.ts", import.meta.url), "utf8");
@@ -43,8 +43,8 @@ test("web accepts only OAK MQL5 EA heartbeats for MT5 bridge execution", () => {
   assert.match(ea, /StateSet\(id,"pp_armed",1\.0\)/);
 });
 
-test("OAK MQL5 EA v1.13 exposes local-only Inputs, TP rolling, reversal-gap evidence and 100ms polling", () => {
-  assert.match(ea, /#property version\s+"1\.13"/);
+test("OAK MQL5 EA v1.14 exposes local-only Inputs, H1 roll-only mutations, reversal-gap evidence and 100ms polling", () => {
+  assert.match(ea, /#property version\s+"1\.14"/);
   assert.match(ea, /input group "Local PC Control"/);
   assert.match(ea, /InpLocalPollMsV107\s*= 100/);
   assert.doesNotMatch(ea, /input group "OAK Cloud Bridge"/);
@@ -60,6 +60,8 @@ test("OAK MQL5 EA v1.13 exposes local-only Inputs, TP rolling, reversal-gap evid
   assert.match(ea, /REVERSAL_INCOMPLETE/);
   assert.match(ea, /"reversal_incomplete"/);
   assert.match(ea, /RollSameDirectionTakeProfit/);
+  assert.match(ea, /ExecuteTpRollTask/);
+  assert.match(ea, /action=="tp_roll"/);
   assert.match(ea, /tpRolled/);
   assert.doesNotMatch(ea, /PositionClosePartial/);
   assert.doesNotMatch(ea, /const char &input\[\]/);
@@ -137,7 +139,7 @@ test("PC Telegram failover uses a write canary, preserves pending updates, and f
   assert.match(localFailover, /state\.commands/);
 });
 
-test("canonical MT5 Telegram origin and broker digest are path-independent", () => {
+test("canonical MT5 Telegram and H1 TP-roll origins keep deterministic broker ledgers", () => {
   const origin = mt5TelegramOriginKey(123, 0, "mt5:abcdefgh");
   assert.equal(origin, "tg:123:0:mt5:abcdefgh");
   assert.equal(mt5OriginLedgerKey(origin).length, 40);
@@ -152,4 +154,8 @@ test("canonical MT5 Telegram origin and broker digest are path-independent", () 
     protection: { slPoints: 500, tpPoints: 10000 },
   };
   assert.equal(mt5BrokerTaskDigest(common), mt5BrokerTaskDigest({ ...common, payload: { ...common.payload, legacyProfile: "acct-a" } }));
+  const h1Origin = mt5H1TpRollOriginKey("2026-09-10", 6, "GBPUSD", "mt5:abcdefgh");
+  assert.equal(h1Origin, "h1tp:2026-09-10:6:GBPUSD:mt5:abcdefgh");
+  assert.equal(mt5BrokerOriginLedgerKey(h1Origin, "mt5:abcdefgh").length, 40);
+  assert.equal(mt5BrokerTaskDigest({ ...common, originKey: h1Origin, action: "tp_roll", payload: { symbol: "GBPUSD", side: "BUY", brokerDate: "2026-09-10", blockHour: 6, entryHour: 7 }, protection: null }).length, 64);
 });

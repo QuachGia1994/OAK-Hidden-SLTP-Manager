@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.13"
+#property version   "1.14"
 #property description "OAK local-only MT5 execution manager"
 
 // OAK Local Manager EA
@@ -60,7 +60,7 @@ input string InpPartialPercents            = "50";      // 1 pct = current-volum
 #define OAK_HEARTBEAT_PREFIX  "oak:mt5:bridge:heartbeat:v1:"
 #define OAK_TASK_TTL          604800
 #define OAK_HEARTBEAT_TTL     45
-#define OAK_EA_VERSION        "1.13"
+#define OAK_EA_VERSION        "1.14"
 #define OAK_LOCAL_DIR         "OAKLocalFailover\\"
 
 string g_profile = "";
@@ -680,16 +680,52 @@ string Sha256HexUtf8(const string text)
    return out;
 }
 
+bool IsIsoDateText(const string value)
+{
+   if(StringLen(value)!=10 || StringGetCharacter(value,4)!='-' || StringGetCharacter(value,7)!='-') return false;
+   for(int i=0;i<10;i++)
+   {
+      if(i==4 || i==7) continue;
+      ushort c=StringGetCharacter(value,i);
+      if(c<'0' || c>'9') return false;
+   }
+   return true;
+}
+
+bool IsSafeH1Symbol(const string value)
+{
+   int n=StringLen(value);
+   if(n<3 || n>24) return false;
+   for(int i=0;i<n;i++)
+   {
+      ushort c=StringGetCharacter(value,i);
+      if(!((c>='A' && c<='Z') || (c>='0' && c<='9') || c=='.' || c=='_' || c=='+' || c=='-')) return false;
+   }
+   return true;
+}
+
 bool CanonicalOriginMatchesAccount(const string origin,const string provider_account_id)
 {
    string parts[];
-   if(StringSplit(origin,':',parts)!=5) return false;
-   if(parts[0]!="tg" || !IsDigits(parts[1]) || !IsDigits(parts[2]) || parts[3]!="mt5" || !IsSafeAccountSuffix(parts[4])) return false;
-   long update_id=(long)StringToInteger(parts[1]);
-   long command_index=(long)StringToInteger(parts[2]);
-   if(update_id<=0 || command_index<0) return false;
-   if(IntegerToString(update_id)!=parts[1] || IntegerToString(command_index)!=parts[2]) return false;
-   return provider_account_id=="mt5:"+parts[4];
+   int count=StringSplit(origin,':',parts);
+   if(count==5 && parts[0]=="tg")
+   {
+      if(!IsDigits(parts[1]) || !IsDigits(parts[2]) || parts[3]!="mt5" || !IsSafeAccountSuffix(parts[4])) return false;
+      long update_id=(long)StringToInteger(parts[1]);
+      long command_index=(long)StringToInteger(parts[2]);
+      if(update_id<=0 || command_index<0) return false;
+      if(IntegerToString(update_id)!=parts[1] || IntegerToString(command_index)!=parts[2]) return false;
+      return provider_account_id=="mt5:"+parts[4];
+   }
+   if(count==6 && parts[0]=="h1tp")
+   {
+      if(!IsIsoDateText(parts[1]) || !IsDigits(parts[2]) || !IsSafeH1Symbol(parts[3]) || parts[4]!="mt5" || !IsSafeAccountSuffix(parts[5])) return false;
+      int block=(int)StringToInteger(parts[2]);
+      if(block!=3 && block!=6 && block!=9 && block!=12 && block!=14) return false;
+      if(IntegerToString(block)!=parts[2]) return false;
+      return provider_account_id=="mt5:"+parts[5];
+   }
+   return false;
 }
 
 bool ValidOriginLedger(const string origin,const string ledger)
@@ -867,7 +903,7 @@ bool ValidateBridgeTaskEnvelope(const string task,string &detail)
    if(StringLen(task)<=0 || StringLen(task)>16384) { detail="task payload size is invalid"; return false; }
    if(JsonLong(task,"version",0)!=2) { detail="task version must be 2"; return false; }
    string action=Lower(JsonString(task,"action"));
-   if(action!="positions" && action!="symbol_prepare" && action!="entry" && action!="entry_prepare" && action!="close" && action!="modify" && action!="partial") { detail="unsupported MT5 task action"; return false; }
+   if(action!="positions" && action!="symbol_prepare" && action!="entry" && action!="entry_prepare" && action!="close" && action!="modify" && action!="partial" && action!="tp_roll") { detail="unsupported MT5 task action"; return false; }
    string source=Lower(JsonString(task,"source"));
    if(source!="local-primary") { detail="local-only EA accepts local-primary tasks only"; return false; }
    if(Lower(JsonString(task,"bridgeProfile"))!=ProfileKey()) { detail="bridge profile mismatch"; return false; }
@@ -899,6 +935,18 @@ bool ValidateBridgeTaskEnvelope(const string task,string &detail)
       string side=Upper(JsonString(payload,"side"));
       if((side!="BUY" && side!="SELL") || JsonString(payload,"symbol")=="" || JsonDouble(payload,"lot",0)<=0) { detail="entry payload is invalid"; return false; }
       if(action=="entry_prepare" && !IsLowerHex(JsonString(payload,"entryLedgerKey"),40)) { detail="entry_prepare requires the final entry ledger key"; return false; }
+   }
+   if(action=="tp_roll")
+   {
+      string side=Upper(JsonString(payload,"side"));
+      string requested_symbol=Upper(JsonString(payload,"symbol"));
+      string broker_date=JsonString(payload,"brokerDate");
+      int block=(int)JsonLong(payload,"blockHour",-1);
+      if((side!="BUY" && side!="SELL") || requested_symbol=="" || !IsIsoDateText(broker_date)) { detail="tp_roll payload is invalid"; return false; }
+      if(block!=3 && block!=6 && block!=9 && block!=12 && block!=14) { detail="tp_roll block is invalid"; return false; }
+      string origin_parts[];
+      if(StringSplit(origin,':',origin_parts)!=6 || origin_parts[0]!="h1tp" || origin_parts[1]!=broker_date || (int)StringToInteger(origin_parts[2])!=block || origin_parts[3]!=requested_symbol)
+      { detail="tp_roll origin does not match broker date/block/symbol payload"; return false; }
    }
    return true;
 }
@@ -2037,6 +2085,46 @@ string ExecuteEntryPrepareTask(const string task)
       +"}";
 }
 
+string ExecuteTpRollTask(const string task)
+{
+   string payload=JsonRaw(task,"payload");
+   string side=Upper(JsonString(payload,"side"));
+   string symbol=ResolveSymbol(JsonString(payload,"symbol"));
+   if((side!="BUY" && side!="SELL") || symbol=="") return ResultJson(false,"tp_roll","invalid TP-roll symbol/side");
+
+   bool rolled=false;
+   long position_id=0;
+   double old_tp=0.0,new_tp=0.0,step_price=0.0;
+   string detail="";
+   if(!RollSameDirectionTakeProfit(symbol,side=="BUY",rolled,position_id,old_tp,new_tp,step_price,detail))
+      return ResultJson(false,"tp_roll",detail);
+   int digits=(int)SymbolInfoInteger(symbol,SYMBOL_DIGITS);
+   if(!rolled)
+   {
+      return "{\"ok\":true"
+         +",\"action\":\"tp_roll\""
+         +",\"detail\":\"no same-direction position; TP roll skipped\""
+         +",\"resolvedSymbol\":"+JsonQuote(symbol)
+         +",\"side\":"+JsonQuote(side)
+         +",\"entrySkipped\":true"
+         +",\"tpRolled\":false"
+         +",\"skipped\":true"
+         +"}";
+   }
+   return "{\"ok\":true"
+      +",\"action\":\"tp_roll\""
+      +",\"detail\":"+JsonQuote(detail)
+      +",\"resolvedSymbol\":"+JsonQuote(symbol)
+      +",\"side\":"+JsonQuote(side)
+      +",\"entrySkipped\":true"
+      +",\"tpRolled\":true"
+      +",\"positionId\":"+IntegerToString(position_id)
+      +",\"oldTp\":"+DoubleToString(old_tp,digits)
+      +",\"newTp\":"+DoubleToString(new_tp,digits)
+      +",\"stepPrice\":"+DoubleToString(step_price,digits)
+      +"}";
+}
+
 string ExecuteEntryTask(const string task)
 {
    string payload=JsonRaw(task,"payload");
@@ -2145,6 +2233,7 @@ string ExecuteTask(const string task)
    if(action=="positions") return ResultJson(true,"positions",IntegerToString(PositionsTotal())+" open position(s)",false,"",PositionSnapshotJson());
    if(action=="symbol_prepare") return ExecuteSymbolPrepareTask(task);
    if(action=="entry_prepare") return ExecuteEntryPrepareTask(task);
+   if(action=="tp_roll") return ExecuteTpRollTask(task);
    if(action=="entry") return ExecuteEntryTask(task);
    if(action=="close") return ExecuteCloseTask(task);
    if(action=="modify") return ExecuteModifyTask(task);
