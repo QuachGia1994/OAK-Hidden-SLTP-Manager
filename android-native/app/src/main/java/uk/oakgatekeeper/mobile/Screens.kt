@@ -6,11 +6,6 @@ import android.content.Intent
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -60,8 +55,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -78,11 +75,20 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.compose.runtime.withFrameNanos
 import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.sin
 
 private val VisibleSymbols = listOf("XAUUSD", "GBPUSD", "GBPAUD")
 
@@ -404,66 +410,108 @@ private fun H1MetaCell(label: String, value: String, modifier: Modifier = Modifi
 fun OAKOrbitCore(modifier: Modifier = Modifier, label: String = "H1") {
     val p = LocalOAKPalette.current
     val context = LocalContext.current
-    val motionEnabled = remember(context) {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val animationScale = remember(context) {
+        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f).coerceAtLeast(0f)
     }
-    val transition = rememberInfiniteTransition(label = "oak-orbit")
-    val horizontalAngle by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(durationMillis = 10_000), RepeatMode.Restart),
-        label = "orbit-horizontal",
+    var elapsedNanos by remember { mutableStateOf(0L) }
+    LaunchedEffect(lifecycleOwner, animationScale) {
+        if (animationScale == 0f) return@LaunchedEffect
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            val startedAt = withFrameNanos { it }
+            while (isActive) {
+                withFrameNanos { frameNanos -> elapsedNanos = frameNanos - startedAt }
+            }
+        }
+    }
+    val timeMs = elapsedNanos / 1_000_000f / animationScale.coerceAtLeast(.01f)
+    val horizontalProgress = (timeMs / 10_000f).mod(1f)
+    val verticalProgress = (timeMs / 8_000f).mod(1f)
+    val diagonalProgress = (timeMs / 13_000f).mod(1f)
+    val sphereProgress = (timeMs / 36_000f).mod(1f)
+    val horizontalZ = if (animationScale > 0f) 12f + horizontalProgress * 360f else 12f
+    val verticalRotation = if (animationScale > 0f) {
+        if (verticalProgress < .5f) {
+            val phase = verticalProgress * 2f
+            OrbitRotation(x = phase * 180f, y = 68f - phase * 50f, z = -16f + phase * 28f)
+        } else {
+            val phase = (verticalProgress - .5f) * 2f
+            OrbitRotation(x = 180f + phase * 180f, y = 18f + phase * 50f, z = 12f - phase * 28f)
+        }
+    } else {
+        OrbitRotation(x = 0f, y = 68f, z = -16f)
+    }
+    val diagonalZ = if (animationScale > 0f) 24f - diagonalProgress * 360f else 24f
+    val sphereEase = if (animationScale > 0f) .5f - .5f * cos((sphereProgress * 2f * PI).toFloat()) else 0f
+    val sphereRotation = OrbitRotation(
+        x = -18f + sphereEase * 8f,
+        y = -8f + sphereEase * 42f,
+        z = -22f + sphereEase * 36f,
     )
-    val verticalAngle by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(durationMillis = 8_000), RepeatMode.Restart),
-        label = "orbit-vertical",
-    )
-    val diagonalAngle by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = -360f,
-        animationSpec = infiniteRepeatable(tween(durationMillis = 13_000), RepeatMode.Restart),
-        label = "orbit-diagonal",
-    )
-    val sphereAngle by transition.animateFloat(
-        initialValue = -18f,
-        targetValue = 32f,
-        animationSpec = infiniteRepeatable(tween(durationMillis = 14_000), RepeatMode.Reverse),
-        label = "sphere-angle",
-    )
-    val horizontal = if (motionEnabled) horizontalAngle else 12f
-    val vertical = if (motionEnabled) verticalAngle else 22f
-    val diagonal = if (motionEnabled) diagonalAngle else -18f
-    val sphere = if (motionEnabled) sphereAngle else -18f
 
     Box(modifier.clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
-        OrbitRing(
-            size = 108,
-            alpha = .42f,
-            modifier = Modifier.graphicsLayer { rotationX = 66f; rotationZ = horizontal },
-        )
-        OrbitRing(
-            size = 101,
-            alpha = .62f,
-            modifier = Modifier.graphicsLayer { rotationY = 72f; rotationX = vertical; rotationZ = -16f },
-        )
-        OrbitRing(
-            size = 98,
-            alpha = .34f,
-            modifier = Modifier.graphicsLayer { rotationX = 56f; rotationY = 42f; rotationZ = diagonal },
-        )
-        listOf(0f, 30f, 60f, 90f, 120f, 150f).forEach { meridian ->
-            Box(
-                Modifier
-                    .size(64.dp)
-                    .graphicsLayer { rotationY = meridian + sphere; rotationX = -18f }
-                    .border(1.dp, p.accent.copy(alpha = .58f), RoundedCornerShape(999.dp)),
+        Canvas(Modifier.size(118.dp)) {
+            val scale = min(size.width, size.height) / 118f
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val strokeWidth = 1.dp.toPx()
+            drawProjectedRing(54f, OrbitRotation(x = 66f, z = -14f), p.accent, .70f, center, scale, strokeWidth)
+            drawProjectedRing(48f, OrbitRotation(x = 66f, z = 34f), p.accent, .62f, center, scale, strokeWidth, dashed = true)
+            drawProjectedRing(25f, OrbitRotation(x = 62f, z = -28f), p.accent, .88f, center, scale, strokeWidth)
+
+            val horizontalOrbit = OrbitRotation(x = 64f, z = horizontalZ)
+            val diagonalOrbit = OrbitRotation(x = 58f, y = 42f, z = diagonalZ)
+            drawProjectedRing(54f, horizontalOrbit, p.accent, .44f, center, scale, strokeWidth)
+            drawProjectedRing(49.5f, verticalRotation, p.accent, .58f, center, scale, strokeWidth)
+            drawProjectedRing(51f, diagonalOrbit, p.accent, .32f, center, scale, strokeWidth)
+            drawOrbitDots(
+                radius = 54f,
+                angles = floatArrayOf(-90f, 18f, 156f).map { it * PI.toFloat() / 180f }.toFloatArray(),
+                rotation = horizontalOrbit,
+                color = p.accent,
+                center = center,
+                scale = scale,
             )
+            drawOrbitDots(
+                radius = 49.5f,
+                angles = floatArrayOf(-90f, 156f).map { it * PI.toFloat() / 180f }.toFloatArray(),
+                rotation = verticalRotation,
+                color = p.accent,
+                center = center,
+                scale = scale,
+            )
+            drawOrbitDots(
+                radius = 51f,
+                angles = floatArrayOf(-90f, 156f).map { it * PI.toFloat() / 180f }.toFloatArray(),
+                rotation = diagonalOrbit,
+                color = p.accent,
+                center = center,
+                scale = scale,
+            )
+
+            val globeRadius = 34f
+            drawCircle(p.accent.copy(alpha = .08f), radius = globeRadius * scale * 1.18f, center = center)
+            repeat(6) { meridian ->
+                val meridianAngle = meridian * 30f * PI.toFloat() / 180f
+                val points = List(72) { step ->
+                    val angle = step * 2f * PI.toFloat() / 72f
+                    projectOrbitPoint(
+                        x = globeRadius * cos(angle) * cos(meridianAngle),
+                        y = globeRadius * sin(angle),
+                        z = -globeRadius * cos(angle) * sin(meridianAngle),
+                        rotation = sphereRotation,
+                    )
+                }
+                drawProjectedPath(points, p.accent, .65f, center, scale, strokeWidth, perspectiveRadius = globeRadius, backAlphaFactor = .20f, frontAlphaFactor = .82f)
+            }
+            val equator = List(72) { step ->
+                val angle = step * 2f * PI.toFloat() / 72f
+                projectOrbitPoint(globeRadius * cos(angle), 0f, globeRadius * sin(angle), sphereRotation)
+            }
+            drawProjectedPath(equator, p.accent, .72f, center, scale, strokeWidth, perspectiveRadius = globeRadius, backAlphaFactor = .20f, frontAlphaFactor = .88f)
         }
         Box(
             Modifier
-                .size(42.dp)
+                .size(41.dp)
                 .background(p.surface.copy(alpha = .94f), RoundedCornerShape(999.dp))
                 .border(1.dp, p.accent, RoundedCornerShape(999.dp)),
             contentAlignment = Alignment.Center,
@@ -473,20 +521,100 @@ fun OAKOrbitCore(modifier: Modifier = Modifier, label: String = "H1") {
     }
 }
 
-@Composable
-private fun OrbitRing(size: Int, alpha: Float, modifier: Modifier = Modifier) {
-    val p = LocalOAKPalette.current
-    Box(
-        modifier
-            .size(size.dp)
-            .border(1.dp, p.accent.copy(alpha = alpha), RoundedCornerShape(999.dp)),
-    ) {
-        Box(
-            Modifier
-                .align(Alignment.TopCenter)
-                .size(6.dp)
-                .background(p.accent, RoundedCornerShape(999.dp)),
-        )
+private data class OrbitRotation(val x: Float = 0f, val y: Float = 0f, val z: Float = 0f)
+
+private data class OrbitPoint(val x: Float, val y: Float, val z: Float)
+
+private fun projectOrbitPoint(x: Float, y: Float, z: Float, rotation: OrbitRotation): OrbitPoint {
+    val xRadians = rotation.x * PI.toFloat() / 180f
+    val yRadians = rotation.y * PI.toFloat() / 180f
+    val zRadians = rotation.z * PI.toFloat() / 180f
+    val cosZ = cos(zRadians)
+    val sinZ = sin(zRadians)
+    val xAfterZ = x * cosZ - y * sinZ
+    val yAfterZ = x * sinZ + y * cosZ
+    val cosY = cos(yRadians)
+    val sinY = sin(yRadians)
+    val xAfterY = xAfterZ * cosY + z * sinY
+    val zAfterY = -xAfterZ * sinY + z * cosY
+    val cosX = cos(xRadians)
+    val sinX = sin(xRadians)
+    return OrbitPoint(
+        x = xAfterY,
+        y = yAfterZ * cosX - zAfterY * sinX,
+        z = yAfterZ * sinX + zAfterY * cosX,
+    )
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawProjectedRing(
+    radius: Float,
+    rotation: OrbitRotation,
+    color: Color,
+    alpha: Float,
+    center: Offset,
+    scale: Float,
+    strokeWidth: Float,
+    dashed: Boolean = false,
+) {
+    val points = List(72) { step ->
+        val angle = step * 2f * PI.toFloat() / 72f
+        projectOrbitPoint(radius * cos(angle), radius * sin(angle), 0f, rotation)
+    }
+    drawProjectedPath(points, color, alpha, center, scale, strokeWidth, dashed, perspectiveRadius = radius)
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawProjectedPath(
+    points: List<OrbitPoint>,
+    color: Color,
+    alpha: Float,
+    center: Offset,
+    scale: Float,
+    strokeWidth: Float,
+    dashed: Boolean = false,
+    perspectiveRadius: Float,
+    backAlphaFactor: Float = .28f,
+    frontAlphaFactor: Float = 1f,
+) {
+    val back = Path()
+    val front = Path()
+    var previousFront: Boolean? = null
+
+    points.indices.forEach { index ->
+        val from = points[index]
+        val to = points[(index + 1) % points.size]
+        val isFront = from.z + to.z >= 0f
+        val path = if (isFront) front else back
+        val fromScale = 1f + from.z / perspectiveRadius * .06f
+        val toScale = 1f + to.z / perspectiveRadius * .06f
+        val fromOffset = Offset(center.x + from.x * scale * fromScale, center.y + from.y * scale * fromScale)
+        val toOffset = Offset(center.x + to.x * scale * toScale, center.y + to.y * scale * toScale)
+        if (previousFront == isFront) path.lineTo(toOffset.x, toOffset.y)
+        else {
+            path.moveTo(fromOffset.x, fromOffset.y)
+            path.lineTo(toOffset.x, toOffset.y)
+        }
+        previousFront = isFront
+    }
+    val pathEffect = if (dashed) PathEffect.dashPathEffect(floatArrayOf(4f * scale, 3f * scale), 0f) else null
+    drawPath(back, color.copy(alpha = alpha * backAlphaFactor), style = Stroke(width = strokeWidth, cap = StrokeCap.Round, pathEffect = pathEffect))
+    drawPath(front, color.copy(alpha = alpha * frontAlphaFactor), style = Stroke(width = strokeWidth, cap = StrokeCap.Round, pathEffect = pathEffect))
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawOrbitDots(
+    radius: Float,
+    angles: FloatArray,
+    rotation: OrbitRotation,
+    color: Color,
+    center: Offset,
+    scale: Float,
+) {
+    angles.forEach { angle ->
+        val point = projectOrbitPoint(radius * cos(angle), radius * sin(angle), 0f, rotation)
+        val depthAlpha = if (point.z >= 0f) 1f else .3f
+        val perspective = 1f + point.z / radius * .06f
+        val projected = Offset(center.x + point.x * scale * perspective, center.y + point.y * scale * perspective)
+        drawCircle(color.copy(alpha = .14f * depthAlpha), radius = 4.8f * scale, center = projected)
+        drawCircle(color.copy(alpha = depthAlpha), radius = 2.05f * scale, center = projected)
     }
 }
 
