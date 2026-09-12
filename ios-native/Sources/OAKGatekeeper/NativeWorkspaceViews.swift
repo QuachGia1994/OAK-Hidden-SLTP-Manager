@@ -138,7 +138,7 @@ struct NativeToolsView: View {
 
                 nativeToolLink(
                     title: state.text(vn: "Tín hiệu", en: "Signals"),
-                    detail: state.text(vn: "Radar BUY/SELL + drill-down evidence M15", en: "BUY/SELL radar + M15 evidence drill-down"),
+                    detail: state.text(vn: "Radar BUY/SELL + drill-down bằng chứng signal", en: "BUY/SELL radar + signal-evidence drill-down"),
                     symbol: "waveform.path.ecg",
                     route: AppState.ToolsRoute.signals
                 )

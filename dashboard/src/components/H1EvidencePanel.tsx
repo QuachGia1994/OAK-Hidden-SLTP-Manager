@@ -30,8 +30,22 @@ type H1EvidenceFacts = {
   finalSignal: string;
 };
 
+function isDerivedXauRule(rule: H1SignalAlert["postSignalRule"]): boolean {
+  return rule === "xau-same-block-keep"
+    || rule === "xau-previous-block-keep"
+    || rule === "xau-weekday-keep"
+    || rule === "xau-weekday-invert";
+}
+
 function blockBaseRuleLabel(selection: H1EvidenceSelection): string {
   const { alert } = selection;
+  if (isDerivedXauRule(alert.postSignalRule)) {
+    const sourceBlock = Number.isInteger(alert.baseHour) ? `H${String(alert.baseHour).padStart(2, "0")}` : "—";
+    if (alert.postSignalRule === "xau-previous-block-keep") return `XAUUSD ${sourceBlock} · PREVIOUS BLOCK · KEEP`;
+    if (alert.postSignalRule === "xau-weekday-invert") return `XAUUSD ${sourceBlock} · WEEKDAY · INVERT`;
+    if (alert.postSignalRule === "xau-weekday-keep") return `XAUUSD ${sourceBlock} · WEEKDAY · KEEP`;
+    return `XAUUSD ${sourceBlock} · SAME BLOCK · KEEP`;
+  }
   if (!Number.isInteger(alert.entryHour) || !Number.isInteger(alert.baseHour)) return "M15 BASE —";
   const delta = Number(alert.entryHour) - alert.slotHour;
   return `ENTRY-BLOCK ${delta} · E-0:15 · ${alert.postSignalInverted ? "INVERT" : "KEEP"}`;
@@ -43,9 +57,11 @@ function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload)
   const baseTime = Number.isInteger(alert.baseHour) && Number.isInteger(alert.baseMinute)
     ? `${String(alert.baseHour).padStart(2, "0")}:${String(alert.baseMinute).padStart(2, "0")}`
     : "—";
-  const rawBase = alert.baseDirection
-    ? `${alert.baseSymbol || base} M15 ${baseTime} · ${alert.baseDirection} → ${alert.baseSignal ?? "—"}`
-    : "—";
+  const rawBase = isDerivedXauRule(alert.postSignalRule)
+    ? `${alert.baseSymbol || "XAUUSD"} H${String(alert.baseHour ?? alert.slotHour).padStart(2, "0")} · ${alert.baseSignal ?? "—"}`
+    : alert.baseDirection
+      ? `${alert.baseSymbol || base} M15 ${baseTime} · ${alert.baseDirection} → ${alert.baseSignal ?? "—"}`
+      : "—";
   const signalBaseBar = alert.signalBaseBar;
   const baseOhlc = signalBaseBar
     ? `O ${price(signalBaseBar.open)} · H ${price(signalBaseBar.high)} · L ${price(signalBaseBar.low)} · C ${price(signalBaseBar.close)}`
@@ -55,7 +71,7 @@ function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload)
     rawBase,
     baseOhlc,
     signalSource: alert.baseSymbol || base,
-    rule: `M15 BASE · ${blockBaseRuleLabel(selection)}`,
+    rule: isDerivedXauRule(alert.postSignalRule) ? blockBaseRuleLabel(selection) : `M15 BASE · ${blockBaseRuleLabel(selection)}`,
     finalSignal: alert.signal ?? "—",
   };
 }
@@ -160,10 +176,6 @@ async function renderEvidenceChartPng(
   ctx.fillRect(0, 0, logicalWidth, logicalHeight);
   const facts = evidenceFacts(selection, payload);
   const patternSource = selection.alert.scannerSource || "XAUUSD";
-  const baseTime = Number.isInteger(selection.alert.baseHour) && Number.isInteger(selection.alert.baseMinute)
-    ? `${String(selection.alert.baseHour).padStart(2, "0")}:${String(selection.alert.baseMinute).padStart(2, "0")}`
-    : "—";
-  const baseSignal = selection.alert.baseSignal ?? "—";
   const finalSignal = selection.alert.signal ?? "—";
 
   ctx.fillStyle = textColor;
@@ -178,12 +190,8 @@ async function renderEvidenceChartPng(
     chartX,
     46,
   );
-  ctx.fillText(
-    `MATCH READ NEWEST→OLDEST · SIGNAL BASE ${selection.alert.baseSymbol || selection.base} M15 ${baseTime} · ${selection.alert.baseDirection || "—"}→${baseSignal}`,
-    chartX,
-    64,
-  );
-  ctx.fillText(`${blockBaseRuleLabel(selection)} · FINAL ${finalSignal}`, chartX, 82);
+  ctx.fillText(`MATCH READ NEWEST→OLDEST · SIGNAL SOURCE ${facts.rawBase}`, chartX, 64);
+  ctx.fillText(`${facts.rule} · FINAL ${finalSignal}`, chartX, 82);
   ctx.fillText(`BASE OHLC ${facts.baseOhlc}`, chartX, 100);
 
   const image = await loadSvgImage(inlineSvgComputedStyles(svg));

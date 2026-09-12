@@ -10,11 +10,11 @@ Pure SwiftUI iPhone client for ROBOT SLTP. This target replaces the previous Exp
 - Xcode project generated from `project.yml` with XcodeGen.
 
 ## Web parity
-- Tabs: Live, History, Signals, Reports, More.
-- H1 Live/History matrix uses the same five-row server payload as web: XAUUSD, GBPUSD, AUDUSD, USDCAD and USDJPY.
-- Active H1 blocks are H3/H6/H9/H12/H14 for every row Monday-Friday; H16 is removed, weekends are off and EURUSD is retired from H1 only.
-- Rule v90 keeps XAUUSD as the shared entry-time pattern source. Every row first reads its own same-broker-day M15 candle at `entry - 2h15`: XAUUSD/GBPUSD/AUDUSD keep T=BUY and G=SELL, while USDCAD/USDJPY invert. Final direction then uses XAUUSD H3 Entry: H3/H6/H9 read the previous available broker day's H3 Entry (H4 keep, H5 invert), while H12/H14 read today's H3 Entry with the same selector. Missing selector evidence yields no signal; broker execution remains independent.
-- M15 evidence sheet with candlestick rendering and copy evidence.
+- Tabs: H1 Live, NeoTech and Tools; Signals/Reports/System remain native Tools drill-downs.
+- H1 Live/History uses the same shared `ENTRY TIME` row plus XAUUSD, GBPUSD and GBPAUD signal rows as web across H3/H6/H9/H12/H14; H16 is removed and weekends are off.
+- Rule v95 keeps XAUUSD as the only entry-pattern target. XAUUSD final BUY/SELL still uses the exact same-day GBPUSD M15 candle at entry minus 15 minutes, with H3/H12/H14 invert and H6/H9 keep.
+- GBPUSD and GBPAUD are derived rows, not new market sources. GBPUSD H3 copies XAUUSD H3; each later block uses the current or immediately previous XAUUSD block according to the previous block's entry delta (`+1` current, `+2` previous). GBPAUD H3/H6 invert XAUUSD on Monday/Tuesday/Thursday and keep Wednesday/Friday; H9/H12 invert Thursday/Friday and keep Monday-Wednesday; H14 is blank.
+- Evidence sheets show M15 chart evidence for XAUUSD and the originating XAUUSD block/rule for derived rows.
 - Native PNG export/share for the selected H1 day.
 - Pull-to-refresh + 20-second server refresh loop.
 - Light/dark/contrast theme selector and VN/EN selector.

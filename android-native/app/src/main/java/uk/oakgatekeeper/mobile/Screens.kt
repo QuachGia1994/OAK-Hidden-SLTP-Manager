@@ -84,7 +84,7 @@ import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlin.math.max
 
-private val VisibleSymbols = listOf("XAUUSD")
+private val VisibleSymbols = listOf("XAUUSD", "GBPUSD", "GBPAUD")
 
 @Composable
 fun UnlockScreen(state: OAKAppState) {
@@ -319,7 +319,7 @@ private fun H1GettingStartedTips(state: OAKAppState) {
                     Text(state.text("ĐÃ HIỂU", "GOT IT"), color = p.accent, style = OAKType.pill)
                 }
             }
-            TipLine(state.text("Chạm ô BUY/SELL để xem bằng chứng M15.", "Tap a BUY/SELL cell to open its M15 evidence."))
+            TipLine(state.text("Chạm ô BUY/SELL để xem bằng chứng signal.", "Tap a BUY/SELL cell to inspect its signal evidence."))
             TipLine(state.text("Đổi NGÀY BROKER để xem lịch sử H1 đã lưu.", "Change the BROKER DATE to review retained H1 history."))
             TipLine(state.text("Kéo xuống hoặc bấm LÀM MỚI để cập nhật feed.", "Pull down or press REFRESH to update the feed."))
         }
@@ -379,7 +379,7 @@ private fun H1MetadataStrip(state: OAKAppState, h1: H1SignalPayload) {
             Row(Modifier.fillMaxWidth()) {
                 H1MetaCell(state.text("NGUỒN DỮ LIỆU", "DATA SOURCE"), "MT5 ICMarkets Local", Modifier.weight(1f))
                 Box(Modifier.width(1.dp).height(58.dp).background(p.border.copy(alpha = .5f)))
-                H1MetaCell(state.text("NHỊP DỮ LIỆU", "DATA CADENCE"), "H03–H14 · M15 ENTRY + GBPUSD M15 E-0:15", Modifier.weight(1f))
+                H1MetaCell(state.text("NHỊP DỮ LIỆU", "DATA CADENCE"), "H03–H14 · XAU M15 + derived GBPUSD/GBPAUD", Modifier.weight(1f))
             }
             HorizontalDivider(color = p.border.copy(alpha = .5f))
             Row(Modifier.fillMaxWidth()) {
@@ -840,7 +840,7 @@ fun ToolsScreen(state: OAKAppState) {
         state.text("Công cụ", "Tools"),
         state.text("Directory gọn cho tín hiệu, báo cáo, hệ thống và các công cụ OAK trên web.", "A compact directory for signals, reports, system controls and OAK web tools."),
     ) {
-        item { NativeToolCard(state.text("Tín hiệu", "Signals"), state.text("Radar BUY/SELL + evidence M15", "BUY/SELL radar + M15 evidence"), "01") { panel = NativeToolPanel.SIGNALS } }
+        item { NativeToolCard(state.text("Tín hiệu", "Signals"), state.text("Radar BUY/SELL + bằng chứng signal", "BUY/SELL radar + signal evidence"), "01") { panel = NativeToolPanel.SIGNALS } }
         item { NativeToolCard(state.text("Báo cáo", "Reports"), state.text("Tóm tắt dữ liệu H1 đã lưu", "Summary of retained H1 data"), "02") { panel = NativeToolPanel.REPORTS } }
         item { NativeToolCard(state.text("Hệ thống & tài khoản", "System & Accounts"), state.text("Theme, locale, heartbeat và account toggle", "Theme, locale, heartbeat and account toggles"), "03") { panel = NativeToolPanel.SYSTEM } }
         item {
@@ -918,7 +918,7 @@ fun SignalsScreen(state: OAKAppState, onBack: (() -> Unit)? = null) {
             }
         }
 
-    OAKScreen(state, "TRADING / SIGNALS", state.text("Tín hiệu", "Signals"), state.text("Radar BUY/SELL theo H1 và drill-down evidence M15.", "BUY/SELL H1 radar with M15 evidence drill-down.")) {
+    OAKScreen(state, "TRADING / SIGNALS", state.text("Tín hiệu", "Signals"), state.text("Radar BUY/SELL theo H1 và drill-down bằng chứng signal.", "BUY/SELL H1 radar with signal-evidence drill-down.")) {
         onBack?.let { back -> item { NativeBackButton(state, back) } }
         item {
             SegmentedRow(

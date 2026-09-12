@@ -18,7 +18,7 @@ struct H1BoardScreen: View {
     @State private var scheduleShare: OAKShareItem?
     @State private var imageTransferFailed = false
 
-    private let visibleSymbols = ["XAUUSD"]
+    private let visibleSymbols = ["XAUUSD", "GBPUSD", "GBPAUD"]
 
     var body: some View {
         ScrollView {
@@ -278,7 +278,7 @@ private struct H1TipsCard: View {
                         .buttonStyle(.borderless)
                         .accessibilityLabel(Text(state.text(vn: "Ẩn hướng dẫn bắt đầu", en: "Dismiss getting-started tips")))
                     }
-                    tip(state.text(vn: "Chạm ô BUY/SELL để xem bằng chứng M15.", en: "Tap a BUY/SELL cell to open its M15 evidence."))
+                    tip(state.text(vn: "Chạm ô BUY/SELL để xem bằng chứng signal.", en: "Tap a BUY/SELL cell to inspect its signal evidence."))
                     tip(state.text(vn: "Đổi NGÀY BROKER để xem lịch sử H1 đã lưu.", en: "Change the BROKER DATE to review retained H1 history."))
                     tip(state.text(vn: "Kéo xuống để làm mới feed.", en: "Pull down to refresh the feed."))
                 }
@@ -354,7 +354,7 @@ private struct H1NativeMetadataStrip: View {
     var body: some View {
         LazyVGrid(columns: columns, spacing: 0) {
             metadata(label: state.text(vn: "NGUỒN DỮ LIỆU", en: "DATA SOURCE"), value: "MT5 ICMarkets Local")
-            metadata(label: state.text(vn: "NHỊP DỮ LIỆU", en: "DATA CADENCE"), value: "H03–H14 · M15 ENTRY + GBPUSD M15 E-0:15")
+            metadata(label: state.text(vn: "NHỊP DỮ LIỆU", en: "DATA CADENCE"), value: "H03–H14 · XAU M15 + derived GBPUSD/GBPAUD")
             metadata(label: state.text(vn: "NGÀY ĐÃ LƯU", en: "STORED DAYS"), value: "\(h1.orderedDatesDescending.count) \(state.text(vn: "ngày", en: "days"))")
             metadata(label: state.text(vn: "NGÀY MỚI NHẤT", en: "LATEST DAY"), value: h1.latestDate)
         }

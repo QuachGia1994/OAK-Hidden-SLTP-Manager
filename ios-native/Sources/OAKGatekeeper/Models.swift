@@ -275,6 +275,8 @@ extension H1SignalPayload {
 
     func evidenceFacts(date: String, sourceAlert: H1SignalAlert) -> H1EvidenceFacts {
         _ = date
+        let derivedRules = Set(["xau-same-block-keep", "xau-previous-block-keep", "xau-weekday-keep", "xau-weekday-invert"])
+        let derived = sourceAlert.postSignalRule.map { derivedRules.contains($0) } ?? false
         let baseTime: String
         if let hour = sourceAlert.baseHour, let minute = sourceAlert.baseMinute {
             baseTime = String(format: "%02d:%02d", hour, minute)
@@ -283,17 +285,32 @@ extension H1SignalPayload {
         }
         let baseSignal = sourceAlert.baseSignal?.rawValue ?? "—"
         let signalSource = sourceAlert.baseSymbol.isEmpty ? sourceAlert.symbol : sourceAlert.baseSymbol
-        let rawBase = sourceAlert.baseDirection.isEmpty
-            ? "—"
-            : "\(signalSource) M15 \(baseTime) · \(sourceAlert.baseDirection) → \(baseSignal)"
-        let delta = sourceAlert.entryHour.map { $0 - sourceAlert.slotHour }
-        let rule = delta.map { "ENTRY-BLOCK \($0) · E-0:15 · \((sourceAlert.postSignalInverted ?? false) ? "INVERT" : "KEEP")" } ?? "M15 BASE —"
+        let sourceHour = sourceAlert.baseHour ?? sourceAlert.slotHour
+        let rawBase = derived
+            ? "\(signalSource) H\(String(format: "%02d", sourceHour)) · \(baseSignal)"
+            : sourceAlert.baseDirection.isEmpty
+                ? "—"
+                : "\(signalSource) M15 \(baseTime) · \(sourceAlert.baseDirection) → \(baseSignal)"
+        let rule: String
+        if derived {
+            let sourceBlock = "H\(String(format: "%02d", sourceHour))"
+            switch sourceAlert.postSignalRule {
+            case "xau-previous-block-keep": rule = "XAUUSD \(sourceBlock) · PREVIOUS BLOCK · KEEP"
+            case "xau-weekday-invert": rule = "XAUUSD \(sourceBlock) · WEEKDAY · INVERT"
+            case "xau-weekday-keep": rule = "XAUUSD \(sourceBlock) · WEEKDAY · KEEP"
+            default: rule = "XAUUSD \(sourceBlock) · SAME BLOCK · KEEP"
+            }
+        } else {
+            let delta = sourceAlert.entryHour.map { $0 - sourceAlert.slotHour }
+            let baseRule = delta.map { "ENTRY-BLOCK \($0) · E-0:15 · \((sourceAlert.postSignalInverted ?? false) ? "INVERT" : "KEEP")" } ?? "—"
+            rule = "M15 BASE · \(baseRule)"
+        }
 
         return H1EvidenceFacts(
             patternSource: sourceAlert.scannerSource ?? "XAUUSD",
             rawBase: rawBase,
             signalSource: signalSource,
-            rule: "M15 BASE · \(rule)",
+            rule: rule,
             finalSignal: sourceAlert.signal?.rawValue ?? "—"
         )
     }

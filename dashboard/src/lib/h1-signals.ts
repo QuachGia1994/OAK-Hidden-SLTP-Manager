@@ -3,15 +3,15 @@ import "server-only";
 import { readRedisReplicas } from "./redis-core";
 import {
   H1_CLOUD_STATE_KEY,
+  H1_PUBLIC_SYMBOLS,
   H1_SIGNAL_RULE_VERSION,
-  H1_TARGET_BASES,
   buildPublicFeed,
   parseCloudState,
   type H1CloudState,
 } from "./h1-cloud-scanner";
 
 export type H1SignalSide = "BUY" | "SELL";
-export type H1PostSignalRule = "none" | "cycle-net-invert" | "cycle-net-keep" | "regular-net-invert" | "regular-net-keep" | "weekday-invert" | "weekday-keep" | "h3-prev-h4-keep" | "h3-prev-h5-invert" | "h3-prev-pending" | "h3-today-h4-keep" | "h3-today-h5-invert" | "h3-today-pending" | "block-base-keep" | "block-base-invert";
+export type H1PostSignalRule = "none" | "cycle-net-invert" | "cycle-net-keep" | "regular-net-invert" | "regular-net-keep" | "weekday-invert" | "weekday-keep" | "h3-prev-h4-keep" | "h3-prev-h5-invert" | "h3-prev-pending" | "h3-today-h4-keep" | "h3-today-h5-invert" | "h3-today-pending" | "block-base-keep" | "block-base-invert" | "xau-same-block-keep" | "xau-previous-block-keep" | "xau-weekday-keep" | "xau-weekday-invert";
 
 export type H1SignalSampleBar = {
   brokerDate: string;
@@ -92,8 +92,8 @@ function parsePayload(raw: unknown, source: string): H1SignalPayload | null {
       || !payload.publishedAt
       || !Array.isArray(payload.hours)
       || !Array.isArray(payload.symbols)
-      || payload.symbols.length !== H1_TARGET_BASES.length
-      || !H1_TARGET_BASES.every((base, index) => payload.symbols?.[index] === base)
+      || payload.symbols.length !== H1_PUBLIC_SYMBOLS.length
+      || !H1_PUBLIC_SYMBOLS.every((base, index) => payload.symbols?.[index] === base)
       || !payload.days
       || typeof payload.days !== "object"
     ) {

@@ -16,7 +16,7 @@ const H1_SHARE_HOUR_WIDTH = 96;
 const H1_SHARE_ENTRY_ROW_HEIGHT = 54;
 const H1_SHARE_SIGNAL_ROW_HEIGHT = 54;
 const H1_SHARE_FONT = '"Cascadia Mono", "SFMono-Regular", Consolas, monospace';
-const H1_SIGNAL_ROWS = ["XAUUSD"] as const;
+const H1_SIGNAL_ROWS = ["XAUUSD", "GBPUSD", "GBPAUD"] as const;
 
 function entryAlertForHour(day: H1SignalPayload["days"][string] | undefined, hour: number): H1SignalAlert | undefined {
   return day?.symbols?.XAUUSD?.alerts?.find((alert) => alert.slotHour === hour && Number.isInteger(alert.entryHour));
@@ -115,15 +115,15 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   ctx.fillText("OAK GATEKEEPER · H1 SCANNER", padding + 22, padding + 30);
   ctx.fillStyle = colors.text;
   ctx.font = `900 28px ${H1_SHARE_FONT}`;
-  ctx.fillText(locale === "EN" ? "H1 Entry + XAUUSD Signal" : "H1 Entry + Signal XAUUSD", padding + 22, padding + 66);
+  ctx.fillText(locale === "EN" ? "H1 Entry + Signal Matrix" : "H1 Entry + Ma trận Signal", padding + 22, padding + 66);
   ctx.fillStyle = colors.muted;
   ctx.font = `700 14px ${H1_SHARE_FONT}`;
   ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}  ·  Entry owner XAUUSD`, padding + 22, padding + 96);
   ctx.font = `700 13px ${H1_SHARE_FONT}`;
   ctx.fillText(
     locale === "EN"
-      ? "GBPUSD M15 base E-0:15 · H3 invert · H6/H9 keep · H12/H14 invert"
-      : "Base GBPUSD M15 E-0:15 · H3 đảo · H6/H9 giữ · H12/H14 đảo",
+      ? "XAU base GBPUSD M15 E-0:15 · GBPUSD block-delta · GBPAUD weekday rule"
+      : "XAU base GBPUSD M15 E-0:15 · GBPUSD theo block-delta · GBPAUD theo thứ",
     padding + 22,
     padding + 120,
   );
@@ -383,7 +383,7 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
   const copy = locale === "EN"
     ? {
         title: "H1 Live + History",
-        sub: "MT5 ICMarkets · M15 ENTRY + GBPUSD M15 E-0:15 BASE · latest + retained broker days",
+        sub: "MT5 ICMarkets · M15 ENTRY + XAUUSD / GBPUSD / GBPAUD signals · latest + retained broker days",
         awaiting: "Awaiting local H1 feed",
         freeAccess: "All H1 entry-time cells unlocked",
         dateGroup: "Broker date",
@@ -392,7 +392,7 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
       }
     : {
         title: "H1 Live + Lịch sử",
-        sub: "MT5 ICMarkets · M15 ENTRY + BASE GBPUSD M15 E-0:15 · ngày broker mới nhất + lịch sử đã lưu",
+        sub: "MT5 ICMarkets · M15 ENTRY + signal XAUUSD / GBPUSD / GBPAUD · ngày broker mới nhất + lịch sử đã lưu",
         awaiting: "Đang chờ feed H1 local",
         freeAccess: "Tất cả ô entry-time H1 đã được mở",
         dateGroup: "Ngày broker",

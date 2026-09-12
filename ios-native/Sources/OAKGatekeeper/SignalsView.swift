@@ -13,7 +13,7 @@ struct SignalsView: View {
         var id: String { rawValue }
     }
 
-    private let visibleSymbols = ["XAUUSD"]
+    private let visibleSymbols = ["XAUUSD", "GBPUSD", "GBPAUD"]
 
     var body: some View {
         ScrollView {
@@ -21,7 +21,7 @@ struct SignalsView: View {
                 OAKPageHeader(
                     eyebrow: "TRADING / SIGNALS",
                     title: state.text(vn: "Tín hiệu", en: "Signals"),
-                    subtitle: state.text(vn: "Radar BUY/SELL theo H1 và drill-down evidence M15.", en: "BUY/SELL H1 radar with M15 evidence drill-down.")
+                    subtitle: state.text(vn: "Radar BUY/SELL theo H1 và drill-down bằng chứng signal.", en: "BUY/SELL H1 radar with signal-evidence drill-down.")
                 )
 
                 Picker("Filter", selection: $filter) {

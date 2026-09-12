@@ -70,6 +70,7 @@ data class H1SignalPayload(
 
     fun evidenceFacts(date: String, sourceAlert: H1SignalAlert): H1EvidenceFacts {
         @Suppress("UNUSED_VARIABLE") val ignoredDate = date
+        val derived = sourceAlert.postSignalRule in setOf("xau-same-block-keep", "xau-previous-block-keep", "xau-weekday-keep", "xau-weekday-invert")
         val baseTime = if (sourceAlert.baseHour != null && sourceAlert.baseMinute != null) {
             "${sourceAlert.baseHour.toString().padStart(2, '0')}:${sourceAlert.baseMinute.toString().padStart(2, '0')}"
         } else {
@@ -77,19 +78,31 @@ data class H1SignalPayload(
         }
         val baseSignal = sourceAlert.baseSignal?.name ?: "—"
         val signalSource = sourceAlert.baseSymbol.ifBlank { sourceAlert.symbol }
-        val rawBase = if (sourceAlert.baseDirection.isBlank()) {
+        val rawBase = if (derived) {
+            "$signalSource H${(sourceAlert.baseHour ?: sourceAlert.slotHour).toString().padStart(2, '0')} · $baseSignal"
+        } else if (sourceAlert.baseDirection.isBlank()) {
             "—"
         } else {
             "$signalSource M15 $baseTime · ${sourceAlert.baseDirection} → $baseSignal"
         }
-        val delta = sourceAlert.entryHour?.minus(sourceAlert.slotHour)
-        val rule = delta?.let { "ENTRY-BLOCK $it · E-0:15 · ${if (sourceAlert.postSignalInverted) "INVERT" else "KEEP"}" } ?: "M15 BASE —"
+        val rule = if (derived) {
+            val sourceBlock = "H${(sourceAlert.baseHour ?: sourceAlert.slotHour).toString().padStart(2, '0')}"
+            when (sourceAlert.postSignalRule) {
+                "xau-previous-block-keep" -> "XAUUSD $sourceBlock · PREVIOUS BLOCK · KEEP"
+                "xau-weekday-invert" -> "XAUUSD $sourceBlock · WEEKDAY · INVERT"
+                "xau-weekday-keep" -> "XAUUSD $sourceBlock · WEEKDAY · KEEP"
+                else -> "XAUUSD $sourceBlock · SAME BLOCK · KEEP"
+            }
+        } else {
+            val delta = sourceAlert.entryHour?.minus(sourceAlert.slotHour)
+            "M15 BASE · ${delta?.let { "ENTRY-BLOCK $it · E-0:15 · ${if (sourceAlert.postSignalInverted) "INVERT" else "KEEP"}" } ?: "—"}"
+        }
 
         return H1EvidenceFacts(
             patternSource = sourceAlert.scannerSource ?: "XAUUSD",
             rawBase = rawBase,
             signalSource = signalSource,
-            rule = "M15 BASE · $rule",
+            rule = rule,
             finalSignal = sourceAlert.signal?.name ?: "—",
         )
     }

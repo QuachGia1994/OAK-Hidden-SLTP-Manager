@@ -20,7 +20,9 @@ struct H1EvidenceSheet: View {
                     OAKPageHeader(
                         eyebrow: "H1 / EVIDENCE",
                         title: "\(alert.symbol) · H\(String(format: "%02d", alert.slotHour))",
-                        subtitle: state.text(vn: "Biểu đồ nến M15 · cũ → mới", en: "M15 candlestick chart · oldest → newest")
+                        subtitle: (alert.sampleBars ?? []).isEmpty
+                            ? state.text(vn: "Nguồn signal XAUUSD · không có chart M15 riêng", en: "XAUUSD signal source · no separate M15 chart")
+                            : state.text(vn: "Biểu đồ nến M15 · cũ → mới", en: "M15 candlestick chart · oldest → newest")
                     )
 
                     HStack(spacing: 8) {
@@ -34,7 +36,7 @@ struct H1EvidenceSheet: View {
                     OAKCard {
                         VStack(alignment: .leading, spacing: 11) {
                             HStack {
-                                Text(state.text(vn: "BIỂU ĐỒ M15", en: "M15 CHART"))
+                                Text((alert.sampleBars ?? []).isEmpty ? state.text(vn: "NGUỒN SIGNAL", en: "SIGNAL SOURCE") : state.text(vn: "BIỂU ĐỒ M15", en: "M15 CHART"))
                                     .font(OAKFont.sectionTitle)
                                     .foregroundStyle(OAKColor.text)
                                     .accessibilityAddTraits(.isHeader)

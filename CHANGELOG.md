@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advanced H1 to signal rule v95 while keeping public schema 18/state v56 and the local market-source set at XAUUSD + GBPUSD. The public matrix now adds derived GBPUSD and GBPAUD rows beside XAUUSD: GBPUSD H3 copies XAUUSD H3, while each later block chooses the current or immediately previous XAUUSD block from the previous block's entry delta (`+1` = current, `+2` = previous); GBPAUD H3/H6 invert XAUUSD on Monday/Tuesday/Thursday and keep Wednesday/Friday, while H9/H12 invert Thursday/Friday and keep Monday-Wednesday. GBPAUD H14 stays blank because no rule is defined. Web/PNG, mobile backend, native iOS/Android and legacy Expo now expose the same three signal rows, with derived evidence identifying the XAUUSD source block instead of pretending to have its own M15 base.
+
 - Advanced the local MT5 manager to EA v1.13. Default XAU/GOLD TP is now 20.0 price units and default FX TP is 50 pips on the active 2-digit gold/5-digit FX contract. At each later scheduled same-direction entry milestone, one still-open position keeps its SL and moves TP one additional 20.0 price units for XAU/GOLD or 50 pips for FX instead of opening a duplicate position; the durable scheduled result sends a deduplicated Telegram `TP moved` notice with old/new TP. Opposite-direction reversal handling remains fail-closed, and scheduled UI entry now requires EA v1.13+.
 
 - Simplified the H1 matrix presentation by removing the `BT +1 · SW +2` helper line from the shared `ENTRY TIME` row and PNG export. The exported entry row now matches the signal-row height; H1 timing and signal logic are unchanged.

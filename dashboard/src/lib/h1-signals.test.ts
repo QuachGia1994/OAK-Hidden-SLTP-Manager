@@ -93,15 +93,16 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 v94 uses five blocks and GBPUSD M15 E-0:15 as the only signal base", () => {
+test("H1 v95 keeps five XAU source blocks and derives GBPUSD/GBPAUD public rows without new market sources", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD"\]/);
   assert.match(localPatternsSource, /H1_SIGNAL_BASE_SOURCES = \["GBPUSD"\]/);
   assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14\]/);
   assert.match(mobileAppBackendSource, /FALLBACK_HOURS = \[3, 6, 9, 12, 14\]/);
-  assert.match(mobileAppBackendSource, /FALLBACK_SYMBOLS = \["XAUUSD"\]/);
-  assert.match(nativeSignalsSource, /visibleSymbols = \["XAUUSD"\]/);
-  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 94/);
+  assert.match(mobileAppBackendSource, /FALLBACK_SYMBOLS = \["XAUUSD", "GBPUSD", "GBPAUD"\]/);
+  assert.match(nativeSignalsSource, /visibleSymbols = \["XAUUSD", "GBPUSD", "GBPAUD"\]/);
+  assert.match(scannerSource, /H1_PUBLIC_SYMBOLS = \["XAUUSD", "GBPUSD", "GBPAUD"\]/);
+  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 95/);
   assert.match(scannerSource, /H1_SIGNAL_END_HOUR = 14/);
   assert.match(scannerSource, /includes\(hour\) \? H1_TARGET_BASES : \[\]/);
   assert.match(localMarketRouteSource, /evaluateLocalH1PatternsForTarget/);
@@ -138,17 +139,19 @@ test("H16 is retired while Telegram scheduling keeps the existing H14 cutoff", (
   assert.doesNotMatch(boardSource + androidScreensSource, /order_send|closePosition|dispatchTask|\/approve/);
 });
 
-test("web and native clients expose only shared Entry time plus the XAUUSD v94 signal row", () => {
+test("web and native clients expose shared Entry time plus XAUUSD, GBPUSD and GBPAUD v95 signal rows", () => {
   assert.match(boardSource, /<b>ENTRY TIME<\/b>/);
   assert.match(boardSource, /entryByHour = new Map\(\(day\?\.symbols\?\.XAUUSD\?\.alerts/);
-  assert.match(boardSource, /H1_SIGNAL_ROWS = \["XAUUSD"\]/);
-  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD"\)/);
-  assert.match(nativeH1BoardSource, /visibleSymbols = \["XAUUSD"\]/);
-  assert.doesNotMatch(boardSource + androidScreensSource + nativeH1BoardSource, /VisibleSymbols = listOf\("XAUUSD", "GBPUSD"|visibleSymbols = \["XAUUSD", "GBPUSD"|H1_SIGNAL_ROWS = \["XAUUSD", "GBPUSD"/);
+  assert.match(boardSource, /H1_SIGNAL_ROWS = \["XAUUSD", "GBPUSD", "GBPAUD"\]/);
+  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD", "GBPUSD", "GBPAUD"\)/);
+  assert.match(nativeH1BoardSource, /visibleSymbols = \["XAUUSD", "GBPUSD", "GBPAUD"\]/);
+  assert.match(expoCalendarSource, /FALLBACK_SYMBOLS = \["XAUUSD", "GBPUSD", "GBPAUD"\]/);
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
+  assert.match(scannerSource, /derivedGbpUsdAlerts/);
+  assert.match(scannerSource, /derivedGbpAudAlerts/);
 });
 
-test("web H1 table renders the final XAU BUY/SELL row directly under shared Entry time", () => {
+test("web H1 table renders all final BUY/SELL rows under shared Entry time", () => {
   assert.match(boardSource, /oak-h1-cell-entry/);
   assert.match(boardSource, /oak-h1-cell-signal oak-h1-cell-evidence/);
   assert.match(boardSource, /signalLabel\(alert\)/);
@@ -309,11 +312,13 @@ test("unified H1 uses a deterministic Sunday-first history calendar without week
   assert.doesNotMatch(boardSource, /oak-h1-history-dates/);
 });
 
-test("legacy weekday/CẦU/H3-selector presentation stays hidden while v94 GBPUSD M15 evidence is explicit", () => {
+test("legacy weekday/CẦU/H3-selector presentation stays hidden while v95 source evidence is explicit", () => {
   assert.doesNotMatch(boardSource, /inversionBadge|data-post-signal-inverted|ĐẢO/);
   assert.doesNotMatch(boardSource, /isMonthEndBridgeCell|oak-h1-bridge-badge|data-month-end-bridge|CẦU/);
-  assert.doesNotMatch(evidencePanelSource, /Weekday:|WEEKDAY|ĐẢO|GIỮ|h3-prev-|h3-today-|H3 ENTRY/);
+  assert.doesNotMatch(evidencePanelSource, /Weekday:|ĐẢO|GIỮ|h3-prev-|h3-today-|H3 ENTRY/);
   assert.match(evidencePanelSource, /M15 BASE ·/);
+  assert.match(evidencePanelSource, /PREVIOUS BLOCK/);
+  assert.match(evidencePanelSource, /WEEKDAY · INVERT/);
   assert.match(evidencePanelSource, /ENTRY-BLOCK/);
   assert.match(evidencePanelSource, /E-0:15/);
   assert.match(evidencePanelSource, /SIGNAL/);
@@ -376,7 +381,7 @@ test("native iOS and Android mirror the web three-tab hierarchy with animated H1
 });
 
 test("native Android copies the iOS H1 presentation, evidence, reports, themes and account interaction", () => {
-  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD"\)/);
+  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD", "GBPUSD", "GBPAUD"\)/);
   assert.doesNotMatch(androidScreensSource, /entryReference/);
   assert.match(androidScreensSource, /OAKPill\("FREE ACCESS", PillTone\.SUCCESS\)/);
   assert.match(androidScreensSource, /BrokerCalendarSheet/);
@@ -471,11 +476,11 @@ test("H1 board exports interoperable PNG with clipboard, Android share-sheet and
   assert.match(boardSource, /H1_SHARE_SCALE = 2/);
   assert.match(boardSource, /H1_SHARE_SYMBOL_WIDTH = 148/);
   assert.match(boardSource, /H1_SHARE_HOUR_WIDTH = 96/);
-  assert.match(boardSource, /GBPUSD M15 base E-0:15/);
-  assert.match(boardSource, /H3 invert/);
-  assert.match(boardSource, /H6\/H9 keep/);
-  assert.match(boardSource, /H12\/H14 invert/);
-  assert.match(boardSource, /Base GBPUSD M15 E-0:15/);
+  assert.match(boardSource, /XAU base GBPUSD M15 E-0:15/);
+  assert.match(boardSource, /GBPUSD block-delta/);
+  assert.match(boardSource, /GBPAUD weekday rule/);
+  assert.match(boardSource, /GBPUSD theo block-delta/);
+  assert.match(boardSource, /GBPAUD theo thứ/);
   assert.doesNotMatch(boardSource, /H16 GU keep|H1 base: H3 AU keep/);
   assert.match(boardSource, /deliverPngBlob/);
   assert.match(boardSource, /SHARED/);
@@ -525,7 +530,7 @@ test("H1 board exports interoperable PNG with clipboard, Android share-sheet and
   assert.match(redesignCss, /data-copied="true"/);
 });
 
-test("populated H1 cells expose synchronized XAU entry-pattern plus GBPUSD M15 signal evidence", () => {
+test("populated H1 cells expose XAU M15 evidence and derived GBPUSD/GBPAUD source evidence", () => {
   assert.match(boardSource, /oak-h1-cell-entry oak-h1-cell-evidence/);
   assert.match(boardSource, /oak-h1-cell-signal oak-h1-cell-evidence/);
   assert.match(boardSource, /setEvidenceSelection/);
@@ -555,7 +560,9 @@ test("populated H1 cells expose synchronized XAU entry-pattern plus GBPUSD M15 s
   assert.match(evidencePanelSource, /ENTRY PATTERN \$\{patternSource\}/);
   assert.match(evidencePanelSource, /PLOT OLDEST→NEWEST/);
   assert.match(evidencePanelSource, /MATCH READ NEWEST→OLDEST/);
-  assert.match(evidencePanelSource, /SIGNAL BASE \$\{selection\.alert\.baseSymbol \|\| selection\.base\} M15/);
+  assert.match(evidencePanelSource, /SIGNAL SOURCE \$\{facts\.rawBase\}/);
+  assert.match(evidencePanelSource, /xau-previous-block-keep/);
+  assert.match(evidencePanelSource, /xau-weekday-invert/);
   assert.match(evidencePanelSource, /blockBaseRuleLabel\(selection\)/);
   assert.match(evidencePanelSource, /BASE OHLC \$\{facts\.baseOhlc\}/);
   assert.match(evidencePanelSource, /deliverPngBlob/);
