@@ -1,4 +1,4 @@
-name: Mobile Build
+name: Mobile Build - Xcode 26.4 diagnostic
 
 on:
   push:
@@ -29,6 +29,7 @@ env:
 
 jobs:
   build-android:
+    if: false
     name: Build native Android APK/AAB
     runs-on: ubuntu-latest
     steps:
@@ -160,8 +161,10 @@ jobs:
           exit 1
 
   build-ios:
-    name: Build native iOS 27 unsigned IPA
-    runs-on: xcode-27
+    name: Build native iOS 26.4 diagnostic IPA
+    runs-on: macos-26
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -280,7 +283,7 @@ jobs:
       - name: Upload zsign-ready native iOS IPA
         uses: actions/upload-artifact@v4
         with:
-          name: OAK-Gatekeeper-iOS27-native-zsign-ready
+          name: OAK-Gatekeeper-iOS26.4-diagnostic-zsign-ready
           path: ios-native/OAK-Gatekeeper-native-zsign-ready.ipa
           if-no-files-found: error
           retention-days: 14
@@ -288,7 +291,7 @@ jobs:
       - name: Upload raw unsigned native iOS IPA
         uses: actions/upload-artifact@v4
         with:
-          name: OAK-Gatekeeper-iOS27-native-raw-unsigned
+          name: OAK-Gatekeeper-iOS26.4-diagnostic-raw-unsigned
           path: ios-native/OAK-Gatekeeper-native-raw-unsigned.ipa
           if-no-files-found: error
           retention-days: 14
