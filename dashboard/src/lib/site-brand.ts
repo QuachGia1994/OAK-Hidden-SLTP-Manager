@@ -1,4 +1,5 @@
 export const SITE_URL = "https://www.oakgatekeeper.uk";
+export const SUPPORT_EMAIL = "support@oakgatekeeper.uk";
 
 export const OAK_SHARE_IMAGE = {
   url: "/oak-share-v4.png",

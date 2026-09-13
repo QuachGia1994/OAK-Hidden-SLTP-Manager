@@ -642,6 +642,8 @@ max-width: 36rem; font-size: clamp(1.8rem,4vw,2.7rem); line-height: 1; letter-sp
 }
 .oak-footer-inner { display: flex; min-height: 3.2rem; align-items: center; justify-content: space-between; gap: 1rem; color: var(--muted); font: 750 var(--oak-text-meta) "Cascadia Mono", Consolas, monospace; letter-spacing: .11em; }
 .oak-footer-inner span:first-child { color: var(--terminal-accent); }
+.oak-footer-mail { color: var(--oak-accent-command); text-transform: lowercase; letter-spacing: .04em; }
+.oak-footer-mail:hover { text-decoration: underline; text-underline-offset: .2em; }
 
 /* Android performance profile — preserve the OAK look while reducing scroll-time compositing. */
 .oak-android {
@@ -822,9 +824,9 @@ min-height: 7rem;
   .oak-claim-row { grid-template-columns: 2.4rem minmax(0,1fr); }
   .oak-claim-heading { display: grid; }
   .oak-source-grid { grid-template-columns: 1fr; }
-  .oak-footer-inner { justify-content: center; text-align: center; }
-  .oak-footer-inner span:first-child,
-  .oak-footer-inner span:last-child { display: none; }
+  .oak-footer-inner { flex-wrap: wrap; justify-content: center; padding-block: .55rem; text-align: center; }
+  .oak-footer-inner span:first-child { display: none; }
+  .oak-footer-mail { flex-basis: 100%; }
   .oak-command-strip { align-items: flex-start; flex-direction: column; min-height: 0; padding: .6rem .7rem; }
   .oak-engine-error { grid-template-columns: auto 1fr; }
   .oak-engine-error > button { grid-column: 1 / -1; width: 100%; }

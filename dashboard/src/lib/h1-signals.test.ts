@@ -354,7 +354,10 @@ test("native iOS and Android mirror the web three-tab hierarchy with animated H1
   assert.match(nativeH1BoardSource, /H1NativeCommandHero/);
   assert.match(nativeH1BoardSource, /OAKNativeOrbitCore/);
   assert.match(nativeH1BoardSource, /TimelineView\(\.animation/);
-  assert.match(nativeH1BoardSource, /rotation3DEffect/);
+  assert.match(nativeH1BoardSource, /Canvas \{ context, size in/);
+  assert.match(nativeH1BoardSource, /projectedCircle\(/);
+  assert.match(nativeH1BoardSource, /private func projected\(_ point: OAKVector3/);
+  assert.match(nativeH1BoardSource, /private func rotate\(_ point: OAKVector3/);
   assert.match(nativeWorkspaceSource, /struct NeoTechNativeView/);
   assert.match(nativeWorkspaceSource, /struct NativeToolsView/);
   assert.match(nativeAppStateSource, /enum ToolsRoute: Hashable, Sendable/);
@@ -371,9 +374,11 @@ test("native iOS and Android mirror the web three-tab hierarchy with animated H1
   assert.match(androidScreensSource, /fun H1BoardScreen\(state: OAKAppState\)/);
   assert.match(androidScreensSource, /H1CommandHero/);
   assert.match(androidScreensSource, /OAKOrbitCore/);
-  assert.match(androidScreensSource, /rememberInfiniteTransition/);
-  assert.match(androidScreensSource, /orbit-vertical/);
-  assert.match(androidScreensSource, /rotationY = 72f; rotationX = vertical/);
+  assert.match(androidScreensSource, /withFrameNanos/);
+  assert.match(androidScreensSource, /Canvas\(Modifier\.size\(118\.dp\)\)/);
+  assert.match(androidScreensSource, /projectOrbitPoint\(/);
+  assert.match(androidScreensSource, /drawProjectedPath\(/);
+  assert.match(androidScreensSource, /OrbitRotation\(x = 180f \+ phase \* 180f, y = 18f \+ phase \* 50f, z = 12f - phase \* 28f\)/);
   assert.match(androidScreensSource, /fun NeoTechScreen/);
   assert.match(androidScreensSource, /fun ToolsScreen/);
   assert.match(androidScreensSource, /BackHandler\(enabled = panel != NativeToolPanel\.DIRECTORY\)/);

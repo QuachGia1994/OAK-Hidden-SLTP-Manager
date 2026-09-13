@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { OAK_SHARE_IMAGE, SITE_URL } from "@/lib/site-brand";
+import { OAK_SHARE_IMAGE, SITE_URL, SUPPORT_EMAIL } from "@/lib/site-brand";
 import "./globals.css";
 import "./oak-redesign.css";
 import "./factcheck-share.css";
@@ -79,7 +79,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <div className="nav-shell oak-footer-inner">
                 <span>OAK GATEKEEPER</span>
                 <span>© 2026 QUACH KIM PHONG</span>
-                <span>ROBOT SLTP PRO</span>
+                <a className="oak-footer-mail" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
               </div>
             </footer>
           </ThemeProvider>
