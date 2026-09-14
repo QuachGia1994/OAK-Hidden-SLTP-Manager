@@ -90,7 +90,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
-private val VisibleSymbols = listOf("XAUUSD", "GBPUSD", "GBPAUD")
+private val VisibleSymbols = listOf("GBPUSD", "GBPAUD")
 
 @Composable
 fun UnlockScreen(state: OAKAppState) {
@@ -748,7 +748,7 @@ private fun H1Matrix(state: OAKAppState, h1: H1SignalPayload, date: String, onSe
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         h1.hours.forEach { hour ->
                             H1EntryTimeCell(
-                                alert = h1.alert(date, "XAUUSD", hour),
+                                alert = h1.alert(date, "GBPUSD", hour),
                                 highlighted = false,
                             )
                         }

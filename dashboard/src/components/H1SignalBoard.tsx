@@ -16,10 +16,23 @@ const H1_SHARE_HOUR_WIDTH = 96;
 const H1_SHARE_ENTRY_ROW_HEIGHT = 54;
 const H1_SHARE_SIGNAL_ROW_HEIGHT = 54;
 const H1_SHARE_FONT = '"Cascadia Mono", "SFMono-Regular", Consolas, monospace';
-const H1_SIGNAL_ROWS = ["XAUUSD", "GBPUSD", "GBPAUD"] as const;
+const H1_SIGNAL_ROWS = ["GBPUSD", "GBPAUD"] as const;
 
 function entryAlertForHour(day: H1SignalPayload["days"][string] | undefined, hour: number): H1SignalAlert | undefined {
-  return day?.symbols?.XAUUSD?.alerts?.find((alert) => alert.slotHour === hour && Number.isInteger(alert.entryHour));
+  const source = day?.symbols?.GBPUSD?.alerts?.find((alert) => alert.slotHour === hour && Number.isInteger(alert.entryHour));
+  if (!source) return undefined;
+  return {
+    ...source,
+    symbol: "XAUUSD",
+    baseSymbol: "XAUUSD",
+    baseSignal: null,
+    baseDirection: "",
+    signal: null,
+    scheduledSignal: null,
+    postSignalInverted: false,
+    postSignalRule: "none",
+    signalBaseBar: null,
+  };
 }
 
 function entryHourLabel(alert: H1SignalAlert | undefined): string {
@@ -76,7 +89,7 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   if (!day) throw new Error("Broker day unavailable");
 
   const hours = activeH1ScanHoursForBrokerDate(date, data.hours);
-  const entryByHour = new Map((day.symbols?.XAUUSD?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
+  const entryByHour = new Map(hours.map((hour) => [hour, entryAlertForHour(day, hour)]));
   const padding = 40;
   const titleHeight = 150;
   const headerHeight = 50;
@@ -122,8 +135,8 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   ctx.font = `700 13px ${H1_SHARE_FONT}`;
   ctx.fillText(
     locale === "EN"
-      ? "XAU base GBPUSD M15 E-0:15 · GBPUSD block-delta · GBPAUD weekday rule"
-      : "XAU base GBPUSD M15 E-0:15 · GBPUSD theo block-delta · GBPAUD theo thứ",
+      ? "XAUUSD owns Entry pattern · GBPUSD uses GBPAUD H1 at previous Entry · KEEP · GBPAUD uses GBPUSD H1 at previous Entry · INVERT"
+      : "XAUUSD giữ Entry pattern · GBPUSD dùng GBPAUD H1 tại Entry trước · GIỮ · GBPAUD dùng GBPUSD H1 tại Entry trước · ĐẢO",
     padding + 22,
     padding + 120,
   );
@@ -383,7 +396,7 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
   const copy = locale === "EN"
     ? {
         title: "H1 Live + History",
-        sub: "MT5 ICMarkets · M15 ENTRY + XAUUSD / GBPUSD / GBPAUD signals · latest + retained broker days",
+        sub: "MT5 ICMarkets · XAUUSD M15 ENTRY + GBPUSD / GBPAUD H1 signals · latest + retained broker days",
         awaiting: "Awaiting local H1 feed",
         freeAccess: "All H1 entry-time cells unlocked",
         dateGroup: "Broker date",
@@ -392,7 +405,7 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
       }
     : {
         title: "H1 Live + Lịch sử",
-        sub: "MT5 ICMarkets · M15 ENTRY + signal XAUUSD / GBPUSD / GBPAUD · ngày broker mới nhất + lịch sử đã lưu",
+        sub: "MT5 ICMarkets · XAUUSD M15 ENTRY + signal H1 GBPUSD / GBPAUD · ngày broker mới nhất + lịch sử đã lưu",
         awaiting: "Đang chờ feed H1 local",
         freeAccess: "Tất cả ô entry-time H1 đã được mở",
         dateGroup: "Ngày broker",
@@ -510,7 +523,7 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
   }
 
   const activeHours = date ? activeH1ScanHoursForBrokerDate(date, data.hours) : data.hours;
-  const entryByHour = new Map((day?.symbols?.XAUUSD?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
+  const entryByHour = new Map(activeHours.map((hour) => [hour, entryAlertForHour(day, hour)]));
   const allDatesSet = new Set(allDates);
   const currentDateIndex = allDates.indexOf(date);
   const calendarYesterday = latestDate ? addIsoCalendarDays(latestDate, -1) : "";
@@ -578,7 +591,7 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
                 const signal = signalLabel(alert);
                 if (signal === "—") return <td key={hour} headers={`h1-signal-row-${symbol} h1-hour-${hour}`}><span className="oak-h1-cell-empty">—</span></td>;
                 const baseTime = `${String(alert?.baseHour ?? 0).padStart(2, "0")}:${String(alert?.baseMinute ?? 0).padStart(2, "0")}`;
-                return <td key={hour} headers={`h1-signal-row-${symbol} h1-hour-${hour}`} title={`${symbol} · ${alert?.baseSymbol || "—"} M15 ${baseTime} · ${alert?.baseDirection || "—"} · ${alert?.postSignalInverted ? "INVERT" : "KEEP"} → ${signal}`}><button type="button" className="oak-h1-cell-signal oak-h1-cell-evidence" data-side={signal.toLowerCase()} onClick={() => setEvidenceSelection({ base: symbol, brokerDate: date, alert: alert! })} aria-label={`${symbol} H${hour}: ${signal}; ${locale === "EN" ? "view M15 signal evidence" : "xem evidence signal M15"}`}>{signal}</button></td>;
+                return <td key={hour} headers={`h1-signal-row-${symbol} h1-hour-${hour}`} title={`${symbol} · ${alert?.baseSymbol || "—"} H1 ${baseTime} · ${alert?.baseDirection || "—"} · ${alert?.postSignalInverted ? "INVERT" : "KEEP"} → ${signal}`}><button type="button" className="oak-h1-cell-signal oak-h1-cell-evidence" data-side={signal.toLowerCase()} onClick={() => setEvidenceSelection({ base: symbol, brokerDate: date, alert: alert! })} aria-label={`${symbol} H${hour}: ${signal}; ${locale === "EN" ? "view H1 signal evidence" : "xem evidence signal H1"}`}>{signal}</button></td>;
               })}</tr>)}
             </tbody>
           </table>

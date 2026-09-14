@@ -7,7 +7,7 @@ export const VIP_COOKIE = "sltp_vip_access";
 const VIP_PURPOSE = "oakgatekeeper-vip-v1";
 // Temporary campaign mode: all H1 entry-time cells are public/free.
 export const VIP_FREE_ACCESS = true;
-export const VIP_SIGNAL_SYMBOL = "XAUUSD";
+export const VIP_SIGNAL_SYMBOLS = new Set(["GBPUSD", "GBPAUD"]);
 
 export type VipAccessState = {
   unlocked: boolean;
@@ -72,7 +72,7 @@ export function redactH1Signals(payload: H1SignalPayload | null): H1SignalPayloa
       {
         symbols: Object.fromEntries(Object.entries(day.symbols).map(([base, symbol]) => [
           base,
-          base.toUpperCase() === VIP_SIGNAL_SYMBOL ? { ...symbol, alerts: [] } : symbol,
+          VIP_SIGNAL_SYMBOLS.has(base.toUpperCase()) ? { ...symbol, alerts: [] } : symbol,
         ])),
       },
     ])),

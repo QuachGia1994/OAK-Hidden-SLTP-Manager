@@ -11,10 +11,10 @@ Pure SwiftUI iPhone client for ROBOT SLTP. This target replaces the previous Exp
 
 ## Web parity
 - Tabs: H1 Live, NeoTech and Tools; Signals/Reports/System remain native Tools drill-downs.
-- H1 Live/History uses the same shared `ENTRY TIME` row plus XAUUSD, GBPUSD and GBPAUD signal rows as web across H3/H6/H9/H12/H14; H16 is removed and weekends are off.
-- Rule v95 keeps XAUUSD as the only entry-pattern target. XAUUSD final BUY/SELL still uses the exact same-day GBPUSD M15 candle at entry minus 15 minutes, with H3/H12/H14 invert and H6/H9 keep.
-- GBPUSD and GBPAUD are derived rows, not new market sources. GBPUSD H3 copies XAUUSD H3; each later block uses the current or immediately previous XAUUSD block according to the previous block's entry delta (`+1` current, `+2` previous). GBPAUD H3/H6 invert XAUUSD on Monday/Tuesday/Thursday and keep Wednesday/Friday; H9/H12 invert Thursday/Friday and keep Monday-Wednesday; H14 is blank.
-- Evidence sheets show M15 chart evidence for XAUUSD and the originating XAUUSD block/rule for derived rows.
+- H1 Live/History uses the same shared `ENTRY TIME` row plus GBPUSD and GBPAUD signal rows as web across H3/H6/H9/H12/H14; XAUUSD is not rendered as a signal row, H16 is removed and weekends are off.
+- Rule v97 keeps XAUUSD as the only M15 entry-pattern target/owner. Its pattern metadata still drives the shared Entry time, while its internal signal remains private to TP-roll handling.
+- Public GBP signals use the immediately previous XAU Entry time as H1 reference. H3 reads the previous trading day's H14 Entry; H6/H9/H12/H14 read the current day's H3/H6/H9/H12 Entry respectively. GBPUSD reads GBPAUD H1 at that Entry and KEEPS direction, while GBPAUD reads GBPUSD H1 and INVERTS it. Missing reference evidence leaves the signal blank.
+- Evidence sheets keep XAUUSD M15 chart evidence for Entry pattern and identify the previous-Entry cross-symbol H1 base/rule for each public signal.
 - Native PNG export/share for the selected H1 day.
 - Pull-to-refresh + 20-second server refresh loop.
 - Light/dark/contrast theme selector and VN/EN selector.

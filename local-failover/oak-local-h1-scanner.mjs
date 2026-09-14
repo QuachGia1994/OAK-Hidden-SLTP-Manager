@@ -14,7 +14,7 @@ const H1_TP_MILESTONE_PATH = process.env.OAK_H1_TP_MILESTONE_PATH || path.join(A
 const PYTHON = process.env.OAK_PYTHON || "python";
 const READER = path.join(HERE, "mt5-h1-market-reader.py");
 const DEFAULT_ENDPOINT = "https://www.oakgatekeeper.uk/api/h1-scanner/local-market";
-const SOURCE_KEYS = ["XAUUSD", "GBPUSD"];
+const SOURCE_KEYS = ["XAUUSD", "GBPUSD", "GBPAUD"];
 const MAX_BACKFILL_DAYS = 90;
 const LIVE_READER_TIMEOUT_MS = 30_000;
 const HISTORICAL_READER_TIMEOUT_MS = 180_000;
@@ -102,8 +102,8 @@ async function writeJsonAtomic(file, value) {
 }
 
 function normalizedTpMilestones(result) {
-  if (Number(result?.signalRuleVersion) !== 95 || !Array.isArray(result?.tpMilestones)) {
-    throw new Error("local H1 response is missing v95 TP milestones");
+  if (Number(result?.signalRuleVersion) !== 97 || !Array.isArray(result?.tpMilestones)) {
+    throw new Error("local H1 response is missing v97 TP milestones");
   }
   return result.tpMilestones.map((row) => {
     const brokerDate = String(row?.brokerDate || "");
@@ -128,7 +128,7 @@ async function persistLiveTpMilestones(result) {
   const milestones = normalizedTpMilestones(result);
   await writeJsonAtomic(H1_TP_MILESTONE_PATH, {
     version: 1,
-    signalRuleVersion: 95,
+    signalRuleVersion: 97,
     generatedAt: Date.now(),
     brokerDate: String(result.brokerDate || ""),
     brokerHour: Number(result.brokerHour),
@@ -143,6 +143,12 @@ function addCalendarDays(dateKey, days) {
   return value.toISOString().slice(0, 10);
 }
 
+function previousTradingDate(dateKey) {
+  let candidate = addCalendarDays(dateKey, -1);
+  while ([0, 6].includes(new Date(`${candidate}T12:00:00Z`).getUTCDay())) candidate = addCalendarDays(candidate, -1);
+  return candidate;
+}
+
 function snapshotBarsForSource(payload, source, brokerDate) {
   return (payload.symbols?.[source]?.bars || []).filter((bar) => bar.brokerDate === brokerDate);
 }
@@ -151,13 +157,18 @@ function snapshotH1BarsForSource(payload, source, brokerDate) {
   return (payload.symbols?.[source]?.h1Bars || []).filter((bar) => bar.brokerDate === brokerDate);
 }
 
+function snapshotH1BarsForSignalContext(payload, source, brokerDate) {
+  const previousDate = previousTradingDate(brokerDate);
+  return (payload.symbols?.[source]?.h1Bars || []).filter((bar) => bar.brokerDate === brokerDate || bar.brokerDate === previousDate);
+}
+
 function currentDaySnapshot(payload) {
   return {
     ...payload,
     symbols: Object.fromEntries(SOURCE_KEYS.map((source) => [source, {
       displayName: payload.symbols?.[source]?.displayName || source,
       bars: snapshotBarsForSource(payload, source, payload.brokerDate),
-      h1Bars: snapshotH1BarsForSource(payload, source, payload.brokerDate),
+      h1Bars: snapshotH1BarsForSignalContext(payload, source, payload.brokerDate),
     }])),
   };
 }
@@ -173,7 +184,7 @@ function dateSnapshots(payload, days) {
     const symbols = {};
     for (const source of SOURCE_KEYS) {
       const currentBars = snapshotBarsForSource(payload, source, brokerDate);
-      const currentH1Bars = snapshotH1BarsForSource(payload, source, brokerDate);
+      const currentH1Bars = snapshotH1BarsForSignalContext(payload, source, brokerDate);
       if (currentBars.length < 8 || currentH1Bars.length < 1) return [];
       symbols[source] = {
         displayName: payload.symbols[source].displayName || source,
@@ -216,7 +227,7 @@ export async function publishIcMarketsM15({ fetchImpl = globalThis.fetch, exec =
 
   const result = await postSnapshot(config, currentDaySnapshot(payload), fetchImpl);
   if (result?.skipped !== "already-running"
-    && Number(result?.signalRuleVersion) === 95
+    && Number(result?.signalRuleVersion) === 97
     && Array.isArray(result?.tpMilestones)) {
     await persistLiveTpMilestones(result);
   }

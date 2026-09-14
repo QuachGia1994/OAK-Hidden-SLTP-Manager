@@ -18,7 +18,7 @@ struct H1BoardScreen: View {
     @State private var scheduleShare: OAKShareItem?
     @State private var imageTransferFailed = false
 
-    private let visibleSymbols = ["XAUUSD", "GBPUSD", "GBPAUD"]
+    private let visibleSymbols = ["GBPUSD", "GBPAUD"]
 
     var body: some View {
         ScrollView {
@@ -631,7 +631,7 @@ private struct H1MatrixView: View {
                             HStack(spacing: 6) {
                                 ForEach(h1.hours, id: \.self) { hour in
                                     H1EntryTimeCell(
-                                        alert: h1.alert(date: date, symbol: "XAUUSD", hour: hour),
+                                        alert: h1.alert(date: date, symbol: "GBPUSD", hour: hour),
                                         width: cellWidth,
                                         height: rowHeight,
                                         highlighted: false

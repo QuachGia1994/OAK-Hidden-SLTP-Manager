@@ -31,7 +31,7 @@ test("legacy cloud H1 run/backfill endpoints are authenticated no-ops owned by l
   assert.match(backfillRoute, /skipped: "local-mt5-history-only"/);
 });
 
-test("local MT5 market endpoint is private, ICMarkets-only, stale-guarded, singleton locked and validates v95 snapshots", () => {
+test("local MT5 market endpoint is private, ICMarkets-only, stale-guarded, singleton locked and wires v97 previous-entry context", () => {
   assert.match(localRoute, /DASHBOARD_API_KEY/);
   assert.match(localRoute, /x-telegram-bot-api-secret-token/);
   assert.match(localRoute, /timingSafeEqual/);
@@ -39,6 +39,9 @@ test("local MT5 market endpoint is private, ICMarkets-only, stale-guarded, singl
   assert.match(localRoute, /\/icmarkets\/i\.test\(server\)/);
   assert.match(localRoute, /H1_LOCAL_SOURCES/);
   assert.match(localRoute, /evaluateLocalH1PatternsForTarget/);
+  assert.match(localRoute, /previousH1EntryReferenceForDate/);
+  assert.match(localRoute, /const previousEntry = previousH1EntryReferenceForDate\(state, parsed\.brokerDate\)/);
+  assert.match(localRoute, /evaluateLocalH1PatternsForTarget\(target, parsed\.brokerDate, parsed\.market, readyHours, parsed\.brokerHour, previousEntry\)/);
   assert.match(localRoute, /Number\(body\.version\) !== 2/);
   assert.match(localRoute, /h1Bars/);
   assert.match(localRoute, /timeframe === "H1" \? minute !== 0/);
@@ -57,7 +60,7 @@ test("local MT5 market endpoint is private, ICMarkets-only, stale-guarded, singl
   assert.doesNotMatch(localRoute, /order_send|placeCTraderMarketOrder|SendTradeRequest|closeCTraderPositions/);
 });
 
-test("local ICMarkets reader uses XAUUSD/GBPUSD M15 data without double-shifting MT5 server-wall timestamps", () => {
+test("local ICMarkets reader carries XAUUSD/GBPUSD/GBPAUD M15+H1 data without double-shifting MT5 server-wall timestamps", () => {
   assert.match(reader, /TIMEFRAME_M15/);
   assert.match(reader, /TIMEFRAME_H1/);
   assert.match(reader, /copy_rates_from_pos/);
@@ -65,12 +68,12 @@ test("local ICMarkets reader uses XAUUSD/GBPUSD M15 data without double-shifting
   assert.match(reader, /datetime\.fromtimestamp\(epoch_seconds, timezone\.utc\)/);
   assert.doesNotMatch(reader, /icmarkets_offset_seconds|timedelta|ZoneInfo/);
   assert.match(reader, /broker_wall_parts/);
-  assert.match(reader, /SOURCES = \("XAUUSD", "GBPUSD"\)/);
+  assert.match(reader, /SOURCES = \("XAUUSD", "GBPUSD", "GBPAUD"\)/);
   assert.match(reader, /"icmarkets" not in server\.lower\(\)/);
   assert.doesNotMatch(reader, /order_send|positions_get|TRADE_ACTION|ORDER_TYPE_BUY|ORDER_TYPE_SELL/);
 });
 
-test("local publisher sends XAUUSD/GBPUSD v95 market evidence and supports bounded 90-day history backfill", () => {
+test("local publisher sends XAUUSD/GBPUSD/GBPAUD v97 market evidence and supports bounded 90-day history backfill", () => {
   assert.match(publisher, /MAX_BACKFILL_DAYS = 90/);
   assert.match(publisher, /HISTORICAL_READER_TIMEOUT_MS = 180_000/);
   assert.match(publisher, /HISTORICAL_READER_MAX_BUFFER = 32_000_000/);
@@ -85,9 +88,12 @@ test("local publisher sends XAUUSD/GBPUSD v95 market evidence and supports bound
   assert.match(publisher, /days > 4 \? HISTORICAL_READER_MAX_BUFFER : LIVE_READER_MAX_BUFFER/);
   assert.match(publisher, /--backfill/);
   assert.match(publisher, /currentDaySnapshot/);
-  assert.match(publisher, /SOURCE_KEYS = \["XAUUSD", "GBPUSD"\]/);
+  assert.match(publisher, /SOURCE_KEYS = \["XAUUSD", "GBPUSD", "GBPAUD"\]/);
   assert.match(publisher, /snapshotBarsForSource/);
   assert.match(publisher, /snapshotH1BarsForSource/);
+  assert.match(publisher, /previousTradingDate/);
+  assert.match(publisher, /snapshotH1BarsForSignalContext/);
+  assert.match(publisher, /h1Bars: snapshotH1BarsForSignalContext/);
   assert.match(publisher, /h1Bars/);
   assert.match(publisher, /payload\?\.version !== 2/);
   assert.doesNotMatch(publisher, /previousAvailableXauDate|snapshotBarsWithH3Context/);
@@ -101,7 +107,7 @@ test("local publisher sends XAUUSD/GBPUSD v95 market evidence and supports bound
   assert.match(publisher, /h1-scanner\.log/);
   assert.match(publisher, /H1_TP_MILESTONE_PATH/);
   assert.match(publisher, /persistLiveTpMilestones/);
-  assert.match(publisher, /signalRuleVersion: 95/);
+  assert.match(publisher, /signalRuleVersion: 97/);
   assert.match(publisher, /Array\.isArray\(result\?\.tpMilestones\)/);
   assert.match(publisher, /local H1 publish failed \(\$\{response\.status\}\): \$\{detail\}/);
   assert.doesNotMatch(publisher, /order_send|placeCTraderMarketOrder|closeCTraderPositions/);

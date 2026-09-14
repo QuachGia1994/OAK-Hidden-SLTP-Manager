@@ -30,25 +30,16 @@ type H1EvidenceFacts = {
   finalSignal: string;
 };
 
-function isDerivedXauRule(rule: H1SignalAlert["postSignalRule"]): boolean {
-  return rule === "xau-same-block-keep"
-    || rule === "xau-previous-block-keep"
-    || rule === "xau-weekday-keep"
-    || rule === "xau-weekday-invert";
+function isOwnH1SignalRule(rule: H1SignalAlert["postSignalRule"]): boolean {
+  return rule === "block-base-keep" || rule === "block-base-invert";
 }
 
 function blockBaseRuleLabel(selection: H1EvidenceSelection): string {
-  const { alert } = selection;
-  if (isDerivedXauRule(alert.postSignalRule)) {
-    const sourceBlock = Number.isInteger(alert.baseHour) ? `H${String(alert.baseHour).padStart(2, "0")}` : "—";
-    if (alert.postSignalRule === "xau-previous-block-keep") return `XAUUSD ${sourceBlock} · PREVIOUS BLOCK · KEEP`;
-    if (alert.postSignalRule === "xau-weekday-invert") return `XAUUSD ${sourceBlock} · WEEKDAY · INVERT`;
-    if (alert.postSignalRule === "xau-weekday-keep") return `XAUUSD ${sourceBlock} · WEEKDAY · KEEP`;
-    return `XAUUSD ${sourceBlock} · SAME BLOCK · KEEP`;
+  const { base, alert } = selection;
+  if (isOwnH1SignalRule(alert.postSignalRule) && Number.isInteger(alert.baseHour)) {
+    return `${alert.baseSymbol || base} H1 H${String(alert.baseHour).padStart(2, "0")} · ${alert.postSignalInverted ? "INVERT" : "KEEP"}`;
   }
-  if (!Number.isInteger(alert.entryHour) || !Number.isInteger(alert.baseHour)) return "M15 BASE —";
-  const delta = Number(alert.entryHour) - alert.slotHour;
-  return `ENTRY-BLOCK ${delta} · E-0:15 · ${alert.postSignalInverted ? "INVERT" : "KEEP"}`;
+  return "XAUUSD ENTRY PATTERN ONLY";
 }
 
 function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload): H1EvidenceFacts {
@@ -57,11 +48,9 @@ function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload)
   const baseTime = Number.isInteger(alert.baseHour) && Number.isInteger(alert.baseMinute)
     ? `${String(alert.baseHour).padStart(2, "0")}:${String(alert.baseMinute).padStart(2, "0")}`
     : "—";
-  const rawBase = isDerivedXauRule(alert.postSignalRule)
-    ? `${alert.baseSymbol || "XAUUSD"} H${String(alert.baseHour ?? alert.slotHour).padStart(2, "0")} · ${alert.baseSignal ?? "—"}`
-    : alert.baseDirection
-      ? `${alert.baseSymbol || base} M15 ${baseTime} · ${alert.baseDirection} → ${alert.baseSignal ?? "—"}`
-      : "—";
+  const rawBase = isOwnH1SignalRule(alert.postSignalRule) && alert.baseDirection
+    ? `${alert.baseSymbol || base} H1 ${baseTime} · ${alert.baseDirection} → ${alert.baseSignal ?? "—"}`
+    : "—";
   const signalBaseBar = alert.signalBaseBar;
   const baseOhlc = signalBaseBar
     ? `O ${price(signalBaseBar.open)} · H ${price(signalBaseBar.high)} · L ${price(signalBaseBar.low)} · C ${price(signalBaseBar.close)}`
@@ -71,7 +60,7 @@ function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload)
     rawBase,
     baseOhlc,
     signalSource: alert.baseSymbol || base,
-    rule: isDerivedXauRule(alert.postSignalRule) ? blockBaseRuleLabel(selection) : `M15 BASE · ${blockBaseRuleLabel(selection)}`,
+    rule: isOwnH1SignalRule(alert.postSignalRule) ? `PREVIOUS ENTRY H1 BASE · ${blockBaseRuleLabel(selection)}` : blockBaseRuleLabel(selection),
     finalSignal: alert.signal ?? "—",
   };
 }
