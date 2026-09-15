@@ -289,7 +289,7 @@ extension H1SignalPayload {
             : "—"
         let rule: String
         if ownH1, let sourceHour = sourceAlert.baseHour {
-            rule = "PREVIOUS ENTRY H1 BASE · \(signalSource) H1 H\(String(format: "%02d", sourceHour)) · \((sourceAlert.postSignalInverted ?? false) ? "INVERT" : "KEEP")"
+            rule = "ENTRY-1 H1 BASE · \(signalSource) H1 H\(String(format: "%02d", sourceHour)) · \((sourceAlert.postSignalInverted ?? false) ? "INVERT" : "KEEP")"
         } else {
             rule = "XAUUSD ENTRY PATTERN ONLY"
         }

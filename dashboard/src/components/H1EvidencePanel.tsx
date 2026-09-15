@@ -60,7 +60,7 @@ function evidenceFacts(selection: H1EvidenceSelection, payload: H1SignalPayload)
     rawBase,
     baseOhlc,
     signalSource: alert.baseSymbol || base,
-    rule: isOwnH1SignalRule(alert.postSignalRule) ? `PREVIOUS ENTRY H1 BASE · ${blockBaseRuleLabel(selection)}` : blockBaseRuleLabel(selection),
+    rule: isOwnH1SignalRule(alert.postSignalRule) ? `ENTRY-1 H1 BASE · ${blockBaseRuleLabel(selection)}` : blockBaseRuleLabel(selection),
     finalSignal: alert.signal ?? "—",
   };
 }

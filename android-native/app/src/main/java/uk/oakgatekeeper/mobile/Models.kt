@@ -84,7 +84,7 @@ data class H1SignalPayload(
             "—"
         }
         val rule = if (ownH1 && sourceAlert.baseHour != null) {
-            "PREVIOUS ENTRY H1 BASE · $signalSource H1 H${sourceAlert.baseHour.toString().padStart(2, '0')} · ${if (sourceAlert.postSignalInverted) "INVERT" else "KEEP"}"
+            "ENTRY-1 H1 BASE · $signalSource H1 H${sourceAlert.baseHour.toString().padStart(2, '0')} · ${if (sourceAlert.postSignalInverted) "INVERT" else "KEEP"}"
         } else {
             "XAUUSD ENTRY PATTERN ONLY"
         }

@@ -54,7 +54,7 @@ function h3Bars(sequence: string, family: "ALT" | "SAME", date = "2026-09-02", s
   return barsFor(date, rows);
 }
 
-test("v97 H1 scanner exposes five source blocks, one XAU entry target and GBPUSD/GBPAUD signal sources", () => {
+test("v98 H1 scanner exposes five source blocks, one XAU entry target and GBPUSD/GBPAUD market sources", () => {
   assert.deepEqual(H1_LOCAL_SCAN_HOURS, [3, 6, 9, 12, 14]);
   assert.deepEqual(H1_LOCAL_TARGETS, ["XAUUSD"]);
   assert.deepEqual(H1_LOCAL_SOURCES, ["XAUUSD", "GBPUSD", "GBPAUD"]);
@@ -77,7 +77,7 @@ test("Monday through Friday calculate every H1 row and block while weekends stay
   }
 });
 
-test("rule v97 has no legacy XAU weekday inversion badges", () => {
+test("rule v98 has no legacy XAU weekday inversion badges", () => {
   const tue = "2026-09-08";
   const thu = "2026-09-03";
   for (const hour of H1_LOCAL_SCAN_HOURS) {

@@ -7,7 +7,7 @@ const legacyBackfillRoute = readFileSync(new URL("../app/api/h1-scanner/backfill
 const publisher = readFileSync(new URL("../../../local-failover/oak-local-h1-scanner.mjs", import.meta.url), "utf8");
 const reader = readFileSync(new URL("../../../local-failover/mt5-h1-market-reader.py", import.meta.url), "utf8");
 
-test("rule v97 history is rebuilt from local ICMarkets XAUUSD entry plus previous-entry GBPUSD/GBPAUD H1 signal snapshots, not legacy cTrader reconstruction", () => {
+test("rule v98 history is rebuilt from local ICMarkets XAUUSD entry plus GBPAUD entry-minus-one H1 signal snapshots, not legacy cTrader reconstruction", () => {
   assert.match(legacyBackfillRoute, /local-mt5-history-only/);
   assert.doesNotMatch(legacyBackfillRoute, /reconstructHistoricalDays|fetchHistoricalBrokerH1/);
   assert.match(localRoute, /evaluateLocalH1PatternsForTarget/);
@@ -15,7 +15,7 @@ test("rule v97 history is rebuilt from local ICMarkets XAUUSD entry plus previou
   assert.match(localRoute, /publishH1CloudState/);
 });
 
-test("local history publisher is bounded to 90 calendar days and carries XAUUSD/GBPUSD/GBPAUD v97 market sources", () => {
+test("local history publisher is bounded to 90 calendar days and carries XAUUSD/GBPUSD/GBPAUD v98 market sources", () => {
   assert.match(publisher, /MAX_BACKFILL_DAYS = 90/);
   assert.match(publisher, /snapshotBarsForSource/);
   assert.match(publisher, /snapshotH1BarsForSource/);

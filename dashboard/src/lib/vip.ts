@@ -7,7 +7,7 @@ export const VIP_COOKIE = "sltp_vip_access";
 const VIP_PURPOSE = "oakgatekeeper-vip-v1";
 // Temporary campaign mode: all H1 entry-time cells are public/free.
 export const VIP_FREE_ACCESS = true;
-export const VIP_SIGNAL_SYMBOLS = new Set(["GBPUSD", "GBPAUD"]);
+export const VIP_SIGNAL_SYMBOLS = new Set(["GBPAUD"]);
 
 export type VipAccessState = {
   unlocked: boolean;

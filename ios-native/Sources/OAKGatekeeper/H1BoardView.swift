@@ -18,7 +18,7 @@ struct H1BoardScreen: View {
     @State private var scheduleShare: OAKShareItem?
     @State private var imageTransferFailed = false
 
-    private let visibleSymbols = ["GBPUSD", "GBPAUD"]
+    private let visibleSymbols = ["GBPAUD"]
 
     var body: some View {
         ScrollView {
@@ -354,7 +354,7 @@ private struct H1NativeMetadataStrip: View {
     var body: some View {
         LazyVGrid(columns: columns, spacing: 0) {
             metadata(label: state.text(vn: "NGUỒN DỮ LIỆU", en: "DATA SOURCE"), value: "MT5 ICMarkets Local")
-            metadata(label: state.text(vn: "NHỊP DỮ LIỆU", en: "DATA CADENCE"), value: "H03–H14 · XAU M15 + derived GBPUSD/GBPAUD")
+            metadata(label: state.text(vn: "NHỊP DỮ LIỆU", en: "DATA CADENCE"), value: "H03–H14 · XAU M15 + GBPAUD H1 Entry-1")
             metadata(label: state.text(vn: "NGÀY ĐÃ LƯU", en: "STORED DAYS"), value: "\(h1.orderedDatesDescending.count) \(state.text(vn: "ngày", en: "days"))")
             metadata(label: state.text(vn: "NGÀY MỚI NHẤT", en: "LATEST DAY"), value: h1.latestDate)
         }
@@ -631,7 +631,7 @@ private struct H1MatrixView: View {
                             HStack(spacing: 6) {
                                 ForEach(h1.hours, id: \.self) { hour in
                                     H1EntryTimeCell(
-                                        alert: h1.alert(date: date, symbol: "GBPUSD", hour: hour),
+                                        alert: h1.alert(date: date, symbol: "GBPAUD", hour: hour),
                                         width: cellWidth,
                                         height: rowHeight,
                                         highlighted: false

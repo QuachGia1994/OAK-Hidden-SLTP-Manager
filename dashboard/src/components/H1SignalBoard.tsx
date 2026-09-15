@@ -16,10 +16,10 @@ const H1_SHARE_HOUR_WIDTH = 96;
 const H1_SHARE_ENTRY_ROW_HEIGHT = 54;
 const H1_SHARE_SIGNAL_ROW_HEIGHT = 54;
 const H1_SHARE_FONT = '"Cascadia Mono", "SFMono-Regular", Consolas, monospace';
-const H1_SIGNAL_ROWS = ["GBPUSD", "GBPAUD"] as const;
+const H1_SIGNAL_ROWS = ["GBPAUD"] as const;
 
 function entryAlertForHour(day: H1SignalPayload["days"][string] | undefined, hour: number): H1SignalAlert | undefined {
-  const source = day?.symbols?.GBPUSD?.alerts?.find((alert) => alert.slotHour === hour && Number.isInteger(alert.entryHour));
+  const source = day?.symbols?.GBPAUD?.alerts?.find((alert) => alert.slotHour === hour && Number.isInteger(alert.entryHour));
   if (!source) return undefined;
   return {
     ...source,
@@ -135,8 +135,8 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   ctx.font = `700 13px ${H1_SHARE_FONT}`;
   ctx.fillText(
     locale === "EN"
-      ? "XAUUSD owns Entry pattern · GBPUSD uses GBPAUD H1 at previous Entry · KEEP · GBPAUD uses GBPUSD H1 at previous Entry · INVERT"
-      : "XAUUSD giữ Entry pattern · GBPUSD dùng GBPAUD H1 tại Entry trước · GIỮ · GBPAUD dùng GBPUSD H1 tại Entry trước · ĐẢO",
+      ? "XAUUSD owns Entry pattern · GBPAUD H1 at Entry-1 · delta +1 KEEP · delta +2 INVERT"
+      : "XAUUSD giữ Entry pattern · GBPAUD H1 tại Entry-1 · delta +1 GIỮ · delta +2 ĐẢO",
     padding + 22,
     padding + 120,
   );
@@ -396,7 +396,7 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
   const copy = locale === "EN"
     ? {
         title: "H1 Live + History",
-        sub: "MT5 ICMarkets · XAUUSD M15 ENTRY + GBPUSD / GBPAUD H1 signals · latest + retained broker days",
+        sub: "MT5 ICMarkets · XAUUSD M15 ENTRY + GBPAUD H1 signal · latest + retained broker days",
         awaiting: "Awaiting local H1 feed",
         freeAccess: "All H1 entry-time cells unlocked",
         dateGroup: "Broker date",
@@ -405,7 +405,7 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
       }
     : {
         title: "H1 Live + Lịch sử",
-        sub: "MT5 ICMarkets · XAUUSD M15 ENTRY + signal H1 GBPUSD / GBPAUD · ngày broker mới nhất + lịch sử đã lưu",
+        sub: "MT5 ICMarkets · XAUUSD M15 ENTRY + signal H1 GBPAUD · ngày broker mới nhất + lịch sử đã lưu",
         awaiting: "Đang chờ feed H1 local",
         freeAccess: "Tất cả ô entry-time H1 đã được mở",
         dateGroup: "Ngày broker",

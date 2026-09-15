@@ -93,25 +93,24 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 v97 keeps XAUUSD as entry-pattern owner while GBPUSD/GBPAUD use previous-entry cross H1", () => {
+test("H1 v98 keeps XAUUSD as entry-pattern owner and exposes only GBPAUD entry-minus-one H1 signal", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD"\]/);
   assert.match(localPatternsSource, /H1_SIGNAL_BASE_SOURCES = \["GBPUSD", "GBPAUD"\]/);
   assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14\]/);
   assert.match(mobileAppBackendSource, /FALLBACK_HOURS = \[3, 6, 9, 12, 14\]/);
-  assert.match(mobileAppBackendSource, /FALLBACK_SYMBOLS = \["GBPUSD", "GBPAUD"\]/);
-  assert.match(nativeSignalsSource, /visibleSymbols = \["GBPUSD", "GBPAUD"\]/);
-  assert.match(scannerSource, /H1_PUBLIC_SYMBOLS = \["GBPUSD", "GBPAUD"\]/);
-  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 97/);
+  assert.match(mobileAppBackendSource, /FALLBACK_SYMBOLS = \["GBPAUD"\]/);
+  assert.match(nativeSignalsSource, /visibleSymbols = \["GBPAUD"\]/);
+  assert.match(scannerSource, /H1_PUBLIC_SYMBOLS = \["GBPAUD"\]/);
+  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 98/);
   assert.match(scannerSource, /H1_SIGNAL_END_HOUR = 14/);
   assert.match(scannerSource, /includes\(hour\) \? H1_TARGET_BASES : \[\]/);
   assert.match(localMarketRouteSource, /evaluateLocalH1PatternsForTarget/);
-  assert.match(scannerSource, /previousH1EntryReferenceForDate/);
-  assert.match(scannerSource, /previousEntryForSignal/);
-  assert.match(scannerSource, /baseSymbol: "GBPAUD", inverted: false/);
-  assert.match(scannerSource, /baseSymbol: "GBPUSD", inverted: true/);
-  assert.match(scannerSource, /market\[policy\.baseSymbol\]\.h1Bars/);
-  assert.match(scannerSource, /policy\.inverted \? invertSignal\(baseH1Signal\) : baseH1Signal/);
+  assert.match(scannerSource, /function gbpAudSignalPolicy/);
+  assert.match(scannerSource, /baseHour: entryHour - 1/);
+  assert.match(scannerSource, /inverted: delta === 2/);
+  assert.match(scannerSource, /market\.GBPAUD\.h1Bars/);
+  assert.match(scannerSource, /GBPAUD: gbpAudH1SignalForBlock/);
   assert.match(localPatternsSource, /return "XAUUSD"/);
   assert.doesNotMatch(scannerSource, /derivedGbpUsdAlerts|derivedGbpAudAlerts/);
 });
@@ -136,14 +135,14 @@ test("H16 is retired while Telegram scheduling keeps the existing H14 cutoff", (
   assert.doesNotMatch(boardSource + androidScreensSource, /order_send|closePosition|dispatchTask|\/approve/);
 });
 
-test("web and native clients expose shared XAU-owned Entry time plus GBPUSD and GBPAUD v97 signal rows", () => {
+test("web and native clients expose shared XAU-owned Entry time plus only the GBPAUD v98 signal row", () => {
   assert.match(boardSource, /<b>ENTRY TIME<\/b>/);
   assert.match(boardSource, /entryAlertForHour/);
   assert.doesNotMatch(boardSource, /day\?\.symbols\?\.XAUUSD\?\.alerts/);
-  assert.match(boardSource, /H1_SIGNAL_ROWS = \["GBPUSD", "GBPAUD"\]/);
-  assert.match(androidScreensSource, /VisibleSymbols = listOf\("GBPUSD", "GBPAUD"\)/);
-  assert.match(nativeH1BoardSource, /visibleSymbols = \["GBPUSD", "GBPAUD"\]/);
-  assert.match(expoCalendarSource, /FALLBACK_SYMBOLS = \["GBPUSD", "GBPAUD"\]/);
+  assert.match(boardSource, /H1_SIGNAL_ROWS = \["GBPAUD"\]/);
+  assert.match(androidScreensSource, /VisibleSymbols = listOf\("GBPAUD"\)/);
+  assert.match(nativeH1BoardSource, /visibleSymbols = \["GBPAUD"\]/);
+  assert.match(expoCalendarSource, /FALLBACK_SYMBOLS = \["GBPAUD"\]/);
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.doesNotMatch(scannerSource, /symbols\.XAUUSD =/);
 });
@@ -309,11 +308,11 @@ test("unified H1 uses a deterministic Sunday-first history calendar without week
   assert.doesNotMatch(boardSource, /oak-h1-history-dates/);
 });
 
-test("legacy weekday/CẦU/derived-XAU presentation stays hidden while v97 previous-entry cross-H1 evidence is explicit", () => {
+test("legacy weekday/CẦU/derived-XAU presentation stays hidden while v98 GBPAUD entry-minus-one evidence is explicit", () => {
   assert.doesNotMatch(boardSource, /inversionBadge|data-post-signal-inverted|CẦU/);
   assert.doesNotMatch(boardSource, /isMonthEndBridgeCell|oak-h1-bridge-badge|data-month-end-bridge/);
   assert.doesNotMatch(evidencePanelSource, /Weekday:|h3-prev-|h3-today-|PREVIOUS BLOCK|WEEKDAY · INVERT|E-0:15/);
-  assert.match(evidencePanelSource, /PREVIOUS ENTRY H1 BASE ·/);
+  assert.match(evidencePanelSource, /ENTRY-1 H1 BASE ·/);
   assert.match(evidencePanelSource, /block-base-keep/);
   assert.match(evidencePanelSource, /block-base-invert/);
   assert.match(evidencePanelSource, /XAUUSD ENTRY PATTERN ONLY/);
@@ -382,7 +381,7 @@ test("native iOS and Android mirror the web three-tab hierarchy with animated H1
 });
 
 test("native Android copies the iOS H1 presentation, evidence, reports, themes and account interaction", () => {
-  assert.match(androidScreensSource, /VisibleSymbols = listOf\("GBPUSD", "GBPAUD"\)/);
+  assert.match(androidScreensSource, /VisibleSymbols = listOf\("GBPAUD"\)/);
   assert.doesNotMatch(androidScreensSource, /entryReference/);
   assert.match(androidScreensSource, /OAKPill\("FREE ACCESS", PillTone\.SUCCESS\)/);
   assert.match(androidScreensSource, /BrokerCalendarSheet/);
@@ -466,7 +465,7 @@ test("engine web surface is local-H1-only with the compact command header", () =
   assert.doesNotMatch(engineBoardSource, /Pattern5Payload|Pattern5Table|ENGINE 05|Pattern Matrix|Trạng thái tín hiệu hiện tại|<small>PROFILE<\/small>|h1Data\?\.profile/);
   assert.match(engineBoardSource, /<EngineCore data=\{h1Data\}/);
   assert.doesNotMatch(engineBoardSource, /mode="live"|mode="history"/);
-  assert.match(boardSource, /MT5 ICMarkets · XAUUSD M15 ENTRY \+ GBPUSD \/ GBPAUD H1 signals/);
+  assert.match(boardSource, /MT5 ICMarkets · XAUUSD M15 ENTRY \+ GBPAUD H1 signal/);
   assert.doesNotMatch(engineBoardSource, /UNLOCK SIGNALS/);
 });
 
@@ -478,10 +477,8 @@ test("H1 board exports interoperable PNG with clipboard, Android share-sheet and
   assert.match(boardSource, /H1_SHARE_SYMBOL_WIDTH = 148/);
   assert.match(boardSource, /H1_SHARE_HOUR_WIDTH = 96/);
   assert.match(boardSource, /XAUUSD owns Entry pattern/);
-  assert.match(boardSource, /GBPUSD uses GBPAUD H1 at previous Entry · KEEP/);
-  assert.match(boardSource, /GBPAUD uses GBPUSD H1 at previous Entry · INVERT/);
-  assert.match(boardSource, /GBPUSD dùng GBPAUD H1 tại Entry trước · GIỮ/);
-  assert.match(boardSource, /GBPAUD dùng GBPUSD H1 tại Entry trước · ĐẢO/);
+  assert.match(boardSource, /GBPAUD H1 at Entry-1 · delta \+1 KEEP · delta \+2 INVERT/);
+  assert.match(boardSource, /GBPAUD H1 tại Entry-1 · delta \+1 GIỮ · delta \+2 ĐẢO/);
   assert.doesNotMatch(boardSource, /H16 GU keep|H1 base: H3 AU keep/);
   assert.match(boardSource, /deliverPngBlob/);
   assert.match(boardSource, /SHARED/);
@@ -531,7 +528,7 @@ test("H1 board exports interoperable PNG with clipboard, Android share-sheet and
   assert.match(redesignCss, /data-copied="true"/);
 });
 
-test("populated H1 cells expose XAU M15 entry evidence plus previous-entry cross-H1 GBPUSD/GBPAUD signal evidence", () => {
+test("populated H1 cells expose XAU M15 entry evidence plus GBPAUD entry-minus-one H1 signal evidence", () => {
   assert.match(boardSource, /oak-h1-cell-entry oak-h1-cell-evidence/);
   assert.match(boardSource, /oak-h1-cell-signal oak-h1-cell-evidence/);
   assert.match(boardSource, /setEvidenceSelection/);
@@ -541,13 +538,13 @@ test("populated H1 cells expose XAU M15 entry evidence plus previous-entry cross
   assert.match(evidencePanelSource, /BASE OHLC/);
   assert.match(evidencePanelSource, /SIGNAL SOURCE/);
   assert.match(evidencePanelSource, /signalBaseBar/);
-  assert.match(evidencePanelSource, /PREVIOUS ENTRY H1 BASE ·/);
+  assert.match(evidencePanelSource, /ENTRY-1 H1 BASE ·/);
   assert.match(evidencePanelSource, /block-base-invert/);
   assert.match(evidencePanelSource, /block-base-keep/);
   assert.match(evidencePanelSource, /INVERT/);
   assert.match(evidencePanelSource, /KEEP/);
-  assert.match(nativeModelsSource, /PREVIOUS ENTRY H1 BASE ·/);
-  assert.match(androidModelsSource, /PREVIOUS ENTRY H1 BASE ·/);
+  assert.match(nativeModelsSource, /ENTRY-1 H1 BASE ·/);
+  assert.match(androidModelsSource, /ENTRY-1 H1 BASE ·/);
   assert.match(nativeModelsSource, /postSignalInverted \?\? false/);
   assert.match(androidModelsSource, /postSignalInverted/);
   assert.doesNotMatch(nativeModelsSource + androidModelsSource, /M15 entry-2h15|sourceAlert\.symbol == "USDCAD"|sourceAlert\.symbol == "USDJPY"/);

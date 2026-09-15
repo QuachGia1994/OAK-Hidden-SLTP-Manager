@@ -31,7 +31,7 @@ test("legacy cloud H1 run/backfill endpoints are authenticated no-ops owned by l
   assert.match(backfillRoute, /skipped: "local-mt5-history-only"/);
 });
 
-test("local MT5 market endpoint is private, ICMarkets-only, stale-guarded, singleton locked and wires v97 previous-entry context", () => {
+test("local MT5 market endpoint is private, ICMarkets-only, stale-guarded, singleton locked and validates v98 snapshots", () => {
   assert.match(localRoute, /DASHBOARD_API_KEY/);
   assert.match(localRoute, /x-telegram-bot-api-secret-token/);
   assert.match(localRoute, /timingSafeEqual/);
@@ -73,7 +73,7 @@ test("local ICMarkets reader carries XAUUSD/GBPUSD/GBPAUD M15+H1 data without do
   assert.doesNotMatch(reader, /order_send|positions_get|TRADE_ACTION|ORDER_TYPE_BUY|ORDER_TYPE_SELL/);
 });
 
-test("local publisher sends XAUUSD/GBPUSD/GBPAUD v97 market evidence and supports bounded 90-day history backfill", () => {
+test("local publisher sends XAUUSD/GBPUSD/GBPAUD v98 market evidence and supports bounded 90-day history backfill", () => {
   assert.match(publisher, /MAX_BACKFILL_DAYS = 90/);
   assert.match(publisher, /HISTORICAL_READER_TIMEOUT_MS = 180_000/);
   assert.match(publisher, /HISTORICAL_READER_MAX_BUFFER = 32_000_000/);
@@ -107,7 +107,7 @@ test("local publisher sends XAUUSD/GBPUSD/GBPAUD v97 market evidence and support
   assert.match(publisher, /h1-scanner\.log/);
   assert.match(publisher, /H1_TP_MILESTONE_PATH/);
   assert.match(publisher, /persistLiveTpMilestones/);
-  assert.match(publisher, /signalRuleVersion: 97/);
+  assert.match(publisher, /signalRuleVersion: 98/);
   assert.match(publisher, /Array\.isArray\(result\?\.tpMilestones\)/);
   assert.match(publisher, /local H1 publish failed \(\$\{response\.status\}\): \$\{detail\}/);
   assert.doesNotMatch(publisher, /order_send|placeCTraderMarketOrder|closeCTraderPositions/);

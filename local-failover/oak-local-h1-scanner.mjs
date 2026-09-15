@@ -102,8 +102,8 @@ async function writeJsonAtomic(file, value) {
 }
 
 function normalizedTpMilestones(result) {
-  if (Number(result?.signalRuleVersion) !== 97 || !Array.isArray(result?.tpMilestones)) {
-    throw new Error("local H1 response is missing v97 TP milestones");
+  if (Number(result?.signalRuleVersion) !== 98 || !Array.isArray(result?.tpMilestones)) {
+    throw new Error("local H1 response is missing v98 TP milestones");
   }
   return result.tpMilestones.map((row) => {
     const brokerDate = String(row?.brokerDate || "");
@@ -128,7 +128,7 @@ async function persistLiveTpMilestones(result) {
   const milestones = normalizedTpMilestones(result);
   await writeJsonAtomic(H1_TP_MILESTONE_PATH, {
     version: 1,
-    signalRuleVersion: 97,
+    signalRuleVersion: 98,
     generatedAt: Date.now(),
     brokerDate: String(result.brokerDate || ""),
     brokerHour: Number(result.brokerHour),
@@ -227,7 +227,7 @@ export async function publishIcMarketsM15({ fetchImpl = globalThis.fetch, exec =
 
   const result = await postSnapshot(config, currentDaySnapshot(payload), fetchImpl);
   if (result?.skipped !== "already-running"
-    && Number(result?.signalRuleVersion) === 97
+    && Number(result?.signalRuleVersion) === 98
     && Array.isArray(result?.tpMilestones)) {
     await persistLiveTpMilestones(result);
   }

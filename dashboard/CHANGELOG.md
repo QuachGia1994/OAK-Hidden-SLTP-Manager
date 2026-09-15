@@ -6,6 +6,8 @@ All notable changes to the dashboard are recorded here.
 
 ### Changed
 
+- Advanced H1 to v98 without changing public schema 18/state v56. The public matrix now contains only `ENTRY TIME` plus GBPAUD. GBPAUD reads its own H1 candle at `entryHour - 1` for every H3/H6/H9/H12/H14 block; Entry delta `+1` KEEPS the raw H1 direction and `+2` INVERTS it, with missing exact H1 evidence failing closed. GBPUSD remains only as an internal market source for XAUUSD M15 `entry - 15m` TP-roll logic and is no longer a public/table/TP-milestone row. Web, PNG and native/mobile surfaces share the same v98 contract.
+
 - Advanced H1 to v97 while keeping public schema 18/state v56. XAUUSD remains the sole M15 Entry-pattern owner. Public GBP signals now use the immediately previous XAU Entry time as their H1 reference: H3 reads the previous trading day's H14 Entry, while H6/H9/H12/H14 read the current day's preceding block Entry. GBPUSD reads GBPAUD H1 at that Entry and KEEPS direction; GBPAUD reads GBPUSD H1 and INVERTS it. Missing previous-entry/H1 evidence fails closed, live/backfill snapshots retain prior-trading-day H1 context, and TP-milestone/controller version is v97.
 
 - Advanced H1 to v96 without changing public schema 18/state v56. XAUUSD remains the sole M15 Entry-pattern owner but is removed from the public/UI signal matrix. GBPUSD now uses its own closed H1 at `block-1` and INVERTS it; GBPAUD uses its own closed H1 at `block-1` and KEEPS it. Local snapshots now carry GBPAUD source data, public replica recovery reconstructs the hidden internal XAU owner, and Web/PNG/mobile/native evidence labels distinguish XAU M15 Entry evidence from own-H1 signal evidence. The local TP-milestone/controller contract is bumped to signal rule v96.
