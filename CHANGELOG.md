@@ -1,5 +1,7 @@
 # Changelog
 
+- Advanced H1 to signal rule v99 without changing public schema 18/state v56. Only H3 owns the pattern-derived entry delta: H3 `H4` cascades entries to H6/H7, H9/H10 and H12/H13; H3 `H5` cascades to H6/H8, H9/H11 and H12/H14. H14 is no longer a block. Public GBPAUD signals always read the same-day GBPAUD H1 candle at `entryHour - 1` with `T`=BUY and `G`=SELL; no delta inversion and no previous-block/previous-day selector remains. Web/native/mobile/local-failover contracts now expose H3/H6/H9/H12 only. H12 may still have entry H14. A fresh v99 history rebuild is triggered after deployment.
+
 ## Unreleased
 
 - Advanced H1 to signal rule v98 while keeping public schema 18/state v56. The public table/feed now contains only the shared `ENTRY TIME` row plus GBPAUD. For every H3/H6/H9/H12/H14 block, GBPAUD reads its own H1 candle at `entryHour - 1`; an Entry delta of `+1` KEEPS the raw GBPAUD H1 direction, while `+2` INVERTS it. Missing exact H1 evidence fails closed. GBPUSD remains an internal MT5 market source only because XAUUSD still uses GBPUSD M15 `entry - 15m` for its private TP-roll signal; GBPUSD is no longer published/rendered or emitted as a public TP milestone. Web/PNG/iOS/Android/Expo use the same one-row contract and the TP-milestone/controller contract is bumped to v98.

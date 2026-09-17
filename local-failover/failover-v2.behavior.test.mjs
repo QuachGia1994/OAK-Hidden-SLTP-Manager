@@ -367,7 +367,7 @@ async function writeTradeEvent(h, event) {
 async function writeH1TpMilestones(h, milestones, overrides = {}) {
   await writeLedgerJson(h.paths.h1TpMilestonesPath, {
     version: 1,
-    signalRuleVersion: 98,
+    signalRuleVersion: 99,
     generatedAt: h.now,
     brokerDate: "2026-08-24",
     brokerHour: 14,
@@ -1847,22 +1847,23 @@ test("H1 roll-only milestone is silent when no same-direction position exists", 
 });
 
 test("operator Telegram entry at the same account symbol and due time permanently supersedes H1 auto TP roll", { concurrency: false }, async () => {
-  const dueAt = icMarketsBrokerWallEpochMs("2026-08-24", 16);
+  const dueAt = icMarketsBrokerWallEpochMs("2026-08-24", 14);
   const h = await createHarness("h1-auto-tp-telegram-collision", {
+    now: dueAt - 30_000,
     controlMode: "local-primary",
     webhook: "",
     scheduledEntryExecution: "mt5-ui",
-    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+    statuses: [localPrimaryStatusFor(ACCOUNT_A, {}, dueAt - 30_000)],
   });
   try {
-    await writeH1TpMilestones(h, [{ brokerDate: "2026-08-24", blockHour: 14, entryHour: 16, symbol: "XAUUSD", side: "BUY", dueAt }]);
+    await writeH1TpMilestones(h, [{ brokerDate: "2026-08-24", blockHour: 12, entryHour: 14, symbol: "XAUUSD", side: "BUY", dueAt }]);
     const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
     await h.runtime.runOneIteration(h.config, state);
     const auto = Object.values(state.intents).find((row) => row.kind === "tp_roll");
     assert.equal(auto?.status, "scheduled");
 
     const statuses = await h.runtime.loadEaStatuses();
-    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 499, message: { chat: { id: 123 }, text: "/buy XAUUSD 0.01 20:00 @acct-a" } }, statuses);
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 499, message: { chat: { id: 123 }, text: "/buy XAUUSD 0.01 18:00 @acct-a" } }, statuses);
     const entry = Object.values(state.intents).find((row) => row.kind === "entry");
     assert.ok(entry);
     assert.equal(entry.dueAt, dueAt);
@@ -1871,7 +1872,7 @@ test("operator Telegram entry at the same account symbol and due time permanentl
 
     h.setNow(dueAt + 1);
     await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
-    await writeH1TpMilestones(h, [{ brokerDate: "2026-08-24", blockHour: 14, entryHour: 16, symbol: "XAUUSD", side: "BUY", dueAt }]);
+    await writeH1TpMilestones(h, [{ brokerDate: "2026-08-24", blockHour: 12, entryHour: 14, symbol: "XAUUSD", side: "BUY", dueAt }]);
     await h.runtime.runOneIteration(h.config, state);
     assert.equal(h.eaTasks.filter((task) => task.action === "tp_roll").length, 0);
     assert.equal(auto.status, "cancelled");

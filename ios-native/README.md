@@ -11,10 +11,10 @@ Pure SwiftUI iPhone client for ROBOT SLTP. This target replaces the previous Exp
 
 ## Web parity
 - Tabs: H1 Live, NeoTech and Tools; Signals/Reports/System remain native Tools drill-downs.
-- H1 Live/History uses the same shared `ENTRY TIME` row plus one GBPAUD signal row as web across H3/H6/H9/H12/H14; XAUUSD and GBPUSD are not rendered as signal rows, H16 is removed and weekends are off.
-- Rule v98 keeps XAUUSD as the only M15 entry-pattern target/owner. Its pattern metadata still drives the shared Entry time, while its internal GBPUSD-M15 signal remains private to TP-roll handling.
-- GBPAUD reads its own H1 candle at `entryHour - 1` for each block. Entry delta `+1` KEEPS the raw GBPAUD H1 direction; Entry delta `+2` INVERTS it. Missing exact H1 evidence leaves the signal blank.
-- Evidence sheets keep XAUUSD M15 chart evidence for Entry pattern and identify the GBPAUD `ENTRY-1 H1 BASE` plus KEEP/INVERT rule for the signal row.
+- H1 Live/History uses the same shared `ENTRY TIME` row plus one GBPAUD signal row as web across H3/H6/H9/H12. H3 is the only entry-time pattern owner; H3 H4 cascades H6/H7, H9/H10, H12/H13 and H3 H5 cascades H6/H8, H9/H11, H12/H14. GBPAUD reads same-day H1 at entry minus one with raw T=BUY/G=SELL. XAUUSD and GBPUSD are not rendered as signal rows, H14 is not a block, and weekends are off.
+- Rule v99 keeps XAUUSD as the only M15 entry-pattern target/owner. Its pattern metadata still drives the shared Entry time, while its internal GBPUSD-M15 signal remains private to TP-roll handling.
+- GBPAUD reads its own H1 candle at `entryHour - 1` for each block. Raw GBPAUD H1 direction is used directly: `T`=BUY and `G`=SELL, with no delta inversion. Missing exact H1 evidence leaves the signal blank.
+- Evidence sheets keep XAUUSD M15 chart evidence for Entry pattern and identify the GBPAUD `ENTRY-1 H1 BASE` plus raw-direction rule for the signal row.
 - Native PNG export/share for the selected H1 day.
 - Pull-to-refresh + 20-second server refresh loop.
 - Light/dark/contrast theme selector and VN/EN selector.

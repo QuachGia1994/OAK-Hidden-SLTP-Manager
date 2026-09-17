@@ -102,8 +102,8 @@ async function writeJsonAtomic(file, value) {
 }
 
 function normalizedTpMilestones(result) {
-  if (Number(result?.signalRuleVersion) !== 98 || !Array.isArray(result?.tpMilestones)) {
-    throw new Error("local H1 response is missing v98 TP milestones");
+  if (Number(result?.signalRuleVersion) !== 99 || !Array.isArray(result?.tpMilestones)) {
+    throw new Error("local H1 response is missing v99 TP milestones");
   }
   return result.tpMilestones.map((row) => {
     const brokerDate = String(row?.brokerDate || "");
@@ -113,7 +113,7 @@ function normalizedTpMilestones(result) {
     const side = String(row?.side || "").toUpperCase();
     const dueAt = Number(row?.dueAt);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(brokerDate)
-      || ![3, 6, 9, 12, 14].includes(blockHour)
+      || ![3, 6, 9, 12].includes(blockHour)
       || !Number.isInteger(entryHour) || entryHour < 0 || entryHour > 23
       || !["XAUUSD", "GBPUSD", "GBPAUD"].includes(symbol)
       || !["BUY", "SELL"].includes(side)
@@ -128,7 +128,7 @@ async function persistLiveTpMilestones(result) {
   const milestones = normalizedTpMilestones(result);
   await writeJsonAtomic(H1_TP_MILESTONE_PATH, {
     version: 1,
-    signalRuleVersion: 98,
+    signalRuleVersion: 99,
     generatedAt: Date.now(),
     brokerDate: String(result.brokerDate || ""),
     brokerHour: Number(result.brokerHour),

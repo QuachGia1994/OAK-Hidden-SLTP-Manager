@@ -24,7 +24,6 @@ import {
   ensureSymbolDay,
   evaluateLocalH1PatternsForTarget,
   h1TpRollMilestonesForBrokerDate,
-  previousH1EntryReferenceForDate,
   type H1LocalMarketSnapshot,
   type H1StoredAlert,
 } from "@/lib/h1-cloud-scanner";
@@ -170,10 +169,9 @@ export async function POST(request: Request) {
     let changed = false;
     let matched = 0;
     let updated = 0;
-    const previousEntry = previousH1EntryReferenceForDate(state, parsed.brokerDate);
 
     for (const target of H1_LOCAL_TARGETS) {
-      const computed = evaluateLocalH1PatternsForTarget(target, parsed.brokerDate, parsed.market, readyHours, parsed.brokerHour, previousEntry);
+      const computed = evaluateLocalH1PatternsForTarget(target, parsed.brokerDate, parsed.market, readyHours, parsed.brokerHour);
       matched += computed.length;
       const { symbol } = ensureSymbolDay(state, parsed.brokerDate, target);
       const existing = new Map(symbol.alerts.map((alert) => [alert.slotHour, alert]));

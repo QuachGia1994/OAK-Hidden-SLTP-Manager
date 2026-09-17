@@ -62,7 +62,7 @@ export function mt5H1TpRollOriginKey(brokerDate: string, blockHour: number, symb
   const dateParts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
   const dateValue = dateParts ? new Date(Date.UTC(Number(dateParts[1]), Number(dateParts[2]) - 1, Number(dateParts[3]))) : null;
   if (!dateParts || !dateValue || dateValue.toISOString().slice(0, 10) !== date) throw new Error("valid H1 broker date is required");
-  if (![3, 6, 9, 12, 14].includes(hour)) throw new Error("valid H1 block hour is required");
+  if (![3, 6, 9, 12].includes(hour)) throw new Error("valid H1 block hour is required");
   if (!/^[A-Z0-9._+-]{3,24}$/.test(normalizedSymbol)) throw new Error("valid H1 symbol is required");
   return `h1tp:${date}:${hour}:${normalizedSymbol}:${account}`;
 }

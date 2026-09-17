@@ -60,7 +60,7 @@ const LOCAL_PRIMARY_FENCE_KEY = "oak:telegram:local-primary:active:v1";
 const LOCAL_PRIMARY_FENCE_TTL_SECONDS = 300;
 const FENCE_HEARTBEAT_MIN_INTERVAL_MS = 60_000;
 const H1_TP_MILESTONE_VERSION = 1;
-const H1_TP_SIGNAL_RULE_VERSION = 98;
+const H1_TP_SIGNAL_RULE_VERSION = 99;
 const H1_TP_MILESTONE_MAX_AGE_MS = 5 * 60 * 1000;
 const H1_TP_CLOCK_SKEW_MS = 5_000;
 const H1_TP_COLLISION_WINDOW_MS = 1_000;
@@ -218,7 +218,7 @@ function normalizeH1TpMilestoneSnapshot(raw, now) {
       return null;
     }
     if (brokerDate !== String(raw.brokerDate)
-      || ![3, 6, 9, 12, 14].includes(blockHour)
+      || ![3, 6, 9, 12].includes(blockHour)
       || !Number.isInteger(entryHour) || entryHour < 0 || entryHour > 23
       || !["XAUUSD", "GBPUSD", "GBPAUD"].includes(symbol)
       || !["BUY", "SELL"].includes(side)

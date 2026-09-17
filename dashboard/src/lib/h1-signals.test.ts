@@ -93,22 +93,23 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 v98 keeps XAUUSD as entry-pattern owner and exposes only GBPAUD entry-minus-one H1 signal", () => {
+test("H1 v99 keeps XAUUSD as entry-pattern owner and cascades the GBPAUD entry-minus-one H1 signal", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD"\]/);
   assert.match(localPatternsSource, /H1_SIGNAL_BASE_SOURCES = \["GBPUSD", "GBPAUD"\]/);
-  assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14\]/);
-  assert.match(mobileAppBackendSource, /FALLBACK_HOURS = \[3, 6, 9, 12, 14\]/);
+  assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12\]/);
+  assert.match(mobileAppBackendSource, /FALLBACK_HOURS = \[3, 6, 9, 12\]/);
   assert.match(mobileAppBackendSource, /FALLBACK_SYMBOLS = \["GBPAUD"\]/);
   assert.match(nativeSignalsSource, /visibleSymbols = \["GBPAUD"\]/);
   assert.match(scannerSource, /H1_PUBLIC_SYMBOLS = \["GBPAUD"\]/);
-  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 98/);
-  assert.match(scannerSource, /H1_SIGNAL_END_HOUR = 14/);
+  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 99/);
+  assert.match(scannerSource, /H1_SIGNAL_END_HOUR = 12/);
   assert.match(scannerSource, /includes\(hour\) \? H1_TARGET_BASES : \[\]/);
   assert.match(localMarketRouteSource, /evaluateLocalH1PatternsForTarget/);
   assert.match(scannerSource, /function gbpAudSignalPolicy/);
   assert.match(scannerSource, /baseHour: entryHour - 1/);
-  assert.match(scannerSource, /inverted: delta === 2/);
+  assert.match(scannerSource, /baseHour: entryHour - 1/);
+  assert.doesNotMatch(scannerSource, /inverted: delta === 2/);
   assert.match(scannerSource, /market\.GBPAUD\.h1Bars/);
   assert.match(scannerSource, /GBPAUD: gbpAudH1SignalForBlock/);
   assert.match(localPatternsSource, /return "XAUUSD"/);
@@ -124,18 +125,18 @@ test("web tab softly refreshes server data every 20 seconds", () => {
   assert.doesNotMatch(tabAutoRefreshSource, /location\.reload/);
 });
 
-test("H16 is retired while Telegram scheduling keeps the existing H14 cutoff", () => {
-  assert.match(scannerSource, /H1_SIGNAL_END_HOUR = 14/);
-  assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12, 14\]/);
-  assert.match(mobileAppBackendSource, /FALLBACK_HOURS = \[3, 6, 9, 12, 14\]/);
+test("H14 is retired as a block while H12 remains the final signal slot", () => {
+  assert.match(scannerSource, /H1_SIGNAL_END_HOUR = 12/);
+  assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12\]/);
+  assert.match(mobileAppBackendSource, /FALLBACK_HOURS = \[3, 6, 9, 12\]/);
   assert.doesNotMatch(scannerSource, /appointmentHour: 22, appointmentMinute: 5/);
-  assert.match(scannerSource, /appointmentMinute >= 22 \* 60 \+ 5/);
+  assert.match(scannerSource, /appointmentMinute >= 20 \* 60 \+ 5/);
   assert.doesNotMatch(boardSource, /H16 CLOSE|isManualCloseH16Day/);
   assert.match(boardSource, /H1_SIGNAL_ROWS/);
   assert.doesNotMatch(boardSource + androidScreensSource, /order_send|closePosition|dispatchTask|\/approve/);
 });
 
-test("web and native clients expose shared XAU-owned Entry time plus only the GBPAUD v98 signal row", () => {
+test("web and native clients expose shared XAU-owned Entry time plus only the GBPAUD v99 signal row", () => {
   assert.match(boardSource, /<b>ENTRY TIME<\/b>/);
   assert.match(boardSource, /entryAlertForHour/);
   assert.doesNotMatch(boardSource, /day\?\.symbols\?\.XAUUSD\?\.alerts/);
