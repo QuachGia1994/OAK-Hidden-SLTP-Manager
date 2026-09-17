@@ -812,9 +812,10 @@ export function parseCloudState(raw: unknown): H1CloudState {
       if (!isTargetBase(base) || !symbolState || !Array.isArray(symbolState.alerts)) {
         throw new Error("Invalid H1 cloud symbol state");
       }
-      const h3EntryHour = isTargetBase(base)
-        ? symbolState.alerts.find((item) => item && typeof item === "object" && Number((item as H1StoredAlert).slotHour) === 3 && Number.isInteger((item as H1StoredAlert).entryHour))?.entryHour ?? null
-        : null;
+      const h3Alert = isTargetBase(base)
+        ? symbolState.alerts.find((item) => item && typeof item === "object" && Number((item as H1StoredAlert).slotHour) === 3 && Number.isInteger((item as H1StoredAlert).entryHour)) as H1StoredAlert | undefined
+        : undefined;
+      const h3EntryHour: number | null = typeof h3Alert?.entryHour === "number" ? h3Alert.entryHour : null;
       const alerts: H1StoredAlert[] = [];
       for (const alert of symbolState.alerts) {
         const migratedAlert = sourceVersion === 54
