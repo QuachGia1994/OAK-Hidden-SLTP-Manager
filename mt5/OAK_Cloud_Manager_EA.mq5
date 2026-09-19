@@ -1114,7 +1114,7 @@ bool SelectedPositionManaged()
    return SymbolManaged(PositionGetString(POSITION_SYMBOL));
 }
 
-bool ParseDoubleList(const string text, double &out[])
+bool ParseDoubleList(const string text, double &out[], const bool keep_placeholders=false, const double clamp_max=0.0)
 {
    ArrayResize(out,0);
    string raw=Trim(text);
@@ -1124,9 +1124,15 @@ bool ParseDoubleList(const string text, double &out[])
    for(int i=0;i<n;i++)
    {
       string p=Trim(parts[i]);
-      if(p=="") continue;
       double v=StringToDouble(p);
-      if(v<=0) continue;
+      if(clamp_max>0 && v>clamp_max) v=clamp_max;
+      if(v<=0)
+      {
+         // Levels drop junk (behaviour unchanged). Percents keep a 0 placeholder so
+         // each percent stays index-aligned with its R level (no silent desync).
+         if(!keep_placeholders) continue;
+         v=0.0;
+      }
       int size=ArraySize(out);
       ArrayResize(out,size+1);
       out[size]=v;
@@ -1725,6 +1731,19 @@ bool PriceAllowsTP(const string symbol, long ptype, double tp)
    return tp <= tick.ask-distance+point*0.1;
 }
 
+// Tightest broker-valid stop next to current market, for a naked position whose
+// default SL has fallen inside the freeze/stops zone. Returns 0 if the tick is
+// unavailable so the caller keeps its existing "leave as-is" fallback.
+double BrokerNearestSL(const string symbol, long ptype, int digits)
+{
+   MqlTick tick; if(!SymbolInfoTick(symbol,tick)) return 0;
+   double point=SymbolInfoDouble(symbol,SYMBOL_POINT);
+   double distance=MathMax((double)SymbolInfoInteger(symbol,SYMBOL_TRADE_STOPS_LEVEL),(double)SymbolInfoInteger(symbol,SYMBOL_TRADE_FREEZE_LEVEL))*point;
+   // One extra point past the minimum keeps NormalizeDouble on the valid side of PriceAllowsSL.
+   double sl=(ptype==POSITION_TYPE_BUY ? tick.bid-distance-point : tick.ask+distance+point);
+   return NormalizeDouble(sl,digits);
+}
+
 double ScheduledTpRollStepPrice(const string symbol)
 {
    if(IsGold(symbol)) return 20.0;
@@ -1814,7 +1833,14 @@ void EnsureSelectedProtection(const ulong ticket, const long id)
       else
          target_sl=(type==POSITION_TYPE_BUY ? open-default_sl*point : open+default_sl*point);
       target_sl=NormalizeDouble(target_sl,digits);
-      if(!PriceAllowsSL(symbol,type,target_sl)) target_sl=0;
+      if(!PriceAllowsSL(symbol,type,target_sl))
+      {
+         // Default SL fell inside the broker freeze/stops zone (price already ran
+         // against the position). Clamp to the tightest broker-valid stop instead of
+         // leaving the position naked; fail closed to 0 only if even that is invalid.
+         target_sl=BrokerNearestSL(symbol,type,digits);
+         if(!PriceAllowsSL(symbol,type,target_sl)) target_sl=0;
+      }
    }
    if(tp<=0 && default_tp>0)
    {
@@ -1872,6 +1898,14 @@ void ManageSelectedPosition(const ulong ticket)
          long bit=((long)1)<<i;
          if((mask & bit)!=0 || r<g_partial_r[i]) continue;
          double pct=(i<ArraySize(g_partial_pct)?g_partial_pct[i]:g_partial_pct[ArraySize(g_partial_pct)-1]);
+         if(pct<=0)
+         {
+            // Placeholder level (0%): no partial configured at this R. Mark it handled
+            // so a zero-volume close isn't re-attempted every tick.
+            mask|=bit; StateSet(id,"rmask",(double)mask);
+            continue;
+         }
+         if(!AttemptThrottle(id,"rp",5)) break; // throttle: don't resend on a transient reject every tick
          double requested=(original_mode?original:volume)*(pct/100.0);
          string detail="";
          if(ClosePositionVolume(ticket,requested,true,detail))
@@ -2515,7 +2549,7 @@ int OnInit()
    g_last_local_poll_ms=0;
    g_last_local_status_ms=0;
    ParseDoubleList(InpPartialRLevels,g_partial_r);
-   ParseDoubleList(InpPartialPercents,g_partial_pct);
+   ParseDoubleList(InpPartialPercents,g_partial_pct,true,100.0); // keep 0-placeholders index-aligned with R levels; clamp each to 100%
 
    FolderCreate(OAK_LOCAL_DIR,FILE_COMMON);
    if(!RefreshRuntimeAccountIdentity(true))
