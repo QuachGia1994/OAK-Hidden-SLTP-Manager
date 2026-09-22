@@ -611,7 +611,7 @@ export function evaluateLocalH1PatternsForTarget(
         symbolH1Signal: own.symbolH1Signal,
         scheduledSignal: null,
         postSignalInverted: false,
-        postSignalRule: "xau-previous-block-keep",
+        postSignalRule: "xau-previous-block-keep" as const,
         entryHour: slotHour,
         patternGroup: null,
         patternFamily: null,
