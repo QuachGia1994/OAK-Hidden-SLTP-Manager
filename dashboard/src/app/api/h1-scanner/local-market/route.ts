@@ -4,7 +4,6 @@ import { requireAuth } from "@/lib/redis-core";
 import { loadH1CloudConfig } from "@/lib/h1-cloud-config";
 import { isValidBrokerDateKey } from "@/lib/h1-broker-date";
 import {
-  H1_LOCAL_SCAN_HOURS,
   H1_LOCAL_SOURCES,
   H1_LOCAL_TARGETS,
   targetEnabledForDate,
@@ -165,7 +164,7 @@ export async function POST(request: Request) {
   try {
     const { state, source } = await loadH1CloudState(parsed.brokerDate, parsed.brokerHour);
     const dayWasMissing = !state.days[parsed.brokerDate];
-    const readyHours = H1_LOCAL_SCAN_HOURS.filter((hour) => hour <= parsed.brokerHour);
+    const readyHours = Array.from({ length: 15 }, (_, index) => index + 3).filter((hour) => hour <= parsed.brokerHour);
     let changed = false;
     let matched = 0;
     let updated = 0;

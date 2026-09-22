@@ -14,7 +14,7 @@ import {
 
 export const H1_CLOUD_STATE_VERSION = 56;
 export const H1_PUBLIC_SCHEMA = 18;
-export const H1_SIGNAL_RULE_VERSION = 99;
+export const H1_SIGNAL_RULE_VERSION = 100;
 export const H1_POST_SIGNAL_ENABLED = false;
 export const H1_MONTH_END_BRIDGE_ENABLED = false;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
@@ -30,9 +30,10 @@ export const H1_CLOUD_PROFILE = "MT5 ICMarkets Local";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
 export const H1_FIRST_SCAN_HOUR = 3;
 export const H1_SCAN_START_HOUR = 3;
-export const H1_SCAN_END_HOUR = 12;
-export const H1_SIGNAL_END_HOUR = 12;
-export const H1_SCAN_HOURS = H1_LOCAL_SCAN_HOURS;
+export const H1_SCAN_END_HOUR = 17;
+export const H1_SIGNAL_END_HOUR = 17;
+// H3 remains the pattern-driven entry anchor; H4-H17 use the current block advisory rule.
+export const H1_SCAN_HOURS = Array.from({ length: 15 }, (_, index) => index + 3);
 
 export const H1_TARGET_BASES = H1_LOCAL_TARGETS;
 export const H1_PUBLIC_SYMBOLS = ["GBPAUD"] as const;
@@ -49,14 +50,14 @@ export type H1OwnSignalSymbol = H1PublicSymbol;
 
 export type H1OwnH1Signal = {
   symbol: H1OwnSignalSymbol;
-  baseSymbol: "GBPUSD" | "GBPAUD";
+  baseSymbol: "GBPUSD" | "GBPAUD" | "XAUUSD";
   baseH1Signal: H1Signal | null;
   baseHour: number | null;
   baseMinute: 0 | null;
   baseDirection: H1Direction | "";
   symbolH1Signal: H1Signal | null;
   postSignalInverted: boolean;
-  postSignalRule: "block-base-keep" | "block-base-invert";
+  postSignalRule: "block-base-keep" | "block-base-invert" | "xau-previous-block-keep";
   signalBaseBar: H1PatternSampleBar | null;
 };
 
@@ -124,7 +125,7 @@ export type H1PublicAlert = {
 
 export type H1PublicFeed = {
   schemaVersion: 18;
-  signalRuleVersion: 99;
+  signalRuleVersion: 100;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -287,39 +288,60 @@ function signalBaseForPlan(
 }
 
 function gbpAudSignalPolicy(slotHour: number, entryHour: number): { baseHour: number; inverted: false } | null {
-  if (!(H1_ACTIVE_BLOCK_HOURS as readonly number[]).includes(slotHour)) return null;
+  if (slotHour !== 3) return null;
   const delta = entryHour - slotHour;
   if (delta !== 1 && delta !== 2) return null;
   return { baseHour: entryHour - 1, inverted: false };
 }
 
-function gbpAudH1SignalForBlock(
+function gbpAudH1SignalForH3(
   brokerDate: string,
-  slotHour: number,
   entryHour: number,
   market: H1LocalMarketSnapshot,
 ): H1OwnH1Signal {
-  const policy = gbpAudSignalPolicy(slotHour, entryHour);
+  const policy = gbpAudSignalPolicy(3, entryHour);
   const baseHour = policy?.baseHour ?? null;
-  const reference = baseHour === null
-    ? null
-    : market.GBPAUD.h1Bars.find((bar) => (
-      bar.brokerDate === brokerDate && bar.hour === baseHour && bar.minute === 0
-    )) || null;
+  const reference = baseHour === null ? null : market.GBPAUD.h1Bars.find((bar) => (
+    bar.brokerDate === brokerDate && bar.hour === baseHour && bar.minute === 0
+  )) || null;
   const baseH1Signal = reference ? signalFromDirection(reference.direction) : null;
   return {
+    symbol: "GBPAUD", baseSymbol: "GBPAUD", baseH1Signal, baseHour,
+    baseMinute: baseHour === null ? null : 0, baseDirection: reference?.direction ?? "",
+    symbolH1Signal: baseH1Signal, postSignalInverted: false, postSignalRule: "block-base-keep",
+    signalBaseBar: reference ? { ...reference, brokerTime: `${String(reference.hour).padStart(2, "0")}:00`, selected: true } : null,
+  };
+}
+
+function gbpAudH1SignalForBlock(
+  brokerDate: string,
+  slotHour: number,
+  market: H1LocalMarketSnapshot,
+): H1OwnH1Signal {
+  // The current GBPAUD advisory is deliberately driven only by the two closed
+  // XAUUSD H1 candles immediately before this H block. A reversal is actionable
+  // for operator review; matching directions fail closed.
+  const prior = market.XAUUSD.h1Bars.find((bar) => (
+    bar.brokerDate === brokerDate && bar.hour === slotHour - 2 && bar.minute === 0
+  )) || null;
+  const latest = market.XAUUSD.h1Bars.find((bar) => (
+    bar.brokerDate === brokerDate && bar.hour === slotHour - 1 && bar.minute === 0
+  )) || null;
+  const reversal = Boolean(prior && latest && prior.direction !== latest.direction);
+  const baseH1Signal = reversal && latest ? signalFromDirection(latest.direction) : null;
+  return {
     symbol: "GBPAUD",
-    baseSymbol: "GBPAUD",
+    baseSymbol: "XAUUSD",
     baseH1Signal,
-    baseHour,
-    baseMinute: baseHour === null ? null : 0,
-    baseDirection: reference?.direction ?? "",
+    baseHour: latest ? latest.hour : null,
+    baseMinute: latest ? 0 : null,
+    baseDirection: latest?.direction ?? "",
     symbolH1Signal: baseH1Signal,
     postSignalInverted: false,
-    postSignalRule: "block-base-keep",
-    signalBaseBar: reference ? {
-      ...reference,
-      brokerTime: `${String(reference.hour).padStart(2, "0")}:00`,
+    postSignalRule: "xau-previous-block-keep",
+    signalBaseBar: latest ? {
+      ...latest,
+      brokerTime: `${String(latest.hour).padStart(2, "0")}:00`,
       selected: true,
     } : null,
   };
@@ -545,57 +567,62 @@ export function evaluateLocalH1PatternsForTarget(
   slotHours: readonly number[] = H1_SCAN_HOURS,
   throughHour = Number.POSITIVE_INFINITY,
 ): H1StoredAlert[] {
-  const readySlots = [...slotHours]
-    .filter((slotHour) => (H1_ACTIVE_BLOCK_HOURS as readonly number[]).includes(slotHour))
-    .filter((slotHour) => slotHour <= throughHour && targetEnabledForDate(base, brokerDate, slotHour))
-    .sort((left, right) => left - right);
-  if (!readySlots.includes(3)) return [];
-
-  const h3Match = evaluateLocalH1Pattern({ target: "XAUUSD", brokerDate, slotHour: 3, bars: market.XAUUSD.bars });
-  if (!h3Match) return [];
-  const h3EntryHour = h3Match.entryHour;
+  if (base !== "XAUUSD") return [];
   const alerts: H1StoredAlert[] = [];
-  for (const slotHour of readySlots) {
-    const entryHour = cascadedEntryHourForBlock(slotHour, h3EntryHour);
-    if (entryHour === null) continue;
-    const plan = h1BlockSignalPlan(slotHour, entryHour);
-    if (!plan) continue;
-    const reference = signalBaseForPlan(brokerDate, plan, market[plan.baseSymbol].bars);
-    const baseH1Signal = reference ? signalFromDirection(reference.direction) : null;
-    const symbolH1Signal = baseH1Signal
-      ? (plan.inverted ? invertSignal(baseH1Signal) : baseH1Signal)
-      : null;
-    const ownH1Signals: Record<H1OwnSignalSymbol, H1OwnH1Signal> = {
-      GBPAUD: gbpAudH1SignalForBlock(brokerDate, slotHour, entryHour, market),
-    };
-    alerts.push({
-      slotHour,
-      symbol: base,
-      profile: H1_CLOUD_PROFILE,
-      baseSymbol: plan.baseSymbol,
-      baseH1Signal,
-      baseHour: plan.baseHour,
-      baseMinute: plan.baseMinute,
-      baseDirection: reference?.direction ?? "",
-      symbolH1Signal,
-      scheduledSignal: null,
-      postSignalInverted: plan.inverted,
-      postSignalRule: plan.rule,
-      entryHour,
-      patternGroup: h3Match.group,
-      patternFamily: h3Match.family,
-      pattern: h3Match.pattern,
-      scannerSource: h3Match.scannerSource,
-      inversionBadge: plan.inverted,
-      sampleBars: h3Match.sampleBars,
-      signalBaseBar: reference ? {
-        ...reference,
-        brokerTime: `${String(reference.hour).padStart(2, "0")}:${String(reference.minute).padStart(2, "0")}`,
-        selected: true,
-      } : null,
-      ownH1Signals,
-    });
+  const requested = [...slotHours].filter((slotHour) => Number.isInteger(slotHour) && slotHour <= throughHour).sort((left, right) => left - right);
+
+  if (requested.includes(3) && 3 <= throughHour && targetEnabledForDate(base, brokerDate, 3)) {
+    const h3Match = evaluateLocalH1Pattern({ target: "XAUUSD", brokerDate, slotHour: 3, bars: market.XAUUSD.bars });
+    if (h3Match) {
+      const plan = h1BlockSignalPlan(3, h3Match.entryHour);
+      if (plan) {
+        const reference = signalBaseForPlan(brokerDate, plan, market[plan.baseSymbol].bars);
+        const baseH1Signal = reference ? signalFromDirection(reference.direction) : null;
+        const symbolH1Signal = baseH1Signal ? (plan.inverted ? invertSignal(baseH1Signal) : baseH1Signal) : null;
+        alerts.push({
+          slotHour: 3, symbol: base, profile: H1_CLOUD_PROFILE, baseSymbol: plan.baseSymbol,
+          baseH1Signal, baseHour: plan.baseHour, baseMinute: plan.baseMinute,
+          baseDirection: reference?.direction ?? "", symbolH1Signal, scheduledSignal: null,
+          postSignalInverted: plan.inverted, postSignalRule: plan.rule, entryHour: h3Match.entryHour,
+          patternGroup: h3Match.group, patternFamily: h3Match.family, pattern: h3Match.pattern,
+          scannerSource: h3Match.scannerSource, inversionBadge: plan.inverted, sampleBars: h3Match.sampleBars,
+          signalBaseBar: reference ? { ...reference, brokerTime: `${String(reference.hour).padStart(2, "0")}:${String(reference.minute).padStart(2, "0")}`, selected: true } : null,
+          ownH1Signals: { GBPAUD: gbpAudH1SignalForH3(brokerDate, h3Match.entryHour, market) },
+        });
+      }
+    }
   }
+
+  alerts.push(...requested
+    .filter((slotHour) => slotHour >= 4 && slotHour <= 17)
+    .flatMap((slotHour) => {
+      const own = gbpAudH1SignalForBlock(brokerDate, slotHour, market);
+      // No up/down or down/up reversal: do not publish an advisory row.
+      if (!own.symbolH1Signal) return [];
+      return [{
+        slotHour,
+        symbol: base,
+        profile: H1_CLOUD_PROFILE,
+        baseSymbol: "XAUUSD",
+        baseH1Signal: own.baseH1Signal,
+        baseHour: own.baseHour ?? slotHour - 1,
+        baseMinute: 0,
+        baseDirection: own.baseDirection,
+        symbolH1Signal: own.symbolH1Signal,
+        scheduledSignal: null,
+        postSignalInverted: false,
+        postSignalRule: "xau-previous-block-keep",
+        entryHour: slotHour,
+        patternGroup: null,
+        patternFamily: null,
+        pattern: "",
+        scannerSource: "XAUUSD",
+        inversionBadge: false,
+        sampleBars: [],
+        signalBaseBar: own.signalBaseBar,
+        ownH1Signals: { GBPAUD: own },
+      }];
+    }));
   return alerts;
 }
 
@@ -661,14 +688,14 @@ function isValidOwnH1Signals(value: H1StoredAlert["ownH1Signals"]): boolean {
   const signal = value.GBPAUD;
   return Boolean(signal)
     && signal?.symbol === "GBPAUD"
-    && signal?.baseSymbol === "GBPAUD"
+    && (signal?.baseSymbol === "XAUUSD" || signal?.baseSymbol === "GBPAUD")
     && isSignalOrPending(signal.baseH1Signal)
     && (signal.baseHour === null || Number.isInteger(signal.baseHour))
     && (signal.baseMinute === null || signal.baseMinute === 0)
     && isDirectionOrPending(signal.baseDirection)
     && isSignalOrPending(signal.symbolH1Signal)
-    && typeof signal.postSignalInverted === "boolean"
-    && signal.postSignalRule === (signal.postSignalInverted ? "block-base-invert" : "block-base-keep");
+    && signal.postSignalInverted === false
+    && signal.postSignalRule === "xau-previous-block-keep";
 }
 
 function isValidAlertShape(alert: H1StoredAlert): boolean {
@@ -691,41 +718,37 @@ function hasLocalPatternMetadata(alert: H1StoredAlert): boolean {
   return Number.isInteger(alert.entryHour) && (alert.patternGroup === "SW" || alert.patternGroup === "BT");
 }
 
-function matchesCurrentLocalPatternContract(base: H1TargetBase, alert: H1StoredAlert, h3EntryHour: number | null = null): boolean {
-  if (!hasLocalPatternMetadata(alert)) return true;
+function matchesCurrentLocalPatternContract(base: H1TargetBase, alert: H1StoredAlert): boolean {
   if (base !== "XAUUSD" || alert.scannerSource !== "XAUUSD") return false;
-  const plan = h1BlockSignalPlan(alert.slotHour, Number(alert.entryHour));
-  if (!plan) return false;
-  if (h3EntryHour !== null && cascadedEntryHourForBlock(alert.slotHour, h3EntryHour) !== Number(alert.entryHour)) return false;
-  if (alert.baseSymbol !== plan.baseSymbol
-    || alert.baseHour !== plan.baseHour
-    || alert.baseMinute !== plan.baseMinute
-    || alert.postSignalInverted !== plan.inverted
-    || Boolean(alert.inversionBadge) !== plan.inverted
-    || alert.postSignalRule !== plan.rule) return false;
-  if (!alert.baseH1Signal) {
-    if (alert.symbolH1Signal !== null) return false;
-  } else {
-    const expected = plan.inverted ? invertSignal(alert.baseH1Signal) : alert.baseH1Signal;
-    if (alert.symbolH1Signal !== expected) return false;
+  if (alert.slotHour === 3) {
+    const plan = h1BlockSignalPlan(3, Number(alert.entryHour));
+    const gbpAud = alert.ownH1Signals?.GBPAUD;
+    if (!plan || !gbpAud || alert.entryHour !== 4 && alert.entryHour !== 5
+      || alert.baseSymbol !== plan.baseSymbol || alert.baseHour !== plan.baseHour || alert.baseMinute !== plan.baseMinute
+      || alert.postSignalInverted !== plan.inverted || alert.postSignalRule !== plan.rule
+      || gbpAud.baseSymbol !== "GBPAUD" || gbpAud.baseHour !== Number(alert.entryHour) - 1
+      || gbpAud.baseMinute !== 0 || gbpAud.postSignalInverted !== false || gbpAud.postSignalRule !== "block-base-keep"
+      || gbpAud.symbolH1Signal !== gbpAud.baseH1Signal) return false;
+    return true;
   }
+  if (!Number.isInteger(alert.slotHour) || alert.slotHour < 4 || alert.slotHour > 17 || alert.entryHour !== alert.slotHour) return false;
   const gbpAud = alert.ownH1Signals?.GBPAUD;
-  const gbpAudPolicy = gbpAudSignalPolicy(alert.slotHour, Number(alert.entryHour));
-  if (!gbpAud || !gbpAudPolicy
+  if (!gbpAud
     || gbpAud.symbol !== "GBPAUD"
-    || gbpAud.baseSymbol !== "GBPAUD"
-    || gbpAud.baseHour !== gbpAudPolicy.baseHour
+    || gbpAud.baseSymbol !== "XAUUSD"
+    || gbpAud.baseHour !== alert.slotHour - 1
     || gbpAud.baseMinute !== 0
-    || gbpAud.postSignalInverted !== gbpAudPolicy.inverted
-    || gbpAud.postSignalRule !== (gbpAudPolicy.inverted ? "block-base-invert" : "block-base-keep")) return false;
-  if (gbpAud.signalBaseBar && (gbpAud.signalBaseBar.hour !== gbpAud.baseHour || gbpAud.signalBaseBar.minute !== 0)) return false;
-  if (!gbpAud.baseH1Signal) {
-    if (gbpAud.symbolH1Signal !== null) return false;
-  } else {
-    const expected = gbpAudPolicy.inverted ? invertSignal(gbpAud.baseH1Signal) : gbpAud.baseH1Signal;
-    if (gbpAud.symbolH1Signal !== expected) return false;
-  }
-  return true;
+    || gbpAud.postSignalInverted
+    || gbpAud.postSignalRule !== "xau-previous-block-keep"
+    || !gbpAud.baseH1Signal
+    || gbpAud.symbolH1Signal !== gbpAud.baseH1Signal) return false;
+  return alert.baseSymbol === "XAUUSD"
+    && alert.baseH1Signal === gbpAud.baseH1Signal
+    && alert.baseHour === gbpAud.baseHour
+    && alert.baseMinute === 0
+    && alert.symbolH1Signal === gbpAud.symbolH1Signal
+    && !alert.postSignalInverted
+    && alert.postSignalRule === "xau-previous-block-keep";
 }
 
 function preserveScheduledSignalOnly(base: H1TargetBase, alert: H1StoredAlert): H1StoredAlert | null {
@@ -824,7 +847,7 @@ export function parseCloudState(raw: unknown): H1CloudState {
         if (!migratedAlert) throw new Error("Invalid H1 cloud alert state");
         if (!isH1SlotActiveForBrokerDate(dateKey, migratedAlert.slotHour)) continue;
         if (!targetEnabledForDate(base as H1TargetBase, dateKey, migratedAlert.slotHour)) continue;
-        if (!matchesCurrentLocalPatternContract(base as H1TargetBase, migratedAlert, h3EntryHour === null ? null : Number(h3EntryHour))) {
+        if (!matchesCurrentLocalPatternContract(base as H1TargetBase, migratedAlert)) {
           const scheduledOnly = preserveScheduledSignalOnly(base as H1TargetBase, migratedAlert);
           if (scheduledOnly) alerts.push(scheduledOnly);
           continue;
@@ -866,95 +889,58 @@ export function parsePublicFeedCloudState(raw: unknown): H1CloudState | null {
   const value = typeof raw === "string" ? JSON.parse(raw) : raw;
   if (!value || typeof value !== "object") return null;
   const feed = value as Partial<H1PublicFeed>;
-  if (
-    feed.schemaVersion !== H1_PUBLIC_SCHEMA
-    || feed.signalRuleVersion !== H1_SIGNAL_RULE_VERSION
-    || !feed.days
-    || typeof feed.days !== "object"
-  ) return null;
+  if (feed.schemaVersion !== H1_PUBLIC_SCHEMA || feed.signalRuleVersion !== H1_SIGNAL_RULE_VERSION || !feed.days || typeof feed.days !== "object") return null;
 
   const state = emptyCloudState();
   for (const [dateKey, day] of Object.entries(feed.days)) {
     if (!isValidBrokerDateKey(dateKey) || !day || typeof day !== "object" || !day.symbols || typeof day.symbols !== "object") continue;
-    const bySlot = new Map<number, Partial<Record<H1PublicSymbol, H1PublicAlert>>>();
-
-    for (const symbol of H1_PUBLIC_SYMBOLS) {
-      const source = day.symbols[symbol];
-      if (!source || !Array.isArray(source.alerts)) continue;
-      for (const row of source.alerts) {
-        if (!row || !Number.isInteger(row.slotHour) || !Number.isInteger(row.entryHour)) continue;
-        const policy = gbpAudSignalPolicy(row.slotHour, Number(row.entryHour));
-        if (
-          !policy
-          || !isH1SlotActiveForBrokerDate(dateKey, row.slotHour)
-          || (row.patternGroup !== "SW" && row.patternGroup !== "BT")
-          || (row.patternFamily !== "ALT" && row.patternFamily !== "SAME")
-          || row.scannerSource !== "XAUUSD"
-          || row.symbol !== "GBPAUD"
-          || row.baseSymbol !== "GBPAUD"
-          || row.baseHour !== policy.baseHour
-          || row.baseMinute !== 0
-          || !isSignalOrPending(row.baseSignal)
-          || !isSignalOrPending(row.signal)
-          || !isDirectionOrPending(row.baseDirection)
-          || row.postSignalInverted !== false
-          || row.postSignalRule !== "block-base-keep"
-        ) continue;
-        if (row.signalBaseBar && (row.signalBaseBar.brokerDate !== dateKey || row.signalBaseBar.hour !== policy.baseHour || row.signalBaseBar.minute !== 0)) continue;
-        const expected = row.baseSignal;
-        if (row.signal !== expected) continue;
-        const slot = bySlot.get(row.slotHour) ?? {};
-        slot.GBPAUD = row;
-        bySlot.set(row.slotHour, slot);
-      }
-    }
-
-    const h3Row = bySlot.get(3)?.GBPAUD;
-    const h3EntryHour = h3Row && Number.isInteger(h3Row.entryHour) ? Number(h3Row.entryHour) : null;
+    const rows = day.symbols.GBPAUD?.alerts;
+    if (!Array.isArray(rows)) continue;
     const alerts: H1StoredAlert[] = [];
-    for (const [slotHour, publicRows] of bySlot) {
-      const gbpAud = publicRows.GBPAUD;
-      if (!gbpAud || h3EntryHour === null) continue;
-      const entryHour = Number(gbpAud.entryHour);
-      if (cascadedEntryHourForBlock(slotHour, h3EntryHour) !== entryHour) continue;
-      const plan = h1BlockSignalPlan(slotHour, entryHour);
-      if (!plan) continue;
-      const ownH1Signals: Record<H1OwnSignalSymbol, H1OwnH1Signal> = {
-        GBPAUD: {
-          symbol: "GBPAUD",
-          baseSymbol: "GBPAUD",
-          baseH1Signal: gbpAud.baseSignal as H1Signal | null,
-          baseHour: gbpAud.baseHour,
-          baseMinute: gbpAud.baseMinute as 0,
-          baseDirection: gbpAud.baseDirection,
-          symbolH1Signal: gbpAud.signal,
-          postSignalInverted: false,
-          postSignalRule: "block-base-keep",
-          signalBaseBar: gbpAud.signalBaseBar && typeof gbpAud.signalBaseBar === "object" ? gbpAud.signalBaseBar : null,
-        },
+    for (const row of rows) {
+      if (!row || !Number.isInteger(row.slotHour) || !Number.isInteger(row.entryHour)
+        || row.symbol !== "GBPAUD" || !isSignalOrPending(row.baseSignal) || !isSignalOrPending(row.signal)
+        || !isDirectionOrPending(row.baseDirection)) continue;
+      if (row.slotHour === 3) {
+        if (row.entryHour !== 4 && row.entryHour !== 5 || row.baseSymbol !== "GBPAUD"
+          || row.baseMinute !== 0 || row.postSignalInverted !== false || row.postSignalRule !== "block-base-keep"
+          || row.signal !== row.baseSignal) continue;
+        const plan = h1BlockSignalPlan(3, row.entryHour);
+        if (!plan) continue;
+        alerts.push({
+          slotHour: 3, symbol: "XAUUSD", profile: H1_CLOUD_PROFILE, baseSymbol: plan.baseSymbol,
+          baseH1Signal: null, baseHour: plan.baseHour, baseMinute: plan.baseMinute,
+          baseDirection: "", symbolH1Signal: null, scheduledSignal: null,
+          postSignalInverted: plan.inverted, postSignalRule: plan.rule, entryHour: row.entryHour,
+          patternGroup: row.patternGroup === "SW" || row.patternGroup === "BT" ? row.patternGroup : null,
+          patternFamily: row.patternFamily === "ALT" || row.patternFamily === "SAME" ? row.patternFamily : null,
+          pattern: String(row.pattern || ""), scannerSource: "XAUUSD", inversionBadge: true,
+          sampleBars: Array.isArray(row.sampleBars) ? row.sampleBars : [], signalBaseBar: null,
+          ownH1Signals: { GBPAUD: {
+            symbol: "GBPAUD", baseSymbol: "GBPAUD", baseH1Signal: row.baseSignal as H1Signal | null,
+            baseHour: row.baseHour, baseMinute: 0, baseDirection: row.baseDirection,
+            symbolH1Signal: row.signal as H1Signal | null, postSignalInverted: false, postSignalRule: "block-base-keep",
+            signalBaseBar: row.signalBaseBar && typeof row.signalBaseBar === "object" ? row.signalBaseBar : null,
+          } },
+        });
+        continue;
+      }
+      if (row.slotHour < 4 || row.slotHour > 17 || row.entryHour !== row.slotHour
+        || row.baseSymbol !== "XAUUSD" || row.baseHour !== row.slotHour - 1 || row.baseMinute !== 0
+        || row.signal !== row.baseSignal || row.postSignalInverted !== false || row.postSignalRule !== "xau-previous-block-keep") continue;
+      const own: H1OwnH1Signal = {
+        symbol: "GBPAUD", baseSymbol: "XAUUSD", baseH1Signal: row.baseSignal as H1Signal | null,
+        baseHour: row.baseHour, baseMinute: 0, baseDirection: row.baseDirection,
+        symbolH1Signal: row.signal, postSignalInverted: false, postSignalRule: "xau-previous-block-keep",
+        signalBaseBar: row.signalBaseBar && typeof row.signalBaseBar === "object" ? row.signalBaseBar : null,
       };
       alerts.push({
-        slotHour,
-        symbol: "XAUUSD",
-        profile: H1_CLOUD_PROFILE,
-        baseSymbol: plan.baseSymbol,
-        baseH1Signal: null,
-        baseHour: plan.baseHour,
-        baseMinute: plan.baseMinute,
-        baseDirection: "",
-        symbolH1Signal: null,
-        scheduledSignal: null,
-        postSignalInverted: plan.inverted,
-        postSignalRule: plan.rule,
-        entryHour,
-        patternGroup: gbpAud.patternGroup,
-        patternFamily: gbpAud.patternFamily,
-        pattern: String(gbpAud.pattern || ""),
-        scannerSource: "XAUUSD",
-        inversionBadge: plan.inverted,
-        sampleBars: Array.isArray(gbpAud.sampleBars) ? gbpAud.sampleBars : [],
-        signalBaseBar: null,
-        ownH1Signals,
+        slotHour: row.slotHour, symbol: "XAUUSD", profile: H1_CLOUD_PROFILE, baseSymbol: "XAUUSD",
+        baseH1Signal: own.baseH1Signal, baseHour: own.baseHour ?? row.slotHour - 1, baseMinute: 0,
+        baseDirection: own.baseDirection, symbolH1Signal: own.symbolH1Signal, scheduledSignal: null,
+        postSignalInverted: false, postSignalRule: "xau-previous-block-keep", entryHour: row.entryHour,
+        patternGroup: null, patternFamily: null, pattern: "", scannerSource: "XAUUSD", inversionBadge: false,
+        sampleBars: [], signalBaseBar: own.signalBaseBar, ownH1Signals: { GBPAUD: own },
       });
     }
     alerts.sort((left, right) => left.slotHour - right.slotHour);
@@ -1021,13 +1007,10 @@ export function buildPublicFeed(state: H1CloudState, publishedAt = new Date().to
     const symbols: H1PublicFeed["days"][string]["symbols"] = {};
     const xauSource = sourceDay.symbols.XAUUSD;
     const candidateXauAlerts = xauSource ? [...xauSource.alerts] : [];
-    const h3EntryHour = candidateXauAlerts.find((item) => item.slotHour === 3)?.entryHour ?? null;
     const xauAlerts = candidateXauAlerts
-      .filter((alert) => (
-        isH1SlotActiveForBrokerDate(dateKey, alert.slotHour)
+      .filter((alert) => isH1SlotActiveForBrokerDate(dateKey, alert.slotHour)
         && targetEnabledForDate("XAUUSD", dateKey, alert.slotHour)
-        && matchesCurrentLocalPatternContract("XAUUSD", alert, h3EntryHour)
-      ))
+        && matchesCurrentLocalPatternContract("XAUUSD", alert))
       .sort((left, right) => left.slotHour - right.slotHour);
     for (const symbol of H1_PUBLIC_SYMBOLS) {
       symbols[symbol] = { alerts: xauAlerts.flatMap((alert) => {
