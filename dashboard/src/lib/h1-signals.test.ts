@@ -93,7 +93,7 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 v99 keeps XAUUSD as entry-pattern owner and cascades the GBPAUD entry-minus-one H1 signal", () => {
+test("H1 v100 keeps XAUUSD as entry-pattern owner, scans H3-H17, and preserves the H3 entry anchor", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD"\]/);
   assert.match(localPatternsSource, /H1_SIGNAL_BASE_SOURCES = \["GBPUSD", "GBPAUD"\]/);
@@ -102,8 +102,8 @@ test("H1 v99 keeps XAUUSD as entry-pattern owner and cascades the GBPAUD entry-m
   assert.match(mobileAppBackendSource, /FALLBACK_SYMBOLS = \["GBPAUD"\]/);
   assert.match(nativeSignalsSource, /visibleSymbols = \["GBPAUD"\]/);
   assert.match(scannerSource, /H1_PUBLIC_SYMBOLS = \["GBPAUD"\]/);
-  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 99/);
-  assert.match(scannerSource, /H1_SIGNAL_END_HOUR = 12/);
+  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 100/);
+  assert.match(scannerSource, /H1_SIGNAL_END_HOUR = 17/);
   assert.match(scannerSource, /includes\(hour\) \? H1_TARGET_BASES : \[\]/);
   assert.match(localMarketRouteSource, /evaluateLocalH1PatternsForTarget/);
   assert.match(scannerSource, /function gbpAudSignalPolicy/);
@@ -111,7 +111,8 @@ test("H1 v99 keeps XAUUSD as entry-pattern owner and cascades the GBPAUD entry-m
   assert.match(scannerSource, /baseHour: entryHour - 1/);
   assert.doesNotMatch(scannerSource, /inverted: delta === 2/);
   assert.match(scannerSource, /market\.GBPAUD\.h1Bars/);
-  assert.match(scannerSource, /GBPAUD: gbpAudH1SignalForBlock/);
+  assert.match(scannerSource, /H1_SCAN_HOURS = Array\.from\(\{ length: 15 \}/);
+  assert.match(scannerSource, /function gbpAudH1SignalForBlock/);
   assert.match(localPatternsSource, /return "XAUUSD"/);
   assert.doesNotMatch(scannerSource, /derivedGbpUsdAlerts|derivedGbpAudAlerts/);
 });
@@ -125,8 +126,8 @@ test("web tab softly refreshes server data every 20 seconds", () => {
   assert.doesNotMatch(tabAutoRefreshSource, /location\.reload/);
 });
 
-test("H14 is retired as a block while H12 remains the final signal slot", () => {
-  assert.match(scannerSource, /H1_SIGNAL_END_HOUR = 12/);
+test("H17 remains the final scan slot while H3 stays active", () => {
+  assert.match(scannerSource, /H1_SIGNAL_END_HOUR = 17/);
   assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12\]/);
   assert.match(mobileAppBackendSource, /FALLBACK_HOURS = \[3, 6, 9, 12\]/);
   assert.doesNotMatch(scannerSource, /appointmentHour: 22, appointmentMinute: 5/);
