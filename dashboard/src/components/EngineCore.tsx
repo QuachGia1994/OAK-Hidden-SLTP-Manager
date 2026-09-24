@@ -1,6 +1,6 @@
 import type { H1SignalPayload } from "@/lib/h1-signals";
 import { H1_SCAN_HOURS } from "@/lib/h1-cloud-scanner";
-import { OrbitBrandMark } from "@/components/OrbitBrandMark";
+import { EngineSignalCore } from "@/components/EngineSignalCore";
 
 type Locale = "EN" | "VN";
 
@@ -71,7 +71,7 @@ export function EngineCore({ data, degraded = false, locale }: { data: H1SignalP
           </div>
         </div>
         <div className="engine-core-hero-mark" data-state={state} aria-hidden="true">
-          <OrbitBrandMark label="H1" showGrid />
+          <EngineSignalCore label="H1" showGrid />
           <span className="engine-core-caption">{copy.core} / {copy.local}</span>
         </div>
       </section>

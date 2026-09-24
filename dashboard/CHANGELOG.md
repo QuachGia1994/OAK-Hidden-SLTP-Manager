@@ -6,6 +6,17 @@ All notable changes to the dashboard are recorded here.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-24
+
+### Added
+
+- Upgraded the H1 Live command hero from the CSS-only Orbit illustration to a real Three.js r186 signal core with wireframe geometry, three spatial orbits, signal nodes, particle depth and pointer parallax. The existing OrbitBrandMark remains the WebGL fallback; reduced-motion renders a static frame, offscreen/hidden tabs pause work, and coarse/mobile devices use lower rendering cost.
+- Reworked the narrow H1 hero into a stacked layout and hid the wordmark below 420px so the 3D core, H1 copy, language controls and primary tabs remain readable without horizontal overflow.
+
+### Fixed
+
+- Tightened the H1 scanner advisory array typing so the current signal-rule code passes the production TypeScript gate without changing signal behavior.
+
 ### Changed
 
 - Advanced H1 to v98 without changing public schema 18/state v56. The public matrix now contains only `ENTRY TIME` plus GBPAUD. GBPAUD reads its own H1 candle at `entryHour - 1` for every H3/H6/H9/H12/H14 block; Entry delta `+1` KEEPS the raw H1 direction and `+2` INVERTS it, with missing exact H1 evidence failing closed. GBPUSD remains only as an internal market source for XAUUSD M15 `entry - 15m` TP-roll logic and is no longer a public/table/TP-milestone row. Web, PNG and native/mobile surfaces share the same v98 contract.

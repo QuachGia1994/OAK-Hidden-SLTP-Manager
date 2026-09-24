@@ -595,7 +595,7 @@ export function evaluateLocalH1PatternsForTarget(
 
   alerts.push(...requested
     .filter((slotHour) => slotHour >= 4 && slotHour <= 17)
-    .flatMap((slotHour) => {
+    .flatMap((slotHour): H1StoredAlert[] => {
       const own = gbpAudH1SignalForBlock(brokerDate, slotHour, market);
       // No up/down or down/up reversal: do not publish an advisory row.
       if (!own.symbolH1Signal) return [];

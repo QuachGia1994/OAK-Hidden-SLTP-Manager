@@ -19,6 +19,8 @@ const neotechCss = readFileSync(new URL("../app/neotech/neotech.module.css", imp
 const globalsCss = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const layoutSource = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const spatialSource = readFileSync(new URL("../components/SpatialHudCanvas.tsx", import.meta.url), "utf8");
+const engineSignalCoreSource = readFileSync(new URL("../components/EngineSignalCore.tsx", import.meta.url), "utf8");
+const engineCoreSource = readFileSync(new URL("../components/EngineCore.tsx", import.meta.url), "utf8");
 const breadcrumbSource = readFileSync(new URL("../components/RouteBreadcrumbs.tsx", import.meta.url), "utf8");
 const historyPageSource = readFileSync(new URL("../app/history/page.tsx", import.meta.url), "utf8");
 const toolsPageSource = readFileSync(new URL("../app/tools/page.tsx", import.meta.url), "utf8");
@@ -162,7 +164,24 @@ test("spatial HUD layer stays below DOM UI and respects performance guards", () 
   assert.match(oakCss, /body\.oak-body \{ background: var\(--oak-bg-canvas\) !important; \}/);
 });
 
+test("engine Three.js core keeps a CSS fallback and performance guards", () => {
+  assert.match(engineCoreSource, /<EngineSignalCore label="H1" showGrid \/>/);
+  assert.match(engineSignalCoreSource, /new THREE\.WebGLRenderer/);
+  assert.match(engineSignalCoreSource, /powerPreference: "low-power"/);
+  assert.match(engineSignalCoreSource, /prefers-reduced-motion: reduce/);
+  assert.match(engineSignalCoreSource, /IntersectionObserver/);
+  assert.match(engineSignalCoreSource, /visibilitychange/);
+  assert.match(engineSignalCoreSource, /<OrbitBrandMark label=\{label\} showGrid=\{showGrid\} \/>/);
+  assert.match(engineSignalCoreSource, /data-webgl="pending"/);
+  assert.match(engineSignalCoreSource, /stage\.dataset\.webgl = "fallback"/);
+  assert.match(engineSignalCoreSource, /stage\.dataset\.webgl = "ready"/);
+  assert.match(oakCss, /\.engine-three-core\[data-webgl="ready"\] > \.engine-core-visual \{ opacity: 0; visibility: hidden; \}/);
+  assert.match(oakCss, /\.engine-three-core\[data-webgl="ready"\] > \.engine-three-core-canvas \{ opacity: 1; \}/);
+});
+
 test("mobile engine geometry keeps horizontal, vertical and diagonal Orbit 3D motion while NeoTech advanced setup content cannot overlap", () => {
+  assert.match(oakCss, /@media \(max-width: 759px\)[\s\S]*\.engine-command-hero \{ grid-template-columns: minmax\(0, 1fr\);/);
+  assert.match(oakCss, /@media \(max-width: 420px\)[\s\S]*\.oak-brand-copy \{ display: none; \}/);
   assert.match(oakCss, /\.engine-core-orbit-horizontal \{ animation: engine-orbit-horizontal 10s linear infinite/);
   assert.match(oakCss, /\.engine-core-orbit-vertical \{[^}]*animation: engine-orbit-vertical 8s linear infinite/);
   assert.match(oakCss, /\.engine-core-orbit-diagonal \{[^}]*animation: engine-orbit-diagonal 13s linear infinite reverse/);
