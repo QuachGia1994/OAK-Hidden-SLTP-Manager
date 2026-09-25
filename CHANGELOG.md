@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+- Extended the production Three.js visual system across `/neotech`, `/tools`, `/factcheck`, `/tarot` and `/discover` without moving any business/data controls into WebGL. NeoTech now uses a compliance core, Tools renders all three directory motifs through one scissored renderer, Fact Check adds an Evidence Lens, Tarot adds a 3D deck hero plus texture-backed result-card reveals, and Discover uses one shared constellation that reacts to all five experiences. Every scene keeps DOM/CSS fallbacks, bounded DPR, low-power rendering, hidden/offscreen suspension and static reduced-motion behavior; the shared renderer also paints an initial frame before marking itself ready so background-tab hydration cannot expose an empty canvas.
+
+- Fixed the NeoTech narrow-mobile ruleset rail so the `RULESET v2` badge and date stay inside the hero instead of clipping at small widths.
+
 - Upgraded the `/engine` H1 command hero to a production Three.js/WebGL signal core with the existing Orbit artwork as a fail-safe fallback. The scene uses bounded DPR, low-power rendering, visibility/intersection suspension and reduced-motion support; the narrow mobile hero now stacks instead of crushing copy beside the visual, and the 420px header hides the brand wordmark to prevent locale-control overlap.
 
 - Advanced H1 to signal rule v98 while keeping public schema 18/state v56. The public table/feed now contains only the shared `ENTRY TIME` row plus GBPAUD. For every H3/H6/H9/H12/H14 block, GBPAUD reads its own H1 candle at `entryHour - 1`; an Entry delta of `+1` KEEPS the raw GBPAUD H1 direction, while `+2` INVERTS it. Missing exact H1 evidence fails closed. GBPUSD remains an internal MT5 market source only because XAUUSD still uses GBPUSD M15 `entry - 15m` for its private TP-roll signal; GBPUSD is no longer published/rendered or emitted as a public TP milestone. Web/PNG/iOS/Android/Expo use the same one-row contract and the TP-milestone/controller contract is bumped to v98.

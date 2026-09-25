@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useLocale } from "@/components/LocaleProvider";
 import { ToolArtwork } from "@/components/ToolArtwork";
+import { OakThreeStage } from "@/components/OakThreeStage";
 import { TarotCard } from "@/components/tarot/TarotCard";
 import { TAROT_COPY } from "@/lib/tarot/locale-copy";
 import { TAROT_DOMAINS, type TarotApiResponse, type TarotCardDraw, type TarotDomain, type TarotInterpretation, type TarotSpread } from "@/lib/tarot/types";
@@ -75,6 +76,14 @@ export function TarotExperience() {
         <h1>Tarot</h1>
         <p>{copy.intro}</p>
       </header>
+
+      <div className={styles.threeHero}>
+        <OakThreeStage
+          variant="tarot"
+          className={styles.tarotThreeStage}
+          fallback={<ToolArtwork kind="card" />}
+        />
+      </div>
 
       <div className={styles.workspace}>
         <section className="tarot-hero">

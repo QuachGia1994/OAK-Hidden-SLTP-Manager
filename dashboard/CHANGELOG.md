@@ -6,6 +6,15 @@ All notable changes to the dashboard are recorded here.
 
 ## [Unreleased]
 
+### Added
+
+- Added production Three.js progressive enhancement to NeoTech, Tools, Fact Check, Tarot and Discover. NeoTech renders a compliance-core hero; Tools uses one WebGL renderer with scissor viewports for all three cards; Fact Check renders an Evidence Lens; Tarot renders a 3D deck hero and texture-backed result-card reveal; Discover uses one active-state constellation for Daily, Dream, Oracle, Mood and Compatibility.
+
+### Fixed
+
+- Shared WebGL stages now render one deterministic initial frame before switching from fallback to `ready`, preventing background-tab hydration from hiding the fallback before the first visible render. Reduced motion remains static and hidden/offscreen loops stay suspended.
+- Tightened the NeoTech ruleset rail below 480px so the version badge/date do not clip on narrow mobile screens.
+
 ## [0.8.0] - 2026-09-24
 
 ### Added

@@ -26,6 +26,12 @@ const historyPageSource = readFileSync(new URL("../app/history/page.tsx", import
 const toolsPageSource = readFileSync(new URL("../app/tools/page.tsx", import.meta.url), "utf8");
 const toolsClientSource = readFileSync(new URL("../app/tools/ToolsClient.tsx", import.meta.url), "utf8");
 const tarotSource = readFileSync(new URL("../components/tarot/TarotExperience.tsx", import.meta.url), "utf8");
+const oakThreeStageSource = readFileSync(new URL("../components/OakThreeStage.tsx", import.meta.url), "utf8");
+const toolsThreeStageSource = readFileSync(new URL("../components/ToolsThreeStage.tsx", import.meta.url), "utf8");
+const factCheckHeroSource = readFileSync(new URL("../components/factcheck/FactCheckHero.tsx", import.meta.url), "utf8");
+const discoverSource = readFileSync(new URL("../components/discover/DiscoverExperience.tsx", import.meta.url), "utf8");
+const tarotCardSource = readFileSync(new URL("../components/tarot/TarotCard.tsx", import.meta.url), "utf8");
+const tarotThreeCardSource = readFileSync(new URL("../components/tarot/TarotThreeCardArt.tsx", import.meta.url), "utf8");
 
 test("mobile keeps locale reachable and exposes three direct navigation tabs", () => {
   assert.ok(navSource.includes("oak-locale-switch"));
@@ -177,6 +183,33 @@ test("engine Three.js core keeps a CSS fallback and performance guards", () => {
   assert.match(engineSignalCoreSource, /stage\.dataset\.webgl = "ready"/);
   assert.match(oakCss, /\.engine-three-core\[data-webgl="ready"\] > \.engine-core-visual \{ opacity: 0; visibility: hidden; \}/);
   assert.match(oakCss, /\.engine-three-core\[data-webgl="ready"\] > \.engine-three-core-canvas \{ opacity: 1; \}/);
+});
+
+test("NeoTech, Tools, FactCheck, Tarot and Discover use bounded Three.js progressive enhancement", () => {
+  assert.match(oakThreeStageSource, /new THREE\.WebGLRenderer/);
+  assert.match(oakThreeStageSource, /powerPreference: "low-power"/);
+  assert.match(oakThreeStageSource, /prefers-reduced-motion: reduce/);
+  assert.match(oakThreeStageSource, /IntersectionObserver/);
+  assert.match(oakThreeStageSource, /visibilitychange/);
+  assert.match(oakThreeStageSource, /data-three-state="pending"/);
+  assert.match(oakThreeStageSource, /resize\(\);\s*render\(0\);\s*stage\.dataset\.threeState = "ready"/);
+  assert.match(toolsThreeStageSource, /measure\(\);\s*render\(0\);\s*directory\.dataset\.threeState = "ready"/);
+  assert.match(neoTechSource, /<OakThreeStage[\s\S]*variant="neotech"/);
+  assert.match(toolsClientSource, /<ToolsThreeStage className=\{styles\.threeCanvas\} \/>/);
+  assert.match(toolsClientSource, /data-three-tool=\{tool\.id\}/);
+  assert.match(toolsThreeStageSource, /setScissorTest\(true\)/);
+  assert.match(toolsThreeStageSource, /getBoundingClientRect\(\)/);
+  assert.match(toolsThreeStageSource, /ResizeObserver/);
+  assert.match(factCheckHeroSource, /<OakThreeStage[\s\S]*variant="factcheck"/);
+  assert.match(discoverSource, /activeThreeState/);
+  assert.match(discoverSource, /<OakThreeStage[\s\S]*variant="discover"[\s\S]*active=\{activeThreeState\}/);
+  assert.match(tarotSource, /<OakThreeStage[\s\S]*variant="tarot"/);
+  assert.match(tarotCardSource, /<TarotThreeCardArt/);
+  assert.match(tarotThreeCardSource, /TextureLoader/);
+  assert.match(tarotThreeCardSource, /powerPreference: "low-power"/);
+  assert.match(tarotThreeCardSource, /prefers-reduced-motion: reduce/);
+  assert.match(tarotThreeCardSource, /stage\.dataset\.threeState = "fallback"/);
+  assert.match(tarotThreeCardSource, /stage\.dataset\.threeState = "ready"/);
 });
 
 test("mobile engine geometry keeps horizontal, vertical and diagonal Orbit 3D motion while NeoTech advanced setup content cannot overlap", () => {

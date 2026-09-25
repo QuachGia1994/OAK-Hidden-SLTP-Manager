@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
+import { OakThreeStage } from "@/components/OakThreeStage";
 import { useLocale } from "@/components/LocaleProvider";
 import { useDialogFocusTrap } from "@/hooks/useDialogFocusTrap";
 import type { NeoTechPublicProfile, NeoTechPublicRule, NeoTechPublicRuleCode, NeoTechPublicStatus } from "@/lib/neotech-public-domain";
@@ -545,7 +546,11 @@ export function NeoTechPublicDashboard() {
 
           </div>
           <div className={styles.heroVisualV2} aria-hidden="true">
-            <Image src="/neotech-hero-v3.webp" alt="" fill sizes="(max-width: 760px) 100vw, 760px" preload className={styles.heroArtwork} />
+            <OakThreeStage
+              variant="neotech"
+              className={styles.neoThreeStage}
+              fallback={<Image src="/neotech-hero-v3.webp" alt="" fill sizes="(max-width: 760px) 100vw, 760px" preload className={styles.heroArtwork} />}
+            />
             <span className={styles.heroVisualLabel}>NEOTECH / RULESET v2</span>
           </div>
         </div>

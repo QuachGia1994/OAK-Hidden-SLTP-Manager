@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { WorkspaceHeading } from "@/components/WorkspaceHeading";
 import { ToolArtwork, type ToolArtworkKind } from "@/components/ToolArtwork";
+import { OakThreeStage, type DiscoverThreeState } from "@/components/OakThreeStage";
 import { useLocale } from "@/components/LocaleProvider";
 import type { CompatibilityReading, DreamReading } from "@/lib/discover/gemini";
 import styles from "./discover-workspace.module.css";
@@ -121,10 +122,29 @@ export function DiscoverExperience() {
   const [compatReading, setCompatReading] = useState<CompatibilityReading | null>(null);
   const [compatLoading, setCompatLoading] = useState(false);
   const [error, setError] = useState("");
+  const [activeThreeState, setActiveThreeState] = useState<DiscoverThreeState>("daily");
 
   useEffect(() => {
     setDaily(readJson<DailyState | null>("oak-discover-daily", null));
     setMoods(readJson<MoodEntry[]>("oak-discover-moods", []).slice(-7));
+  }, []);
+
+  useEffect(() => {
+    const keys: DiscoverThreeState[] = ["daily", "dream", "oracle", "mood", "compatibility"];
+    const elements = keys
+      .map((key) => ({ key, element: document.getElementById(key) }))
+      .filter((item): item is { key: DiscoverThreeState; element: HTMLElement } => Boolean(item.element));
+
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      const id = visible?.target.id as DiscoverThreeState | undefined;
+      if (id && keys.includes(id)) setActiveThreeState(id);
+    }, { threshold: [0.2, 0.45, 0.7], rootMargin: "-18% 0px -42% 0px" });
+
+    elements.forEach(({ element }) => observer.observe(element));
+    return () => observer.disconnect();
   }, []);
 
   const revealDaily = () => {
@@ -188,6 +208,15 @@ export function DiscoverExperience() {
   return (
     <div className={`${styles.screen} page-shell discover-screen discover-route-shell`}>
       <WorkspaceHeading workspace="discover" locale={locale} />
+
+      <div className={styles.threeBand}>
+        <OakThreeStage
+          variant="discover"
+          active={activeThreeState}
+          className={styles.discoverThreeStage}
+          fallback={<ToolArtwork kind="discover" />}
+        />
+      </div>
 
       {error && <div className={`oak-global-error ${styles.error}`} role="alert"><span>!</span><p>{error}</p></div>}
 

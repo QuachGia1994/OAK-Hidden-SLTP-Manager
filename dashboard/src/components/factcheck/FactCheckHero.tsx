@@ -1,4 +1,5 @@
 import { ToolArtwork } from "@/components/ToolArtwork";
+import { OakThreeStage } from "@/components/OakThreeStage";
 import styles from "./factcheck-workspace.module.css";
 
 export function FactCheckHero({ locale }: { locale: "EN" | "VN" }) {
@@ -29,7 +30,11 @@ export function FactCheckHero({ locale }: { locale: "EN" | "VN" }) {
 
       <div className={styles.heroVisual} aria-hidden="true">
         <div className={styles.heroVisualFrame}>
-          <ToolArtwork kind="factcheck" />
+          <OakThreeStage
+            variant="factcheck"
+            className={styles.factThreeStage}
+            fallback={<ToolArtwork kind="factcheck" />}
+          />
         </div>
         <span className={styles.heroVisualCaption}>{isEnglish ? "Evidence desk" : "Bàn kiểm chứng"}</span>
       </div>

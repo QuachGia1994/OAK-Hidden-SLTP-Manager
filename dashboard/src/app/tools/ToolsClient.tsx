@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useLocale } from "@/components/LocaleProvider";
 import { ToolArtwork } from "@/components/ToolArtwork";
+import { ToolsThreeStage } from "@/components/ToolsThreeStage";
 import { OAK_TOOLS } from "@/lib/oak-tools";
 import styles from "./tools.module.css";
 
@@ -28,12 +29,13 @@ export function ToolsClient({ locale: serverLocale }: { locale: "EN" | "VN" }) {
     </header>
 
     <section className={styles.directory} aria-label={locale === "EN" ? "OAK tools" : "Công cụ OAK"}>
+      <ToolsThreeStage className={styles.threeCanvas} />
       {OAK_TOOLS.map((tool, index) => <Link key={tool.id} href={tool.href} className={styles.card} data-kind={tool.id}>
         <div className={styles.cardTop}>
           <span className={styles.index}>{String(index + 1).padStart(2, "0")}</span>
           <span className={styles.category}>{TOOL_CATEGORIES[tool.id][locale]}</span>
         </div>
-        <div className={styles.artworkFrame}>
+        <div className={styles.artworkFrame} data-three-tool={tool.id}>
           <ToolArtwork kind={tool.id} />
         </div>
         <div className={styles.cardBody}>

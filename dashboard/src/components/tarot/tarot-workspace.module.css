@@ -50,6 +50,23 @@
   line-height: 1.55;
 }
 
+.threeHero {
+  position: relative;
+  min-height: 10rem;
+  margin-bottom: 1rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--tarot-violet) 38%, var(--tarot-line));
+  border-radius: 1.15rem;
+  background: radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--tarot-violet) 15%, transparent), transparent 58%), var(--tarot-surface);
+}
+
+.tarotThreeStage {
+  --three-accent: var(--tarot-violet);
+  --three-accent-strong: var(--tarot-gold);
+  --three-line: var(--tarot-line);
+  min-height: 10rem;
+}
+
 .workspace {
   display: grid;
   grid-template-columns: minmax(18rem, .78fr) minmax(0, 1.22fr);
@@ -442,6 +459,38 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.shell :global(.tarot-three-card-art) {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.shell :global(.tarot-three-card-art) > img,
+.shell :global(.tarot-three-card-art) > canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.shell :global(.tarot-three-card-art) > canvas {
+  display: block;
+  opacity: 0;
+  pointer-events: auto;
+  transition: opacity var(--oak-motion-base) var(--oak-ease);
+}
+
+.shell :global(.tarot-three-card-art[data-three-state="ready"]) > img {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.shell :global(.tarot-three-card-art[data-three-state="ready"]) > canvas {
+  opacity: 1;
 }
 
 .shell :global(.tarot-card-caption) {

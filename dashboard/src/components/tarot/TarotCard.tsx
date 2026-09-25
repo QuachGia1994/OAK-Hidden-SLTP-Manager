@@ -1,5 +1,6 @@
 import type { TarotCardDraw, TarotLocale } from "@/lib/tarot/types";
 import type { TarotCopy } from "@/lib/tarot/locale-copy";
+import { TarotThreeCardArt } from "@/components/tarot/TarotThreeCardArt";
 
 export function TarotCard({
   card,
@@ -27,12 +28,10 @@ export function TarotCard({
       <div className="tarot-card-face">
         <div className="tarot-card-frame">
           <div className="tarot-card-art" data-reversed={card.orientation === "reversed"}>
-            <img
+            <TarotThreeCardArt
               src={card.artwork}
               alt={`${card.name[locale]} — ${orientation}`}
-              loading="lazy"
-              width={420}
-              height={630}
+              reversed={card.orientation === "reversed"}
             />
           </div>
         </div>

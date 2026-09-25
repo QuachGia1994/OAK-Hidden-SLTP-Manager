@@ -26,6 +26,22 @@
   line-height: 1.5;
 }
 
+.threeBand {
+  position: relative;
+  min-height: 12rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--oak-accent-command) 42%, var(--oak-border-strong));
+  border-radius: var(--oak-radius-md);
+  background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--oak-accent-command) 12%, transparent), transparent 58%), var(--oak-bg-surface);
+}
+
+.discoverThreeStage {
+  --three-accent: var(--oak-accent-command);
+  --three-accent-strong: var(--oak-accent-command-strong);
+  --three-line: var(--oak-border-subtle);
+  min-height: 12rem;
+}
+
 .error {
   margin: 0;
 }
@@ -377,6 +393,11 @@
     gap: 0.75rem;
   }
 
+  .threeBand,
+  .discoverThreeStage {
+    min-height: 9.5rem;
+  }
+
   .experienceGrid {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.75rem;
@@ -413,6 +434,11 @@
 }
 
 @media (max-width: 420px) {
+  .threeBand,
+  .discoverThreeStage {
+    min-height: 8rem;
+  }
+
   .card,
   .daily {
     padding: 0.8rem;

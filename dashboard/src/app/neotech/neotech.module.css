@@ -38,6 +38,7 @@
 .heroCopyV2 .heroActions { margin-top: 1.15rem; }
 .heroVisualV2 { position: relative; min-height: 300px; overflow: hidden; border-left: 1px solid var(--nt-border); background: var(--nt-canvas); }
 .heroArtwork { object-fit: cover; object-position: 64% center; opacity: .9; }
+.neoThreeStage { --three-accent: var(--nt-blue); --three-accent-strong: var(--nt-blue-strong); --three-line: var(--nt-border); position: absolute; inset: 0; min-height: 300px; }
 .heroVisualV2::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, var(--nt-surface), transparent 34%), linear-gradient(0deg, color-mix(in srgb, var(--nt-canvas) 68%, transparent), transparent 46%); pointer-events: none; }
 .heroVisualLabel { position: absolute; z-index: 1; left: 1rem; bottom: .9rem; padding: .35rem .5rem; border: 1px solid color-mix(in srgb, var(--nt-blue) 48%, var(--nt-border)); border-radius: 999px; color: var(--nt-on-art); background: color-mix(in srgb, #07131b 68%, transparent); font: 800 .75rem/1 var(--font-mono); letter-spacing: .1em; }
 .downloadPanel { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(220px, .65fr); gap: 1rem; padding: 1rem; border: 1px solid color-mix(in srgb, var(--nt-blue) 34%, var(--nt-border)); border-radius: var(--nt-radius); background: radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--nt-blue) 12%, transparent), transparent 40%), var(--nt-surface); color: var(--nt-text); box-shadow: var(--oak-shadow-1); }
@@ -548,6 +549,7 @@
   .heroV2Grid { grid-template-columns: 1fr; min-height: 0; }
   .heroCopyV2 { padding: 1.1rem; }
   .heroVisualV2 { position: relative; inset: auto; height: 180px; min-height: 180px; mask-image: linear-gradient(0deg, black 85%, transparent); }
+  .neoThreeStage { min-height: 180px; }
   .heroCopyV2 p { max-width: none; }
   .heroCopyV2 h1 { font-size: clamp(2.4rem, 14vw, 3.5rem); }
   .heroCopyV2 p { font-size: .9rem; }
@@ -597,6 +599,11 @@
 }
 
 @media (max-width: 480px) {
+  .brandRail { gap: .45rem; padding: .65rem; }
+  .heroRailLabel { gap: .35rem; font-size: .68rem; letter-spacing: .06em; }
+  .rulesetBadge { min-width: 0; padding: .45rem .5rem; border-radius: 13px; }
+  .rulesetBadge b { font-size: .82rem; white-space: nowrap; }
+  .rulesetBadge small { font-size: .68rem; white-space: nowrap; }
   .ruleConceptGrid, .ruleConceptTailGrid { grid-template-columns: minmax(0, 1fr); }
   .page .ruleConceptCard { grid-template-columns: 2rem minmax(0, 1fr); grid-template-rows: auto auto auto; min-height: 0; padding: 1rem; gap: .5rem .75rem; }
   .page .ruleConceptCode { grid-column: 1; grid-row: 1 / -1; }

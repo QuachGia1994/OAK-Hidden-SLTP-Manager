@@ -59,9 +59,26 @@
 }
 
 .directory {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: clamp(.8rem, 2vw, 1.35rem);
+}
+
+.threeCanvas {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--oak-motion-base) var(--oak-ease);
+}
+
+.directory[data-three-state="ready"] > .threeCanvas {
+  opacity: 1;
 }
 
 .shell .card {
@@ -146,8 +163,13 @@
   min-height: 0;
   aspect-ratio: 1;
   background-size: 300% 300%;
+  opacity: 1;
   transform: scale(1.12);
-  transition: transform var(--oak-motion-base) var(--oak-ease);
+  transition: opacity var(--oak-motion-base) var(--oak-ease), transform var(--oak-motion-base) var(--oak-ease);
+}
+
+.directory[data-three-state="ready"] .artworkFrame :global(.oak-tool-art) {
+  opacity: 0;
 }
 
 .shell .card:hover .artworkFrame :global(.oak-tool-art) {
@@ -257,7 +279,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .shell .card,
-  .artworkFrame :global(.oak-tool-art) {
+  .artworkFrame :global(.oak-tool-art),
+  .threeCanvas {
     transition: none;
   }
 }
