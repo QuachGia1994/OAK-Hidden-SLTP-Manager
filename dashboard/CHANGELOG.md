@@ -4,7 +4,7 @@
 
 All notable changes to the dashboard are recorded here.
 
-## [Unreleased]
+## [0.9.0] - 2026-09-26
 
 ### Added
 
@@ -12,6 +12,8 @@ All notable changes to the dashboard are recorded here.
 
 ### Fixed
 
+- Kept the dense H1 WebGL mesh on mobile and desktop while binding every bright moving node to its visible orbit. NeoTech, Fact Check and Discover nodes now follow their own tracks, including the Discover motif in Tools.
+- Added smooth 3D pointer response to the H1 and shared workspace scenes and eased per-card motion in Tools without moving nodes off their tracks.
 - Shared WebGL stages now render one deterministic initial frame before switching from fallback to `ready`, preventing background-tab hydration from hiding the fallback before the first visible render. Reduced motion remains static and hidden/offscreen loops stay suspended.
 - Tightened the NeoTech ruleset rail below 480px so the version badge/date do not clip on narrow mobile screens.
 

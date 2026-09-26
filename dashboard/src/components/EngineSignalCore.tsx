@@ -70,12 +70,6 @@ export function EngineSignalCore({ label = "H1", showGrid = false }: { label?: s
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
-    const lineMaterial = new THREE.LineBasicMaterial({
-      transparent: true,
-      opacity: 0.14,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
     const pulseMaterial = new THREE.MeshBasicMaterial({
       wireframe: true,
       transparent: true,
@@ -113,14 +107,16 @@ export function EngineSignalCore({ label = "H1", showGrid = false }: { label?: s
       });
       ringMaterials.push(material);
       group.add(new THREE.Mesh(new THREE.TorusGeometry(radius, 0.009, 4, coarse ? 96 : 160), material));
+      const nodes: THREE.Mesh[] = [];
       for (let index = 0; index < nodeCount; index += 1) {
         const angle = (index / nodeCount) * Math.PI * 2 + index * 0.7;
         const node = new THREE.Mesh(nodeGeometry, nodeMaterial);
         node.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius, 0);
         group.add(node);
+        nodes.push(node);
       }
       root.add(group);
-      return group;
+      return { group, nodes, radius };
     };
 
     const orbitA = makeOrbit(2.04, [1.08, 0.02, 0.16], 4, 0.42);
@@ -129,22 +125,6 @@ export function EngineSignalCore({ label = "H1", showGrid = false }: { label?: s
 
     const pulse = new THREE.Mesh(new THREE.SphereGeometry(1.62, coarse ? 16 : 24, coarse ? 12 : 16), pulseMaterial);
     root.add(pulse);
-
-    const anchors = [
-      new THREE.Vector3(-2.22, 1.04, -0.25),
-      new THREE.Vector3(2.32, 0.8, 0.25),
-      new THREE.Vector3(1.78, -1.52, -0.5),
-      new THREE.Vector3(-1.62, -1.48, 0.35),
-    ];
-    for (const target of anchors) {
-      root.add(new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), target]),
-        lineMaterial,
-      ));
-      const dot = new THREE.Mesh(nodeGeometry, nodeMaterial);
-      dot.position.copy(target);
-      root.add(dot);
-    }
 
     const starCount = coarse ? 70 : 150;
     const starPositions = new Float32Array(starCount * 3);
@@ -159,7 +139,7 @@ export function EngineSignalCore({ label = "H1", showGrid = false }: { label?: s
     const starGeometry = new THREE.BufferGeometry();
     starGeometry.setAttribute("position", new THREE.BufferAttribute(starPositions, 3));
     const stars = new THREE.Points(starGeometry, starMaterial);
-    root.add(stars);
+    scene.add(stars);
 
     const grid = new THREE.GridHelper(11, coarse ? 14 : 22);
     grid.position.set(0, -2.22, -1.2);
@@ -179,7 +159,6 @@ export function EngineSignalCore({ label = "H1", showGrid = false }: { label?: s
       coreMaterial.color.set(accent);
       cageMaterial.color.set(strong);
       nodeMaterial.color.set(strong);
-      lineMaterial.color.set(accent);
       pulseMaterial.color.set(accent);
       starMaterial.color.set(accent);
       for (const material of ringMaterials) material.color.set(accent);
@@ -196,6 +175,8 @@ export function EngineSignalCore({ label = "H1", showGrid = false }: { label?: s
     let pointerY = 0;
     let targetX = 0;
     let targetY = 0;
+    let hover = 0;
+    let targetHover = 0;
 
     const resize = () => {
       const rect = stage.getBoundingClientRect();
@@ -212,22 +193,34 @@ export function EngineSignalCore({ label = "H1", showGrid = false }: { label?: s
     const render = (time = 0) => {
       pointerX += (targetX - pointerX) * 0.045;
       pointerY += (targetY - pointerY) * 0.045;
+      hover += (targetHover - hover) * 0.075;
       const seconds = time * 0.001;
       if (!reduced) {
+        const moveNodes = (orbit: ReturnType<typeof makeOrbit>, speed: number) => {
+          orbit.nodes.forEach((node, index) => {
+            const angle = (index / orbit.nodes.length) * Math.PI * 2 + index * 0.7 + seconds * speed;
+            node.position.set(Math.cos(angle) * orbit.radius, Math.sin(angle) * orbit.radius, 0);
+          });
+        };
         core.rotation.y = seconds * 0.17;
         core.rotation.x = seconds * 0.09;
         cage.rotation.y = -seconds * 0.08;
         cage.rotation.z = seconds * 0.05;
-        orbitA.rotation.z = 0.16 + seconds * 0.17;
-        orbitB.rotation.x = 0.25 - seconds * 0.13;
-        orbitC.rotation.z = 0.7 - seconds * 0.09;
+        orbitA.group.rotation.z = 0.16 + seconds * 0.17;
+        orbitB.group.rotation.x = 0.25 - seconds * 0.13;
+        orbitC.group.rotation.z = 0.7 - seconds * 0.09;
+        moveNodes(orbitA, 0.28);
+        moveNodes(orbitB, -0.22);
+        moveNodes(orbitC, 0.18);
         pulse.scale.setScalar(1 + Math.sin(seconds * 1.25) * 0.035);
         pulseMaterial.opacity = 0.055 + Math.sin(seconds * 1.25) * 0.022;
-        stars.rotation.z = seconds * 0.008;
-        root.rotation.y = 0.18 + pointerX * 0.12;
-        root.rotation.x = -0.12 - pointerY * 0.075;
-        camera.position.x = pointerX * 0.16;
-        camera.position.y = 0.1 - pointerY * 0.1;
+        root.rotation.y += (0.18 + pointerX * 0.25 * hover - root.rotation.y) * 0.07;
+        root.rotation.x += (-0.12 - pointerY * 0.2 * hover - root.rotation.x) * 0.07;
+        root.rotation.z += (-0.08 + pointerX * 0.065 * hover - root.rotation.z) * 0.07;
+        root.position.z += (hover * 0.2 - root.position.z) * 0.07;
+        root.scale.setScalar(1 + hover * 0.035);
+        camera.position.x = pointerX * 0.14 * hover;
+        camera.position.y = 0.1 - pointerY * 0.09 * hover;
         camera.lookAt(0, 0, 0);
       }
       renderer.render(scene, camera);
@@ -252,6 +245,12 @@ export function EngineSignalCore({ label = "H1", showGrid = false }: { label?: s
       const rect = stage.getBoundingClientRect();
       targetX = ((event.clientX - rect.left) / Math.max(rect.width, 1) - 0.5) * 2;
       targetY = ((event.clientY - rect.top) / Math.max(rect.height, 1) - 0.5) * 2;
+    };
+    const onPointerEnter = () => { targetHover = 1; };
+    const onPointerLeave = () => {
+      targetHover = 0;
+      targetX = 0;
+      targetY = 0;
     };
     const onVisibility = () => {
       if (document.hidden) stop();
@@ -281,7 +280,11 @@ export function EngineSignalCore({ label = "H1", showGrid = false }: { label?: s
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
     document.addEventListener("visibilitychange", onVisibility);
     canvas.addEventListener("webglcontextlost", onContextLost);
-    if (!coarse && !reduced) stage.addEventListener("pointermove", onPointerMove, { passive: true });
+    if (!coarse && !reduced) {
+      stage.addEventListener("pointerenter", onPointerEnter);
+      stage.addEventListener("pointermove", onPointerMove, { passive: true });
+      stage.addEventListener("pointerleave", onPointerLeave);
+    }
 
     resize();
     stage.dataset.webgl = "ready";
@@ -297,6 +300,8 @@ export function EngineSignalCore({ label = "H1", showGrid = false }: { label?: s
       document.removeEventListener("visibilitychange", onVisibility);
       canvas.removeEventListener("webglcontextlost", onContextLost);
       stage.removeEventListener("pointermove", onPointerMove);
+      stage.removeEventListener("pointerenter", onPointerEnter);
+      stage.removeEventListener("pointerleave", onPointerLeave);
 
       const geometries = new Set<THREE.BufferGeometry>();
       const materials = new Set<THREE.Material>();

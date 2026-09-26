@@ -10,6 +10,7 @@ type ToolView = {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   root: THREE.Group;
+  animate?: (seconds: number) => void;
 };
 
 const TOOL_KINDS: ToolKind[] = ["factcheck", "tarot", "discover"];
@@ -25,22 +26,13 @@ function makeMaterial(color: THREE.Color, opacity = 1, wireframe = false) {
   });
 }
 
-function makeLineMaterial(color: THREE.Color, opacity = 1) {
-  return new THREE.LineBasicMaterial({
-    color,
-    transparent: opacity < 1,
-    opacity,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-}
-
 function buildView(kind: ToolKind, accent: THREE.Color, strong: THREE.Color): ToolView {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 30);
   camera.position.z = 5.2;
   const root = new THREE.Group();
   scene.add(root);
+  let animate: ToolView["animate"];
 
   if (kind === "factcheck") {
     const outer = new THREE.Mesh(new THREE.TorusGeometry(1.32, 0.045, 8, 96), makeMaterial(accent, 0.62, true));
@@ -68,21 +60,26 @@ function buildView(kind: ToolKind, accent: THREE.Color, strong: THREE.Color): To
   if (kind === "discover") {
     const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.45, 1), makeMaterial(strong, 0.5, true));
     root.add(core);
-    const lineMaterial = makeLineMaterial(accent, 0.2);
-    for (let index = 0; index < 5; index += 1) {
-      const angle = -Math.PI / 2 + index / 5 * Math.PI * 2;
-      const target = new THREE.Vector3(Math.cos(angle) * 1.45, Math.sin(angle) * 1.05, Math.sin(angle * 1.5) * 0.35);
-      const node = new THREE.Mesh(new THREE.OctahedronGeometry(0.13, 1), makeMaterial(accent, 0.82));
-      node.position.copy(target);
-      root.add(node);
-      root.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), target]), lineMaterial));
-    }
-    const orbit = new THREE.Mesh(new THREE.TorusGeometry(1.7, 0.009, 4, 100), makeMaterial(accent, 0.2));
+    const orbit = new THREE.Mesh(new THREE.TorusGeometry(1.7, 0.009, 4, 100), makeMaterial(accent, 0.24));
     orbit.rotation.set(0.65, 0.35, 0.22);
     root.add(orbit);
+    const nodes: THREE.Mesh[] = [];
+    for (let index = 0; index < 5; index += 1) {
+      const angle = -Math.PI / 2 + index / 5 * Math.PI * 2;
+      const node = new THREE.Mesh(new THREE.OctahedronGeometry(0.13, 1), makeMaterial(accent, 0.82));
+      node.position.set(Math.cos(angle) * 1.7, Math.sin(angle) * 1.7, 0);
+      orbit.add(node);
+      nodes.push(node);
+    }
+    animate = (seconds) => {
+      nodes.forEach((node, index) => {
+        const angle = -Math.PI / 2 + index / nodes.length * Math.PI * 2 + seconds * 0.12;
+        node.position.set(Math.cos(angle) * 1.7, Math.sin(angle) * 1.7, 0);
+      });
+    };
   }
 
-  return { kind, scene, camera, root };
+  return { kind, scene, camera, root, animate };
 }
 
 function disposeView(view: ToolView) {
@@ -137,6 +134,16 @@ export function ToolsThreeStage({ className = "" }: { className?: string }) {
     let hovered: ToolKind | null = null;
     let visible = true;
     let frame = 0;
+    let animationStart: number | null = null;
+    let lastSeconds = 0;
+    const motion = new Map(TOOL_KINDS.map((kind) => [kind, {
+      spin: 0,
+      hover: 0,
+      x: 0,
+      y: 0,
+      targetX: 0,
+      targetY: 0,
+    }]));
 
     for (const kind of TOOL_KINDS) {
       const slot = directory.querySelector<HTMLElement>('[data-three-tool="' + kind + '"]');
@@ -166,16 +173,27 @@ export function ToolsThreeStage({ className = "" }: { className?: string }) {
       renderer.clear();
       renderer.setScissorTest(true);
       const seconds = time * 0.001;
+      const delta = lastSeconds ? Math.min(0.05, Math.max(0, seconds - lastSeconds)) : 0;
+      lastSeconds = seconds;
 
       for (const view of views) {
         const rect = rects.get(view.kind);
         if (!rect) continue;
         const active = hovered === view.kind;
         if (!reduced) {
-          view.root.rotation.y = seconds * (active ? 0.34 : 0.13);
-          view.root.rotation.x = Math.sin(seconds * 0.55) * (active ? 0.12 : 0.045);
-          const scale = view.root.scale.x + ((active ? 1.13 : 1) - view.root.scale.x) * 0.08;
-          view.root.scale.setScalar(scale);
+          view.animate?.(seconds);
+          const state = motion.get(view.kind);
+          if (state) {
+            state.hover += ((active ? 1 : 0) - state.hover) * 0.09;
+            state.x += (state.targetX - state.x) * 0.08;
+            state.y += (state.targetY - state.y) * 0.08;
+            state.spin += delta * (0.13 + state.hover * 0.21);
+            view.root.rotation.y = state.spin + state.x * 0.22 * state.hover;
+            view.root.rotation.x = Math.sin(seconds * 0.55) * (0.045 + state.hover * 0.075) - state.y * 0.16 * state.hover;
+            view.root.rotation.z = state.x * 0.06 * state.hover;
+            view.root.position.z = state.hover * 0.14;
+            view.root.scale.setScalar(1 + state.hover * 0.1);
+          }
         }
         view.camera.aspect = rect.width / rect.height;
         view.camera.updateProjectionMatrix();
@@ -188,7 +206,8 @@ export function ToolsThreeStage({ className = "" }: { className?: string }) {
     const loop = (time: number) => {
       frame = 0;
       if (!visible || document.hidden) return;
-      render(time);
+      if (animationStart === null) animationStart = time;
+      render(time - animationStart);
       frame = window.requestAnimationFrame(loop);
     };
     const start = () => {
@@ -203,12 +222,26 @@ export function ToolsThreeStage({ className = "" }: { className?: string }) {
     const cleanups: Array<() => void> = [];
     slots.forEach((slot, kind) => {
       const enter = () => { hovered = kind; if (reduced) render(0); };
-      const leave = () => { if (hovered === kind) hovered = null; if (reduced) render(0); };
+      const move = (event: PointerEvent) => {
+        const state = motion.get(kind);
+        if (!state) return;
+        const rect = slot.getBoundingClientRect();
+        state.targetX = ((event.clientX - rect.left) / Math.max(rect.width, 1) - 0.5) * 2;
+        state.targetY = ((event.clientY - rect.top) / Math.max(rect.height, 1) - 0.5) * 2;
+      };
+      const leave = () => {
+        if (hovered === kind) hovered = null;
+        const state = motion.get(kind);
+        if (state) { state.targetX = 0; state.targetY = 0; }
+        if (reduced) render(0);
+      };
       if (!coarse) {
         slot.addEventListener("pointerenter", enter);
+        slot.addEventListener("pointermove", move, { passive: true });
         slot.addEventListener("pointerleave", leave);
         cleanups.push(() => {
           slot.removeEventListener("pointerenter", enter);
+          slot.removeEventListener("pointermove", move);
           slot.removeEventListener("pointerleave", leave);
         });
       }

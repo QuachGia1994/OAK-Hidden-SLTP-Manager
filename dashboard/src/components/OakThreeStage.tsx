@@ -120,19 +120,14 @@ export function OakThreeStage({ variant, active = "daily", fallback, className =
       ring.rotation.x = 1.02;
       root.add(ring);
 
-      const nodes = new THREE.Group();
+      const nodes: THREE.Mesh[] = [];
       for (let index = 0; index < 14; index += 1) {
         const angle = (index / 14) * Math.PI * 2;
         const node = new THREE.Mesh(nodeGeometry, nodeMaterial);
-        const radius = 2.05;
-        node.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius * 0.48, Math.sin(angle * 2) * 0.36);
-        nodes.add(node);
-        root.add(new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), node.position.clone()]),
-          makeLine(0.09),
-        ));
+        node.position.set(Math.cos(angle) * 2.05, Math.sin(angle) * 2.05, 0);
+        ring.add(node);
+        nodes.push(node);
       }
-      root.add(nodes);
 
       const shield = new THREE.Mesh(new THREE.CylinderGeometry(1.68, 1.68, 0.025, 6), makeBasic(0.08, true));
       shield.rotation.x = Math.PI / 2;
@@ -144,7 +139,10 @@ export function OakThreeStage({ variant, active = "daily", fallback, className =
         core.rotation.y = t * 0.18;
         cage.rotation.y = -t * 0.08;
         ring.rotation.z = t * 0.07;
-        nodes.rotation.z = -t * 0.045;
+        nodes.forEach((node, index) => {
+          const angle = (index / nodes.length) * Math.PI * 2 + t * 0.16;
+          node.position.set(Math.cos(angle) * 2.05, Math.sin(angle) * 2.05, 0);
+        });
       };
     }
 
@@ -182,21 +180,24 @@ export function OakThreeStage({ variant, active = "daily", fallback, className =
       );
       root.add(scan);
 
-      const evidenceNodes = new THREE.Group();
+      const evidenceNodes: THREE.Mesh[] = [];
       const nodeMaterial = makeBasic(0.86);
       for (let index = 0; index < 8; index += 1) {
         const angle = (index / 8) * Math.PI * 2;
         const node = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), nodeMaterial);
-        node.position.set(Math.cos(angle) * 1.35, Math.sin(angle) * 1.35, 0.16);
-        evidenceNodes.add(node);
+        node.position.set(Math.cos(angle) * 1.55, Math.sin(angle) * 1.55, 0);
+        outer.add(node);
+        evidenceNodes.push(node);
       }
-      root.add(evidenceNodes);
 
       animateVariant = (time) => {
         const t = time * 0.001;
         outer.rotation.z = t * 0.08;
         inner.rotation.z = -t * 0.12;
-        evidenceNodes.rotation.z = -t * 0.055;
+        evidenceNodes.forEach((node, index) => {
+          const angle = (index / evidenceNodes.length) * Math.PI * 2 - t * 0.16;
+          node.position.set(Math.cos(angle) * 1.55, Math.sin(angle) * 1.55, 0);
+        });
         scan.position.y = Math.sin(t * 1.25) * 0.82;
       };
     }
@@ -225,7 +226,7 @@ export function OakThreeStage({ variant, active = "daily", fallback, className =
         const t = time * 0.001;
         cards.rotation.y = Math.sin(t * 0.45) * 0.16;
         cards.rotation.x = Math.sin(t * 0.32) * 0.05;
-        orbit.rotation.z = t * 0.07;
+        orbit.rotation.z = 0.2 + t * 0.07;
         star.rotation.x = t * 0.25;
         star.rotation.y = -t * 0.32;
       };
@@ -237,13 +238,16 @@ export function OakThreeStage({ variant, active = "daily", fallback, className =
 
       const keys: DiscoverThreeState[] = ["daily", "dream", "oracle", "mood", "compatibility"];
       const nodeMaterial = makeBasic(0.72);
-      const lineMaterial = makeLine(0.16);
       const nodeMap = new Map<DiscoverThreeState, THREE.Mesh>();
+
+      const orbitA = new THREE.Mesh(new THREE.TorusGeometry(1.35, 0.008, 4, 100), makeBasic(0.16));
+      const orbitB = new THREE.Mesh(new THREE.TorusGeometry(2.18, 0.007, 4, 120), makeBasic(0.22));
+      orbitA.rotation.x = 1.12;
+      orbitB.rotation.set(0.4, 0.72, 0.28);
+      root.add(orbitA, orbitB);
 
       keys.forEach((key, index) => {
         const angle = -Math.PI / 2 + (index / keys.length) * Math.PI * 2;
-        const radius = 1.8;
-        const target = new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius * 0.72, Math.sin(angle * 1.7) * 0.34);
         const geometry = key === "oracle"
           ? new THREE.OctahedronGeometry(0.2, 1)
           : key === "compatibility"
@@ -254,29 +258,23 @@ export function OakThreeStage({ variant, active = "daily", fallback, className =
                 ? new THREE.SphereGeometry(0.19, 14, 10)
                 : new THREE.IcosahedronGeometry(0.2, 1);
         const node = new THREE.Mesh(geometry, nodeMaterial);
-        node.position.copy(target);
+        node.position.set(Math.cos(angle) * 2.18, Math.sin(angle) * 2.18, 0);
         nodeMap.set(key, node);
-        root.add(node);
-        root.add(new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), target]),
-          lineMaterial,
-        ));
+        orbitB.add(node);
       });
-
-      const orbitA = new THREE.Mesh(new THREE.TorusGeometry(1.35, 0.008, 4, 100), makeBasic(0.16));
-      const orbitB = new THREE.Mesh(new THREE.TorusGeometry(2.18, 0.007, 4, 120), makeBasic(0.12));
-      orbitA.rotation.x = 1.12;
-      orbitB.rotation.set(0.4, 0.72, 0.28);
-      root.add(orbitA, orbitB);
 
       animateVariant = (time) => {
         const t = time * 0.001;
         core.rotation.x = t * 0.12;
         core.rotation.y = -t * 0.16;
         orbitA.rotation.z = t * 0.08;
-        orbitB.rotation.z = -t * 0.05;
+        orbitB.rotation.z = 0.28 - t * 0.05;
 
-        for (const [key, node] of nodeMap) {
+        for (const [index, key] of keys.entries()) {
+          const node = nodeMap.get(key);
+          if (!node) continue;
+          const angle = -Math.PI / 2 + (index / keys.length) * Math.PI * 2 + t * 0.07;
+          node.position.set(Math.cos(angle) * 2.18, Math.sin(angle) * 2.18, 0);
           const selected = key === activeRef.current;
           const desired = selected ? 1.7 : 1;
           const scale = node.scale.x + (desired - node.scale.x) * 0.08;
@@ -306,7 +304,7 @@ export function OakThreeStage({ variant, active = "daily", fallback, className =
       depthWrite: false,
     });
     const stars = new THREE.Points(starGeometry, starMaterial);
-    root.add(stars);
+    scene.add(stars);
 
     const applyTheme = () => {
       const accent = cssColor(stage, "--three-accent", "#84e5c2");
@@ -319,11 +317,14 @@ export function OakThreeStage({ variant, active = "daily", fallback, className =
     let width = 0;
     let height = 0;
     let frame = 0;
+    let animationStart: number | null = null;
     let visible = true;
     let pointerX = 0;
     let pointerY = 0;
     let targetX = 0;
     let targetY = 0;
+    let hover = 0;
+    let targetHover = 0;
 
     const resize = () => {
       const rect = stage.getBoundingClientRect();
@@ -340,10 +341,14 @@ export function OakThreeStage({ variant, active = "daily", fallback, className =
     const render = (time = 0) => {
       pointerX += (targetX - pointerX) * 0.04;
       pointerY += (targetY - pointerY) * 0.04;
+      hover += (targetHover - hover) * 0.075;
       if (!reduced) {
         animateVariant(time);
-        root.rotation.x += (-pointerY * 0.055 - root.rotation.x) * 0.035;
-        root.rotation.y += (pointerX * 0.08 - root.rotation.y) * 0.035;
+        root.rotation.x += (-pointerY * 0.2 * hover - root.rotation.x) * 0.06;
+        root.rotation.y += (pointerX * 0.25 * hover - root.rotation.y) * 0.06;
+        root.rotation.z += (pointerX * 0.06 * hover - root.rotation.z) * 0.06;
+        root.position.z += (hover * 0.18 - root.position.z) * 0.06;
+        root.scale.setScalar(1 + hover * 0.04);
       }
       renderer.render(scene, camera);
     };
@@ -351,7 +356,8 @@ export function OakThreeStage({ variant, active = "daily", fallback, className =
     const loop = (time: number) => {
       frame = 0;
       if (!visible || document.hidden) return;
-      render(time);
+      if (animationStart === null) animationStart = time;
+      render(time - animationStart);
       frame = window.requestAnimationFrame(loop);
     };
     const start = () => {
@@ -366,6 +372,12 @@ export function OakThreeStage({ variant, active = "daily", fallback, className =
       const rect = stage.getBoundingClientRect();
       targetX = ((event.clientX - rect.left) / Math.max(rect.width, 1) - 0.5) * 2;
       targetY = ((event.clientY - rect.top) / Math.max(rect.height, 1) - 0.5) * 2;
+    };
+    const onPointerEnter = () => { targetHover = 1; };
+    const onPointerLeave = () => {
+      targetHover = 0;
+      targetX = 0;
+      targetY = 0;
     };
     const onVisibility = () => document.hidden ? stop() : start();
     const onContextLost = () => {
@@ -392,7 +404,11 @@ export function OakThreeStage({ variant, active = "daily", fallback, className =
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
     document.addEventListener("visibilitychange", onVisibility);
     canvas.addEventListener("webglcontextlost", onContextLost);
-    if (!coarse && !reduced) stage.addEventListener("pointermove", onPointerMove, { passive: true });
+    if (!coarse && !reduced) {
+      stage.addEventListener("pointerenter", onPointerEnter);
+      stage.addEventListener("pointermove", onPointerMove, { passive: true });
+      stage.addEventListener("pointerleave", onPointerLeave);
+    }
 
     resize();
     render(0);
@@ -407,6 +423,8 @@ export function OakThreeStage({ variant, active = "daily", fallback, className =
       document.removeEventListener("visibilitychange", onVisibility);
       canvas.removeEventListener("webglcontextlost", onContextLost);
       stage.removeEventListener("pointermove", onPointerMove);
+      stage.removeEventListener("pointerenter", onPointerEnter);
+      stage.removeEventListener("pointerleave", onPointerLeave);
       disposeScene(scene);
       renderer.dispose();
     };

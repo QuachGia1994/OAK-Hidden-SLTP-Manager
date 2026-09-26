@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Aligned the dense H1, NeoTech, Fact Check and Discover WebGL orbit lights with their visible paths, and added smooth 3D hover movement across the Orbit scenes and Tools directory.
+
 - Extended the production Three.js visual system across `/neotech`, `/tools`, `/factcheck`, `/tarot` and `/discover` without moving any business/data controls into WebGL. NeoTech now uses a compliance core, Tools renders all three directory motifs through one scissored renderer, Fact Check adds an Evidence Lens, Tarot adds a 3D deck hero plus texture-backed result-card reveals, and Discover uses one shared constellation that reacts to all five experiences. Every scene keeps DOM/CSS fallbacks, bounded DPR, low-power rendering, hidden/offscreen suspension and static reduced-motion behavior; the shared renderer also paints an initial frame before marking itself ready so background-tab hydration cannot expose an empty canvas.
 
 - Fixed the NeoTech narrow-mobile ruleset rail so the `RULESET v2` badge and date stay inside the hero instead of clipping at small widths.
