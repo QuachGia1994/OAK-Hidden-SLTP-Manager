@@ -29,13 +29,13 @@ H1 public feed key:
 
 `robot-sltp:public:h1-signals:latest`
 
-Current public schema: v18. Cloud state is schema-stable v56 and signal-rule version is v101.
+Current public schema remains v18. Cloud state remains schema-stable v56 and the fixed-entry contract is signal-rule version v102.
 
-H1 rule v101 exposes one shared `ENTRY TIME` row plus one XAUUSD signal row across exactly six active blocks (`H3/H4/H7/H10/H13/H16`) Monday-Friday. H3 remains the M15 pattern-driven entry anchor. H4/H7/H10/H13/H16 publish only on a reversal between the two preceding closed XAUUSD H1 candles and use the current block as entry time. GBPUSD and GBPAUD remain internal market-evidence sources where required; neither is rendered as a public signal row. Telegram signal-slot mapping and broker execution remain independent.
+H1 rule v102 is fixed-entry-only across exactly six blocks (`H3/H4/H7/H10/H13/H16`). The table has two rows and no calculated signal row: SELL = `07:25 / 08:25 / 11:25 / 15:49 / 18:49 / 20:49`; BUY = `07:40 / 10:40 / 13:40 / 16:40 / 19:40 / 21:40`. Candle, pattern, reversal and derived BUY/SELL calculation are intentionally removed until a new signal rule is implemented.
 
-Cloudflare is the primary H1 timekeeper and GitHub remains a fallback. The H1 scanner is web-only: it persists the closed-candle/matrix state and does not send `BLOCK ĐÃ ĐẾN` or H1 signal Telegram notifications. Timed Telegram entry commands are the operator-owned signal input. Vietnam appointment anchors follow the active block set explicitly: `09:05→H03`, `10:05→H04`, `13:05→H07`, `16:05→H10`, `19:05→H13`, `22:05→H16`; this avoids broker-DST drift between appointment time and business block ID. Scanner/backfill refreshes preserve that `scheduledSignal`. Broker execution remains governed by the Telegram scheduled-intent path.
+Automatic H1 scanner/backfill scheduling is disabled. `/api/h1-scanner/local-market` validates provenance but returns `calculationDisabled: true`, and the GitHub H1 workflow is manual-only. Timed Telegram entry commands remain an independent operator-owned broker-execution path; they no longer depend on candle/pattern scanner output.
 
-The H1 feed retains broker-date records inside the latest 90 calendar days relative to the newest valid stored broker date. `/engine` defaults to the newest date and exposes a compact broker-date calendar popover constrained to retained dates; choosing an older date reviews that history in the same H1 board without a separate History tab. Mobile intentionally continues to consume only the latest retained date.
+The H1 UI synthesizes a 90-calendar-day weekday history shell for date navigation. Every retained weekday renders the same fixed BUY/SELL entry-time table; no historical candle reconstruction or signal backfill is performed.
 
 Run locally:
 

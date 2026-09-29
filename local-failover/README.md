@@ -102,23 +102,21 @@ powershell -ExecutionPolicy Bypass -File .\local-failover\install-local-failover
 powershell -ExecutionPolicy Bypass -File .\local-failover\install-local-failover-task.ps1 -Action Uninstall -DryRun
 ```
 
-A real `-Action Install` is a separate operator-authorized step. Its task definition runs as the current interactive Windows user, quotes the controller path, uses `MultipleInstances IgnoreNew`, keeps the logon trigger, and adds a one-minute repeating self-heal trigger so an externally terminated controller is relaunched without waiting for the next logon. Restart-on-failure is retained, and battery transitions do not stop or block the controller. To intentionally keep local control stopped, disable or uninstall the task rather than only stopping its current process. Restart/reload each MT5 terminal after compiling EA v1.14 so scheduled TP rolling, H1 roll-only milestones, projected-exposure preflight, bounded net settlement and `REVERSAL_INCOMPLETE` evidence are active. Healthy operation remains `STANDBY`.
+A real `-Action Install` is a separate operator-authorized step. Its task definition runs as the current interactive Windows user, quotes the controller path, uses `MultipleInstances IgnoreNew`, keeps the logon trigger, and adds a one-minute repeating self-heal trigger so an externally terminated controller is relaunched without waiting for the next logon. Restart-on-failure is retained, and battery transitions do not stop or block the controller. To intentionally keep local control stopped, disable or uninstall the task rather than only stopping its current process. Restart/reload each MT5 terminal after compiling EA v1.14 so scheduled Telegram TP rolling, projected-exposure preflight, bounded net settlement and `REVERSAL_INCOMPLETE` evidence are active. Healthy operation remains `STANDBY`.
 
-## Local ICMarkets H1 scanner
+## H1 fixed entry schedule
 
-H1 rule v101 is independent of the trading EA and reads market data only from the logged-in ICMarkets MT5 terminal. `mt5-h1-market-reader.py` uses the MetaTrader5 Python API for retained M15/H1 bars and never calls `order_send` or any position mutation API. On this MT5 API path the rate epoch fields expose terminal/server-wall components, so the reader decodes them directly and deliberately does not reapply the cTrader UTC→ICMarkets `UTC+2/UTC+3` conversion before evaluating `H3/H4/H7/H10/H13/H16`.
+H1 rule v102 no longer reads MT5 market candles and no longer calculates BUY/SELL signals. The former MT5 H1 market reader has been removed. The six blocks are configuration only: `H3/H4/H7/H10/H13/H16`.
 
-The local market-source set remains `XAUUSD` + `GBPUSD` + `GBPAUD`. XAUUSD is the scanner target and public signal row. H3 keeps the M15 pattern-driven entry logic; H4/H7/H10/H13/H16 use the two preceding closed XAUUSD H1 candles and publish only when their directions reverse. GBPUSD and GBPAUD remain internal evidence sources and are not public rows. Each live v101 scan writes current-day XAUUSD TP milestones for the active blocks, and the local-primary controller accepts only the matching v101 milestone contract. Public schema 18 and cloud state v56 remain stable; stale prior-rule rows are rejected.
+Fixed SELL times are `07:25, 08:25, 11:25, 15:49, 18:49, 20:49`; fixed BUY times are `07:40, 10:40, 13:40, 16:40, 19:40, 21:40`. No XAUUSD/GBPUSD/GBPAUD evidence is evaluated, no H1 TP milestone is generated, and local-primary cancels any stale queued H1 Scanner TP-roll intent fail-closed.
 
 ```powershell
 node .\local-failover\oak-local-h1-scanner.mjs --dry-run
-node .\local-failover\oak-local-h1-scanner.mjs --backfill 90
 powershell -ExecutionPolicy Bypass -File .\local-failover\install-local-h1-scanner-task.ps1 -Action Doctor
-powershell -ExecutionPolicy Bypass -File .\local-failover\install-local-h1-scanner-task.ps1 -Action Install -DryRun
 powershell -ExecutionPolicy Bypass -File .\local-failover\install-local-h1-scanner-task.ps1 -Action Status
 ```
 
-The real H1 task runs once per minute as the interactive Windows user, starts at logon, uses `MultipleInstances IgnoreNew`, and does not stop on battery transitions. It is analytics-only: a task failure can make H1 Live stale but cannot place, close, or modify a broker order.
+The legacy `OAK Local H1 Scanner` Scheduled Task is no longer required while calculation is disabled and should remain disabled. The retained Node entry point is a harmless diagnostic stub reporting `calculationDisabled: true`.
 
 ## Local command surface during failover
 

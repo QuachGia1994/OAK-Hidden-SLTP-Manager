@@ -1,8 +1,16 @@
 # Changelog
 
-- Advanced H1 to signal rule v99 without changing public schema 18/state v56. Only H3 owns the pattern-derived entry delta: H3 `H4` cascades H6/H7, H9/H10, H12/H13; H3 `H5` cascades H6/H8, H9/H11, H12/H14. H14 is removed as a block. Public GBPAUD always reads same-day H1 at `entryHour - 1`, mapping `T` to BUY and `G` to SELL with no delta inversion or previous-block selector. Web/native/mobile/local-failover use H3/H6/H9/H12 only.
-
 All notable changes to the dashboard are recorded here.
+
+## [1.0.0] - 2026-09-29
+
+### Changed
+
+- Replaced the calculated H1 signal system with a fixed six-block BUY/SELL entry-time schedule. H03/H04/H07/H10/H13/H16 now use operator-owned times only; candle, pattern, reversal, evidence and automatic H1 TP-roll calculation paths are removed or disabled.
+
+### Removed
+
+- Retired the Android, iOS and Expo/React Native clients, mobile build workflow, `/api/mobile/*` adapters and native/mobile-only backend surface. OAK is now a web-only product UI while responsive browser support remains intact.
 
 ## [0.9.2] - 2026-09-29
 

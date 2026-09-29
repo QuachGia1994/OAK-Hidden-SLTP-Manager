@@ -6,7 +6,7 @@ import math
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "ios-native/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
+SOURCE = ROOT / "dashboard/public/oak-app-icon.png"
 PUBLIC = ROOT / "dashboard/public"
 CARD = PUBLIC / "oak-share-v4.png"
 BG = "#07110f"

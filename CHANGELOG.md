@@ -1,8 +1,18 @@
 # Changelog
 
-- Advanced H1 to signal rule v99 without changing public schema 18/state v56. Only H3 owns the pattern-derived entry delta: H3 `H4` cascades entries to H6/H7, H9/H10 and H12/H13; H3 `H5` cascades to H6/H8, H9/H11 and H12/H14. H14 is no longer a block. Public GBPAUD signals always read the same-day GBPAUD H1 candle at `entryHour - 1` with `T`=BUY and `G`=SELL; no delta inversion and no previous-block/previous-day selector remains. Web/native/mobile/local-failover contracts now expose H3/H6/H9/H12 only. H12 may still have entry H14. A fresh v99 history rebuild is triggered after deployment.
+## [1.0.0] - 2026-09-29
 
-## Unreleased
+### Changed
+
+- Replaced H1 rule v101 with fixed-entry-only rule v102. The H1 board now contains SELL/BUY rows for H03/H04/H07/H10/H13/H16 using operator-owned times SELL `07:25/08:25/11:25/15:49/18:49/20:49` and BUY `07:40/10:40/13:40/16:40/19:40/21:40`. Candle/pattern/reversal BUY/SELL calculation, historical market reconstruction, MT5 H1 market reader, automatic H1 TP milestones, scanner cron/push workflow and evidence-cell UI were removed or disabled; legacy H1 TP-roll intents are cancelled fail-closed. Web and PNG export render the fixed schedule.
+
+### Removed
+
+- Retired all Android, iOS and Expo/React Native application clients. The repository is web-only: native/mobile source trees, mobile CI artifacts and `/api/mobile/*` adapters were removed, while browser compatibility for mobile devices remains part of the web surface.
+
+## Historical notes
+
+- Advanced H1 to signal rule v99 without changing public schema 18/state v56. Only H3 owns the pattern-derived entry delta: H3 `H4` cascades entries to H6/H7, H9/H10 and H12/H13; H3 `H5` cascades to H6/H8, H9/H11 and H12/H14. H14 is no longer a block. Public GBPAUD signals always read the same-day GBPAUD H1 candle at `entryHour - 1` with `T`=BUY and `G`=SELL; no delta inversion and no previous-block/previous-day selector remains. Web/native/mobile/local-failover contracts now expose H3/H6/H9/H12 only. H12 may still have entry H14. A fresh v99 history rebuild is triggered after deployment.
 
 - Fixed H1 v101 persistence/backfill after production verification: schema-stable parsing now accepts the H3 own-H1 evidence contract, preserves later reversal-block metadata, and republishes the public feed on valid no-op scans so retained state cannot leave clients on an older rule contract.
 

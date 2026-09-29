@@ -11,7 +11,6 @@ import {
   H1_PUBLIC_LATEST_KEY,
   buildPublicFeed,
   clearLegacyScheduledSignalAtSlot,
-  cycleDecisionFor,
   emptyCloudState,
   ensureSymbolDay,
   h1TargetBaseFromSymbol,
@@ -169,7 +168,7 @@ export async function writeTelegramScheduledSignal(args: {
   const base = h1TargetBaseFromSymbol(args.symbol);
   if (!base || !Number.isFinite(args.dueAt) || args.dueAt <= 0) return null;
   const vietnamWall = vietnamAppointmentWallParts(args.dueAt);
-  const slotHour = scheduledSignalSlotForVietnamWall(base, vietnamWall.dateKey, vietnamWall.hour, vietnamWall.minute);
+  const slotHour = scheduledSignalSlotForVietnamWall(base, vietnamWall.dateKey, vietnamWall.hour, vietnamWall.minute, args.side);
   if (slotHour === null) return null;
   const legacyBrokerWall = brokerWallParts(args.dueAt);
   const legacySlotHour = scheduledSignalSlotForBrokerHour(base, legacyBrokerWall.dateKey, legacyBrokerWall.hour);
@@ -191,7 +190,6 @@ export async function writeTelegramScheduledSignal(args: {
     if (existingIndex >= 0) {
       symbol.alerts[existingIndex] = { ...symbol.alerts[existingIndex], scheduledSignal: args.side };
     } else {
-      const decision = cycleDecisionFor(base, vietnamWall.dateKey, slotHour);
       symbol.alerts.push({
         slotHour,
         symbol: String(args.symbol || base).trim().toUpperCase(),
@@ -203,8 +201,8 @@ export async function writeTelegramScheduledSignal(args: {
         baseDirection: "",
         symbolH1Signal: null,
         scheduledSignal: args.side,
-        postSignalInverted: decision.inverted,
-        postSignalRule: decision.rule,
+        postSignalInverted: false,
+        postSignalRule: "none",
       });
       symbol.alerts.sort((left, right) => left.slotHour - right.slotHour);
     }

@@ -1,124 +1,16 @@
 name: H1 Cloud Scanner
 
 on:
-  schedule:
-    - cron: "1 * * * *"
-    - cron: "10 * * * *"
-    - cron: "15 * * * *"
-    - cron: "30 * * * *"
-    - cron: "50 * * * *"
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/h1-cloud-scanner.yml"
-      - "dashboard/src/app/api/h1-scanner/**"
-      - "dashboard/src/app/api/admin/redis-backup-sync/**"
-      - "dashboard/src/lib/github-oidc.ts"
-      - "dashboard/src/lib/redis-core.ts"
-      - "dashboard/src/lib/ctrader-json.ts"
-      - "dashboard/src/lib/h1-cloud-scanner.ts"
-      - "dashboard/src/lib/h1-history-backfill.ts"
-      - "dashboard/src/lib/h1-signals.ts"
   workflow_dispatch:
 
 permissions:
   contents: read
-  statuses: read
-  id-token: write
 
 jobs:
-  run-scanner:
+  calculation-disabled:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
     steps:
-      - name: Wait for Vercel deployment
-        if: github.event_name == 'push'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: H1 calculation disabled
         run: |
-          for attempt in {1..60}; do
-            status_json="$(curl --fail-with-body --silent --show-error \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/status")"
-            vercel_state="$(python3 -c 'import json,sys; data=json.load(sys.stdin); print(next((row.get("state", "") for row in data.get("statuses", []) if row.get("context") == "Vercel"), ""))' <<<"$status_json")"
-            if [[ "$vercel_state" == "success" ]]; then
-              exit 0
-            fi
-            if [[ "$vercel_state" == "failure" || "$vercel_state" == "error" ]]; then
-              echo "Vercel deployment failed for ${GITHUB_SHA}." >&2
-              exit 1
-            fi
-            sleep 5
-          done
-          echo "Timed out waiting for Vercel deployment of ${GITHUB_SHA}." >&2
-          exit 1
-
-      - name: Align H1 scanner phase
-        if: github.event_name == 'schedule'
-        shell: bash
-        env:
-          SCHEDULE_EXPR: ${{ github.event.schedule }}
-        run: |
-          now="$(date -u +%s)"
-          minute="$(date -u +%M)"
-          scheduled_minute="${SCHEDULE_EXPR%% *}"
-          if [[ "$scheduled_minute" == "1" || "$scheduled_minute" == "15" || "$scheduled_minute" == "30" ]]; then
-            exit 0
-          fi
-          if (( 10#$minute < 10#$scheduled_minute )); then
-            exit 0
-          fi
-          target="$(( (now / 3600 + 1) * 3600 ))"
-          delay="$(( target - now ))"
-          if (( delay > 0 && delay <= 3600 )); then
-            sleep "$delay"
-          fi
-
-      - name: Request GitHub OIDC token
-        id: oidc
-        shell: bash
-        run: |
-          token_json="$(curl --fail-with-body --silent --show-error \
-            -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=oak-h1-cloud-scanner")"
-          token="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<<"$token_json")"
-          test -n "$token"
-          echo "token=$token" >> "$GITHUB_OUTPUT"
-
-      - name: Seed Upstash backup before history rebuild
-        if: github.event_name == 'push'
-        continue-on-error: true
-        env:
-          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
-        run: |
-          curl --fail-with-body --silent --show-error \
-            --retry 1 --retry-delay 5 --max-time 120 \
-            -X POST \
-            -H "Authorization: Bearer $OIDC_TOKEN" \
-            -H "Content-Type: application/json" \
-            https://www.oakgatekeeper.uk/api/admin/redis-backup-sync
-
-      - name: Trigger private scanner route
-        env:
-          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
-        run: |
-          curl --fail-with-body --silent --show-error \
-            --retry 2 --retry-delay 5 --max-time 45 \
-            -X POST \
-            -H "Authorization: Bearer $OIDC_TOKEN" \
-            -H "Content-Type: application/json" \
-            https://www.oakgatekeeper.uk/api/h1-scanner/run
-
-      - name: Rebuild H1 history after scanner deploy
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        env:
-          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
-        run: |
-          curl --fail-with-body --silent --show-error \
-            --retry 1 --retry-delay 5 --max-time 200 \
-            -X POST \
-            -H "Authorization: Bearer $OIDC_TOKEN" \
-            -H "Content-Type: application/json" \
-            https://www.oakgatekeeper.uk/api/h1-scanner/backfill
+          echo "H1 signal calculation is intentionally disabled."
+          echo "The product currently exposes only the fixed BUY/SELL entry-time table."

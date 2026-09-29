@@ -86,7 +86,7 @@ test("timed cloud mutations auto-arm, publish their side into the H1 table, and 
   assert.match(webhook, /writeTelegramScheduledSignal/);
   assert.match(webhook, /Table H1:/);
   assert.match(h1Store, /vietnamAppointmentWallParts\(args\.dueAt\)/);
-  assert.match(h1Store, /scheduledSignalSlotForVietnamWall\(base, vietnamWall\.dateKey, vietnamWall\.hour, vietnamWall\.minute\)/);
+  assert.match(h1Store, /scheduledSignalSlotForVietnamWall\(base, vietnamWall\.dateKey, vietnamWall\.hour, vietnamWall\.minute, args\.side\)/);
   assert.match(h1Store, /clearLegacyScheduledSignalAtSlot\(symbol\.alerts, legacySlotHour, slotHour, args\.side\)/);
   assert.match(h1Store, /scheduledSignal: args\.side/);
   assert.match(h1Store, /await publishH1CloudState\(state\)/);

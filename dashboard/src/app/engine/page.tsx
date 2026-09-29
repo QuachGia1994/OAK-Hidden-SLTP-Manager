@@ -16,7 +16,7 @@ export default async function EnginePage() {
 
   return (
     <div className="page-shell terminal-page engine-route-shell">
-      <H1EngineBoard h1Data={h1Data} degraded={read.ok === false} locale={locale} />
+      <H1EngineBoard h1Data={h1Data} degraded={false} locale={locale} />
     </div>
   );
 }

@@ -5,7 +5,6 @@ import test from "node:test";
 const navSource = readFileSync(new URL("../components/NavBar.tsx", import.meta.url), "utf8");
 const h1EngineSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
 const h1SignalSource = readFileSync(new URL("../components/H1SignalBoard.tsx", import.meta.url), "utf8");
-const h1EvidenceSource = readFileSync(new URL("../components/H1EvidencePanel.tsx", import.meta.url), "utf8");
 const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.meta.url), "utf8");
 const accountSource = readFileSync(new URL("../components/ProviderAccountsPanel.tsx", import.meta.url), "utf8");
 const dialogHookSource = readFileSync(new URL("../hooks/useDialogFocusTrap.ts", import.meta.url), "utf8");
@@ -90,24 +89,18 @@ test("primary Tools tab follows LocaleProvider immediately without waiting for F
   assert.match(toolsPageSource, /<ToolsClient locale=\{locale\} \/>/);
 });
 
-test("H1 entry cells stay centered, signal pills stay inside columns, and table headers remain aligned", () => {
-  assert.match(h1SignalSource, /oak-h1-cell-entry/);
+test("H1 fixed entry table keeps row/column semantics and no longer exposes calculated evidence", () => {
   assert.match(h1SignalSource, /scope="col"/);
   assert.match(h1SignalSource, /scope="row"/);
-  assert.match(h1SignalSource, /id="h1-entry-time-row"/);
-  assert.match(h1SignalSource, /headers=\{`h1-entry-time-row h1-hour-\$\{hour\}`\}/);
-  assert.match(h1SignalSource, /oak-h1-cell-evidence/);
+  assert.match(h1SignalSource, /H1_FIXED_ENTRY_ROWS/);
+  assert.match(h1SignalSource, /h1-entry-row-/);
+  assert.match(h1SignalSource, /fixedH1EntryTime\(side, hour\)/);
+  assert.doesNotMatch(h1SignalSource, /H1EvidencePanel|oak-h1-cell-evidence|patternGroup|postSignalInverted/);
   assert.doesNotMatch(h1SignalSource, /VIP required|oak-h1-cell-locked/);
-  assert.match(oakCss, /\.oak-h1-cell-entry[\s\S]*display: grid/);
-  assert.match(oakCss, /\.oak-h1-cell-entry[\s\S]*text-align: center/);
   assert.match(oakCss, /\.oak-h1-scroll-hint \{ display: block; color: var\(--oak-fg-muted\); font-size: \.625rem; \}/);
-  assert.doesNotMatch(h1SignalSource, /M15 E-2:15 · H3 RULE/);
-  assert.match(oakCss, /\.oak-h1-cell-signal \{[\s\S]*box-sizing: border-box;[\s\S]*width: min\(3\.4rem, calc\(100% - \.4rem\)\);[\s\S]*min-width: 0;/);
 });
 
-test("all custom trading and NeoTech dialogs use the shared keyboard focus trap", () => {
-  assert.match(h1EvidenceSource, /const open = Boolean\(selection\);/);
-  assert.match(h1EvidenceSource, /useDialogFocusTrap(?:<[^>]+>)?\(open && variant === "dialog", onClose\)/);
+test("remaining custom NeoTech dialogs use the shared keyboard focus trap", () => {
   assert.match(neoTechSource, /useDialogFocusTrap(?:<[^>]+>)?\(Boolean\(pairing\)/);
   assert.match(dialogHookSource, /event\.key === "Escape"/);
   assert.match(dialogHookSource, /event\.key !== "Tab"/);
@@ -117,7 +110,7 @@ test("all custom trading and NeoTech dialogs use the shared keyboard focus trap"
 test("H1 header stays simplified while free access removes VIP actions", () => {
   assert.doesNotMatch(h1EngineSource, /<small>PROFILE<\/small>/);
   assert.match(h1SignalSource, /FREE ACCESS/);
-  assert.match(h1SignalSource, /All H1 entry-time cells unlocked/);
+  assert.match(h1SignalSource, /All fixed entry-time cells unlocked/);
   assert.doesNotMatch(h1EngineSource, /VIP UNLOCK|VIP LOCKED|oak-button-spinner|\/api\/vip/);
 });
 

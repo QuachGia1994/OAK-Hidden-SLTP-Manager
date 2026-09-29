@@ -8,8 +8,6 @@ $ErrorActionPreference = "Stop"
 $TaskName = "OAK Local H1 Scanner"
 $Script = Join-Path $PSScriptRoot "oak-local-h1-scanner.mjs"
 $HiddenLauncher = Join-Path $PSScriptRoot "run-hidden-node.vbs"
-$Reader = Join-Path $PSScriptRoot "mt5-h1-market-reader.py"
-$ConfigPath = Join-Path $env:LOCALAPPDATA "OAK Gatekeeper\telegram-failover-config.json"
 
 function Get-Identity {
   $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -20,33 +18,23 @@ function Get-Identity {
 function Get-NodePath {
   $node = (Get-Command node.exe -ErrorAction Stop).Source
   $version = (& $node --version).Trim()
-  if ($LASTEXITCODE -ne 0) { throw "Node.js unavailable" }
+  if ($LASTEXITCODE -ne 0 -or -not $version) { throw "Node.js unavailable" }
   return $node
-}
-
-function Get-PythonPath {
-  $python = (Get-Command python.exe -ErrorAction Stop).Source
-  & $python -c "import MetaTrader5" | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw "Python MetaTrader5 package unavailable" }
-  return $python
 }
 
 function Invoke-Doctor {
   if (-not (Test-Path -LiteralPath $Script -PathType Leaf)) { throw "Local H1 scanner not found: $Script" }
   if (-not (Test-Path -LiteralPath $HiddenLauncher -PathType Leaf)) { throw "Hidden launcher not found: $HiddenLauncher" }
-  if (-not (Test-Path -LiteralPath $Reader -PathType Leaf)) { throw "MT5 H1 reader not found: $Reader" }
-  if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) { throw "Local controller config not found: $ConfigPath" }
   $node = Get-NodePath
-  $python = Get-PythonPath
   $result = & $node $Script --dry-run | ConvertFrom-Json
-  if (-not $result.ok -or -not $result.dryRun) { throw "ICMarkets local H1 dry-run failed" }
+  if (-not $result.ok -or -not $result.dryRun -or -not $result.calculationDisabled) {
+    throw "H1 fixed-entry dry-run failed"
+  }
   [pscustomobject]@{
     ok = $true
     nodePath = $node
-    pythonPath = $python
-    brokerDate = $result.brokerDate
-    brokerHour = $result.brokerHour
-    brokerMinute = $result.brokerMinute
+    calculationDisabled = [bool]$result.calculationDisabled
+    signalRuleVersion = $result.signalRuleVersion
     mutationsPerformed = 0
   }
 }
@@ -74,14 +62,28 @@ try {
     }
     "Status" {
       $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-      [pscustomobject]@{ installed = [bool]$task; state = if ($task) { [string]$task.State } else { "Absent" }; mutationsPerformed = 0 } | ConvertTo-Json
+      [pscustomobject]@{
+        installed = [bool]$task
+        state = if ($task) { [string]$task.State } else { "Absent" }
+        calculationDisabled = $true
+        mutationsPerformed = 0
+      } | ConvertTo-Json
       exit 0
     }
     "Install" {
       $doctor = Invoke-Doctor
       $definition = New-TaskDefinition
       if ($DryRun) {
-        [pscustomobject]@{ ok = $true; dryRun = $true; taskName = $TaskName; everyMinutes = 1; multipleInstances = "IgnoreNew"; brokerDate = $doctor.brokerDate; windowMode = "hidden-wscript"; mutationsPerformed = 0 } | ConvertTo-Json
+        [pscustomobject]@{
+          ok = $true
+          dryRun = $true
+          taskName = $TaskName
+          everyMinutes = 1
+          multipleInstances = "IgnoreNew"
+          calculationDisabled = $doctor.calculationDisabled
+          windowMode = "hidden-wscript"
+          mutationsPerformed = 0
+        } | ConvertTo-Json
         exit 0
       }
       Register-ScheduledTask -TaskName $TaskName -InputObject $definition -Force | Out-Null
