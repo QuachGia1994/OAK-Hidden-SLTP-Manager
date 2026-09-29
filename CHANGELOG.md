@@ -4,7 +4,7 @@
 
 ## Unreleased
 
-- Advanced H1 to signal rule v101 while keeping public schema 18/state v56. H1 Live/History now exposes only H03/H04/H07/H10/H13/H16 with XAUUSD as the public signal row; web, Expo, native clients, timed Vietnam anchors and local TP milestones share the same six-block contract. Deployment rebuilds retained H1 history under v101, with local backfill retry coverage extended beyond the scanner lock TTL so a concurrent minute scan cannot abort the rebuild.
+- Advanced H1 to signal rule v101 while keeping public schema 18/state v56. H1 Live/History now exposes only H03/H04/H07/H10/H13/H16 with XAUUSD as the public signal row; web, Expo, native clients, timed Vietnam anchors and local TP milestones share the same six-block contract. Deployment rebuilds retained H1 history under v101, with local backfill retry coverage extended beyond the scanner lock TTL so a concurrent minute scan cannot abort the rebuild; authenticated scanner failures also expose bounded diagnostic detail for production repair.
 
 - Aligned the dense H1, NeoTech, Fact Check and Discover WebGL orbit lights with their visible paths, and added smooth 3D hover movement across the Orbit scenes and Tools directory.
 

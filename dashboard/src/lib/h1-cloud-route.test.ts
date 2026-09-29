@@ -56,6 +56,7 @@ test("local MT5 market endpoint is private, ICMarkets-only, stale-guarded, singl
   assert.match(localRoute, /h1TpRollMilestonesForBrokerDate/);
   assert.match(localRoute, /signalRuleVersion: H1_SIGNAL_RULE_VERSION/);
   assert.match(localRoute, /tpMilestones: h1TpRollMilestonesForBrokerDate\(state, parsed\.brokerDate\)/);
+  assert.match(localRoute, /detail: detail\.slice\(0, 240\)/);
   assert.doesNotMatch(localRoute, /order_send|placeCTraderMarketOrder|SendTradeRequest|closeCTraderPositions/);
 });
 

@@ -208,8 +208,9 @@ export async function POST(request: Request) {
 
     if (changed || source === "public-seed" || dayWasMissing) {
       await saveH1CloudState(state);
-      await publishH1CloudState(state);
     }
+    // Republish every valid snapshot so a no-op scan after a rule bump cannot leave the public feed on an older rule contract.
+    await publishH1CloudState(state);
 
     return NextResponse.json({
       ok: true,
@@ -226,8 +227,9 @@ export async function POST(request: Request) {
       tpMilestones: h1TpRollMilestonesForBrokerDate(state, parsed.brokerDate),
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    console.error("[H1 LOCAL MT5 SCANNER]", error instanceof Error ? error.message : String(error));
-    return NextResponse.json({ ok: false, error: "local H1 scanner failed" }, { status: 503 });
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error("[H1 LOCAL MT5 SCANNER]", detail);
+    return NextResponse.json({ ok: false, error: "local H1 scanner failed", detail: detail.slice(0, 240) }, { status: 503 });
   } finally {
     await releaseH1CloudLock(lockToken);
   }
