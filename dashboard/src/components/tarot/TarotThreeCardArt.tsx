@@ -179,6 +179,7 @@ export function TarotThreeCardArt({
         const mesh = object as THREE.Mesh;
         if (mesh.geometry) mesh.geometry.dispose();
       });
+      renderer.forceContextLoss();
       renderer.dispose();
     };
   }, [src, reversed]);

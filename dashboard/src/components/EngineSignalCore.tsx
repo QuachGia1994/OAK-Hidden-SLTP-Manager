@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitBrandMark } from "@/components/OrbitBrandMark";
 
@@ -15,6 +15,7 @@ function readThemeColor(element: HTMLElement, token: string, fallback: string) {
 export function EngineSignalCore({ label = "H1", showGrid = false }: { label?: string; showGrid?: boolean }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [contextEpoch, setContextEpoch] = useState(0);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -256,9 +257,15 @@ export function EngineSignalCore({ label = "H1", showGrid = false }: { label?: s
       if (document.hidden) stop();
       else start();
     };
-    const onContextLost = () => {
+    let restoring = false;
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
       stop();
       stage.dataset.webgl = "fallback";
+    };
+    const onContextRestored = () => {
+      restoring = true;
+      setContextEpoch((epoch) => epoch + 1);
     };
 
     const resizeObserver = new ResizeObserver(() => {
@@ -280,6 +287,7 @@ export function EngineSignalCore({ label = "H1", showGrid = false }: { label?: s
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
     document.addEventListener("visibilitychange", onVisibility);
     canvas.addEventListener("webglcontextlost", onContextLost);
+    canvas.addEventListener("webglcontextrestored", onContextRestored);
     if (!coarse && !reduced) {
       stage.addEventListener("pointerenter", onPointerEnter);
       stage.addEventListener("pointermove", onPointerMove, { passive: true });
@@ -299,6 +307,7 @@ export function EngineSignalCore({ label = "H1", showGrid = false }: { label?: s
       themeObserver.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
       canvas.removeEventListener("webglcontextlost", onContextLost);
+      canvas.removeEventListener("webglcontextrestored", onContextRestored);
       stage.removeEventListener("pointermove", onPointerMove);
       stage.removeEventListener("pointerenter", onPointerEnter);
       stage.removeEventListener("pointerleave", onPointerLeave);
@@ -317,9 +326,10 @@ export function EngineSignalCore({ label = "H1", showGrid = false }: { label?: s
       });
       for (const geometry of geometries) geometry.dispose();
       for (const material of materials) material.dispose();
+      if (!restoring) renderer.forceContextLoss();
       renderer.dispose();
     };
-  }, [showGrid]);
+  }, [showGrid, contextEpoch]);
 
   return (
     <div ref={stageRef} className="engine-three-core" data-webgl="pending" aria-hidden="true">

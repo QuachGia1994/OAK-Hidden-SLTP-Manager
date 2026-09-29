@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 
 type ToolKind = "factcheck" | "tarot" | "discover";
@@ -98,6 +98,7 @@ function disposeView(view: ToolView) {
 
 export function ToolsThreeStage({ className = "" }: { className?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [contextEpoch, setContextEpoch] = useState(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -262,12 +263,19 @@ export function ToolsThreeStage({ className = "" }: { className?: string }) {
     intersectionObserver.observe(directory);
 
     const onVisibility = () => document.hidden ? stop() : start();
-    const onContextLost = () => {
+    let restoring = false;
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
       stop();
       directory.dataset.threeState = "fallback";
     };
+    const onContextRestored = () => {
+      restoring = true;
+      setContextEpoch((epoch) => epoch + 1);
+    };
     document.addEventListener("visibilitychange", onVisibility);
     canvas.addEventListener("webglcontextlost", onContextLost);
+    canvas.addEventListener("webglcontextrestored", onContextRestored);
 
     measure();
     render(0);
@@ -281,10 +289,12 @@ export function ToolsThreeStage({ className = "" }: { className?: string }) {
       intersectionObserver.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
       canvas.removeEventListener("webglcontextlost", onContextLost);
+      canvas.removeEventListener("webglcontextrestored", onContextRestored);
       views.forEach(disposeView);
+      if (!restoring) renderer.forceContextLoss();
       renderer.dispose();
     };
-  }, []);
+  }, [contextEpoch]);
 
   return <canvas ref={canvasRef} className={className} aria-hidden="true" />;
 }

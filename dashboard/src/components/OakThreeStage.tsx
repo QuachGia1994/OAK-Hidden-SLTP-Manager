@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 
 export type OakThreeVariant = "neotech" | "factcheck" | "tarot" | "discover";
@@ -48,6 +48,7 @@ export function OakThreeStage({ variant, active = "daily", fallback, className =
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const activeRef = useRef<DiscoverThreeState>(active);
   activeRef.current = active;
+  const [contextEpoch, setContextEpoch] = useState(0);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -380,9 +381,15 @@ export function OakThreeStage({ variant, active = "daily", fallback, className =
       targetY = 0;
     };
     const onVisibility = () => document.hidden ? stop() : start();
-    const onContextLost = () => {
+    let restoring = false;
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
       stop();
       stage.dataset.threeState = "fallback";
+    };
+    const onContextRestored = () => {
+      restoring = true;
+      setContextEpoch((epoch) => epoch + 1);
     };
 
     const resizeObserver = new ResizeObserver(() => {
@@ -404,6 +411,7 @@ export function OakThreeStage({ variant, active = "daily", fallback, className =
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
     document.addEventListener("visibilitychange", onVisibility);
     canvas.addEventListener("webglcontextlost", onContextLost);
+    canvas.addEventListener("webglcontextrestored", onContextRestored);
     if (!coarse && !reduced) {
       stage.addEventListener("pointerenter", onPointerEnter);
       stage.addEventListener("pointermove", onPointerMove, { passive: true });
@@ -422,13 +430,15 @@ export function OakThreeStage({ variant, active = "daily", fallback, className =
       themeObserver.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
       canvas.removeEventListener("webglcontextlost", onContextLost);
+      canvas.removeEventListener("webglcontextrestored", onContextRestored);
       stage.removeEventListener("pointermove", onPointerMove);
       stage.removeEventListener("pointerenter", onPointerEnter);
       stage.removeEventListener("pointerleave", onPointerLeave);
       disposeScene(scene);
+      if (!restoring) renderer.forceContextLoss();
       renderer.dispose();
     };
-  }, [variant]);
+  }, [variant, contextEpoch]);
 
   const classes = ("oak-three-stage " + className).trim();
   return (
