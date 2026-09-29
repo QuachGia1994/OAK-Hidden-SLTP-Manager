@@ -11,10 +11,10 @@ Pure SwiftUI iPhone client for ROBOT SLTP. This target replaces the previous Exp
 
 ## Web parity
 - Tabs: H1 Live, NeoTech and Tools; Signals/Reports/System remain native Tools drill-downs.
-- H1 Live/History uses the same shared `ENTRY TIME` row plus one GBPAUD signal row as web across H3/H6/H9/H12. H3 is the only entry-time pattern owner; H3 H4 cascades H6/H7, H9/H10, H12/H13 and H3 H5 cascades H6/H8, H9/H11, H12/H14. GBPAUD reads same-day H1 at entry minus one with raw T=BUY/G=SELL. XAUUSD and GBPUSD are not rendered as signal rows, H14 is not a block, and weekends are off.
-- Rule v99 keeps XAUUSD as the only M15 entry-pattern target/owner. Its pattern metadata still drives the shared Entry time, while its internal GBPUSD-M15 signal remains private to TP-roll handling.
-- GBPAUD reads its own H1 candle at `entryHour - 1` for each block. Raw GBPAUD H1 direction is used directly: `T`=BUY and `G`=SELL, with no delta inversion. Missing exact H1 evidence leaves the signal blank.
-- Evidence sheets keep XAUUSD M15 chart evidence for Entry pattern and identify the GBPAUD `ENTRY-1 H1 BASE` plus raw-direction rule for the signal row.
+- H1 Live/History uses the same shared `ENTRY TIME` row plus one XAUUSD signal row as web, limited to H3/H4/H7/H10/H13/H16.
+- Rule v101 keeps XAUUSD as the scanner target. H3 remains the M15 pattern-driven entry anchor; H4/H7/H10/H13/H16 publish only when the two preceding closed XAUUSD H1 candles form a reversal.
+- The public signal matrix exposes XAUUSD only. GBPUSD and GBPAUD remain internal market evidence sources where required by the scanner and are not rendered as signal rows.
+- Evidence sheets keep the XAUUSD entry/pattern evidence and the source evidence attached to each published XAUUSD alert.
 - Native PNG export/share for the selected H1 day.
 - Pull-to-refresh + 20-second server refresh loop.
 - Light/dark/contrast theme selector and VN/EN selector.

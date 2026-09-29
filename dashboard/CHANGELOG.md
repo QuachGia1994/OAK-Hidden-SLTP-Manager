@@ -4,6 +4,12 @@
 
 All notable changes to the dashboard are recorded here.
 
+## [0.9.1] - 2026-09-29
+
+### Changed
+
+- Aligned H1 Live and retained History to the v101 XAUUSD contract: only H03/H04/H07/H10/H13/H16 are active, XAUUSD is the sole public signal row, timed Vietnam anchors map to those six blocks, and web/Expo/native clients plus local TP milestones use the same rule. Public schema 18 and retained state schema 56 are unchanged; deployment rebuilds retained H1 history under v101.
+
 ## [0.9.0] - 2026-09-26
 
 ### Added

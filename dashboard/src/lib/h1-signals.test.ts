@@ -93,17 +93,17 @@ test("H1 web feed schema 18 carries local M15 entry metadata and keeps replica f
   assert.match(redisCoreSource, /Promise\.allSettled/);
 });
 
-test("H1 v100 keeps XAUUSD as entry-pattern owner, scans H3-H17, and preserves the H3 entry anchor", () => {
+test("H1 v101 keeps XAUUSD as entry-pattern owner and exposes only H3/H4/H7/H10/H13/H16", () => {
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.match(localPatternsSource, /H1_LOCAL_TARGETS = \["XAUUSD"\]/);
   assert.match(localPatternsSource, /H1_SIGNAL_BASE_SOURCES = \["GBPUSD", "GBPAUD"\]/);
-  assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12\]/);
-  assert.match(mobileAppBackendSource, /FALLBACK_HOURS = \[3, 6, 9, 12\]/);
-  assert.match(mobileAppBackendSource, /FALLBACK_SYMBOLS = \["GBPAUD"\]/);
-  assert.match(nativeSignalsSource, /visibleSymbols = \["GBPAUD"\]/);
-  assert.match(scannerSource, /H1_PUBLIC_SYMBOLS = \["GBPAUD"\]/);
-  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 100/);
-  assert.match(scannerSource, /H1_SIGNAL_END_HOUR = 17/);
+  assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 4, 7, 10, 13, 16\]/);
+  assert.match(mobileAppBackendSource, /FALLBACK_HOURS = \[3, 4, 7, 10, 13, 16\]/);
+  assert.match(mobileAppBackendSource, /FALLBACK_SYMBOLS = \["XAUUSD"\]/);
+  assert.match(nativeSignalsSource, /visibleSymbols = \["XAUUSD"\]/);
+  assert.match(scannerSource, /H1_PUBLIC_SYMBOLS = \["XAUUSD"\]/);
+  assert.match(scannerSource, /H1_SIGNAL_RULE_VERSION = 101/);
+  assert.match(scannerSource, /H1_SIGNAL_END_HOUR = 16/);
   assert.match(scannerSource, /includes\(hour\) \? H1_TARGET_BASES : \[\]/);
   assert.match(localMarketRouteSource, /evaluateLocalH1PatternsForTarget/);
   assert.match(scannerSource, /function gbpAudSignalPolicy/);
@@ -111,7 +111,7 @@ test("H1 v100 keeps XAUUSD as entry-pattern owner, scans H3-H17, and preserves t
   assert.match(scannerSource, /baseHour: entryHour - 1/);
   assert.doesNotMatch(scannerSource, /inverted: delta === 2/);
   assert.match(scannerSource, /market\.GBPAUD\.h1Bars/);
-  assert.match(scannerSource, /H1_SCAN_HOURS = Array\.from\(\{ length: 15 \}/);
+  assert.match(scannerSource, /H1_SCAN_HOURS = \[3, 4, 7, 10, 13, 16\] as const/);
   assert.match(scannerSource, /function gbpAudH1SignalForBlock/);
   assert.match(localPatternsSource, /return "XAUUSD"/);
   assert.doesNotMatch(scannerSource, /derivedGbpUsdAlerts|derivedGbpAudAlerts/);
@@ -126,25 +126,25 @@ test("web tab softly refreshes server data every 20 seconds", () => {
   assert.doesNotMatch(tabAutoRefreshSource, /location\.reload/);
 });
 
-test("H17 remains the final scan slot while H3 stays active", () => {
-  assert.match(scannerSource, /H1_SIGNAL_END_HOUR = 17/);
-  assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 6, 9, 12\]/);
-  assert.match(mobileAppBackendSource, /FALLBACK_HOURS = \[3, 6, 9, 12\]/);
-  assert.doesNotMatch(scannerSource, /appointmentHour: 22, appointmentMinute: 5/);
-  assert.match(scannerSource, /appointmentMinute >= 20 \* 60 \+ 5/);
+test("H16 remains the final scan slot while H3 stays active", () => {
+  assert.match(scannerSource, /H1_SIGNAL_END_HOUR = 16/);
+  assert.match(localPatternsSource, /H1_LOCAL_SCAN_HOURS = \[3, 4, 7, 10, 13, 16\]/);
+  assert.match(mobileAppBackendSource, /FALLBACK_HOURS = \[3, 4, 7, 10, 13, 16\]/);
+  assert.match(scannerSource, /slotHour: 16, appointmentHour: 22, appointmentMinute: 5/);
+  assert.doesNotMatch(scannerSource, /appointmentMinute >= 20 \* 60 \+ 5/);
   assert.doesNotMatch(boardSource, /H16 CLOSE|isManualCloseH16Day/);
   assert.match(boardSource, /H1_SIGNAL_ROWS/);
   assert.doesNotMatch(boardSource + androidScreensSource, /order_send|closePosition|dispatchTask|\/approve/);
 });
 
-test("web and native clients expose shared XAU-owned Entry time plus only the GBPAUD v99 signal row", () => {
+test("web and native clients expose shared XAU-owned Entry time plus only the XAUUSD signal row", () => {
   assert.match(boardSource, /<b>ENTRY TIME<\/b>/);
   assert.match(boardSource, /entryAlertForHour/);
-  assert.doesNotMatch(boardSource, /day\?\.symbols\?\.XAUUSD\?\.alerts/);
-  assert.match(boardSource, /H1_SIGNAL_ROWS = \["GBPAUD"\]/);
-  assert.match(androidScreensSource, /VisibleSymbols = listOf\("GBPAUD"\)/);
-  assert.match(nativeH1BoardSource, /visibleSymbols = \["GBPAUD"\]/);
-  assert.match(expoCalendarSource, /FALLBACK_SYMBOLS = \["GBPAUD"\]/);
+  assert.match(boardSource, /day\?\.symbols\?\.XAUUSD\?\.alerts/);
+  assert.match(boardSource, /H1_SIGNAL_ROWS = \["XAUUSD"\]/);
+  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD"\)/);
+  assert.match(nativeH1BoardSource, /visibleSymbols = \["XAUUSD"\]/);
+  assert.match(expoCalendarSource, /FALLBACK_SYMBOLS = \["XAUUSD"\]/);
   assert.match(scannerSource, /H1_TARGET_BASES = H1_LOCAL_TARGETS/);
   assert.doesNotMatch(scannerSource, /symbols\.XAUUSD =/);
 });
@@ -383,7 +383,7 @@ test("native iOS and Android mirror the web three-tab hierarchy with animated H1
 });
 
 test("native Android copies the iOS H1 presentation, evidence, reports, themes and account interaction", () => {
-  assert.match(androidScreensSource, /VisibleSymbols = listOf\("GBPAUD"\)/);
+  assert.match(androidScreensSource, /VisibleSymbols = listOf\("XAUUSD"\)/);
   assert.doesNotMatch(androidScreensSource, /entryReference/);
   assert.match(androidScreensSource, /OAKPill\("FREE ACCESS", PillTone\.SUCCESS\)/);
   assert.match(androidScreensSource, /BrokerCalendarSheet/);
@@ -467,7 +467,7 @@ test("engine web surface is local-H1-only with the compact command header", () =
   assert.doesNotMatch(engineBoardSource, /Pattern5Payload|Pattern5Table|ENGINE 05|Pattern Matrix|Trạng thái tín hiệu hiện tại|<small>PROFILE<\/small>|h1Data\?\.profile/);
   assert.match(engineBoardSource, /<EngineCore data=\{h1Data\}/);
   assert.doesNotMatch(engineBoardSource, /mode="live"|mode="history"/);
-  assert.match(boardSource, /MT5 ICMarkets · XAUUSD M15 ENTRY \+ GBPAUD H1 signal/);
+  assert.match(boardSource, /MT5 ICMarkets · XAUUSD ENTRY \+ XAUUSD signal/);
   assert.doesNotMatch(engineBoardSource, /UNLOCK SIGNALS/);
 });
 
@@ -478,9 +478,9 @@ test("H1 board exports interoperable PNG with clipboard, Android share-sheet and
   assert.match(boardSource, /H1_SHARE_SCALE = 2/);
   assert.match(boardSource, /H1_SHARE_SYMBOL_WIDTH = 148/);
   assert.match(boardSource, /H1_SHARE_HOUR_WIDTH = 96/);
-  assert.match(boardSource, /XAUUSD owns Entry pattern/);
-  assert.match(boardSource, /GBPAUD H1 at Entry-1 · delta \+1 KEEP · delta \+2 INVERT/);
-  assert.match(boardSource, /GBPAUD H1 tại Entry-1 · delta \+1 GIỮ · delta \+2 ĐẢO/);
+  assert.match(boardSource, /XAUUSD owns both Entry timing and the signal row/);
+  assert.match(boardSource, /XAUUSD owns both Entry timing and the signal row/);
+  assert.match(boardSource, /XAUUSD giữ cả Entry time và hàng tín hiệu/);
   assert.doesNotMatch(boardSource, /H16 GU keep|H1 base: H3 AU keep/);
   assert.match(boardSource, /deliverPngBlob/);
   assert.match(boardSource, /SHARED/);

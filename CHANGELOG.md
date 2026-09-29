@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Advanced H1 to signal rule v101 while keeping public schema 18/state v56. H1 Live/History now exposes only H03/H04/H07/H10/H13/H16 with XAUUSD as the public signal row; web, Expo, native clients, timed Vietnam anchors and local TP milestones share the same six-block contract. Deployment rebuilds retained H1 history under v101.
+
 - Aligned the dense H1, NeoTech, Fact Check and Discover WebGL orbit lights with their visible paths, and added smooth 3D hover movement across the Orbit scenes and Tools directory.
 
 - Extended the production Three.js visual system across `/neotech`, `/tools`, `/factcheck`, `/tarot` and `/discover` without moving any business/data controls into WebGL. NeoTech now uses a compliance core, Tools renders all three directory motifs through one scissored renderer, Fact Check adds an Evidence Lens, Tarot adds a 3D deck hero plus texture-backed result-card reveals, and Discover uses one shared constellation that reacts to all five experiences. Every scene keeps DOM/CSS fallbacks, bounded DPR, low-power rendering, hidden/offscreen suspension and static reduced-motion behavior; the shared renderer also paints an initial frame before marking itself ready so background-tab hydration cannot expose an empty canvas.

@@ -56,7 +56,7 @@ function alert(symbol, slotHour, entryHour = slotHour + 1, signal = "BUY") {
     slotHour,
     symbol,
     profile: "MT5 ICMarkets Local",
-    baseSymbol: "GBPAUD",
+    baseSymbol: "XAUUSD",
     baseSignal,
     baseHour: entryHour - 1,
     baseMinute: 0,
@@ -78,16 +78,16 @@ function payload() {
   const dates = ["2025-12-29", "2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02", "2026-01-05", "2026-02-03"];
   return {
     schemaVersion: 18,
-    signalRuleVersion: 99,
+    signalRuleVersion: 101,
     profile: "MT5 ICMarkets Local",
     publishedAt: "2026-02-03T12:00:00.000Z",
-    hours: [3, 6, 9, 12],
-    symbols: ["GBPAUD"],
+    hours: [3, 4, 7, 10, 13, 16],
+    symbols: ["XAUUSD"],
     days: Object.fromEntries(dates.map((date, index) => {
       const entryHour = index % 2 ? 4 : 5;
       const signal = index % 3 === 0 ? "SELL" : "BUY";
       return [date, { symbols: {
-        GBPAUD: { alerts: [alert("GBPAUD", 3, entryHour, signal)] },
+        XAUUSD: { alerts: [alert("XAUUSD", 3, entryHour, signal)] },
       } }];
     })),
   };
@@ -122,24 +122,22 @@ test("unified H1 keeps the calendar month grid out of the normal closed DOM", ()
   assert.doesNotMatch(h1SignalBoardSource, /embedded|data-embedded/);
 });
 
-test("v99 table renders four unhighlighted blocks with XAU-owned Entry time and one GBPAUD signal row", () => {
+test("v101 table renders only H3/H4/H7/H10/H13/H16 with one XAUUSD signal row", () => {
   const data = payload();
-  data.days["2026-02-03"].symbols.GBPAUD.alerts = [alert("GBPAUD", 3, 5, "BUY")];
+  data.days["2026-02-03"].symbols.XAUUSD.alerts = [alert("XAUUSD", 3, 5, "BUY")];
   const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data, locale: "VN", unlocked: true }));
   assert.doesNotMatch(markup, /data-entry-highlight="true"|data-block-highlight="true"/);
-  for (const hour of [3, 6, 9, 12]) assert.match(markup, new RegExp(`id="h1-hour-${hour}" scope="col"`));
-  assert.doesNotMatch(markup, /id="h1-hour-14" scope="col"/);
+  for (const hour of [3, 4, 7, 10, 13, 16]) assert.match(markup, new RegExp(`id="h1-hour-${hour}" scope="col"`));
+  for (const hour of [5, 6, 8, 9, 11, 12, 14, 15, 17]) assert.doesNotMatch(markup, new RegExp(`id="h1-hour-${hour}" scope="col"`));
   assert.match(markup, /<b>ENTRY TIME<\/b>/);
-  assert.match(markup, /<b>GBPAUD<\/b>/);
-  assert.doesNotMatch(markup, /<b>GBPUSD<\/b>/);
-  assert.doesNotMatch(markup, /<b>XAUUSD<\/b>/);
-  assert.doesNotMatch(markup, />H16<\/span>|id="h1-hour-16"/);
+  assert.match(markup, /<b>XAUUSD<\/b>/);
+  assert.doesNotMatch(markup, /<b>GBPUSD<\/b>|<b>GBPAUD<\/b>/);
   for (const symbol of ["AUDUSD", "USDCAD", "USDJPY"]) assert.doesNotMatch(markup, new RegExp(`<b>${symbol}<\\/b>`));
 });
 
-test("shared H1 table keeps XAU-owned entry hour above the GBPAUD signal row", () => {
+test("shared H1 table keeps XAU-owned entry hour above the XAUUSD signal row", () => {
   const data = payload();
-  data.days["2026-02-03"].symbols.GBPAUD.alerts = [alert("GBPAUD", 3, 5, "BUY")];
+  data.days["2026-02-03"].symbols.XAUUSD.alerts = [alert("XAUUSD", 3, 5, "BUY")];
   const markup = renderToStaticMarkup(React.createElement(H1SignalBoard, { data, locale: "VN", unlocked: true }));
   assert.match(markup, /data-pattern-group="BT"/);
   assert.match(markup, />H05<\/b>/);
@@ -190,8 +188,8 @@ test("VIP redaction masks every historical date while mobile still reads only th
   const redacted = redactH1Signals(data);
   assert.ok(redacted);
   for (const day of Object.values(redacted.days)) {
-    assert.deepEqual(day.symbols.GBPAUD.alerts, []);
+    assert.deepEqual(day.symbols.XAUUSD.alerts, []);
   }
   assert.equal(latestH1Date(data), "2026-02-03");
-  assert.equal(alertsForSymbol(data, "GBPAUD")[0]?.signal, data.days["2026-02-03"].symbols.GBPAUD.alerts[0].signal);
+  assert.equal(alertsForSymbol(data, "XAUUSD")[0]?.signal, data.days["2026-02-03"].symbols.XAUUSD.alerts[0].signal);
 });

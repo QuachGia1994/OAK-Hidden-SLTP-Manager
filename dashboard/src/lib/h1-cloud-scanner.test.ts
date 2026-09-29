@@ -86,19 +86,33 @@ function alertFor(
   date: string,
   slotHour: number,
 ) {
-  return evaluateLocalH1PatternsForTarget("XAUUSD", date, snapshot, [3, 6, 9, 12], slotHour)
+  return evaluateLocalH1PatternsForTarget("XAUUSD", date, snapshot, H1_SCAN_HOURS, slotHour)
     .find((alert) => alert.slotHour === slotHour);
 }
 
-test("rule v100 scans H3 through H17 with H3 as the pattern anchor", () => {
+test("rule v101 scans only H3/H4/H7/H10/H13/H16 with H3 as the pattern anchor", () => {
   assert.equal(H1_CLOUD_STATE_VERSION, 56);
   assert.equal(H1_PUBLIC_SCHEMA, 18);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 100);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 101);
   assert.equal(H1_CLOUD_PROFILE, "MT5 ICMarkets Local");
-  assert.equal(H1_SCAN_END_HOUR, 17);
-  assert.equal(H1_SIGNAL_END_HOUR, 17);
-  assert.deepEqual(H1_SCAN_HOURS, [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]);
+  assert.equal(H1_SCAN_END_HOUR, 16);
+  assert.equal(H1_SIGNAL_END_HOUR, 16);
+  assert.deepEqual(H1_SCAN_HOURS, [3, 4, 7, 10, 13, 16]);
   assert.deepEqual(H1_TARGET_BASES, ["XAUUSD"]);
+});
+
+test("scheduled XAUUSD signals map onto the six active H1 blocks", () => {
+  const date = "2026-08-18";
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 9, 4), null);
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 9, 5), 3);
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 10, 5), 4);
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 13, 5), 7);
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 16, 5), 10);
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 19, 5), 13);
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 22, 5), 16);
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 23, 59), 16);
+  assert.equal(scheduledSignalSlotForBrokerHour("XAUUSD", date, 16), 16);
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", "2026-08-16", 22, 5), null);
 });
 
 test("H3 remains pattern-driven: BT enters H4 and SW enters H5", () => {
@@ -116,29 +130,34 @@ test("H3 remains pattern-driven: BT enters H4 and SW enters H5", () => {
   assert.deepEqual([swAlert?.slotHour, swAlert?.entryHour, swAlert?.baseSymbol, swAlert?.baseHour, swAlert?.baseMinute], [3, 5, "GBPUSD", 4, 45]);
 });
 
-test("GBPAUD advisory scans XAUUSD H1 reversals from H4 through H17 and uses the current block as entry time", () => {
+test("XAUUSD scanner evaluates reversals only at H4/H7/H10/H13/H16", () => {
   const date = "2026-08-18";
   const snapshot = market(date, 3);
   setH1(snapshot, "GBPAUD", date, 2, "G"); // Must not affect the XAU-only rule.
   setH1(snapshot, "GBPAUD", date, 3, "T");
   setH1(snapshot, "XAUUSD", date, 2, "T");
   setH1(snapshot, "XAUUSD", date, 3, "G");
-  setH1(snapshot, "XAUUSD", date, 4, "G");
   setH1(snapshot, "XAUUSD", date, 5, "T");
-  setH1(snapshot, "XAUUSD", date, 15, "G");
-  setH1(snapshot, "XAUUSD", date, 16, "T");
+  setH1(snapshot, "XAUUSD", date, 6, "G");
+  setH1(snapshot, "XAUUSD", date, 8, "G");
+  setH1(snapshot, "XAUUSD", date, 9, "T");
+  setH1(snapshot, "XAUUSD", date, 11, "T");
+  setH1(snapshot, "XAUUSD", date, 12, "G");
+  setH1(snapshot, "XAUUSD", date, 14, "G");
+  setH1(snapshot, "XAUUSD", date, 15, "T");
 
-  const alerts = evaluateLocalH1PatternsForTarget("XAUUSD", date, snapshot, H1_SCAN_HOURS, 17);
-  assert.deepEqual(alerts.map((alert) => [alert.slotHour, alert.entryHour, alert.ownH1Signals?.GBPAUD?.baseHour, alert.ownH1Signals?.GBPAUD?.symbolH1Signal]), [
-    [3, 4, 3, "BUY"],
+  const alerts = evaluateLocalH1PatternsForTarget("XAUUSD", date, snapshot, H1_SCAN_HOURS, 16);
+  assert.deepEqual(alerts.filter((alert) => alert.slotHour >= 4).map((alert) => [alert.slotHour, alert.entryHour, alert.baseHour, alert.symbolH1Signal]), [
     [4, 4, 3, "SELL"],
-    [6, 6, 5, "BUY"],
-    [17, 17, 16, "BUY"],
+    [7, 7, 6, "SELL"],
+    [10, 10, 9, "BUY"],
+    [13, 13, 12, "SELL"],
+    [16, 16, 15, "BUY"],
   ]);
-  assert.ok(alerts.filter((alert) => alert.slotHour >= 4).every((alert) => alert.baseSymbol === "XAUUSD" && alert.ownH1Signals?.GBPAUD?.baseSymbol === "XAUUSD"));
+  assert.ok(alerts.filter((alert) => alert.slotHour >= 4).every((alert) => alert.baseSymbol === "XAUUSD"));
 });
 
-test("GBPAUD advisory fails closed without a two-candle XAUUSD H1 reversal", () => {
+test("XAUUSD H1 reversal blocks fail closed without a two-candle reversal", () => {
   const date = "2026-08-18";
   const snapshot = market(date, 3);
   setH1(snapshot, "XAUUSD", date, 2, "T");
@@ -146,6 +165,28 @@ test("GBPAUD advisory fails closed without a two-candle XAUUSD H1 reversal", () 
   assert.deepEqual(evaluateLocalH1PatternsForTarget("XAUUSD", date, snapshot, [4], 4), []);
   setH1(snapshot, "XAUUSD", date, 3, "G");
   assert.equal(evaluateLocalH1PatternsForTarget("XAUUSD", date, snapshot, [5], 5).length, 0);
+});
+
+test("public feed publishes only XAUUSD across the six active blocks and round-trips", () => {
+  const date = "2026-08-18";
+  const snapshot = market(date, 3, "TTGTTT");
+  setM15(snapshot, "GBPUSD", date, 3, 45, "T");
+  setH1(snapshot, "GBPAUD", date, 3, "T");
+  for (const [hour, direction] of [[2, "T"], [3, "G"], [5, "T"], [6, "G"], [8, "G"], [9, "T"], [11, "T"], [12, "G"], [14, "G"], [15, "T"]] as const) {
+    setH1(snapshot, "XAUUSD", date, hour, direction);
+  }
+  const alerts = evaluateLocalH1PatternsForTarget("XAUUSD", date, snapshot, H1_SCAN_HOURS, 16);
+  const state = emptyCloudState();
+  state.days[date] = { symbols: { XAUUSD: { alerts } } };
+
+  const feed = buildPublicFeed(state);
+  assert.deepEqual(feed.hours, [3, 4, 7, 10, 13, 16]);
+  assert.deepEqual(feed.symbols, ["XAUUSD"]);
+  assert.deepEqual(Object.keys(feed.days[date].symbols), ["XAUUSD"]);
+  assert.deepEqual(feed.days[date].symbols.XAUUSD?.alerts.map((alert) => alert.slotHour), [3, 4, 7, 10, 13, 16]);
+
+  const roundTrip = parsePublicFeedCloudState(feed);
+  assert.deepEqual(roundTrip?.days[date].symbols.XAUUSD?.alerts.map((alert) => alert.slotHour), [3, 4, 7, 10, 13, 16]);
 });
 
 test("v98 migration drops retired stored FX/H16 rows and rejects stale v97 public feeds", () => {

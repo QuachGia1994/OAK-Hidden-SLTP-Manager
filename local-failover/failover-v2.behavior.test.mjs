@@ -367,7 +367,7 @@ async function writeTradeEvent(h, event) {
 async function writeH1TpMilestones(h, milestones, overrides = {}) {
   await writeLedgerJson(h.paths.h1TpMilestonesPath, {
     version: 1,
-    signalRuleVersion: 99,
+    signalRuleVersion: 101,
     generatedAt: h.now,
     brokerDate: "2026-08-24",
     brokerHour: 14,
