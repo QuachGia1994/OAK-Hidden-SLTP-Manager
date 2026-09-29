@@ -76,7 +76,7 @@ test("local publisher sends XAUUSD/GBPUSD/GBPAUD v101 market evidence and suppor
   assert.match(publisher, /MAX_BACKFILL_DAYS = 90/);
   assert.match(publisher, /HISTORICAL_READER_TIMEOUT_MS = 180_000/);
   assert.match(publisher, /HISTORICAL_READER_MAX_BUFFER = 32_000_000/);
-  assert.match(publisher, /BACKFILL_BUSY_RETRY_ATTEMPTS = 8/);
+  assert.match(publisher, /BACKFILL_BUSY_RETRY_ATTEMPTS = 160/);
   assert.match(publisher, /BACKFILL_BUSY_RETRY_MS = 750/);
   assert.match(publisher, /body\?\.skipped === "already-running"/);
   assert.match(publisher, /response\.status === 429 \|\| response\.status >= 500/);
