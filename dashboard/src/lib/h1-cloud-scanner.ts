@@ -696,7 +696,10 @@ function isValidOwnH1Signals(value: H1StoredAlert["ownH1Signals"]): boolean {
     && isDirectionOrPending(signal.baseDirection)
     && isSignalOrPending(signal.symbolH1Signal)
     && signal.postSignalInverted === false
-    && signal.postSignalRule === "xau-previous-block-keep";
+    && (
+      (signal.baseSymbol === "GBPAUD" && signal.postSignalRule === "block-base-keep")
+      || (signal.baseSymbol === "XAUUSD" && signal.postSignalRule === "xau-previous-block-keep")
+    );
 }
 
 function isValidAlertShape(alert: H1StoredAlert): boolean {
@@ -763,6 +766,36 @@ function preserveScheduledSignalOnly(base: H1TargetBase, alert: H1StoredAlert): 
     ownH1Signals: undefined,
     postSignalInverted: false,
     postSignalRule: "none",
+  };
+}
+
+function preserveScheduledSignalFromUnknown(base: H1TargetBase, value: unknown): H1StoredAlert | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  const slotHour = Number(row.slotHour);
+  const scheduledSignal = row.scheduledSignal;
+  if (!Number.isInteger(slotHour) || !isSignal(scheduledSignal)) return null;
+  return {
+    slotHour,
+    symbol: typeof row.symbol === "string" ? row.symbol : base,
+    profile: H1_CLOUD_PROFILE,
+    baseSymbol: base,
+    baseH1Signal: null,
+    baseHour: slotHour,
+    baseMinute: 0,
+    baseDirection: "",
+    symbolH1Signal: null,
+    scheduledSignal,
+    postSignalInverted: false,
+    postSignalRule: "none",
+    entryHour: null,
+    patternGroup: null,
+    patternFamily: null,
+    pattern: "",
+    scannerSource: "",
+    inversionBadge: false,
+    sampleBars: [],
+    signalBaseBar: null,
   };
 }
 
@@ -835,7 +868,15 @@ export function parseCloudState(raw: unknown): H1CloudState {
         const migratedAlert = sourceVersion === 54
           ? migrateV54Alert(alert as Record<string, unknown>)
           : isValidAlertShape(alert as H1StoredAlert) ? alert as H1StoredAlert : null;
-        if (!migratedAlert) throw new Error("Invalid H1 cloud alert state");
+        if (!migratedAlert) {
+          const scheduledOnly = preserveScheduledSignalFromUnknown(base as H1TargetBase, alert);
+          if (scheduledOnly
+            && isH1SlotActiveForBrokerDate(dateKey, scheduledOnly.slotHour)
+            && targetEnabledForDate(base as H1TargetBase, dateKey, scheduledOnly.slotHour)) {
+            alerts.push(scheduledOnly);
+          }
+          continue;
+        }
         if (!isH1SlotActiveForBrokerDate(dateKey, migratedAlert.slotHour)) continue;
         if (!targetEnabledForDate(base as H1TargetBase, dateKey, migratedAlert.slotHour)) continue;
         if (!matchesCurrentLocalPatternContract(base as H1TargetBase, migratedAlert)) {
@@ -845,15 +886,6 @@ export function parseCloudState(raw: unknown): H1CloudState {
         }
         if (Number.isInteger(migratedAlert.entryHour) && migratedAlert.patternGroup) {
           migratedAlert.inversionBadge = migratedAlert.postSignalInverted;
-        } else {
-          const decision = cycleDecisionFor(base as H1TargetBase, dateKey, migratedAlert.slotHour);
-          migratedAlert.postSignalInverted = decision.inverted;
-          migratedAlert.postSignalRule = decision.rule;
-          if (migratedAlert.baseH1Signal) {
-            migratedAlert.symbolH1Signal = decision.inverted
-              ? invertSignal(migratedAlert.baseH1Signal)
-              : migratedAlert.baseH1Signal;
-          }
         }
         alerts.push(migratedAlert);
       }

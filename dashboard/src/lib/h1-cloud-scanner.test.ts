@@ -179,7 +179,8 @@ test("public feed publishes only XAUUSD across the six active blocks and round-t
   const state = emptyCloudState();
   state.days[date] = { symbols: { XAUUSD: { alerts } } };
 
-  const feed = buildPublicFeed(state);
+  const parsed = parseCloudState(state);
+  const feed = buildPublicFeed(parsed);
   assert.deepEqual(feed.hours, [3, 4, 7, 10, 13, 16]);
   assert.deepEqual(feed.symbols, ["XAUUSD"]);
   assert.deepEqual(Object.keys(feed.days[date].symbols), ["XAUUSD"]);
@@ -210,6 +211,42 @@ test("v98 migration drops retired stored FX/H16 rows and rejects stale v97 publi
   assert.deepEqual(parsed.days[date].symbols.XAUUSD?.alerts, []);
   assert.deepEqual(Object.keys(parsed.days[date].symbols), ["XAUUSD"]);
   assert.equal(parsePublicFeedCloudState({ ...buildPublicFeed(emptyCloudState()), signalRuleVersion: 97 }), null);
+});
+
+test("schema-stable state drops invalid derived alerts but preserves operator scheduled signals", () => {
+  const date = "2026-08-18";
+  const stale = emptyCloudState();
+  stale.days[date] = {
+    symbols: {
+      XAUUSD: { alerts: [
+        {
+          slotHour: 4, symbol: "XAUUSD", profile: H1_CLOUD_PROFILE, baseSymbol: "XAUUSD",
+          baseH1Signal: "SELL", baseHour: 3, baseMinute: 0, baseDirection: "G", symbolH1Signal: "SELL",
+          scheduledSignal: "BUY", postSignalInverted: false, postSignalRule: "legacy-rule",
+        } as never,
+        {
+          slotHour: 7, symbol: "XAUUSD", profile: H1_CLOUD_PROFILE, baseSymbol: "XAUUSD",
+          baseH1Signal: "BUY", baseHour: 6, baseMinute: 0, baseDirection: "T", symbolH1Signal: "BUY",
+          scheduledSignal: null, postSignalInverted: false, postSignalRule: "legacy-rule",
+        } as never,
+      ] },
+    },
+  };
+
+  const parsed = parseCloudState(stale);
+  assert.deepEqual(parsed.days[date].symbols.XAUUSD?.alerts.map((alert) => ({
+    slotHour: alert.slotHour,
+    scheduledSignal: alert.scheduledSignal,
+    entryHour: alert.entryHour,
+    symbolH1Signal: alert.symbolH1Signal,
+    postSignalRule: alert.postSignalRule,
+  })), [{
+    slotHour: 4,
+    scheduledSignal: "BUY",
+    entryHour: null,
+    symbolH1Signal: null,
+    postSignalRule: "none",
+  }]);
 });
 
 test("rule bumps keep H1 history on schema-stable state key and merge dates", () => {

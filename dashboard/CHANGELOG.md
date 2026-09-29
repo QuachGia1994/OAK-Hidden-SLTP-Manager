@@ -4,6 +4,12 @@
 
 All notable changes to the dashboard are recorded here.
 
+## [0.9.2] - 2026-09-29
+
+### Fixed
+
+- Fixed v101 H1 persistence and history rebuild: schema-stable state validation now accepts the H3 GBPAUD evidence shape, preserves H4/H7/H10/H13/H16 reversal alerts without rewriting their rule metadata, and republishes the current public feed on every valid local snapshot so a no-op scan cannot leave clients on an older rule/hours/symbol contract.
+
 ## [0.9.1] - 2026-09-29
 
 ### Changed
