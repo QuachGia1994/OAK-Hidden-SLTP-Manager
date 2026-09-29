@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1] - 2026-09-29
+
+### Fixed
+
+- WebGL orbit self-recovers after a lost GPU context. The Three.js stages (`/engine`, `/neotech`, `/tools`, and the Discover/Tarot/FactCheck heroes) now `preventDefault()` on `webglcontextlost` and rebuild the renderer and scene on `webglcontextrestored`, so a mid-session context loss restores the 3D orbit instead of stranding the CSS fallback until a manual reload.
+- MT5 UI auto-entry waits (bounded, single click) for the order dialog and its Buy/Sell button to become enabled before submitting, instead of failing the instant MT5 transiently disables the button on a tick or requote — a scheduled entry no longer stalls with the ticket open but unsubmitted.
+
 ## [1.0.0] - 2026-09-29
 
 ### Changed

@@ -2,6 +2,12 @@
 
 All notable changes to the dashboard are recorded here.
 
+## [1.0.1] - 2026-09-29
+
+### Fixed
+
+- WebGL orbit self-recovers after a lost GPU context. The Three.js stages (`/engine`, `/neotech`, `/tools`, and the Discover/Tarot/FactCheck heroes) now `preventDefault()` on `webglcontextlost` and rebuild the renderer and scene on `webglcontextrestored`, so a mid-session context loss restores the 3D orbit instead of stranding the CSS fallback until a manual reload.
+
 ## [1.0.0] - 2026-09-29
 
 ### Changed
