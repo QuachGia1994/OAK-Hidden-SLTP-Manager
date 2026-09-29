@@ -511,23 +511,41 @@ try {
     throw "MT5 terminal process changed after order preparation"
   }
 
-  $dialog = Find-OrderDialog $mainElement
-  if ($null -eq $dialog) {
-    throw "Prepared MT5 order dialog disappeared before submit"
-  }
-  $dialogHandle = [IntPtr]$dialog.Current.NativeWindowHandle
-  if ($dialogHandle.ToInt64() -ne [long]$prepared.dialogHandle) {
-    throw "MT5 order dialog handle changed before submit"
+  $submitButtonId = if ([string]$task.side -eq "BUY") { "10408" } elseif ([string]$task.side -eq "SELL") { "10409" } else { throw "MT5 UI side must be BUY or SELL" }
+
+  # MT5 disables the Buy/Sell button on every incoming tick / requote and briefly
+  # after a field edit; that is a normal transient state, not a failure. Wait
+  # (bounded) for the prepared dialog and the button to become ready, then click
+  # exactly once. Never add a second click here: a retried click after one already
+  # registered would open a duplicate position; the adapter's fail-closed EA
+  # position check owns the "clicked but unconfirmed" case.
+  $submitDeadline = (Get-UtcMs) + 3000
+  $dialog = $null
+  $dialogHandle = [IntPtr]::Zero
+  $submitButton = [IntPtr]::Zero
+  do {
+    $candidateDialog = Find-OrderDialog $mainElement
+    if ($null -ne $candidateDialog) {
+      $candidateHandle = [IntPtr]$candidateDialog.Current.NativeWindowHandle
+      if ($candidateHandle.ToInt64() -eq [long]$prepared.dialogHandle) {
+        $candidateButton = Get-ControlHandle $candidateDialog $submitButtonId
+        if ([OakMt5UiWin32]::IsWindowEnabled($candidateButton)) {
+          $dialog = $candidateDialog
+          $dialogHandle = $candidateHandle
+          $submitButton = $candidateButton
+          break
+        }
+      }
+    }
+    Start-Sleep -Milliseconds 50
+  } while ((Get-UtcMs) -lt $submitDeadline)
+
+  if ($submitButton -eq [IntPtr]::Zero -or $null -eq $dialog) {
+    throw "Prepared MT5 order dialog or Buy/Sell button was not ready before submit timeout"
   }
 
   Assert-DialogProcess $dialogHandle $process.Id
   Assert-PreparedFields $dialog $task
-
-  $submitButtonId = if ([string]$task.side -eq "BUY") { "10408" } elseif ([string]$task.side -eq "SELL") { "10409" } else { throw "MT5 UI side must be BUY or SELL" }
-  $submitButton = Get-ControlHandle $dialog $submitButtonId
-  if (-not [OakMt5UiWin32]::IsWindowEnabled($submitButton)) {
-    throw "MT5 Buy/Sell button became disabled before submit"
-  }
 
   $queued = [OakMt5UiWin32]::PostMessage($submitButton, $BM_CLICK, [IntPtr]::Zero, [IntPtr]::Zero)
   if (-not $queued) {
