@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.2] - 2026-09-30
+
+### Fixed
+
+- Prevented Windows/controller restarts from executing stale scheduled CLOSE intents against IC Markets positions. Persisted scheduled CLOSE intents are now cancelled during startup and must be reissued after boot, while scheduled ENTRY intents keep their existing durable resume behavior and newly created CLOSE intents still execute normally.
+
 ## [1.0.1] - 2026-09-29
 
 ### Fixed

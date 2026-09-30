@@ -2,6 +2,12 @@
 
 All notable changes to the dashboard are recorded here.
 
+## [1.0.2] - 2026-09-30
+
+### Fixed
+
+- Hardened the local MT5 failover controller against reboot-triggered position closes: scheduled CLOSE intents persisted before a controller restart are cancelled on startup, while scheduled ENTRY resume behavior and post-startup CLOSE scheduling remain unchanged.
+
 ## [1.0.1] - 2026-09-29
 
 ### Fixed
