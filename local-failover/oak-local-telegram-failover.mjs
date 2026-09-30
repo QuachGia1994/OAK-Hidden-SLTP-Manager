@@ -944,7 +944,21 @@ export function createLocalFailoverRuntime(options = {}) {
     await saveState(state);
   }
 
+  function cancelScheduledCloseIntentsOnStartup(state) {
+    let cancelled = 0;
+    for (const intent of Object.values(state.intents || {})) {
+      if (intent.kind !== "close" || intent.status !== "scheduled") continue;
+      intent.status = "cancelled";
+      intent.executionFinishedAt = clock();
+      intent.executionError = "Scheduled close cancelled because the controller restarted; reissue it after startup if still needed.";
+      cancelled += 1;
+    }
+    if (cancelled > 0) state.pendingSystemMessages.push(`ℹ️ Restart safety cancelled ${cancelled} scheduled close intent(s). Reissue them after startup if still needed.`);
+    return cancelled;
+  }
+
   async function reconcileStartup(config, state) {
+    if (cancelScheduledCloseIntentsOnStartup(state) > 0) await saveState(state);
     if (config.controlMode === LOCAL_PRIMARY_MODE) {
       await ensureLocalPrimaryOwnership(config, state);
       return;

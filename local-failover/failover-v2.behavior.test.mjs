@@ -1294,6 +1294,39 @@ test("34 controller restart before dueAt reloads durable state and dispatches ex
   } finally { await h.cleanup(); }
 });
 
+test("restart safety cancels persisted scheduled CLOSE but keeps new post-startup CLOSE usable", { concurrency: false }, async () => {
+  const h = await createHarness("restart-close-safety", {
+    controlMode: "local-primary",
+    webhook: "",
+    statuses: [localPrimaryStatusFor(ACCOUNT_A)],
+  });
+  try {
+    const state = h.state(FAILOVER_MODES.LOCAL_ACTIVE);
+    const statuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, state, { update_id: 342, message: { chat: { id: 123 }, text: "/close XAUUSD 12:05 @acct-a" } }, statuses);
+    const [persistedCloseId] = Object.keys(state.intents);
+    assert.equal(state.intents[persistedCloseId].status, "scheduled");
+
+    const restarted = await h.runtime.loadState();
+    await h.runtime.reconcileStartup(h.config, restarted);
+    assert.equal(restarted.intents[persistedCloseId].status, "cancelled");
+    assert.match(restarted.intents[persistedCloseId].executionError, /controller restarted/i);
+
+    h.setNow(BASE_NOW);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    const refreshedStatuses = await h.runtime.loadEaStatuses();
+    await h.runtime.processTelegramUpdate(h.config, restarted, { update_id: 343, message: { chat: { id: 123 }, text: "/close XAUUSD 12:06 @acct-a" } }, refreshedStatuses);
+    const postStartupClose = Object.values(restarted.intents).find((intent) => intent.sourceUpdateId === 343);
+    assert.equal(postStartupClose?.status, "scheduled");
+
+    h.setNow(Number(postStartupClose.dueAt) + 1);
+    await h.writeStatus(localPrimaryStatusFor(ACCOUNT_A, {}, h.now));
+    await h.runtime.runOneIteration(h.config, restarted);
+    assert.equal(postStartupClose.status, "executed");
+    assert.equal(h.eaExecutions, 1);
+  } finally { await h.cleanup(); }
+});
+
 test("35 Telegram outage does not block scheduled execution and reconnect resumes update processing", { concurrency: false }, async () => {
   const h = await createHarness("35", {
     controlMode: "local-primary",
