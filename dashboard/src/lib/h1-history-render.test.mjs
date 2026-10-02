@@ -58,7 +58,7 @@ function payload() {
     signalRuleVersion: 102,
     profile: "H1 Fixed Entry Schedule",
     publishedAt: "2026-09-29T04:00:00.000Z",
-    hours: [3, 4, 7, 10, 13, 16],
+    hours: [3, 4, 7, 11, 14, 16],
     symbols: ["XAUUSD"],
     days: Object.fromEntries(dates.map((date) => [date, { symbols: { XAUUSD: { alerts: [] } } }])),
   };
@@ -70,7 +70,8 @@ function render(locale = "VN") {
 
 test("H1 history board renders six block headers with fixed times and the weekday C/N rows", () => {
   const markup = render("VN");
-  for (const hour of ["03", "04", "07", "10", "13", "16"]) assert.match(markup, new RegExp(`H${hour}`));
+  for (const hour of ["03", "04", "07", "11", "14", "16"]) assert.match(markup, new RegExp(`H${hour}`));
+  assert.doesNotMatch(markup, />H10<|>H13</);
   assert.match(markup, /data-side="sell"/);
   assert.match(markup, /data-side="buy"/);
   assert.match(markup, />Bình thường</);
@@ -78,7 +79,8 @@ test("H1 history board renders six block headers with fixed times and the weekda
   for (const weekday of ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6"]) assert.match(markup, new RegExp(`<b>${weekday}</b>`));
   assert.match(markup, /C = Cùng · N = Ngược/);
   assert.match(markup, /<tr data-cn-row="normal" data-active="true"><th id="h1-cn-normal-2"/);
-  for (const time of ["07:25", "08:25", "11:25", "15:49", "18:49", "20:49", "07:40", "10:40", "13:40", "16:40", "19:40", "21:40"]) {
+  assert.match(markup, /<b>Thứ 6<\/b><\/th>(?:(?!<\/tr>).)*>EURAUD<\/td>/);
+  for (const time of ["07:25", "08:25", "08:49", "15:49", "18:49", "20:49", "03:35", "04:35", "09:35", "12:35", "15:35", "17:35"]) {
     assert.match(markup, new RegExp(time.replace(":", ":")));
   }
 });

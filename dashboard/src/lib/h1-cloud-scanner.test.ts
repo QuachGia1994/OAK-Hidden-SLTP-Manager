@@ -21,16 +21,16 @@ test("H1 fixed-entry contract exposes only the six configured blocks", () => {
   assert.equal(H1_PUBLIC_SCHEMA, 18);
   assert.equal(H1_SIGNAL_RULE_VERSION, 102);
   assert.equal(H1_CLOUD_PROFILE, "H1 Fixed Entry Schedule");
-  assert.deepEqual(H1_SCAN_HOURS, [3, 4, 7, 10, 13, 16]);
+  assert.deepEqual(H1_SCAN_HOURS, [3, 4, 7, 11, 14, 16]);
   assert.deepEqual(H1_FIXED_ENTRY_TIMES, {
-    3: { SELL: "07:25", BUY: "07:40" },
-    4: { SELL: "08:25", BUY: "10:40" },
-    7: { SELL: "11:25", BUY: "13:40" },
-    10: { SELL: "15:49", BUY: "16:40" },
-    13: { SELL: "18:49", BUY: "19:40" },
-    16: { SELL: "20:49", BUY: "21:40" },
+    3: { SELL: "07:25", BUY: "03:35" },
+    4: { SELL: "08:25", BUY: "04:35" },
+    7: { SELL: "08:49", BUY: "09:35" },
+    11: { SELL: "15:49", BUY: "12:35" },
+    14: { SELL: "18:49", BUY: "15:35" },
+    16: { SELL: "20:49", BUY: "17:35" },
   });
-  assert.deepEqual(activeH1ScanHoursForBrokerDate("2026-09-29"), [3, 4, 7, 10, 13, 16]);
+  assert.deepEqual(activeH1ScanHoursForBrokerDate("2026-09-29"), [3, 4, 7, 11, 14, 16]);
   assert.deepEqual(activeH1ScanHoursForBrokerDate("2026-09-27"), []);
 });
 
@@ -39,26 +39,26 @@ test("manual Telegram BUY/SELL appointments map to their own fixed entry times",
   assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 7, 24, "SELL"), null);
   assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 7, 25, "SELL"), 3);
   assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 8, 25, "SELL"), 4);
-  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 11, 25, "SELL"), 7);
-  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 15, 49, "SELL"), 10);
-  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 18, 49, "SELL"), 13);
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 8, 49, "SELL"), 7);
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 15, 49, "SELL"), 11);
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 18, 49, "SELL"), 14);
   assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 20, 49, "SELL"), 16);
 
-  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 7, 39, "BUY"), null);
-  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 7, 40, "BUY"), 3);
-  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 10, 40, "BUY"), 4);
-  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 13, 40, "BUY"), 7);
-  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 16, 40, "BUY"), 10);
-  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 19, 40, "BUY"), 13);
-  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 21, 40, "BUY"), 16);
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 3, 34, "BUY"), null);
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 3, 35, "BUY"), 3);
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 4, 35, "BUY"), 4);
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 9, 35, "BUY"), 7);
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 12, 35, "BUY"), 11);
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 15, 35, "BUY"), 14);
+  assert.equal(scheduledSignalSlotForVietnamWall("XAUUSD", date, 17, 35, "BUY"), 16);
 
   assert.deepEqual(H1_TELEGRAM_VIETNAM_SLOT_ANCHORS, [
-    { slotHour: 3, SELL: "07:25", BUY: "07:40" },
-    { slotHour: 4, SELL: "08:25", BUY: "10:40" },
-    { slotHour: 7, SELL: "11:25", BUY: "13:40" },
-    { slotHour: 10, SELL: "15:49", BUY: "16:40" },
-    { slotHour: 13, SELL: "18:49", BUY: "19:40" },
-    { slotHour: 16, SELL: "20:49", BUY: "21:40" },
+    { slotHour: 3, SELL: "07:25", BUY: "03:35" },
+    { slotHour: 4, SELL: "08:25", BUY: "04:35" },
+    { slotHour: 7, SELL: "08:49", BUY: "09:35" },
+    { slotHour: 11, SELL: "15:49", BUY: "12:35" },
+    { slotHour: 14, SELL: "18:49", BUY: "15:35" },
+    { slotHour: 16, SELL: "20:49", BUY: "17:35" },
   ]);
 });
 
@@ -132,7 +132,7 @@ test("public feed carries no calculated BUY/SELL signal or calculated entry hour
   const feed = buildPublicFeed(state, "2026-09-29T00:00:00.000Z");
   const alert = feed.days["2026-09-29"]?.symbols.XAUUSD?.alerts[0];
   assert.equal(feed.signalRuleVersion, 102);
-  assert.deepEqual(feed.hours, [3, 4, 7, 10, 13, 16]);
+  assert.deepEqual(feed.hours, [3, 4, 7, 11, 14, 16]);
   assert.deepEqual(feed.symbols, ["XAUUSD"]);
   assert.equal(alert?.scheduledSignal, "BUY");
   assert.equal(alert?.signal, null);

@@ -19,12 +19,12 @@ test("H1 reader is a static schedule shell and no longer reads signal state from
 
 test("fixed BUY/SELL entry-time source of truth matches owner values", () => {
   assert.deepEqual(H1_FIXED_ENTRY_TIMES, {
-    3: { SELL: "07:25", BUY: "07:40" },
-    4: { SELL: "08:25", BUY: "10:40" },
-    7: { SELL: "11:25", BUY: "13:40" },
-    10: { SELL: "15:49", BUY: "16:40" },
-    13: { SELL: "18:49", BUY: "19:40" },
-    16: { SELL: "20:49", BUY: "21:40" },
+    3: { SELL: "07:25", BUY: "03:35" },
+    4: { SELL: "08:25", BUY: "04:35" },
+    7: { SELL: "08:49", BUY: "09:35" },
+    11: { SELL: "15:49", BUY: "12:35" },
+    14: { SELL: "18:49", BUY: "15:35" },
+    16: { SELL: "20:49", BUY: "17:35" },
   });
 });
 
@@ -53,8 +53,8 @@ test("scanner rule v102 contains no candle/pattern evaluation exports", () => {
 
 test("web H1 schedule contains every fixed entry time", () => {
   for (const time of [
-    "07:25", "07:40", "08:25", "10:40", "11:25", "13:40",
-    "15:49", "16:40", "18:49", "19:40", "20:49", "21:40",
+    "07:25", "03:35", "08:25", "04:35", "08:49", "09:35",
+    "15:49", "12:35", "18:49", "15:35", "20:49", "17:35",
   ]) {
     assert.match(JSON.stringify(H1_FIXED_ENTRY_TIMES), new RegExp(time.replace(":", "\\:")));
   }

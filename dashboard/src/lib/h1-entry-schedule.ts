@@ -1,15 +1,15 @@
-export const H1_ENTRY_BLOCK_HOURS = [3, 4, 7, 10, 13, 16] as const;
+export const H1_ENTRY_BLOCK_HOURS = [3, 4, 7, 11, 14, 16] as const;
 
 export type H1EntryBlockHour = typeof H1_ENTRY_BLOCK_HOURS[number];
 export type H1EntrySide = "SELL" | "BUY";
 
 export const H1_FIXED_ENTRY_TIMES: Record<H1EntryBlockHour, Record<H1EntrySide, string>> = {
-  3: { SELL: "07:25", BUY: "07:40" },
-  4: { SELL: "08:25", BUY: "10:40" },
-  7: { SELL: "11:25", BUY: "13:40" },
-  10: { SELL: "15:49", BUY: "16:40" },
-  13: { SELL: "18:49", BUY: "19:40" },
-  16: { SELL: "20:49", BUY: "21:40" },
+  3: { SELL: "07:25", BUY: "03:35" },
+  4: { SELL: "08:25", BUY: "04:35" },
+  7: { SELL: "08:49", BUY: "09:35" },
+  11: { SELL: "15:49", BUY: "12:35" },
+  14: { SELL: "18:49", BUY: "15:35" },
+  16: { SELL: "20:49", BUY: "17:35" },
 };
 
 export const H1_FIXED_ENTRY_ROWS: readonly H1EntrySide[] = ["SELL", "BUY"];
@@ -34,19 +34,20 @@ export type H1WeekdayPatternRow = {
 export const H1_WEEKDAY_PATTERN_MODES: readonly H1WeekdayPatternMode[] = ["NORMAL", "SW"];
 
 const GBPAUD_NOTE = { EN: "GBPAUD", VN: "GBPAUD" };
+const EURAUD_NOTE = { EN: "EURAUD", VN: "EURAUD" };
 const WIDE_SW_NOTE = { EN: "Wide SW", VN: "SW rộng" };
 
 export const H1_WEEKDAY_PATTERNS: Record<H1WeekdayPatternMode, readonly H1WeekdayPatternRow[]> = {
   NORMAL: [
     { weekday: 4, marks: ["C", "C", "C", "N", "C", "N"], emphasisFrom: 2 },
-    { weekday: 5, marks: ["C", "N", "N", "C", "N", "C"], note: GBPAUD_NOTE },
+    { weekday: 5, marks: ["C", "N", "N", "C", "N", "C"], note: EURAUD_NOTE },
     { weekday: 1, marks: ["N", "N", "C", "C", "N", "C"], emphasisFrom: 2 },
     { weekday: 2, marks: ["C", "N", "N", "N", "C", "N"], note: GBPAUD_NOTE },
     { weekday: 3, marks: ["N", "C", "C", "C", "N", "N"], note: WIDE_SW_NOTE },
   ],
   SW: [
     { weekday: 4, marks: ["C", "C", "N", "C", "N", "C"], emphasisFrom: 2 },
-    { weekday: 5, marks: ["N", "N", "C", "C", "N", "C"], note: GBPAUD_NOTE },
+    { weekday: 5, marks: ["N", "N", "C", "C", "N", "C"], note: EURAUD_NOTE },
     { weekday: 1, marks: ["N", "N", "N", "N", "C", "N"], emphasisFrom: 2 },
     { weekday: 2, marks: ["N", "C", "C", "C", "N", "C"], note: GBPAUD_NOTE },
     { weekday: 3, marks: ["C", "N", "N", "N", "C", "C"], note: WIDE_SW_NOTE },

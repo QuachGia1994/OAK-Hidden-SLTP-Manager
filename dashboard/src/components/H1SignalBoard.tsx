@@ -33,6 +33,9 @@ const H1_SESSION_LABEL: Record<Locale, Record<H1Session, string>> = {
   VN: { ASIA: "Á", EUROPE: "ÂU", US: "MỸ" },
 };
 
+// Narrow-screen label for a session that may span a single ~35px mobile column.
+const H1_SESSION_SHORT_LABEL: Partial<Record<Locale, Partial<Record<H1Session, string>>>> = { EN: { EUROPE: "EU" } };
+
 // Broker-server hour -> trading session band (contiguous, non-overlapping for labeling).
 function sessionForBrokerHour(hour: number): H1Session {
   if (hour < 9) return "ASIA";
@@ -47,7 +50,7 @@ function H1SessionHeaderRow({ hours, locale }: { hours: number[]; locale: Locale
       {hours.map((hour, index) => {
         const code = sessionForBrokerHour(hour);
         const isStart = index === 0 || sessionForBrokerHour(hours[index - 1]) !== code;
-        return <th key={hour} data-session={code}>{isStart ? <span>{H1_SESSION_LABEL[locale][code]}</span> : null}</th>;
+        return <th key={hour} data-session={code}>{isStart ? <span data-short={H1_SESSION_SHORT_LABEL[locale]?.[code]}>{H1_SESSION_LABEL[locale][code]}</span> : null}</th>;
       })}
       <th className="oak-h1-note-col" />
     </tr>
