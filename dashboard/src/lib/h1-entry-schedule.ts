@@ -43,13 +43,13 @@ export const H1_WEEKDAY_PATTERNS: Record<H1WeekdayPatternMode, readonly H1Weekda
     { weekday: 5, marks: ["C", "N", "N", "C", "N", "C"], note: EURAUD_NOTE },
     { weekday: 1, marks: ["N", "N", "C", "C", "N", "C"], emphasisFrom: 2 },
     { weekday: 2, marks: ["C", "N", "N", "N", "C", "N"], note: GBPAUD_NOTE },
-    { weekday: 3, marks: ["N", "C", "C", "C", "N", "N"], note: WIDE_SW_NOTE },
+    { weekday: 3, marks: ["C", "C", "C", "C", "N", "N"], note: WIDE_SW_NOTE },
   ],
   SW: [
     { weekday: 4, marks: ["C", "C", "N", "C", "N", "C"], emphasisFrom: 2 },
     { weekday: 5, marks: ["N", "N", "C", "C", "N", "C"], note: EURAUD_NOTE },
     { weekday: 1, marks: ["N", "N", "N", "N", "C", "N"], emphasisFrom: 2 },
-    { weekday: 2, marks: ["N", "C", "C", "C", "N", "C"], note: GBPAUD_NOTE },
+    { weekday: 2, marks: ["C", "C", "C", "C", "N", "C"], note: GBPAUD_NOTE },
     { weekday: 3, marks: ["C", "N", "N", "N", "C", "C"], note: WIDE_SW_NOTE },
   ],
 };

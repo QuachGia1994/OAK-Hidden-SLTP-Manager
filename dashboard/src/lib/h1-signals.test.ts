@@ -30,8 +30,8 @@ test("fixed BUY/SELL entry-time source of truth matches owner values", () => {
 
 test("weekday C/N pattern source of truth matches owner sheet", () => {
   const flatten = (mode: keyof typeof H1_WEEKDAY_PATTERNS) => H1_WEEKDAY_PATTERNS[mode].map((row) => [row.weekday, row.marks.join("")]);
-  assert.deepEqual(flatten("NORMAL"), [[4, "CCCNCN"], [5, "CNNCNC"], [1, "NNCCNC"], [2, "CNNNCN"], [3, "NCCCNN"]]);
-  assert.deepEqual(flatten("SW"), [[4, "CCNCNC"], [5, "NNCCNC"], [1, "NNNNCN"], [2, "NCCCNC"], [3, "CNNNCC"]]);
+  assert.deepEqual(flatten("NORMAL"), [[4, "CCCNCN"], [5, "CNNCNC"], [1, "NNCCNC"], [2, "CNNNCN"], [3, "CCCCNN"]]);
+  assert.deepEqual(flatten("SW"), [[4, "CCNCNC"], [5, "NNCCNC"], [1, "NNNNCN"], [2, "CCCCNC"], [3, "CNNNCC"]]);
 });
 
 test("web H1 board renders weekday C/N pattern rows with fixed BUY/SELL times in the header", () => {
