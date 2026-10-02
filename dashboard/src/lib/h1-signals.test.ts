@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { H1_FIXED_ENTRY_TIMES } from "./h1-entry-schedule.ts";
+import { H1_FIXED_ENTRY_TIMES, H1_WEEKDAY_PATTERNS } from "./h1-entry-schedule.ts";
 
 const readerSource = readFileSync(new URL("./h1-signals.ts", import.meta.url), "utf8");
 const boardSource = readFileSync(new URL("../components/H1SignalBoard.tsx", import.meta.url), "utf8");
@@ -28,10 +28,17 @@ test("fixed BUY/SELL entry-time source of truth matches owner values", () => {
   });
 });
 
-test("web H1 board renders fixed BUY/SELL rows instead of calculated signal/evidence cells", () => {
+test("weekday C/N pattern source of truth matches owner sheet", () => {
+  const flatten = (mode: keyof typeof H1_WEEKDAY_PATTERNS) => H1_WEEKDAY_PATTERNS[mode].map((row) => [row.weekday, row.marks.join("")]);
+  assert.deepEqual(flatten("NORMAL"), [[4, "CCCNCN"], [5, "CNNCNC"], [1, "NNCCNC"], [2, "CNNNCN"], [3, "NCCCNN"]]);
+  assert.deepEqual(flatten("SW"), [[4, "CCNCNC"], [5, "NNCCNC"], [1, "NNNNCN"], [2, "NCCCNC"], [3, "CNNNCC"]]);
+});
+
+test("web H1 board renders weekday C/N pattern rows with fixed BUY/SELL times in the header", () => {
   assert.match(boardSource, /H1_FIXED_ENTRY_ROWS/);
   assert.match(boardSource, /fixedH1EntryTime\(side, hour\)/);
-  assert.match(boardSource, /<b>\{side\}<\/b>/);
+  assert.match(boardSource, /H1_WEEKDAY_PATTERNS\[mode\]/);
+  assert.match(boardSource, /className="oak-h1-cn-mark"/);
   assert.doesNotMatch(boardSource, /H1EvidencePanel|entryAlertForHour|signalAlertForHour|signalLabel/);
   assert.doesNotMatch(boardSource, /alert\?\.signal|postSignalInverted|patternGroup/);
 });

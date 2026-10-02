@@ -274,6 +274,22 @@ min-height: 2rem; padding: .35rem .6rem;
 }
 .oak-h1-cell-signal[data-side="buy"] { color: var(--oak-signal-buy); }
 .oak-h1-cell-signal[data-side="sell"] { color: var(--oak-signal-sell); }
+.oak-h1-hour-times { display: flex; justify-content: center; gap: .3rem; margin-top: .25rem; font: 700 .68rem/1 "Cascadia Mono", Consolas, monospace; white-space: nowrap; }
+.oak-h1-hour-times i { font-style: normal; }
+.oak-h1-hour-times i[data-side="sell"] { color: var(--oak-signal-sell); }
+.oak-h1-hour-times i[data-side="buy"] { color: var(--oak-signal-buy); }
+.oak-h1-table .oak-h1-note-col { width: 7rem; min-width: 7rem; padding: 0 .6rem; color: var(--oak-fg-muted); font: 700 var(--oak-text-meta)/1.2 "Cascadia Mono", Consolas, monospace; text-align: left; }
+.oak-h1-cn-group th { padding: .45rem .75rem; text-align: left; color: var(--oak-fg-primary); background: var(--oak-bg-raised); font: 900 var(--oak-text-meta)/1 "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.oak-h1-table tbody tr[data-cn-row] td { padding: .3rem .2rem; text-align: center; vertical-align: middle; }
+.oak-h1-table tbody tr[data-cn-row] td.oak-h1-note-col { text-align: left; }
+.oak-h1-table tbody tr[data-active="true"] th,
+.oak-h1-table tbody tr[data-active="true"] td { background: color-mix(in srgb, var(--oak-accent-command) 10%, var(--oak-bg-surface)); }
+.oak-h1-table tbody tr[data-active="true"] th { box-shadow: inset 3px 0 0 var(--oak-accent-command); }
+.oak-h1-cn-mark { display: inline-flex; align-items: center; justify-content: center; min-width: 2rem; min-height: 1.9rem; border: 1px solid currentColor; border-radius: 999px; font: 850 var(--oak-text-meta)/1 "Cascadia Mono", Consolas, monospace; }
+.oak-h1-cn-mark[data-mark="c"] { color: var(--oak-accent-command); background: color-mix(in srgb, var(--oak-accent-command) 10%, var(--oak-bg-surface)); }
+.oak-h1-cn-mark[data-mark="n"] { color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 10%, var(--oak-bg-surface)); }
+.oak-h1-cn-mark[data-emphasis="true"] { border-width: 2px; font-weight: 950; }
+.oak-h1-cn-legend { margin: 0; padding: .5rem .75rem; color: var(--oak-fg-muted); font: 700 var(--oak-text-meta)/1.2 "Cascadia Mono", Consolas, monospace; }
 .oak-h1-cell-entry {
   display: grid;
   width: 100%;

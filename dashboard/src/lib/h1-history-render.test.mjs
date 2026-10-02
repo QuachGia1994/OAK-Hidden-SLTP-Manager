@@ -68,11 +68,16 @@ function render(locale = "VN") {
   return renderToStaticMarkup(React.createElement(H1SignalBoard, { data: payload(), locale }));
 }
 
-test("H1 history board renders six fixed block headers and two entry rows", () => {
+test("H1 history board renders six block headers with fixed times and the weekday C/N rows", () => {
   const markup = render("VN");
   for (const hour of ["03", "04", "07", "10", "13", "16"]) assert.match(markup, new RegExp(`H${hour}`));
-  assert.match(markup, />SELL</);
-  assert.match(markup, />BUY</);
+  assert.match(markup, /data-side="sell"/);
+  assert.match(markup, /data-side="buy"/);
+  assert.match(markup, />Bình thường</);
+  assert.match(markup, />SW</);
+  for (const weekday of ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6"]) assert.match(markup, new RegExp(`<b>${weekday}</b>`));
+  assert.match(markup, /C = Cùng · N = Ngược/);
+  assert.match(markup, /<tr data-cn-row="normal" data-active="true"><th id="h1-cn-normal-2"/);
   for (const time of ["07:25", "08:25", "11:25", "15:49", "18:49", "20:49", "07:40", "10:40", "13:40", "16:40", "19:40", "21:40"]) {
     assert.match(markup, new RegExp(time.replace(":", ":")));
   }
@@ -80,7 +85,7 @@ test("H1 history board renders six fixed block headers and two entry rows", () =
 
 test("fixed H1 board no longer renders calculated signal/evidence UI", () => {
   const markup = render("EN");
-  assert.match(markup, /fixed BUY\/SELL entry times/i);
+  assert.match(markup, /fixed SELL\/BUY times/i);
   assert.doesNotMatch(markup, /XAUUSD[^<]*BUY|XAUUSD[^<]*SELL/);
   assert.doesNotMatch(markup, /pattern|evidence|INVERT|KEEP/);
 });

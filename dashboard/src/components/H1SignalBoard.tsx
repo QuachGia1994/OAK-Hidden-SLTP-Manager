@@ -1,8 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { historyDatesForWeekday, selectHistoryDate } from "@/lib/h1-history-navigation";
-import { H1_ENTRY_BLOCK_HOURS, H1_FIXED_ENTRY_ROWS, fixedH1EntryTime } from "@/lib/h1-entry-schedule";
+import {
+  H1_ENTRY_BLOCK_HOURS,
+  H1_FIXED_ENTRY_ROWS,
+  H1_WEEKDAY_PATTERN_MODES,
+  H1_WEEKDAY_PATTERNS,
+  fixedH1EntryTime,
+  type H1WeekdayPatternMark,
+  type H1WeekdayPatternMode,
+} from "@/lib/h1-entry-schedule";
 import { deliverPngBlob, type PngDeliveryResult } from "@/lib/png-delivery";
 import type { H1SignalPayload } from "@/lib/h1-signals";
 
@@ -12,8 +20,10 @@ type ShareArtifact = { date: string; blob: Blob };
 const H1_SHARE_SCALE = 2;
 const H1_SHARE_SYMBOL_WIDTH = 148;
 const H1_SHARE_HOUR_WIDTH = 96;
-const H1_SHARE_ENTRY_ROW_HEIGHT = 54;
-const H1_SHARE_SIGNAL_ROW_HEIGHT = 54;
+const H1_SHARE_NOTE_WIDTH = 120;
+const H1_SHARE_HEADER_HEIGHT = 62;
+const H1_SHARE_GROUP_ROW_HEIGHT = 34;
+const H1_SHARE_PATTERN_ROW_HEIGHT = 44;
 const H1_SHARE_FONT = '"Cascadia Mono", "SFMono-Regular", Consolas, monospace';
 
 type H1Session = "ASIA" | "EUROPE" | "US";
@@ -39,26 +49,85 @@ function H1SessionHeaderRow({ hours, locale }: { hours: number[]; locale: Locale
         const isStart = index === 0 || sessionForBrokerHour(hours[index - 1]) !== code;
         return <th key={hour} data-session={code}>{isStart ? <span>{H1_SESSION_LABEL[locale][code]}</span> : null}</th>;
       })}
+      <th className="oak-h1-note-col" />
     </tr>
   );
 }
 
-function H1FixedEntryRows({ hours }: { hours: number[] }) {
+const H1_WEEKDAY_LABEL: Record<Locale, Record<number, string>> = {
+  EN: { 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri" },
+  VN: { 1: "Thứ 2", 2: "Thứ 3", 3: "Thứ 4", 4: "Thứ 5", 5: "Thứ 6" },
+};
+
+const H1_PATTERN_MODE_LABEL: Record<Locale, Record<H1WeekdayPatternMode, string>> = {
+  EN: { NORMAL: "Normal", SW: "SW" },
+  VN: { NORMAL: "Bình thường", SW: "SW" },
+};
+
+const H1_PATTERN_MARK_LABEL: Record<Locale, Record<H1WeekdayPatternMark, string>> = {
+  EN: { C: "Same", N: "Opposite" },
+  VN: { C: "Cùng", N: "Ngược" },
+};
+
+function patternLegend(locale: Locale) {
+  return `C = ${H1_PATTERN_MARK_LABEL[locale].C} · N = ${H1_PATTERN_MARK_LABEL[locale].N}`;
+}
+
+function brokerWeekday(dateKey: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return null;
+  return new Date(`${dateKey}T00:00:00Z`).getUTCDay();
+}
+
+function H1HourHeaderRow({ hours, locale }: { hours: number[]; locale: Locale }) {
+  return (
+    <tr>
+      <th id="h1-entry-label-header" scope="col" className="oak-h1-symbol-sticky" aria-label={locale === "EN" ? "Weekday" : "Thứ"}></th>
+      {hours.map((hour) => (
+        <th id={`h1-hour-${hour}`} scope="col" key={hour}>
+          <span>H{String(hour).padStart(2, "0")}</span>
+          <small className="oak-h1-hour-times">
+            {H1_FIXED_ENTRY_ROWS.map((side) => <i key={side} data-side={side.toLowerCase()} title={side}>{fixedH1EntryTime(side, hour)}</i>)}
+          </small>
+        </th>
+      ))}
+      <th id="h1-note-header" scope="col" className="oak-h1-note-col">{locale === "EN" ? "Note" : "Ghi chú"}</th>
+    </tr>
+  );
+}
+
+function H1WeekdayPatternRows({ hours, locale, activeWeekday }: { hours: number[]; locale: Locale; activeWeekday: number | null }) {
   return (
     <>
-      {H1_FIXED_ENTRY_ROWS.map((side) => (
-        <tr key={side}>
-          <th id={`h1-entry-row-${side.toLowerCase()}`} scope="row" className="oak-h1-symbol-sticky">
-            <b>{side}</b>
-          </th>
-          {hours.map((hour) => (
-            <td key={hour} headers={`h1-entry-row-${side.toLowerCase()} h1-hour-${hour}`}>
-              <span className="oak-h1-cell-signal" data-side={side.toLowerCase()}>
-                {fixedH1EntryTime(side, hour)}
-              </span>
-            </td>
-          ))}
-        </tr>
+      {H1_WEEKDAY_PATTERN_MODES.map((mode) => (
+        <Fragment key={mode}>
+          <tr className="oak-h1-cn-group">
+            <th scope="rowgroup" colSpan={hours.length + 2}>{H1_PATTERN_MODE_LABEL[locale][mode]}</th>
+          </tr>
+          {H1_WEEKDAY_PATTERNS[mode].map((row) => {
+            const rowId = `h1-cn-${mode.toLowerCase()}-${row.weekday}`;
+            return (
+              <tr key={rowId} data-cn-row={mode.toLowerCase()} data-active={row.weekday === activeWeekday ? "true" : undefined}>
+                <th id={rowId} scope="row" className="oak-h1-symbol-sticky"><b>{H1_WEEKDAY_LABEL[locale][row.weekday]}</b></th>
+                {hours.map((hour, index) => {
+                  const mark = row.marks[index];
+                  return (
+                    <td key={hour} headers={`${rowId} h1-hour-${hour}`}>
+                      <span
+                        className="oak-h1-cn-mark"
+                        data-mark={mark?.toLowerCase()}
+                        data-emphasis={row.emphasisFrom !== undefined && index >= row.emphasisFrom ? "true" : undefined}
+                        title={mark ? H1_PATTERN_MARK_LABEL[locale][mark] : undefined}
+                      >
+                        {mark ?? "—"}
+                      </span>
+                    </td>
+                  );
+                })}
+                <td className="oak-h1-note-col" headers={`${rowId} h1-note-header`}>{row.note?.[locale] ?? ""}</td>
+              </tr>
+            );
+          })}
+        </Fragment>
       ))}
     </>
   );
@@ -74,12 +143,16 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   if (!data.days[date]) throw new Error("Broker day unavailable");
 
   const hours = [...H1_ENTRY_BLOCK_HOURS];
+  const activeWeekday = brokerWeekday(date);
   const padding = 40;
   const titleHeight = 150;
-  const headerHeight = 50;
+  const headerHeight = H1_SHARE_HEADER_HEIGHT;
   const footerHeight = 42;
-  const tableRowsHeight = H1_FIXED_ENTRY_ROWS.length * H1_SHARE_ENTRY_ROW_HEIGHT;
-  const tableWidth = H1_SHARE_SYMBOL_WIDTH + hours.length * H1_SHARE_HOUR_WIDTH;
+  const tableRowsHeight = H1_WEEKDAY_PATTERN_MODES.reduce(
+    (sum, mode) => sum + H1_SHARE_GROUP_ROW_HEIGHT + H1_WEEKDAY_PATTERNS[mode].length * H1_SHARE_PATTERN_ROW_HEIGHT,
+    0,
+  );
+  const tableWidth = H1_SHARE_SYMBOL_WIDTH + hours.length * H1_SHARE_HOUR_WIDTH + H1_SHARE_NOTE_WIDTH;
   const logicalWidth = padding * 2 + tableWidth;
   const logicalHeight = padding + titleHeight + headerHeight + tableRowsHeight + footerHeight + padding;
   const canvas = document.createElement("canvas");
@@ -99,6 +172,9 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     accent: "#4b8cff",
     buy: "#42d39b",
     sell: "#ff6b7d",
+    markC: "#5aa2ff",
+    markN: "#f5b942",
+    activeRow: "#17304a",
   };
 
   ctx.fillStyle = colors.bg;
@@ -111,15 +187,15 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   ctx.fillText("OAK GATEKEEPER · H1 SCANNER", padding + 22, padding + 30);
   ctx.fillStyle = colors.text;
   ctx.font = `900 28px ${H1_SHARE_FONT}`;
-  ctx.fillText(locale === "EN" ? "H1 Fixed Entry-Time Matrix" : "H1 Ma trận Entry Time cố định", padding + 22, padding + 66);
+  ctx.fillText(locale === "EN" ? "H1 Weekday C/N Matrix" : "H1 Bảng C/N theo thứ", padding + 22, padding + 66);
   ctx.fillStyle = colors.muted;
   ctx.font = `700 14px ${H1_SHARE_FONT}`;
   ctx.fillText(`${locale === "EN" ? "Broker day" : "Ngày broker"}: ${date}`, padding + 22, padding + 96);
   ctx.font = `700 13px ${H1_SHARE_FONT}`;
   ctx.fillText(
     locale === "EN"
-      ? "BUY/SELL times are fixed configuration; no signal is calculated"
-      : "Mốc BUY/SELL là cấu hình cố định; không tính signal",
+      ? `${patternLegend(locale)} · column headers show fixed SELL/BUY entry times`
+      : `${patternLegend(locale)} · tiêu đề cột là mốc SELL/BUY cố định`,
     padding + 22,
     padding + 120,
   );
@@ -145,10 +221,30 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
 
   hours.forEach((hour, index) => {
     const x = tableX + H1_SHARE_SYMBOL_WIDTH + index * H1_SHARE_HOUR_WIDTH;
-    drawCentered(`H${String(hour).padStart(2, "0")}`, x, tableY, H1_SHARE_HOUR_WIDTH, headerHeight, colors.muted, `850 14px ${H1_SHARE_FONT}`);
+    drawCentered(`H${String(hour).padStart(2, "0")}`, x, tableY + 4, H1_SHARE_HOUR_WIDTH, 28, colors.text, `850 14px ${H1_SHARE_FONT}`);
+    H1_FIXED_ENTRY_ROWS.forEach((side, sideIndex) => {
+      drawCentered(
+        fixedH1EntryTime(side, hour),
+        x + sideIndex * (H1_SHARE_HOUR_WIDTH / 2),
+        tableY + 32,
+        H1_SHARE_HOUR_WIDTH / 2,
+        24,
+        side === "BUY" ? colors.buy : colors.sell,
+        `800 11px ${H1_SHARE_FONT}`,
+      );
+    });
   });
+  drawCentered(
+    locale === "EN" ? "Note" : "Ghi chú",
+    tableX + H1_SHARE_SYMBOL_WIDTH + hours.length * H1_SHARE_HOUR_WIDTH,
+    tableY,
+    H1_SHARE_NOTE_WIDTH,
+    headerHeight,
+    colors.muted,
+    `850 13px ${H1_SHARE_FONT}`,
+  );
 
-  for (let col = 0; col < hours.length; col += 1) {
+  for (let col = 0; col <= hours.length; col += 1) {
     const x = tableX + H1_SHARE_SYMBOL_WIDTH + col * H1_SHARE_HOUR_WIDTH;
     ctx.beginPath();
     ctx.moveTo(x, tableY);
@@ -156,31 +252,55 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
     ctx.stroke();
   }
 
-  H1_FIXED_ENTRY_ROWS.forEach((side, rowIndex) => {
-    const y = entryRowY + rowIndex * H1_SHARE_ENTRY_ROW_HEIGHT;
-    if (rowIndex > 0) {
-      ctx.strokeStyle = colors.border;
-      ctx.beginPath();
-      ctx.moveTo(tableX, y);
-      ctx.lineTo(tableX + tableWidth, y);
-      ctx.stroke();
-    }
-    ctx.fillStyle = side === "BUY" ? colors.buy : colors.sell;
-    ctx.font = `900 16px ${H1_SHARE_FONT}`;
+  const drawRowRule = (y: number) => {
+    ctx.strokeStyle = colors.border;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(tableX, y);
+    ctx.lineTo(tableX + tableWidth, y);
+    ctx.stroke();
+  };
+  const drawLeft = (text: string, x: number, y: number, height: number, color: string, font: string) => {
+    ctx.fillStyle = color;
+    ctx.font = font;
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillText(side, tableX + 14, y + H1_SHARE_ENTRY_ROW_HEIGHT / 2);
-    hours.forEach((hour, hourIndex) => {
-      const x = tableX + H1_SHARE_SYMBOL_WIDTH + hourIndex * H1_SHARE_HOUR_WIDTH;
-      drawCentered(
-        fixedH1EntryTime(side, hour),
-        x,
-        y,
-        H1_SHARE_HOUR_WIDTH,
-        H1_SHARE_ENTRY_ROW_HEIGHT,
-        side === "BUY" ? colors.buy : colors.sell,
-        `950 16px ${H1_SHARE_FONT}`,
-      );
+    ctx.fillText(text, x, y + height / 2);
+  };
+
+  let rowY = entryRowY;
+  H1_WEEKDAY_PATTERN_MODES.forEach((mode) => {
+    drawRowRule(rowY);
+    ctx.fillStyle = colors.raised;
+    ctx.fillRect(tableX, rowY, tableWidth, H1_SHARE_GROUP_ROW_HEIGHT);
+    drawLeft(H1_PATTERN_MODE_LABEL[locale][mode].toUpperCase(), tableX + 14, rowY, H1_SHARE_GROUP_ROW_HEIGHT, colors.text, `900 14px ${H1_SHARE_FONT}`);
+    rowY += H1_SHARE_GROUP_ROW_HEIGHT;
+
+    H1_WEEKDAY_PATTERNS[mode].forEach((row) => {
+      drawRowRule(rowY);
+      if (row.weekday === activeWeekday) {
+        ctx.fillStyle = colors.activeRow;
+        ctx.fillRect(tableX + 1, rowY + 1, tableWidth - 2, H1_SHARE_PATTERN_ROW_HEIGHT - 2);
+      }
+      drawLeft(H1_WEEKDAY_LABEL[locale][row.weekday], tableX + 14, rowY, H1_SHARE_PATTERN_ROW_HEIGHT, colors.text, `900 15px ${H1_SHARE_FONT}`);
+      hours.forEach((_, hourIndex) => {
+        const mark = row.marks[hourIndex];
+        if (!mark) return;
+        const color = mark === "C" ? colors.markC : colors.markN;
+        const emphasized = row.emphasisFrom !== undefined && hourIndex >= row.emphasisFrom;
+        const cx = tableX + H1_SHARE_SYMBOL_WIDTH + hourIndex * H1_SHARE_HOUR_WIDTH + H1_SHARE_HOUR_WIDTH / 2;
+        const cy = rowY + H1_SHARE_PATTERN_ROW_HEIGHT / 2;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = emphasized ? 2.5 : 1.2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+        ctx.stroke();
+        drawCentered(mark, cx - 14, cy - 14, 28, 28, color, `${emphasized ? 950 : 850} 15px ${H1_SHARE_FONT}`);
+      });
+      if (row.note) {
+        drawLeft(row.note[locale], tableX + H1_SHARE_SYMBOL_WIDTH + hours.length * H1_SHARE_HOUR_WIDTH + 10, rowY, H1_SHARE_PATTERN_ROW_HEIGHT, colors.muted, `800 12px ${H1_SHARE_FONT}`);
+      }
+      rowY += H1_SHARE_PATTERN_ROW_HEIGHT;
     });
   });
 
@@ -374,8 +494,8 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
   const day = date && data ? data.days[date] : undefined;
   const copy = locale === "EN"
     ? {
-        title: "H1 Fixed Entry Times",
-        sub: "Six H1 blocks · fixed BUY/SELL entry times · signal calculation disabled",
+        title: "H1 Weekday C/N Board",
+        sub: "Six H1 blocks · Normal & SW sheets · fixed SELL/BUY times in column headers",
         awaiting: "Fixed entry schedule is active",
         freeAccess: "All fixed entry-time cells unlocked",
         dateGroup: "Broker date",
@@ -383,8 +503,8 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
         coverage: `${allDates.length} trading days · ${earliestDate || "—"} → ${latestDate || "—"}`,
       }
     : {
-        title: "H1 Entry Time cố định",
-        sub: "6 block H1 · mốc BUY/SELL cố định · đã tắt logic tính signal",
+        title: "H1 Bảng C/N theo thứ",
+        sub: "6 block H1 · Bình thường & SW · mốc SELL/BUY cố định nằm trên tiêu đề cột",
         awaiting: "Lịch entry cố định đang hoạt động",
         freeAccess: "Tất cả mốc entry cố định đã được mở",
         dateGroup: "Ngày broker",
@@ -443,8 +563,7 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
   };
 
   if (!data) {
-    // Keep the unified date picker usable while storage recovers so the H1
-    // surface never needs a second History route just to navigate broker days.
+    // Keep the unified date picker usable while storage recovers so the H1 surface never needs a second History route just to navigate broker days.
     const today = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Ho_Chi_Minh",
       year: "numeric",
@@ -486,10 +605,11 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
         <p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe if the table extends beyond the screen" : "Vuốt ngang nếu bảng rộng hơn màn hình"}</p>
         <div ref={tableScrollRef} className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
-            <thead><H1SessionHeaderRow hours={fallbackHours} locale={locale} /><tr><th id="h1-entry-label-header" scope="col" className="oak-h1-symbol-sticky" aria-label={locale === "EN" ? "Entry time" : "Entry time"}></th>{fallbackHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour}><span>H{String(hour).padStart(2, "0")}</span></th>)}</tr></thead>
-            <tbody><H1FixedEntryRows hours={fallbackHours} /></tbody>
+            <thead><H1SessionHeaderRow hours={fallbackHours} locale={locale} /><H1HourHeaderRow hours={fallbackHours} locale={locale} /></thead>
+            <tbody><H1WeekdayPatternRows hours={fallbackHours} locale={locale} activeWeekday={brokerWeekday(fallbackDate)} /></tbody>
           </table>
         </div>
+        <p className="oak-h1-cn-legend">{patternLegend(locale)}</p>
       </section>
     );
   }
@@ -550,10 +670,10 @@ export function H1SignalBoard({ data, degraded, locale }: { data: H1SignalPayloa
         </div>
         {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : <><p className="oak-h1-scroll-hint">{locale === "EN" ? "Swipe if the table extends beyond the screen" : "Vuốt ngang nếu bảng rộng hơn màn hình"}</p><div ref={tableScrollRef} className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
-            <thead><H1SessionHeaderRow hours={activeHours} locale={locale} /><tr><th id="h1-entry-label-header" scope="col" className="oak-h1-symbol-sticky" aria-label={locale === "EN" ? "Entry time" : "Entry time"}></th>{activeHours.map((hour) => <th id={`h1-hour-${hour}`} scope="col" key={hour}><span>H{String(hour).padStart(2, "0")}</span></th>)}</tr></thead>
-            <tbody><H1FixedEntryRows hours={activeHours} /></tbody>
+            <thead><H1SessionHeaderRow hours={activeHours} locale={locale} /><H1HourHeaderRow hours={activeHours} locale={locale} /></thead>
+            <tbody><H1WeekdayPatternRows hours={activeHours} locale={locale} activeWeekday={brokerWeekday(date)} /></tbody>
           </table>
-        </div></>}
+        </div><p className="oak-h1-cn-legend">{patternLegend(locale)}</p></>}
       </section>
     </>
   );

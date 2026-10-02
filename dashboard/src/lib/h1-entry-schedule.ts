@@ -18,3 +18,37 @@ export function fixedH1EntryTime(side: H1EntrySide, blockHour: number): string {
   if (!(H1_ENTRY_BLOCK_HOURS as readonly number[]).includes(blockHour)) return "—";
   return H1_FIXED_ENTRY_TIMES[blockHour as H1EntryBlockHour][side];
 }
+
+export type H1WeekdayPatternMode = "NORMAL" | "SW";
+// C = Cùng (same direction), N = Ngược (opposite direction).
+export type H1WeekdayPatternMark = "C" | "N";
+
+// weekday = getUTCDay of the broker date (1 = Monday/Thứ 2); marks align index-for-index with H1_ENTRY_BLOCK_HOURS; emphasisFrom = start of the bracketed tail in the owner sheet.
+export type H1WeekdayPatternRow = {
+  weekday: 1 | 2 | 3 | 4 | 5;
+  marks: readonly H1WeekdayPatternMark[];
+  emphasisFrom?: number;
+  note?: { EN: string; VN: string };
+};
+
+export const H1_WEEKDAY_PATTERN_MODES: readonly H1WeekdayPatternMode[] = ["NORMAL", "SW"];
+
+const GBPAUD_NOTE = { EN: "GBPAUD", VN: "GBPAUD" };
+const WIDE_SW_NOTE = { EN: "Wide SW", VN: "SW rộng" };
+
+export const H1_WEEKDAY_PATTERNS: Record<H1WeekdayPatternMode, readonly H1WeekdayPatternRow[]> = {
+  NORMAL: [
+    { weekday: 4, marks: ["C", "C", "C", "N", "C", "N"], emphasisFrom: 2 },
+    { weekday: 5, marks: ["C", "N", "N", "C", "N", "C"], note: GBPAUD_NOTE },
+    { weekday: 1, marks: ["N", "N", "C", "C", "N", "C"], emphasisFrom: 2 },
+    { weekday: 2, marks: ["C", "N", "N", "N", "C", "N"], note: GBPAUD_NOTE },
+    { weekday: 3, marks: ["N", "C", "C", "C", "N", "N"], note: WIDE_SW_NOTE },
+  ],
+  SW: [
+    { weekday: 4, marks: ["C", "C", "N", "C", "N", "C"], emphasisFrom: 2 },
+    { weekday: 5, marks: ["N", "N", "C", "C", "N", "C"], note: GBPAUD_NOTE },
+    { weekday: 1, marks: ["N", "N", "N", "N", "C", "N"], emphasisFrom: 2 },
+    { weekday: 2, marks: ["N", "C", "C", "C", "N", "C"], note: GBPAUD_NOTE },
+    { weekday: 3, marks: ["C", "N", "N", "N", "C", "C"], note: WIDE_SW_NOTE },
+  ],
+};

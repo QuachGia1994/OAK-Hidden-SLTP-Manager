@@ -93,7 +93,7 @@ test("H1 fixed entry table keeps row/column semantics and no longer exposes calc
   assert.match(h1SignalSource, /scope="col"/);
   assert.match(h1SignalSource, /scope="row"/);
   assert.match(h1SignalSource, /H1_FIXED_ENTRY_ROWS/);
-  assert.match(h1SignalSource, /h1-entry-row-/);
+  assert.match(h1SignalSource, /h1-cn-\$\{mode\.toLowerCase\(\)\}-/);
   assert.match(h1SignalSource, /fixedH1EntryTime\(side, hour\)/);
   assert.doesNotMatch(h1SignalSource, /H1EvidencePanel|oak-h1-cell-evidence|patternGroup|postSignalInverted/);
   assert.doesNotMatch(h1SignalSource, /VIP required|oak-h1-cell-locked/);

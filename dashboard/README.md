@@ -31,11 +31,11 @@ H1 public feed key:
 
 Current public schema remains v18. Cloud state remains schema-stable v56 and the fixed-entry contract is signal-rule version v102.
 
-H1 rule v102 is fixed-entry-only across exactly six blocks (`H3/H4/H7/H10/H13/H16`). The table has two rows and no calculated signal row: SELL = `07:25 / 08:25 / 11:25 / 15:49 / 18:49 / 20:49`; BUY = `07:40 / 10:40 / 13:40 / 16:40 / 19:40 / 21:40`. Candle, pattern, reversal and derived BUY/SELL calculation are intentionally removed until a new signal rule is implemented.
+H1 rule v102 is fixed-entry-only across exactly six blocks (`H3/H4/H7/H10/H13/H16`). Each block header carries its fixed times: SELL = `07:25 / 08:25 / 11:25 / 15:49 / 18:49 / 20:49`; BUY = `07:40 / 10:40 / 13:40 / 16:40 / 19:40 / 21:40`. The table body is the operator-owned weekday C/N sheet (`H1_WEEKDAY_PATTERNS` in `src/lib/h1-entry-schedule.ts`; C = Cùng/same, N = Ngược/opposite) in two groups, Normal and SW, rows Thu → Fri → Mon → Tue → Wed with a note column; the selected broker date's weekday row is highlighted. Candle, pattern, reversal and derived BUY/SELL calculation are intentionally removed until a new signal rule is implemented.
 
 Automatic H1 scanner/backfill scheduling is disabled. `/api/h1-scanner/local-market` validates provenance but returns `calculationDisabled: true`, and the GitHub H1 workflow is manual-only. Timed Telegram entry commands remain an independent operator-owned broker-execution path; they no longer depend on candle/pattern scanner output.
 
-The H1 UI synthesizes a 90-calendar-day weekday history shell for date navigation. Every retained weekday renders the same fixed BUY/SELL entry-time table; no historical candle reconstruction or signal backfill is performed.
+The H1 UI synthesizes a 90-calendar-day weekday history shell for date navigation. Every retained weekday renders the same fixed weekday C/N table, highlighting that date's weekday row; no historical candle reconstruction or signal backfill is performed, so history reflects a table change on the next deploy without a rebuild step.
 
 Run locally:
 
