@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.3] - 2026-10-02
+
+### Fixed
+
+- H1 C/N board: H03 for Thứ 3 and Thứ 4 is C in both the Normal and SW (Sideway) groups (Normal Thứ 4 and SW Thứ 3 were N).
+
 ## [1.1.2] - 2026-10-02
 
 ### Fixed

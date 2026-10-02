@@ -2,6 +2,12 @@
 
 All notable changes to the dashboard are recorded here.
 
+## [1.1.3] - 2026-10-02
+
+### Fixed
+
+- H03 mark for Thứ 3 / Thứ 4 is C in both Normal and SW groups.
+
 ## [1.1.2] - 2026-10-02
 
 ### Fixed
