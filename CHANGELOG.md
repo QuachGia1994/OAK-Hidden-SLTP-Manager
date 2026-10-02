@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.2] - 2026-10-02
+
+### Fixed
+
+- H1 BUY times and the H07 SELL time from 1.1.1 were broker-server times; they now display in Vietnam time (+4h), matching the other entries and Telegram slot anchors: BUY 07:35 / 08:35 / 13:35 / 16:35 / 19:35 / 21:35, H07 SELL 12:49.
+
 ## [1.1.1] - 2026-10-02
 
 ### Changed

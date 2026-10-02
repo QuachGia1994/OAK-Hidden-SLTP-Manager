@@ -2,6 +2,12 @@
 
 All notable changes to the dashboard are recorded here.
 
+## [1.1.2] - 2026-10-02
+
+### Fixed
+
+- H1 BUY times and H07 SELL converted from broker time to Vietnam time (+4h): BUY 07:35 / 08:35 / 13:35 / 16:35 / 19:35 / 21:35, H07 SELL 12:49.
+
 ## [1.1.1] - 2026-10-02
 
 ### Changed
