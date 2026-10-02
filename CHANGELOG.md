@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.0] - 2026-10-02
+
+### Changed
+
+- H1 board now shows the operator weekday C/N sheet (C = Cùng, N = Ngược) instead of the SELL/BUY time rows: Normal and SW groups with rows Thu/Fri/Mon/Tue/Wed over H03/H04/H07/H10/H13/H16, a note column (GBPAUD, wide SW), and the selected broker date's weekday highlighted. The fixed SELL/BUY times (rule v102, unchanged) move into each block header; web and PNG export match. Retained history is synthesized per request, so every history date shows the new board without a rebuild.
+
 ## [1.0.2] - 2026-09-30
 
 ### Fixed

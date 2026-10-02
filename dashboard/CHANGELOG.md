@@ -2,6 +2,12 @@
 
 All notable changes to the dashboard are recorded here.
 
+## [1.1.0] - 2026-10-02
+
+### Changed
+
+- Replaced the H1 SELL/BUY time rows with the operator weekday C/N board (C = Cùng/same, N = Ngược/opposite): Normal and SW groups, Thu → Fri → Mon → Tue → Wed rows across H03/H04/H07/H10/H13/H16, bracketed tails emphasized, a GBPAUD / wide-SW note column, and the selected broker date's weekday row highlighted. Fixed SELL/BUY times move into each block header; the PNG export renders the same board.
+
 ## [1.0.2] - 2026-09-30
 
 ### Fixed
