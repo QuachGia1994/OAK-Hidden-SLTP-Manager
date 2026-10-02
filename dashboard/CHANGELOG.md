@@ -2,6 +2,16 @@
 
 All notable changes to the dashboard are recorded here.
 
+## [1.1.1] - 2026-10-02
+
+### Changed
+
+- H1 blocks are now H03/H04/H07/H11/H14/H16 (H10 → H11, H13 → H14). SELL 07:25 / 08:25 / 08:49 / 15:49 / 18:49 / 20:49; BUY 03:35 / 04:35 / 09:35 / 12:35 / 15:35 / 17:35. Thứ 6 note shows EURAUD.
+
+### Fixed
+
+- Mobile (≤759px) C/N board: stacked SELL/BUY header times, smaller marks, narrow weekday/note columns, EN `EU` short session label — fits 360px screens without overlap.
+
 ## [1.1.0] - 2026-10-02
 
 ### Changed

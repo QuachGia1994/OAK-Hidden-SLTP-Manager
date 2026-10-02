@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.1] - 2026-10-02
+
+### Changed
+
+- H1 entry blocks move H10 → H11 and H13 → H14, with new fixed times: SELL 07:25 / 08:25 / 08:49 / 15:49 / 18:49 / 20:49 and BUY 03:35 / 04:35 / 09:35 / 12:35 / 15:35 / 17:35 for H03/H04/H07/H11/H14/H16. Thứ 6 rows carry an EURAUD note. Telegram slot anchors follow the new times.
+
+### Fixed
+
+- H1 C/N board on phones (iPhone, ~360px Android such as Meizu Note 8): SELL/BUY header times no longer overlap (stacked per block), C/N marks no longer collide, weekday/note columns are narrowed so the board fits without sideways scroll, and the EN EUROPE session label shortens to EU.
+
 ## [1.1.0] - 2026-10-02
 
 ### Changed
