@@ -4,12 +4,12 @@ export type H1EntryBlockHour = typeof H1_ENTRY_BLOCK_HOURS[number];
 export type H1EntrySide = "SELL" | "BUY";
 
 export const H1_FIXED_ENTRY_TIMES: Record<H1EntryBlockHour, Record<H1EntrySide, string>> = {
-  3: { SELL: "07:25", BUY: "03:35" },
-  4: { SELL: "08:25", BUY: "04:35" },
-  7: { SELL: "08:49", BUY: "09:35" },
-  11: { SELL: "15:49", BUY: "12:35" },
-  14: { SELL: "18:49", BUY: "15:35" },
-  16: { SELL: "20:49", BUY: "17:35" },
+  3: { SELL: "07:25", BUY: "07:35" },
+  4: { SELL: "08:25", BUY: "08:35" },
+  7: { SELL: "12:49", BUY: "13:35" },
+  11: { SELL: "15:49", BUY: "16:35" },
+  14: { SELL: "18:49", BUY: "19:35" },
+  16: { SELL: "20:49", BUY: "21:35" },
 };
 
 export const H1_FIXED_ENTRY_ROWS: readonly H1EntrySide[] = ["SELL", "BUY"];

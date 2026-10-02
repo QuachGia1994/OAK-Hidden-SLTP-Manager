@@ -80,7 +80,7 @@ test("H1 history board renders six block headers with fixed times and the weekda
   assert.match(markup, /C = Cùng · N = Ngược/);
   assert.match(markup, /<tr data-cn-row="normal" data-active="true"><th id="h1-cn-normal-2"/);
   assert.match(markup, /<b>Thứ 6<\/b><\/th>(?:(?!<\/tr>).)*>EURAUD<\/td>/);
-  for (const time of ["07:25", "08:25", "08:49", "15:49", "18:49", "20:49", "03:35", "04:35", "09:35", "12:35", "15:35", "17:35"]) {
+  for (const time of ["07:25", "08:25", "12:49", "15:49", "18:49", "20:49", "07:35", "08:35", "13:35", "16:35", "19:35", "21:35"]) {
     assert.match(markup, new RegExp(time.replace(":", ":")));
   }
 });
