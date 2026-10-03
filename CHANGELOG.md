@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.4] - 2026-10-03
+
+### Fixed
+
+- H1 C/N board: H16 no longer shows a C/N mark; it shows the close time per group, 21:35 for Normal and 20:05 for SW.
+- H1 C/N board notes: Thứ 5 reads "Giá mở Thứ 2" and Thứ 2 reads "Giá mở Thứ 6 ngược" in both groups.
+
 ## [1.1.3] - 2026-10-02
 
 ### Fixed

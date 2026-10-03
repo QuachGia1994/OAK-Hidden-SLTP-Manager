@@ -2,6 +2,13 @@
 
 All notable changes to the dashboard are recorded here.
 
+## [1.1.4] - 2026-10-03
+
+### Fixed
+
+- H16 shows the group close time (Normal 21:35, SW 20:05) instead of a C/N mark.
+- Thứ 5 note "Giá mở Thứ 2", Thứ 2 note "Giá mở Thứ 6 ngược" in Normal and SW.
+
 ## [1.1.3] - 2026-10-02
 
 ### Fixed
