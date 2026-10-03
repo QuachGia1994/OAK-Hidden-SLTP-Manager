@@ -80,9 +80,15 @@ test("H1 history board renders six block headers with fixed times and the weekda
   assert.match(markup, /C = Cùng · N = Ngược/);
   assert.match(markup, /<tr data-cn-row="normal" data-active="true"><th id="h1-cn-normal-2"/);
   assert.match(markup, /<b>Thứ 6<\/b><\/th>(?:(?!<\/tr>).)*>EURAUD<\/td>/);
-  for (const time of ["07:25", "08:25", "12:49", "15:49", "18:49", "20:49", "07:35", "08:35", "13:35", "16:35", "19:35", "21:35"]) {
+  for (const time of ["07:25", "08:25", "12:49", "15:49", "18:49", "07:35", "08:35", "13:35", "16:35", "19:35"]) {
     assert.match(markup, new RegExp(time.replace(":", ":")));
   }
+  assert.doesNotMatch(markup, /20:49/);
+  assert.match(markup, /<i data-side="close">Đóng<\/i>/);
+  assert.match(markup, /headers="h1-cn-normal-4 h1-hour-16"><span class="oak-h1-close-time" title="Đóng 21:35">21:35<\/span>/);
+  assert.match(markup, /headers="h1-cn-sw-4 h1-hour-16"><span class="oak-h1-close-time" title="Đóng 20:05">20:05<\/span>/);
+  assert.match(markup, /<b>Thứ 5<\/b><\/th>(?:(?!<\/tr>).)*>Giá mở Thứ 2<\/td>/);
+  assert.match(markup, /<b>Thứ 2<\/b><\/th>(?:(?!<\/tr>).)*>Giá mở Thứ 6 ngược<\/td>/);
 });
 
 test("fixed H1 board no longer renders calculated signal/evidence UI", () => {
