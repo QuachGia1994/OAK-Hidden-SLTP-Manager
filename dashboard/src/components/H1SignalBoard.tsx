@@ -3,8 +3,10 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { historyDatesForWeekday, selectHistoryDate } from "@/lib/h1-history-navigation";
 import {
+  H1_CLOSE_BLOCK_HOUR,
   H1_ENTRY_BLOCK_HOURS,
   H1_FIXED_ENTRY_ROWS,
+  H1_PATTERN_CLOSE_TIMES,
   H1_WEEKDAY_PATTERN_MODES,
   H1_WEEKDAY_PATTERNS,
   fixedH1EntryTime,
@@ -72,6 +74,10 @@ const H1_PATTERN_MARK_LABEL: Record<Locale, Record<H1WeekdayPatternMark, string>
   VN: { C: "Cùng", N: "Ngược" },
 };
 
+function closeLabel(locale: Locale) {
+  return locale === "EN" ? "Close" : "Đóng";
+}
+
 function patternLegend(locale: Locale) {
   return `C = ${H1_PATTERN_MARK_LABEL[locale].C} · N = ${H1_PATTERN_MARK_LABEL[locale].N}`;
 }
@@ -89,7 +95,9 @@ function H1HourHeaderRow({ hours, locale }: { hours: number[]; locale: Locale })
         <th id={`h1-hour-${hour}`} scope="col" key={hour}>
           <span>H{String(hour).padStart(2, "0")}</span>
           <small className="oak-h1-hour-times">
-            {H1_FIXED_ENTRY_ROWS.map((side) => <i key={side} data-side={side.toLowerCase()} title={side}>{fixedH1EntryTime(side, hour)}</i>)}
+            {hour === H1_CLOSE_BLOCK_HOUR
+              ? <i data-side="close">{closeLabel(locale)}</i>
+              : H1_FIXED_ENTRY_ROWS.map((side) => <i key={side} data-side={side.toLowerCase()} title={side}>{fixedH1EntryTime(side, hour)}</i>)}
           </small>
         </th>
       ))}
@@ -112,6 +120,13 @@ function H1WeekdayPatternRows({ hours, locale, activeWeekday }: { hours: number[
               <tr key={rowId} data-cn-row={mode.toLowerCase()} data-active={row.weekday === activeWeekday ? "true" : undefined}>
                 <th id={rowId} scope="row" className="oak-h1-symbol-sticky"><b>{H1_WEEKDAY_LABEL[locale][row.weekday]}</b></th>
                 {hours.map((hour, index) => {
+                  if (hour === H1_CLOSE_BLOCK_HOUR) {
+                    return (
+                      <td key={hour} headers={`${rowId} h1-hour-${hour}`}>
+                        <span className="oak-h1-close-time" title={`${closeLabel(locale)} ${H1_PATTERN_CLOSE_TIMES[mode]}`}>{H1_PATTERN_CLOSE_TIMES[mode]}</span>
+                      </td>
+                    );
+                  }
                   const mark = row.marks[index];
                   return (
                     <td key={hour} headers={`${rowId} h1-hour-${hour}`}>
@@ -225,6 +240,10 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
   hours.forEach((hour, index) => {
     const x = tableX + H1_SHARE_SYMBOL_WIDTH + index * H1_SHARE_HOUR_WIDTH;
     drawCentered(`H${String(hour).padStart(2, "0")}`, x, tableY + 4, H1_SHARE_HOUR_WIDTH, 28, colors.text, `850 14px ${H1_SHARE_FONT}`);
+    if (hour === H1_CLOSE_BLOCK_HOUR) {
+      drawCentered(closeLabel(locale), x, tableY + 32, H1_SHARE_HOUR_WIDTH, 24, colors.muted, `800 11px ${H1_SHARE_FONT}`);
+      return;
+    }
     H1_FIXED_ENTRY_ROWS.forEach((side, sideIndex) => {
       drawCentered(
         fixedH1EntryTime(side, hour),
@@ -286,7 +305,11 @@ async function renderScannerPng(data: H1SignalPayload, date: string, locale: Loc
         ctx.fillRect(tableX + 1, rowY + 1, tableWidth - 2, H1_SHARE_PATTERN_ROW_HEIGHT - 2);
       }
       drawLeft(H1_WEEKDAY_LABEL[locale][row.weekday], tableX + 14, rowY, H1_SHARE_PATTERN_ROW_HEIGHT, colors.text, `900 15px ${H1_SHARE_FONT}`);
-      hours.forEach((_, hourIndex) => {
+      hours.forEach((hour, hourIndex) => {
+        if (hour === H1_CLOSE_BLOCK_HOUR) {
+          drawCentered(H1_PATTERN_CLOSE_TIMES[mode], tableX + H1_SHARE_SYMBOL_WIDTH + hourIndex * H1_SHARE_HOUR_WIDTH, rowY, H1_SHARE_HOUR_WIDTH, H1_SHARE_PATTERN_ROW_HEIGHT, colors.text, `850 14px ${H1_SHARE_FONT}`);
+          return;
+        }
         const mark = row.marks[hourIndex];
         if (!mark) return;
         const color = mark === "C" ? colors.markC : colors.markN;

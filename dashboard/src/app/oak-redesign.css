@@ -278,6 +278,8 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-h1-hour-times i { font-style: normal; }
 .oak-h1-hour-times i[data-side="sell"] { color: var(--oak-signal-sell); }
 .oak-h1-hour-times i[data-side="buy"] { color: var(--oak-signal-buy); }
+.oak-h1-hour-times i[data-side="close"] { color: var(--oak-text-muted, currentColor); }
+.oak-h1-close-time { font: 850 var(--oak-text-meta)/1 "Cascadia Mono", Consolas, monospace; white-space: nowrap; }
 .oak-h1-table .oak-h1-note-col { width: 7rem; min-width: 7rem; padding: 0 .6rem; color: var(--oak-fg-muted); font: 700 var(--oak-text-meta)/1.2 "Cascadia Mono", Consolas, monospace; text-align: left; }
 .oak-h1-cn-group th { padding: .45rem .75rem; text-align: left; color: var(--oak-fg-primary); background: var(--oak-bg-raised); font: 900 var(--oak-text-meta)/1 "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
 .oak-h1-table tbody tr[data-cn-row] td { padding: .3rem .2rem; text-align: center; vertical-align: middle; }

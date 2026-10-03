@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { H1_FIXED_ENTRY_TIMES, H1_WEEKDAY_PATTERNS } from "./h1-entry-schedule.ts";
+import { H1_FIXED_ENTRY_TIMES, H1_PATTERN_CLOSE_TIMES, H1_WEEKDAY_PATTERNS } from "./h1-entry-schedule.ts";
 
 const readerSource = readFileSync(new URL("./h1-signals.ts", import.meta.url), "utf8");
 const boardSource = readFileSync(new URL("../components/H1SignalBoard.tsx", import.meta.url), "utf8");
@@ -30,8 +30,19 @@ test("fixed BUY/SELL entry-time source of truth matches owner values", () => {
 
 test("weekday C/N pattern source of truth matches owner sheet", () => {
   const flatten = (mode: keyof typeof H1_WEEKDAY_PATTERNS) => H1_WEEKDAY_PATTERNS[mode].map((row) => [row.weekday, row.marks.join("")]);
-  assert.deepEqual(flatten("NORMAL"), [[4, "CCCNCN"], [5, "CNNCNC"], [1, "NNCCNC"], [2, "CNNNCN"], [3, "CCCCNN"]]);
-  assert.deepEqual(flatten("SW"), [[4, "CCNCNC"], [5, "NNCCNC"], [1, "NNNNCN"], [2, "CCCCNC"], [3, "CNNNCC"]]);
+  assert.deepEqual(flatten("NORMAL"), [[4, "CCCNC"], [5, "CNNCN"], [1, "NNCCN"], [2, "CNNNC"], [3, "CCCCN"]]);
+  assert.deepEqual(flatten("SW"), [[4, "CCNCN"], [5, "NNCCN"], [1, "NNNNC"], [2, "CCCCN"], [3, "CNNNC"]]);
+  for (const mode of ["NORMAL", "SW"] as const) {
+    const notes = Object.fromEntries(H1_WEEKDAY_PATTERNS[mode].map((row) => [row.weekday, row.note?.VN]));
+    assert.equal(notes[4], "Giá mở Thứ 2");
+    assert.equal(notes[1], "Giá mở Thứ 6 ngược");
+  }
+});
+
+test("H16 carries no C/N mark, only the per-group close time", () => {
+  assert.deepEqual(H1_PATTERN_CLOSE_TIMES, { NORMAL: "21:35", SW: "20:05" });
+  assert.match(boardSource, /hour === H1_CLOSE_BLOCK_HOUR/);
+  assert.match(boardSource, /H1_PATTERN_CLOSE_TIMES\[mode\]/);
 });
 
 test("web H1 board renders weekday C/N pattern rows with fixed BUY/SELL times in the header", () => {

@@ -23,7 +23,7 @@ export type H1WeekdayPatternMode = "NORMAL" | "SW";
 // C = Cùng (same direction), N = Ngược (opposite direction).
 export type H1WeekdayPatternMark = "C" | "N";
 
-// weekday = getUTCDay of the broker date (1 = Monday/Thứ 2); marks align index-for-index with H1_ENTRY_BLOCK_HOURS; emphasisFrom = start of the bracketed tail in the owner sheet.
+// weekday = broker-date getUTCDay; marks align with H1_ENTRY_BLOCK_HOURS minus the close block; emphasisFrom = bracketed tail start.
 export type H1WeekdayPatternRow = {
   weekday: 1 | 2 | 3 | 4 | 5;
   marks: readonly H1WeekdayPatternMark[];
@@ -33,23 +33,28 @@ export type H1WeekdayPatternRow = {
 
 export const H1_WEEKDAY_PATTERN_MODES: readonly H1WeekdayPatternMode[] = ["NORMAL", "SW"];
 
+export const H1_CLOSE_BLOCK_HOUR: H1EntryBlockHour = 16;
+export const H1_PATTERN_CLOSE_TIMES: Record<H1WeekdayPatternMode, string> = { NORMAL: "21:35", SW: "20:05" };
+
+const MONDAY_OPEN_NOTE = { EN: "Mon open", VN: "Giá mở Thứ 2" };
+const FRIDAY_OPEN_OPPOSITE_NOTE = { EN: "Fri open, opposite", VN: "Giá mở Thứ 6 ngược" };
 const GBPAUD_NOTE = { EN: "GBPAUD", VN: "GBPAUD" };
 const EURAUD_NOTE = { EN: "EURAUD", VN: "EURAUD" };
 const WIDE_SW_NOTE = { EN: "Wide SW", VN: "SW rộng" };
 
 export const H1_WEEKDAY_PATTERNS: Record<H1WeekdayPatternMode, readonly H1WeekdayPatternRow[]> = {
   NORMAL: [
-    { weekday: 4, marks: ["C", "C", "C", "N", "C", "N"], emphasisFrom: 2 },
-    { weekday: 5, marks: ["C", "N", "N", "C", "N", "C"], note: EURAUD_NOTE },
-    { weekday: 1, marks: ["N", "N", "C", "C", "N", "C"], emphasisFrom: 2 },
-    { weekday: 2, marks: ["C", "N", "N", "N", "C", "N"], note: GBPAUD_NOTE },
-    { weekday: 3, marks: ["C", "C", "C", "C", "N", "N"], note: WIDE_SW_NOTE },
+    { weekday: 4, marks: ["C", "C", "C", "N", "C"], emphasisFrom: 2, note: MONDAY_OPEN_NOTE },
+    { weekday: 5, marks: ["C", "N", "N", "C", "N"], note: EURAUD_NOTE },
+    { weekday: 1, marks: ["N", "N", "C", "C", "N"], emphasisFrom: 2, note: FRIDAY_OPEN_OPPOSITE_NOTE },
+    { weekday: 2, marks: ["C", "N", "N", "N", "C"], note: GBPAUD_NOTE },
+    { weekday: 3, marks: ["C", "C", "C", "C", "N"], note: WIDE_SW_NOTE },
   ],
   SW: [
-    { weekday: 4, marks: ["C", "C", "N", "C", "N", "C"], emphasisFrom: 2 },
-    { weekday: 5, marks: ["N", "N", "C", "C", "N", "C"], note: EURAUD_NOTE },
-    { weekday: 1, marks: ["N", "N", "N", "N", "C", "N"], emphasisFrom: 2 },
-    { weekday: 2, marks: ["C", "C", "C", "C", "N", "C"], note: GBPAUD_NOTE },
-    { weekday: 3, marks: ["C", "N", "N", "N", "C", "C"], note: WIDE_SW_NOTE },
+    { weekday: 4, marks: ["C", "C", "N", "C", "N"], emphasisFrom: 2, note: MONDAY_OPEN_NOTE },
+    { weekday: 5, marks: ["N", "N", "C", "C", "N"], note: EURAUD_NOTE },
+    { weekday: 1, marks: ["N", "N", "N", "N", "C"], emphasisFrom: 2, note: FRIDAY_OPEN_OPPOSITE_NOTE },
+    { weekday: 2, marks: ["C", "C", "C", "C", "N"], note: GBPAUD_NOTE },
+    { weekday: 3, marks: ["C", "N", "N", "N", "C"], note: WIDE_SW_NOTE },
   ],
 };
